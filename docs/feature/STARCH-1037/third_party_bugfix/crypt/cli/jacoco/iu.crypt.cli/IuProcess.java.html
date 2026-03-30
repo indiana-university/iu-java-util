@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuProcess.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Web Cryptography CLI</a> &gt; <a href="index.source.html" class="el_package">iu.crypt.cli</a> &gt; <span class="el_source">IuProcess.java</span></div><h1>IuProcess.java</h1><pre class="source lang-java linenums">package iu.crypt.cli;
+
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuStream;
+import edu.iu.IuText;
+import edu.iu.IuUtilityTaskController;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Type;
+
+/**
+ * Simple utility for executing commands using the JVM process shell
+ * environment.
+ */
+final class IuProcess {
+
+<span class="fc" id="L31">	private static final Logger LOG = Logger.getLogger(IuProcess.class.getName());</span>
+
+<span class="fc" id="L33">	private static final Queue&lt;Path&gt; TEMP_FILES = new ConcurrentLinkedQueue&lt;&gt;();</span>
+
+	/**
+	 * Reads text from {@link System#in}.
+	 * 
+	 * @return UTF-8 text read from {@link System#in}
+	 */
+	static String read() {
+<span class="fc" id="L41">		return IuException.unchecked(() -&gt; IuUtilityTaskController.getBefore( //</span>
+<span class="fc" id="L42">				() -&gt; IuText.utf8(IuStream.read(System.in)), Instant.now().plusSeconds(15L)));</span>
+	}
+
+	/**
+	 * Read a passphrase from {@link System#in}.
+	 * 
+	 * @return {@link WebKey}
+	 */
+	static WebKey passphrase() {
+<span class="fc" id="L51">		String passphraseInput = read().trim();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">		if (passphraseInput.length() &lt; 16)</span>
+<span class="fc" id="L53">			throw new IllegalArgumentException(&quot;Passphrase must be at least 16 characters&quot;);</span>
+
+<span class="fc" id="L55">		return WebKey //</span>
+<span class="fc" id="L56">				.builder(Type.RAW) //</span>
+<span class="fc" id="L57">				.key(IuText.utf8(passphraseInput)) //</span>
+<span class="fc" id="L58">				.build();</span>
+	}
+
+	/**
+	 * Creates a temporary file.
+	 * 
+	 * @return temp file
+	 */
+	static Path createTempFile() {
+<span class="fc" id="L67">		final var temp = IuException.unchecked(() -&gt; Files.createTempFile(&quot;iu-crypt-cli-&quot;, &quot;&quot;));</span>
+<span class="fc" id="L68">		TEMP_FILES.offer(temp);</span>
+<span class="fc" id="L69">		return temp;</span>
+	}
+
+	/**
+	 * Creates a temporary directory.
+	 * 
+	 * @return temp file
+	 */
+	static Path createTempDirectory() {
+<span class="fc" id="L78">		final var temp = IuException.unchecked(() -&gt; Files.createTempDirectory(&quot;iu-crypt-cli-&quot;));</span>
+<span class="fc" id="L79">		TEMP_FILES.offer(temp);</span>
+<span class="fc" id="L80">		return temp;</span>
+	}
+
+	/**
+	 * Deletes all temporary files created so far.
+	 */
+	static void deleteTempFiles() {
+<span class="fc bfc" id="L87" title="All 2 branches covered.">		while (!TEMP_FILES.isEmpty())</span>
+			try {
+<span class="fc" id="L89">				final var path = TEMP_FILES.poll();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">				if (Files.isDirectory(path))</span>
+<span class="fc" id="L91">					try (final var list = Files.list(path)) {</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">						for (final var file : IuIterable.of(list::iterator))</span>
+							try {
+<span class="fc" id="L94">								Files.delete(file);</span>
+<span class="fc" id="L95">							} catch (Throwable e) {</span>
+<span class="fc" id="L96">								e.printStackTrace();</span>
+<span class="fc" id="L97">							}</span>
+					}
+
+<span class="fc" id="L100">				Files.deleteIfExists(path);</span>
+<span class="fc" id="L101">			} catch (Throwable e) {</span>
+<span class="fc" id="L102">				e.printStackTrace();</span>
+<span class="fc" id="L103">			}</span>
+<span class="fc" id="L104">	}</span>
+
+	/**
+	 * Writes a value to a temp file
+	 * 
+	 * @param &lt;T&gt;         value type
+	 * @param printHandle method handle for writing the content using
+	 *                    {@link PrintStream}
+	 * @param value       value
+	 * @return {@link Path} to the temp file
+	 */
+	static &lt;T&gt; Path temp(BiConsumer&lt;PrintStream, T&gt; printHandle, T value) {
+<span class="fc" id="L116">		final var path = createTempFile();</span>
+<span class="fc" id="L117">		IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L118">			try (final var out = Files.newOutputStream(path); //</span>
+<span class="fc" id="L119">					final var printStream = new PrintStream(out)) {</span>
+<span class="fc" id="L120">				printHandle.accept(printStream, value);</span>
+			}
+<span class="fc" id="L122">		});</span>
+<span class="fc" id="L123">		return path;</span>
+	}
+
+	/**
+	 * Prints encoded key data in PEM format, for interoperability with OpenSSL.
+	 * 
+	 * @param out     {@link PrintStream}, receives PEM data then flushes.
+	 * @param header  PEM header string
+	 * @param encoded encoded key data
+	 */
+	private static void pem(PrintStream out, String header, byte[] encoded) {
+<span class="fc" id="L134">		out.println(&quot;-----BEGIN &quot; + header + &quot;-----&quot;);</span>
+<span class="fc" id="L135">		final var sb = new StringBuilder(IuText.base64(encoded));</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">		for (var pos = 0; pos &lt; sb.length() - 1; pos += 65) {</span>
+<span class="fc" id="L137">			final var e = pos + 65;</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">			if (e &lt; sb.length())</span>
+<span class="fc" id="L139">				out.println(sb.substring(pos, e));</span>
+			else
+<span class="fc" id="L141">				out.println(sb.substring(pos));</span>
+		}
+<span class="fc" id="L143">		out.println(&quot;-----END &quot; + header + &quot;-----&quot;);</span>
+<span class="fc" id="L144">		out.flush();</span>
+<span class="fc" id="L145">	}</span>
+
+	/**
+	 * Prints a {@link PrivateKey} in PEM format.
+	 * 
+	 * @param out {@link PrintStream}
+	 * @param key {@link PrivateKey}
+	 * @see #pem(PrintStream, String, byte[])
+	 */
+	static void pem(PrintStream out, PrivateKey key) {
+<span class="fc" id="L155">		pem(out, &quot;PRIVATE KEY&quot;, key.getEncoded());</span>
+<span class="fc" id="L156">	}</span>
+
+	/**
+	 * Prints a {@link X509Certificate} in PEM format.
+	 * 
+	 * @param out         {@link PrintStream}
+	 * @param certificate {@link X509Certificate}
+	 * @see #pem(PrintStream, String, byte[])
+	 */
+	static void pem(PrintStream out, X509Certificate certificate) {
+<span class="fc" id="L166">		pem(out, &quot;CERTIFICATE&quot;, IuException.unchecked(certificate::getEncoded));</span>
+<span class="fc" id="L167">	}</span>
+
+	/**
+	 * Prints a {@link X509Certificate} in PEM format.
+	 * 
+	 * @param out {@link PrintStream}
+	 * @param crl {@link X509CRL}
+	 * @see #pem(PrintStream, String, byte[])
+	 */
+	static void pem(PrintStream out, X509CRL crl) {
+<span class="fc" id="L177">		pem(out, &quot;X509 CRL&quot;, IuException.unchecked(crl::getEncoded));</span>
+<span class="fc" id="L178">	}</span>
+
+	/**
+	 * Executes a command.
+	 * 
+	 * @param cmd command followed by arguments
+	 * @return output if successful
+	 */
+	static String exec(String... cmd) {
+<span class="fc" id="L187">		final var statusProcess = IuException.unchecked(() -&gt; new ProcessBuilder(cmd).start());</span>
+
+<span class="fc" id="L189">		final var exp = Instant.now().plusSeconds(15L);</span>
+<span class="fc" id="L190">		final var out = new StringBuffer();</span>
+<span class="fc" id="L191">		final var err = new StringBuffer();</span>
+
+<span class="fc" id="L193">		final var readOut = new IuUtilityTaskController&lt;&gt;(() -&gt; {</span>
+<span class="fc" id="L194">			try (final var in = statusProcess.getInputStream(); //</span>
+<span class="fc" id="L195">					final var r = new InputStreamReader(in)) {</span>
+				int i;
+<span class="fc bfc" id="L197" title="All 2 branches covered.">				while ((i = r.read()) != -1) {</span>
+<span class="fc" id="L198">					char c = (char) i;</span>
+<span class="fc" id="L199">					out.append(c);</span>
+<span class="fc" id="L200">					err.append(c);</span>
+<span class="fc" id="L201">				}</span>
+			}
+<span class="fc" id="L203">			return null;</span>
+		}, exp);
+
+<span class="fc" id="L206">		final var readErr = new IuUtilityTaskController&lt;&gt;(() -&gt; {</span>
+<span class="fc" id="L207">			try (final var in = statusProcess.getErrorStream(); //</span>
+<span class="fc" id="L208">					final var r = new InputStreamReader(in)) {</span>
+				int i;
+<span class="fc bfc" id="L210" title="All 2 branches covered.">				while ((i = r.read()) != -1) {</span>
+<span class="fc" id="L211">					char c = (char) i;</span>
+<span class="fc" id="L212">					err.append(c);</span>
+<span class="fc" id="L213">				}</span>
+			}
+<span class="fc" id="L215">			return null;</span>
+		}, exp);
+
+<span class="fc" id="L218">		final var checkStatusCode = new IuUtilityTaskController&lt;&gt;(() -&gt; statusProcess.waitFor(), exp);</span>
+<span class="fc" id="L219">		final var code = IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L220">			readOut.get();</span>
+<span class="fc" id="L221">			readErr.get();</span>
+<span class="fc" id="L222">			return checkStatusCode.get();</span>
+		});
+
+<span class="fc bfc" id="L225" title="All 2 branches covered.">		if (code == 0) {</span>
+<span class="fc" id="L226">			LOG.fine(() -&gt; &quot;exec &quot; + String.join(&quot; &quot;, cmd) + &quot;\n&quot; + err);</span>
+<span class="fc" id="L227">			return out.toString();</span>
+		} else {
+<span class="fc" id="L229">			final var message = &quot;exec &quot; + String.join(&quot; &quot;, cmd) + &quot;\nstatus: &quot; + code;</span>
+<span class="fc" id="L230">			final var e = new IllegalStateException(message);</span>
+<span class="fc" id="L231">			LOG.log(Level.INFO, e, () -&gt; message + &quot;\n&quot; + err);</span>
+<span class="fc" id="L232">			throw e;</span>
+		}
+	}
+
+	private IuProcess() {
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

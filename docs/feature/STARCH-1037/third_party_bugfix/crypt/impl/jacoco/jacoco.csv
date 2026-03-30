@@ -1,6 +1,6 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Web Cryptography Utilities,iu.crypt.init,CryptImplResource,0,4,0,0,0,3,0,1,0,1
-IU Web Cryptography Utilities,iu.crypt,JwkBuilder,0,634,0,39,0,118,0,47,0,25
+IU Web Cryptography Utilities,iu.crypt,JwkBuilder,0,671,0,43,0,127,0,50,0,26
 IU Web Cryptography Utilities,iu.crypt,Jwe.AesCbcHmac,0,282,0,4,0,48,0,11,0,9
 IU Web Cryptography Utilities,iu.crypt,JoseBuilder,0,111,0,4,0,22,0,14,0,12
 IU Web Cryptography Utilities,iu.crypt,Jwe,0,1090,0,88,0,208,0,83,0,39
@@ -16,7 +16,7 @@ IU Web Cryptography Utilities,iu.crypt,JweRecipientBuilder,0,96,0,6,0,23,0,10,0,
 IU Web Cryptography Utilities,iu.crypt,Jose,0,354,0,38,0,67,0,40,0,21
 IU Web Cryptography Utilities,iu.crypt,JweRecipientBuilder.EncryptedKeyBuilder,0,397,0,10,0,77,0,18,0,11
 IU Web Cryptography Utilities,iu.crypt,CompactEncoded.new Iterator() {...},0,71,0,10,0,12,0,8,0,3
-IU Web Cryptography Utilities,iu.crypt,Jwt,0,349,0,28,0,71,0,39,0,25
+IU Web Cryptography Utilities,iu.crypt,Jwt,0,357,0,28,0,72,0,39,0,25
 IU Web Cryptography Utilities,iu.crypt,Jws,0,608,0,68,0,125,0,54,0,18
 IU Web Cryptography Utilities,iu.crypt,JsonCertificateReference,0,198,0,18,0,35,0,24,0,15
 IU Web Cryptography Utilities,iu.crypt,JwsBuilder.PendingSignature,0,88,0,10,0,16,0,9,0,4

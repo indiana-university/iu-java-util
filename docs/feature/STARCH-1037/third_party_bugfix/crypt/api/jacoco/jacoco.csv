@@ -19,5 +19,6 @@ IU Web Cryptography API,edu.iu.crypt,WebEncryption.Builder,0,12,0,0,0,2,0,2,0,2
 IU Web Cryptography API,edu.iu.crypt,WebEncryptionRecipient.Builder,0,15,0,0,0,3,0,3,0,3
 IU Web Cryptography API,edu.iu.crypt,PemEncoded.KeyType,0,27,0,0,0,5,0,1,0,1
 IU Web Cryptography API,edu.iu.crypt,WebKeyReference,0,4,0,0,0,2,0,2,0,2
+IU Web Cryptography API,edu.iu.crypt,X500Utils,0,693,0,136,0,121,0,84,0,16
 IU Web Cryptography API,edu.iu.crypt,WebCryptoHeader.Param,0,311,0,2,0,32,0,17,0,16
 IU Web Cryptography API,edu.iu.crypt,WebKey.Operation,0,82,0,0,0,14,0,4,0,4

@@ -58,9 +58,9 @@ import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
-import edu.iu.auth.config.X500Utils;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.X500Utils;
 import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 

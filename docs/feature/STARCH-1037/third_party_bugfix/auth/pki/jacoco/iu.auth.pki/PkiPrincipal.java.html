@@ -41,10 +41,10 @@ import javax.security.auth.Subject;
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuPrivateKeyPrincipal;
-import edu.iu.auth.config.X500Utils;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.X500Utils;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 
