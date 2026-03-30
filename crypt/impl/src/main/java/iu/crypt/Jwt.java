@@ -235,7 +235,8 @@ public class Jwt implements WebToken {
 	 * @return {@link WebSignedPayload#compact() JWS compact serialization}
 	 */
 	public String sign(String type, Algorithm algorithm, WebKey issuerKey) {
-		return WebSignature.builder(algorithm).compact().key(issuerKey).type(type).sign(claims.toString()).compact();
+		return WebSignature.builder(algorithm).compact().keyId(issuerKey.getKeyId()).key(issuerKey).type(type)
+				.sign(claims.toString()).compact();
 	}
 
 	/**
@@ -251,8 +252,8 @@ public class Jwt implements WebToken {
 	 */
 	public String signAndEncrypt(String type, Algorithm signAlgorithm, WebKey issuerKey, Algorithm encryptAlgorithm,
 			Encryption encryption, WebKey audienceKey) {
-		return WebEncryption.builder(encryption).compact().addRecipient(encryptAlgorithm).key(audienceKey)
-				.contentType(type).encrypt(sign(type, signAlgorithm, issuerKey)).compact();
+		return WebEncryption.builder(encryption).compact().addRecipient(encryptAlgorithm).keyId(audienceKey.getKeyId())
+				.key(audienceKey).contentType(type).encrypt(sign(type, signAlgorithm, issuerKey)).compact();
 	}
 
 	@Override

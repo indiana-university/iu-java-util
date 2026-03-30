@@ -24,6 +24,7 @@
 			<modules>
 				<module>api</module>
 				<module>impl</module>
+				<module>cli</module>
 			</modules>
 		</profile>
 	</profiles>
