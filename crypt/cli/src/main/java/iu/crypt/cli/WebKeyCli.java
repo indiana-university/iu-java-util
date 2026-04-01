@@ -60,8 +60,6 @@ public class WebKeyCli {
 				      - type: key type, required if alg is not provided
 				      - alg: algorithm, required if type is not provided
 				      - size: key size for RSA
-				    jwk import < (pem) : Create a JWK from a PEM-encoded X.509 certificate
-				                         and optional private key
 
 				  Inspect a JSON Web Key
 				    jwk print < (jwk|ca)  : Validate and print JWK or CA as human-readable
