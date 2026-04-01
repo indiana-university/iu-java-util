@@ -60,8 +60,6 @@ public class WebKeyCli {
 				      - type: key type, required if alg is not provided
 				      - alg: algorithm, required if type is not provided
 				      - size: key size for RSA
-				    jwk import &lt; (pem) : Create a JWK from a PEM-encoded X.509 certificate
-				                         and optional private key
 
 				  Inspect a JSON Web Key
 				    jwk print &lt; (jwk|ca)  : Validate and print JWK or CA as human-readable
@@ -79,23 +77,23 @@ public class WebKeyCli {
 				    jwk revoke (serial) &lt; (ca)     : Self-sign a JWK as a new private CA
 
 				    &quot;&quot;&quot;);
-<span class="fc" id="L82">		usage.append(&quot;  Key Types:&quot;);</span>
-<span class="fc bfc" id="L83" title="All 2 branches covered.">		for (final var keyType : WebKey.Type.values())</span>
-<span class="fc bfc" id="L84" title="All 2 branches covered.">			if (!keyType.equals(WebKey.Type.RAW))</span>
-<span class="fc" id="L85">				usage.append(&quot; &quot;).append(keyType);</span>
+<span class="fc" id="L80">		usage.append(&quot;  Key Types:&quot;);</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">		for (final var keyType : WebKey.Type.values())</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">			if (!keyType.equals(WebKey.Type.RAW))</span>
+<span class="fc" id="L83">				usage.append(&quot; &quot;).append(keyType);</span>
 
-<span class="fc" id="L87">		usage.append(System.lineSeparator()).append(&quot;  Algorithms:&quot;);</span>
-<span class="fc bfc" id="L88" title="All 2 branches covered.">		for (final var alg : Algorithm.values())</span>
-<span class="fc bfc" id="L89" title="All 2 branches covered.">			if (!alg.equals(Algorithm.DIRECT))</span>
-<span class="fc" id="L90">				usage.append(&quot; &quot;).append(alg.alg);</span>
+<span class="fc" id="L85">		usage.append(System.lineSeparator()).append(&quot;  Algorithms:&quot;);</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">		for (final var alg : Algorithm.values())</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">			if (!alg.equals(Algorithm.DIRECT))</span>
+<span class="fc" id="L88">				usage.append(&quot; &quot;).append(alg.alg);</span>
 
-<span class="fc" id="L92">		usage.append(System.lineSeparator()).append(System.lineSeparator());</span>
-<span class="fc" id="L93">		USAGE = usage.toString();</span>
+<span class="fc" id="L90">		usage.append(System.lineSeparator()).append(System.lineSeparator());</span>
+<span class="fc" id="L91">		USAGE = usage.toString();</span>
 	}
 
-<span class="fc" id="L96">	private static final HexFormat HEX = HexFormat.of();</span>
-<span class="fc" id="L97">	private static final HexFormat HEX_UPPER = HEX.withUpperCase();</span>
-<span class="fc" id="L98">	private static final HexFormat HEX_OSSL = HexFormat.ofDelimiter(&quot;:&quot;);</span>
+<span class="fc" id="L94">	private static final HexFormat HEX = HexFormat.of();</span>
+<span class="fc" id="L95">	private static final HexFormat HEX_UPPER = HEX.withUpperCase();</span>
+<span class="fc" id="L96">	private static final HexFormat HEX_OSSL = HexFormat.ofDelimiter(&quot;:&quot;);</span>
 
 	/**
 	 * Parses a serial number from hex format consistent with OpenSSL.
@@ -106,17 +104,17 @@ public class WebKeyCli {
 	 */
 	static BigInteger parseSerial(String serialNumber) {
 		try {
-<span class="fc" id="L109">			return new BigInteger(HEX_OSSL.parseHex(serialNumber));</span>
-<span class="fc" id="L110">		} catch (Throwable e) {</span>
+<span class="fc" id="L107">			return new BigInteger(HEX_OSSL.parseHex(serialNumber));</span>
+<span class="fc" id="L108">		} catch (Throwable e) {</span>
 			try {
-<span class="fc" id="L112">				return new BigInteger(HEX_UPPER.parseHex(serialNumber));</span>
-<span class="fc" id="L113">			} catch (Throwable e2) {</span>
-<span class="fc" id="L114">				e.addSuppressed(e2);</span>
+<span class="fc" id="L110">				return new BigInteger(HEX_UPPER.parseHex(serialNumber));</span>
+<span class="fc" id="L111">			} catch (Throwable e2) {</span>
+<span class="fc" id="L112">				e.addSuppressed(e2);</span>
 				try {
-<span class="fc" id="L116">					return new BigInteger(Base64.getUrlDecoder().decode(serialNumber));</span>
-<span class="fc" id="L117">				} catch (Throwable e3) {</span>
-<span class="fc" id="L118">					e.addSuppressed(e3);</span>
-<span class="fc" id="L119">					throw new IllegalArgumentException(&quot;Invalid serial number&quot;, e);</span>
+<span class="fc" id="L114">					return new BigInteger(Base64.getUrlDecoder().decode(serialNumber));</span>
+<span class="fc" id="L115">				} catch (Throwable e3) {</span>
+<span class="fc" id="L116">					e.addSuppressed(e3);</span>
+<span class="fc" id="L117">					throw new IllegalArgumentException(&quot;Invalid serial number&quot;, e);</span>
 				}
 			}
 		}
@@ -129,7 +127,7 @@ public class WebKeyCli {
 	 * @return hex-encoded serial number
 	 */
 	static String formatSerial(BigInteger serialNumber) {
-<span class="fc" id="L132">		return Base64.getUrlEncoder().withoutPadding().encodeToString(serialNumber.toByteArray());</span>
+<span class="fc" id="L130">		return Base64.getUrlEncoder().withoutPadding().encodeToString(serialNumber.toByteArray());</span>
 	}
 
 	/**
@@ -139,7 +137,7 @@ public class WebKeyCli {
 	 * @return hex-encoded serial number
 	 */
 	static String formatSerialOSSL(BigInteger serialNumber) {
-<span class="fc" id="L142">		return HEX_UPPER.formatHex(serialNumber.toByteArray());</span>
+<span class="fc" id="L140">		return HEX_UPPER.formatHex(serialNumber.toByteArray());</span>
 	}
 
 	/**
@@ -150,32 +148,32 @@ public class WebKeyCli {
 	 * @return formatted description
 	 */
 	static String formatPki(int basicConstraints, boolean[] keyUsage) {
-<span class="fc" id="L153">		final var sb = new StringBuilder();</span>
-<span class="fc bfc" id="L154" title="All 2 branches covered.">		if (basicConstraints == -1)</span>
-<span class="fc" id="L155">			sb.append(&quot;EE&quot;);</span>
+<span class="fc" id="L151">		final var sb = new StringBuilder();</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">		if (basicConstraints == -1)</span>
+<span class="fc" id="L153">			sb.append(&quot;EE&quot;);</span>
 		else
-<span class="fc" id="L157">			sb.append(&quot;CA pathLen=&quot;).append(basicConstraints);</span>
+<span class="fc" id="L155">			sb.append(&quot;CA pathLen=&quot;).append(basicConstraints);</span>
 
-<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (keyUsage[0])</span>
-<span class="fc" id="L160">			sb.append(&quot;,digitalSignature&quot;);</span>
-<span class="fc bfc" id="L161" title="All 2 branches covered.">		if (keyUsage[1])</span>
-<span class="fc" id="L162">			sb.append(&quot;,nonRepudiation&quot;);</span>
-<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (keyUsage[2])</span>
-<span class="fc" id="L164">			sb.append(&quot;,keyEncipherment&quot;);</span>
-<span class="fc bfc" id="L165" title="All 2 branches covered.">		if (keyUsage[3])</span>
-<span class="fc" id="L166">			sb.append(&quot;,dataEncipherment&quot;);</span>
-<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (keyUsage[4])</span>
-<span class="fc" id="L168">			sb.append(&quot;,keyAgreement&quot;);</span>
-<span class="fc bfc" id="L169" title="All 2 branches covered.">		if (keyUsage[5])</span>
-<span class="fc" id="L170">			sb.append(&quot;,keyCertSign&quot;);</span>
-<span class="fc bfc" id="L171" title="All 2 branches covered.">		if (keyUsage[6])</span>
-<span class="fc" id="L172">			sb.append(&quot;,cRLSign&quot;);</span>
-<span class="fc bfc" id="L173" title="All 2 branches covered.">		if (keyUsage[7])</span>
-<span class="fc" id="L174">			sb.append(&quot;,encipherOnly&quot;);</span>
-<span class="fc bfc" id="L175" title="All 2 branches covered.">		if (keyUsage[8])</span>
-<span class="fc" id="L176">			sb.append(&quot;,decipherOnly&quot;);</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">		if (keyUsage[0])</span>
+<span class="fc" id="L158">			sb.append(&quot;,digitalSignature&quot;);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">		if (keyUsage[1])</span>
+<span class="fc" id="L160">			sb.append(&quot;,nonRepudiation&quot;);</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		if (keyUsage[2])</span>
+<span class="fc" id="L162">			sb.append(&quot;,keyEncipherment&quot;);</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">		if (keyUsage[3])</span>
+<span class="fc" id="L164">			sb.append(&quot;,dataEncipherment&quot;);</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">		if (keyUsage[4])</span>
+<span class="fc" id="L166">			sb.append(&quot;,keyAgreement&quot;);</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">		if (keyUsage[5])</span>
+<span class="fc" id="L168">			sb.append(&quot;,keyCertSign&quot;);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">		if (keyUsage[6])</span>
+<span class="fc" id="L170">			sb.append(&quot;,cRLSign&quot;);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">		if (keyUsage[7])</span>
+<span class="fc" id="L172">			sb.append(&quot;,encipherOnly&quot;);</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">		if (keyUsage[8])</span>
+<span class="fc" id="L174">			sb.append(&quot;,decipherOnly&quot;);</span>
 
-<span class="fc" id="L178">		return sb.toString();</span>
+<span class="fc" id="L176">		return sb.toString();</span>
 	}
 
 	/**
@@ -185,54 +183,54 @@ public class WebKeyCli {
 	 * @param jwk key to print
 	 */
 	static void print(PrintStream out, WebKey jwk) {
-<span class="fc" id="L188">		final var kid = jwk.getKeyId();</span>
-<span class="fc" id="L189">		final var type = jwk.getType();</span>
-<span class="fc" id="L190">		final var alg = jwk.getAlgorithm();</span>
-<span class="fc" id="L191">		final var privateKey = jwk.getPrivateKey();</span>
-<span class="fc" id="L192">		final var publicKey = jwk.getPublicKey();</span>
-<span class="fc" id="L193">		final var secretKey = jwk.getKey();</span>
+<span class="fc" id="L186">		final var kid = jwk.getKeyId();</span>
+<span class="fc" id="L187">		final var type = jwk.getType();</span>
+<span class="fc" id="L188">		final var alg = jwk.getAlgorithm();</span>
+<span class="fc" id="L189">		final var privateKey = jwk.getPrivateKey();</span>
+<span class="fc" id="L190">		final var publicKey = jwk.getPublicKey();</span>
+<span class="fc" id="L191">		final var secretKey = jwk.getKey();</span>
 
-<span class="fc" id="L195">		out.print(&quot;JWK &quot;);</span>
-<span class="fc bfc" id="L196" title="All 2 branches covered.">		if (secretKey != null)</span>
-<span class="fc" id="L197">			out.print(&quot;Secret&quot;);</span>
-<span class="fc bfc" id="L198" title="All 2 branches covered.">		else if (privateKey != null)</span>
-<span class="fc" id="L199">			out.print(&quot;Private&quot;);</span>
+<span class="fc" id="L193">		out.print(&quot;JWK &quot;);</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">		if (secretKey != null)</span>
+<span class="fc" id="L195">			out.print(&quot;Secret&quot;);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">		else if (privateKey != null)</span>
+<span class="fc" id="L197">			out.print(&quot;Private&quot;);</span>
 		else
-<span class="fc" id="L201">			out.print(&quot;Public&quot;);</span>
+<span class="fc" id="L199">			out.print(&quot;Public&quot;);</span>
 
-<span class="fc" id="L203">		out.println(&quot; Key&quot;);</span>
-<span class="fc" id="L204">		out.println(&quot;-----------------------------&quot;);</span>
+<span class="fc" id="L201">		out.println(&quot; Key&quot;);</span>
+<span class="fc" id="L202">		out.println(&quot;-----------------------------&quot;);</span>
 
-<span class="fc bfc" id="L206" title="All 2 branches covered.">		if (kid != null)</span>
-<span class="fc" id="L207">			out.println(&quot;ID:      &quot; + jwk.getKeyId());</span>
-<span class="fc" id="L208">		out.print(&quot;Type:    &quot; + type.kty);</span>
-<span class="fc bfc" id="L209" title="All 2 branches covered.">		if (type.crv != null)</span>
-<span class="fc" id="L210">			out.println(&quot; &quot; + type.crv);</span>
-<span class="fc bfc" id="L211" title="All 2 branches covered.">		else if (publicKey instanceof RSAPublicKey)</span>
-<span class="fc" id="L212">			out.println(&quot; &quot; + ((RSAPublicKey) publicKey).getModulus().bitLength() + &quot;-bit&quot;);</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">		if (kid != null)</span>
+<span class="fc" id="L205">			out.println(&quot;ID:      &quot; + jwk.getKeyId());</span>
+<span class="fc" id="L206">		out.print(&quot;Type:    &quot; + type.kty);</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">		if (type.crv != null)</span>
+<span class="fc" id="L208">			out.println(&quot; &quot; + type.crv);</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">		else if (publicKey instanceof RSAPublicKey)</span>
+<span class="fc" id="L210">			out.println(&quot; &quot; + ((RSAPublicKey) publicKey).getModulus().bitLength() + &quot;-bit&quot;);</span>
 		else
-<span class="fc" id="L214">			out.println(&quot; &quot; + (secretKey.length * 8) + &quot;-bit&quot;);</span>
+<span class="fc" id="L212">			out.println(&quot; &quot; + (secretKey.length * 8) + &quot;-bit&quot;);</span>
 
-<span class="fc bfc" id="L216" title="All 2 branches covered.">		if (alg != null)</span>
-<span class="fc" id="L217">			System.out.println(&quot;Algorithm: &quot; + alg.alg);</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">		if (alg != null)</span>
+<span class="fc" id="L215">			System.out.println(&quot;Algorithm: &quot; + alg.alg);</span>
 
-<span class="fc" id="L219">		out.println();</span>
+<span class="fc" id="L217">		out.println();</span>
 
-<span class="fc" id="L221">		final var certificateChain = jwk.getCertificateChain();</span>
-<span class="fc bfc" id="L222" title="All 2 branches covered.">		if (certificateChain != null) {</span>
-<span class="fc" id="L223">			out.println(&quot;X.509 Certificate Chain&quot;);</span>
-<span class="fc" id="L224">			out.println(&quot;=======================&quot;);</span>
-<span class="fc bfc" id="L225" title="All 2 branches covered.">			for (var i = 0; i &lt; certificateChain.length; i++) {</span>
-<span class="fc" id="L226">				final var cert = certificateChain[i];</span>
-<span class="fc" id="L227">				out.println(&quot; &quot; + (i + 1) + &quot;) &quot; //</span>
-<span class="fc" id="L228">						+ cert.getNotAfter() + &quot; &quot; //</span>
-<span class="fc" id="L229">						+ formatSerial(cert.getSerialNumber()) //</span>
-<span class="fc" id="L230">						+ &quot; &quot; + X500Utils.getCommonName(cert.getSubjectX500Principal()) + &quot; &quot;</span>
-<span class="fc" id="L231">						+ formatPki(cert.getBasicConstraints(), cert.getKeyUsage()));</span>
+<span class="fc" id="L219">		final var certificateChain = jwk.getCertificateChain();</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">		if (certificateChain != null) {</span>
+<span class="fc" id="L221">			out.println(&quot;X.509 Certificate Chain&quot;);</span>
+<span class="fc" id="L222">			out.println(&quot;=======================&quot;);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">			for (var i = 0; i &lt; certificateChain.length; i++) {</span>
+<span class="fc" id="L224">				final var cert = certificateChain[i];</span>
+<span class="fc" id="L225">				out.println(&quot; &quot; + (i + 1) + &quot;) &quot; //</span>
+<span class="fc" id="L226">						+ cert.getNotAfter() + &quot; &quot; //</span>
+<span class="fc" id="L227">						+ formatSerial(cert.getSerialNumber()) //</span>
+<span class="fc" id="L228">						+ &quot; &quot; + X500Utils.getCommonName(cert.getSubjectX500Principal()) + &quot; &quot;</span>
+<span class="fc" id="L229">						+ formatPki(cert.getBasicConstraints(), cert.getKeyUsage()));</span>
 			}
-<span class="fc" id="L233">			out.println();</span>
+<span class="fc" id="L231">			out.println();</span>
 		}
-<span class="fc" id="L235">	}</span>
+<span class="fc" id="L233">	}</span>
 
 	/**
 	 * Prints human readable CA metadata.
@@ -241,48 +239,48 @@ public class WebKeyCli {
 	 * @param ca  CA to print
 	 */
 	static void print(PrintStream out, X509CertificateAuthority ca) {
-<span class="fc" id="L244">		out.println(&quot;X.509 Certificate Authority&quot;);</span>
-<span class="fc" id="L245">		out.println();</span>
-<span class="fc" id="L246">		print(out, ca.getJwk());</span>
+<span class="fc" id="L242">		out.println(&quot;X.509 Certificate Authority&quot;);</span>
+<span class="fc" id="L243">		out.println();</span>
+<span class="fc" id="L244">		print(out, ca.getJwk());</span>
 
-<span class="fc" id="L248">		final var database = ca.getDatabase();</span>
-<span class="pc bpc" id="L249" title="1 of 2 branches missed.">		if (database != null) {</span>
-<span class="fc" id="L250">			out.println(&quot;Database: &quot; + database.length + &quot; bytes&quot;);</span>
-<span class="fc" id="L251">			out.println();</span>
+<span class="fc" id="L246">		final var database = ca.getDatabase();</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">		if (database != null) {</span>
+<span class="fc" id="L248">			out.println(&quot;Database: &quot; + database.length + &quot; bytes&quot;);</span>
+<span class="fc" id="L249">			out.println();</span>
 		}
 
-<span class="fc" id="L254">		final var issuedCerts = ca.getCertificates();</span>
-<span class="pc bpc" id="L255" title="1 of 2 branches missed.">		if (issuedCerts != null) {</span>
-<span class="fc" id="L256">			final var issuedCertIterator = issuedCerts.iterator();</span>
-<span class="fc bfc" id="L257" title="All 2 branches covered.">			if (issuedCertIterator.hasNext()) {</span>
-<span class="fc" id="L258">				out.println(&quot;Issued Certificates:&quot;);</span>
-<span class="fc bfc" id="L259" title="All 2 branches covered.">				while (issuedCertIterator.hasNext()) {</span>
-<span class="fc" id="L260">					final var issuedCert = issuedCertIterator.next();</span>
-<span class="fc" id="L261">					out.println(&quot;  &quot; //</span>
-<span class="fc" id="L262">							+ issuedCert.getNotAfter() + &quot; &quot; //</span>
-<span class="fc" id="L263">							+ formatSerial(issuedCert.getSerialNumber()) //</span>
-<span class="fc" id="L264">							+ &quot; &quot; + X500Utils.getCommonName(issuedCert.getSubjectX500Principal()) + &quot; &quot;</span>
-<span class="fc" id="L265">							+ formatPki(issuedCert.getBasicConstraints(), issuedCert.getKeyUsage()));</span>
-<span class="fc" id="L266">				}</span>
-<span class="fc" id="L267">				out.println();</span>
+<span class="fc" id="L252">		final var issuedCerts = ca.getCertificates();</span>
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">		if (issuedCerts != null) {</span>
+<span class="fc" id="L254">			final var issuedCertIterator = issuedCerts.iterator();</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">			if (issuedCertIterator.hasNext()) {</span>
+<span class="fc" id="L256">				out.println(&quot;Issued Certificates:&quot;);</span>
+<span class="fc bfc" id="L257" title="All 2 branches covered.">				while (issuedCertIterator.hasNext()) {</span>
+<span class="fc" id="L258">					final var issuedCert = issuedCertIterator.next();</span>
+<span class="fc" id="L259">					out.println(&quot;  &quot; //</span>
+<span class="fc" id="L260">							+ issuedCert.getNotAfter() + &quot; &quot; //</span>
+<span class="fc" id="L261">							+ formatSerial(issuedCert.getSerialNumber()) //</span>
+<span class="fc" id="L262">							+ &quot; &quot; + X500Utils.getCommonName(issuedCert.getSubjectX500Principal()) + &quot; &quot;</span>
+<span class="fc" id="L263">							+ formatPki(issuedCert.getBasicConstraints(), issuedCert.getKeyUsage()));</span>
+<span class="fc" id="L264">				}</span>
+<span class="fc" id="L265">				out.println();</span>
 			}
 		}
 
-<span class="fc" id="L271">		final var crls = ca.getCrl();</span>
-<span class="fc bfc" id="L272" title="All 2 branches covered.">		for (final var crl : crls) {</span>
-<span class="fc" id="L273">			out.println(&quot;CRL Issuer: &quot; + crl.getIssuerX500Principal().getName());</span>
-<span class="fc" id="L274">			out.println(&quot;Update Due: &quot; + crl.getNextUpdate());</span>
+<span class="fc" id="L269">		final var crls = ca.getCrl();</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">		for (final var crl : crls) {</span>
+<span class="fc" id="L271">			out.println(&quot;CRL Issuer: &quot; + crl.getIssuerX500Principal().getName());</span>
+<span class="fc" id="L272">			out.println(&quot;Update Due: &quot; + crl.getNextUpdate());</span>
 
-<span class="fc" id="L276">			final var entries = crl.getRevokedCertificates();</span>
-<span class="fc bfc" id="L277" title="All 2 branches covered.">			if (entries == null)</span>
-<span class="fc" id="L278">				out.println(&quot;** no certificates revoked **&quot;);</span>
+<span class="fc" id="L274">			final var entries = crl.getRevokedCertificates();</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">			if (entries == null)</span>
+<span class="fc" id="L276">				out.println(&quot;** no certificates revoked **&quot;);</span>
 			else
-<span class="fc bfc" id="L280" title="All 2 branches covered.">				for (final var entry : entries)</span>
-<span class="fc" id="L281">					out.println(&quot;  &quot; + formatSerial(entry.getSerialNumber()) + &quot; &quot; + entry.getRevocationDate());</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">				for (final var entry : entries)</span>
+<span class="fc" id="L279">					out.println(&quot;  &quot; + formatSerial(entry.getSerialNumber()) + &quot; &quot; + entry.getRevocationDate());</span>
 
-<span class="fc" id="L283">			out.println();</span>
-<span class="fc" id="L284">		}</span>
-<span class="fc" id="L285">	}</span>
+<span class="fc" id="L281">			out.println();</span>
+<span class="fc" id="L282">		}</span>
+<span class="fc" id="L283">	}</span>
 
 	/**
 	 * Generates a new key by arguments
@@ -291,60 +289,60 @@ public class WebKeyCli {
 	 * @return generated key
 	 */
 	static WebKey create(String[] arg) {
-<span class="fc" id="L294">		var i = 1;</span>
+<span class="fc" id="L292">		var i = 1;</span>
 
-<span class="fc bfc" id="L296" title="All 2 branches covered.">		if (arg.length &lt; 2)</span>
-<span class="fc" id="L297">			throw new IllegalArgumentException(&quot;missing key type&quot;);</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">		if (arg.length &lt; 2)</span>
+<span class="fc" id="L295">			throw new IllegalArgumentException(&quot;missing key type&quot;);</span>
 
-<span class="fc" id="L299">		final var type = arg[i++];</span>
+<span class="fc" id="L297">		final var type = arg[i++];</span>
 		WebKey.Builder&lt;?&gt; builder;
-<span class="fc" id="L301">		Algorithm alg = null;</span>
+<span class="fc" id="L299">		Algorithm alg = null;</span>
 		try {
-<span class="fc" id="L303">			builder = WebKey.builder(WebKey.Type.valueOf(type));</span>
-<span class="fc" id="L304">		} catch (IllegalArgumentException e) {</span>
+<span class="fc" id="L301">			builder = WebKey.builder(WebKey.Type.valueOf(type));</span>
+<span class="fc" id="L302">		} catch (IllegalArgumentException e) {</span>
 			try {
-<span class="fc" id="L306">				builder = WebKey.builder(alg = Algorithm.from(type));</span>
-<span class="fc" id="L307">			} catch (Throwable e2) {</span>
-<span class="fc" id="L308">				e.addSuppressed(e2);</span>
-<span class="fc" id="L309">				throw e;</span>
-<span class="fc" id="L310">			}</span>
-<span class="fc" id="L311">		}</span>
+<span class="fc" id="L304">				builder = WebKey.builder(alg = Algorithm.from(type));</span>
+<span class="fc" id="L305">			} catch (Throwable e2) {</span>
+<span class="fc" id="L306">				e.addSuppressed(e2);</span>
+<span class="fc" id="L307">				throw e;</span>
+<span class="fc" id="L308">			}</span>
+<span class="fc" id="L309">		}</span>
 
-<span class="fc" id="L313">		String nextArg = null;</span>
-<span class="fc" id="L314">		int size = 0;</span>
-<span class="fc bfc" id="L315" title="All 2 branches covered.">		if (i &lt; arg.length) {</span>
-<span class="fc" id="L316">			nextArg = arg[i++];</span>
-<span class="fc bfc" id="L317" title="All 2 branches covered.">			if (alg == null)</span>
+<span class="fc" id="L311">		String nextArg = null;</span>
+<span class="fc" id="L312">		int size = 0;</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">		if (i &lt; arg.length) {</span>
+<span class="fc" id="L314">			nextArg = arg[i++];</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">			if (alg == null)</span>
 				try {
-<span class="fc" id="L319">					alg = Algorithm.from(nextArg);</span>
-<span class="fc" id="L320">					builder.algorithm(alg);</span>
-<span class="fc bfc" id="L321" title="All 2 branches covered.">					if (i &lt; arg.length)</span>
-<span class="fc" id="L322">						nextArg = arg[i++];</span>
+<span class="fc" id="L317">					alg = Algorithm.from(nextArg);</span>
+<span class="fc" id="L318">					builder.algorithm(alg);</span>
+<span class="fc bfc" id="L319" title="All 2 branches covered.">					if (i &lt; arg.length)</span>
+<span class="fc" id="L320">						nextArg = arg[i++];</span>
 					else
-<span class="fc" id="L324">						nextArg = null;</span>
-<span class="fc" id="L325">				} catch (NoSuchElementException e) {</span>
-<span class="fc" id="L326">				}</span>
+<span class="fc" id="L322">						nextArg = null;</span>
+<span class="fc" id="L323">				} catch (NoSuchElementException e) {</span>
+<span class="fc" id="L324">				}</span>
 
-<span class="fc bfc" id="L328" title="All 2 branches covered.">			if (nextArg != null)</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">			if (nextArg != null)</span>
 				try {
-<span class="fc" id="L330">					size = Integer.parseInt(nextArg);</span>
-<span class="fc bfc" id="L331" title="All 2 branches covered.">					if (i &lt; arg.length)</span>
-<span class="fc" id="L332">						nextArg = arg[i++];</span>
+<span class="fc" id="L328">					size = Integer.parseInt(nextArg);</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">					if (i &lt; arg.length)</span>
+<span class="fc" id="L330">						nextArg = arg[i++];</span>
 					else
-<span class="fc" id="L334">						nextArg = null;</span>
-<span class="fc" id="L335">				} catch (NumberFormatException e) {</span>
-<span class="fc" id="L336">				}</span>
+<span class="fc" id="L332">						nextArg = null;</span>
+<span class="fc" id="L333">				} catch (NumberFormatException e) {</span>
+<span class="fc" id="L334">				}</span>
 		}
 
-<span class="fc bfc" id="L339" title="All 2 branches covered.">		if (nextArg != null)</span>
-<span class="fc" id="L340">			builder.keyId(nextArg);</span>
+<span class="fc bfc" id="L337" title="All 2 branches covered.">		if (nextArg != null)</span>
+<span class="fc" id="L338">			builder.keyId(nextArg);</span>
 		else
-<span class="fc" id="L342">			builder.keyId(IdGenerator.generateId());</span>
+<span class="fc" id="L340">			builder.keyId(IdGenerator.generateId());</span>
 
-<span class="fc bfc" id="L344" title="All 2 branches covered.">		if (size &gt; 0)</span>
-<span class="fc" id="L345">			return builder.ephemeral(size).build();</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">		if (size &gt; 0)</span>
+<span class="fc" id="L343">			return builder.ephemeral(size).build();</span>
 		else
-<span class="fc" id="L347">			return builder.ephemeral().build();</span>
+<span class="fc" id="L345">			return builder.ephemeral().build();</span>
 	}
 
 	/**
@@ -356,20 +354,20 @@ public class WebKeyCli {
 	 *               certificate chain.
 	 */
 	static void export(PrintStream out, X509CertificateAuthority ca, BigInteger serial) {
-<span class="fc" id="L359">		var found = false;</span>
-<span class="fc bfc" id="L360" title="All 2 branches covered.">		for (final var cert : ca.getCertificates())</span>
-<span class="fc bfc" id="L361" title="All 2 branches covered.">			if (cert.getSerialNumber().equals(serial)) {</span>
-<span class="fc" id="L362">				IuProcess.pem(out, cert);</span>
-<span class="fc" id="L363">				found = true;</span>
-<span class="fc" id="L364">				break;</span>
+<span class="fc" id="L357">		var found = false;</span>
+<span class="fc bfc" id="L358" title="All 2 branches covered.">		for (final var cert : ca.getCertificates())</span>
+<span class="fc bfc" id="L359" title="All 2 branches covered.">			if (cert.getSerialNumber().equals(serial)) {</span>
+<span class="fc" id="L360">				IuProcess.pem(out, cert);</span>
+<span class="fc" id="L361">				found = true;</span>
+<span class="fc" id="L362">				break;</span>
 			}
 
-<span class="fc bfc" id="L367" title="All 2 branches covered.">		if (!found)</span>
-<span class="fc" id="L368">			throw new IllegalArgumentException(&quot;Invalid serial number&quot;);</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">		if (!found)</span>
+<span class="fc" id="L366">			throw new IllegalArgumentException(&quot;Invalid serial number&quot;);</span>
 
-<span class="fc bfc" id="L370" title="All 2 branches covered.">		for (final var cert : ca.getJwk().getCertificateChain())</span>
-<span class="fc" id="L371">			IuProcess.pem(out, cert);</span>
-<span class="fc" id="L372">	}</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">		for (final var cert : ca.getJwk().getCertificateChain())</span>
+<span class="fc" id="L369">			IuProcess.pem(out, cert);</span>
+<span class="fc" id="L370">	}</span>
 
 	/**
 	 * Replaces the X509 certificate chain of a JWK.
@@ -379,24 +377,24 @@ public class WebKeyCli {
 	 * @return Updated JWK
 	 */
 	static WebKey cert(WebKey jwk, Path certificateChainFile) {
-<span class="fc" id="L382">		final Queue&lt;X509Certificate&gt; newCertificateQueue = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L383">		final var pemIter = PemEncoded.parse(IuException.unchecked(() -&gt; Files.readString(certificateChainFile)));</span>
-<span class="fc bfc" id="L384" title="All 2 branches covered.">		while (pemIter.hasNext())</span>
-<span class="fc" id="L385">			newCertificateQueue.offer(pemIter.next().asCertificate());</span>
-<span class="fc" id="L386">		final var newCertificateChain = newCertificateQueue.toArray(X509Certificate[]::new);</span>
+<span class="fc" id="L380">		final Queue&lt;X509Certificate&gt; newCertificateQueue = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L381">		final var pemIter = PemEncoded.parse(IuException.unchecked(() -&gt; Files.readString(certificateChainFile)));</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">		while (pemIter.hasNext())</span>
+<span class="fc" id="L383">			newCertificateQueue.offer(pemIter.next().asCertificate());</span>
+<span class="fc" id="L384">		final var newCertificateChain = newCertificateQueue.toArray(X509Certificate[]::new);</span>
 
-<span class="fc" id="L388">		final var keyType = jwk.getType();</span>
-<span class="fc" id="L389">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
+<span class="fc" id="L386">		final var keyType = jwk.getType();</span>
+<span class="fc" id="L387">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
 
-<span class="fc" id="L391">		return WebKey.builder(keyType) //</span>
-<span class="fc" id="L392">				.keyId(IuObject.once(jwk.getKeyId(),</span>
-<span class="fc" id="L393">						X500Utils.getCommonName(newCertificateChain[0].getSubjectX500Principal()))) //</span>
-<span class="fc" id="L394">				.use(jwk.getUse()) //</span>
-<span class="fc" id="L395">				.algorithm(jwk.getAlgorithm()) //</span>
-<span class="fc" id="L396">				.key(privateKey) //</span>
-<span class="fc" id="L397">				.key(jwk.getPublicKey()) //</span>
-<span class="fc" id="L398">				.cert(newCertificateChain) //</span>
-<span class="fc" id="L399">				.build();</span>
+<span class="fc" id="L389">		return WebKey.builder(keyType) //</span>
+<span class="fc" id="L390">				.keyId(IuObject.once(jwk.getKeyId(),</span>
+<span class="fc" id="L391">						X500Utils.getCommonName(newCertificateChain[0].getSubjectX500Principal()))) //</span>
+<span class="fc" id="L392">				.use(jwk.getUse()) //</span>
+<span class="fc" id="L393">				.algorithm(jwk.getAlgorithm()) //</span>
+<span class="fc" id="L394">				.key(privateKey) //</span>
+<span class="fc" id="L395">				.key(jwk.getPublicKey()) //</span>
+<span class="fc" id="L396">				.cert(newCertificateChain) //</span>
+<span class="fc" id="L397">				.build();</span>
 	}
 
 	/**
@@ -407,14 +405,14 @@ public class WebKeyCli {
 	 */
 	@SuppressWarnings(&quot;deprecation&quot;)
 	static String keyUsage(WebKey jwk) {
-<span class="fc" id="L410">		final var alg = jwk.getAlgorithm();</span>
-<span class="fc bfc" id="L411" title="All 2 branches covered.">		if (alg != null)</span>
-<span class="fc bfc" id="L412" title="All 4 branches covered.">			switch (alg) {</span>
+<span class="fc" id="L408">		final var alg = jwk.getAlgorithm();</span>
+<span class="fc bfc" id="L409" title="All 2 branches covered.">		if (alg != null)</span>
+<span class="fc bfc" id="L410" title="All 4 branches covered.">			switch (alg) {</span>
 			case ECDH_ES:
 			case ECDH_ES_A128KW:
 			case ECDH_ES_A192KW:
 			case ECDH_ES_A256KW:
-<span class="fc" id="L417">				return &quot;keyAgreement&quot;;</span>
+<span class="fc" id="L415">				return &quot;keyAgreement&quot;;</span>
 
 			case EDDSA:
 			case ES256:
@@ -426,55 +424,55 @@ public class WebKeyCli {
 			case RS256:
 			case RS384:
 			case RS512:
-<span class="fc" id="L429">				return &quot;digitalSignature&quot;;</span>
+<span class="fc" id="L427">				return &quot;digitalSignature&quot;;</span>
 
 			case RSA1_5:
 			case RSA_OAEP:
 			case RSA_OAEP_256:
-<span class="fc" id="L434">				return &quot;keyEncipherment&quot;;</span>
+<span class="fc" id="L432">				return &quot;keyEncipherment&quot;;</span>
 
 			default:
-<span class="fc" id="L437">				throw new IllegalArgumentException(&quot;Invalid key algorithm for PKI &quot; + alg);</span>
+<span class="fc" id="L435">				throw new IllegalArgumentException(&quot;Invalid key algorithm for PKI &quot; + alg);</span>
 			}
 
-<span class="fc" id="L440">		final var keyType = jwk.getType();</span>
-<span class="fc" id="L441">		final var use = jwk.getUse();</span>
-<span class="fc bfc" id="L442" title="All 5 branches covered.">		switch (keyType) {</span>
+<span class="fc" id="L438">		final var keyType = jwk.getType();</span>
+<span class="fc" id="L439">		final var use = jwk.getUse();</span>
+<span class="fc bfc" id="L440" title="All 5 branches covered.">		switch (keyType) {</span>
 		case EC_P256:
 		case EC_P384:
 		case EC_P521:
-<span class="fc bfc" id="L446" title="All 2 branches covered.">			if (Use.SIGN.equals(use))</span>
-<span class="fc" id="L447">				return &quot;digitalSignature&quot;;</span>
-<span class="fc bfc" id="L448" title="All 2 branches covered.">			else if (Use.ENCRYPT.equals(use))</span>
-<span class="fc" id="L449">				return &quot;keyAgreement&quot;;</span>
+<span class="fc bfc" id="L444" title="All 2 branches covered.">			if (Use.SIGN.equals(use))</span>
+<span class="fc" id="L445">				return &quot;digitalSignature&quot;;</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">			else if (Use.ENCRYPT.equals(use))</span>
+<span class="fc" id="L447">				return &quot;keyAgreement&quot;;</span>
 			else
-<span class="fc" id="L451">				return &quot;digitalSignature,keyAgreement&quot;;</span>
+<span class="fc" id="L449">				return &quot;digitalSignature,keyAgreement&quot;;</span>
 
 		case RSASSA_PSS:
 		case ED25519:
 		case ED448:
-<span class="fc bfc" id="L456" title="All 2 branches covered.">			if (Use.ENCRYPT.equals(use))</span>
-<span class="fc" id="L457">				throw new IllegalArgumentException(&quot;Invalid key use for &quot; + keyType);</span>
+<span class="fc bfc" id="L454" title="All 2 branches covered.">			if (Use.ENCRYPT.equals(use))</span>
+<span class="fc" id="L455">				throw new IllegalArgumentException(&quot;Invalid key use for &quot; + keyType);</span>
 			else
-<span class="fc" id="L459">				return &quot;digitalSignature&quot;;</span>
+<span class="fc" id="L457">				return &quot;digitalSignature&quot;;</span>
 
 		case X25519:
 		case X448:
-<span class="fc bfc" id="L463" title="All 2 branches covered.">			if (Use.SIGN.equals(use))</span>
-<span class="fc" id="L464">				throw new IllegalArgumentException(&quot;Invalid key use for &quot; + keyType);</span>
+<span class="fc bfc" id="L461" title="All 2 branches covered.">			if (Use.SIGN.equals(use))</span>
+<span class="fc" id="L462">				throw new IllegalArgumentException(&quot;Invalid key use for &quot; + keyType);</span>
 			else
-<span class="fc" id="L466">				return &quot;keyAgreement&quot;;</span>
+<span class="fc" id="L464">				return &quot;keyAgreement&quot;;</span>
 
 		case RSA:
-<span class="fc bfc" id="L469" title="All 2 branches covered.">			if (Use.SIGN.equals(use))</span>
-<span class="fc" id="L470">				return &quot;digitalSignature&quot;;</span>
-<span class="fc bfc" id="L471" title="All 2 branches covered.">			else if (Use.ENCRYPT.equals(use))</span>
-<span class="fc" id="L472">				return &quot;keyEncipherment&quot;;</span>
+<span class="fc bfc" id="L467" title="All 2 branches covered.">			if (Use.SIGN.equals(use))</span>
+<span class="fc" id="L468">				return &quot;digitalSignature&quot;;</span>
+<span class="fc bfc" id="L469" title="All 2 branches covered.">			else if (Use.ENCRYPT.equals(use))</span>
+<span class="fc" id="L470">				return &quot;keyEncipherment&quot;;</span>
 			else
-<span class="fc" id="L474">				return &quot;digitalSignature,keyEncipherment&quot;;</span>
+<span class="fc" id="L472">				return &quot;digitalSignature,keyEncipherment&quot;;</span>
 
 		default:
-<span class="fc" id="L477">			throw new IllegalArgumentException(&quot;Invalid key type for PKI &quot; + keyType);</span>
+<span class="fc" id="L475">			throw new IllegalArgumentException(&quot;Invalid key type for PKI &quot; + keyType);</span>
 		}
 	}
 
@@ -485,13 +483,13 @@ public class WebKeyCli {
 	 * @return X509 subject organization
 	 */
 	static String subjectOrg() {
-<span class="fc" id="L488">		final var subjectOrg = IuRuntimeEnvironment.envOptional(&quot;iu.crypt.cli.pki.org&quot;);</span>
-<span class="fc bfc" id="L489" title="All 2 branches covered.">		if (subjectOrg == null)</span>
-<span class="fc" id="L490">			return &quot;&quot;;</span>
-<span class="fc" id="L491">		IuObject.require(subjectOrg,</span>
-<span class="fc" id="L492">				a -&gt; a.matches(&quot;(/[\\x20-\\x7e]+=[\\x20-\\x7e]+(\\+[\\x20-\\x7e]+=[\\x20-\\x7e]+)*)+&quot;),</span>
+<span class="fc" id="L486">		final var subjectOrg = IuRuntimeEnvironment.envOptional(&quot;iu.crypt.cli.pki.org&quot;);</span>
+<span class="fc bfc" id="L487" title="All 2 branches covered.">		if (subjectOrg == null)</span>
+<span class="fc" id="L488">			return &quot;&quot;;</span>
+<span class="fc" id="L489">		IuObject.require(subjectOrg,</span>
+<span class="fc" id="L490">				a -&gt; a.matches(&quot;(/[\\x20-\\x7e]+=[\\x20-\\x7e]+(\\+[\\x20-\\x7e]+=[\\x20-\\x7e]+)*)+&quot;),</span>
 				&quot;Invalid subject RDN in iu.crypt.cli.pki.org&quot;);
-<span class="fc" id="L494">		return subjectOrg;</span>
+<span class="fc" id="L492">		return subjectOrg;</span>
 	}
 
 	/**
@@ -501,8 +499,8 @@ public class WebKeyCli {
 	 *         iu.crypt.cli.pki.days, or default of 120.
 	 */
 	static int days() {
-<span class="fc" id="L504">		return Integer.parseInt(Objects.requireNonNullElse( //</span>
-<span class="fc" id="L505">				IuRuntimeEnvironment.envOptional(&quot;iu.crypt.cli.pki.days&quot;), //</span>
+<span class="fc" id="L502">		return Integer.parseInt(Objects.requireNonNullElse( //</span>
+<span class="fc" id="L503">				IuRuntimeEnvironment.envOptional(&quot;iu.crypt.cli.pki.days&quot;), //</span>
 				&quot;120&quot;));
 	}
 
@@ -513,8 +511,8 @@ public class WebKeyCli {
 	 *         iu.crypt.cli.pki.ca.days, or default of 830.
 	 */
 	static int caDays() {
-<span class="fc" id="L516">		return Integer.parseInt(Objects.requireNonNullElse( //</span>
-<span class="fc" id="L517">				IuRuntimeEnvironment.envOptional(&quot;iu.crypt.cli.pki.ca.days&quot;), //</span>
+<span class="fc" id="L514">		return Integer.parseInt(Objects.requireNonNullElse( //</span>
+<span class="fc" id="L515">				IuRuntimeEnvironment.envOptional(&quot;iu.crypt.cli.pki.ca.days&quot;), //</span>
 				&quot;120&quot;));
 	}
 
@@ -525,26 +523,26 @@ public class WebKeyCli {
 	 * @return updated JWK
 	 */
 	static WebKey self(WebKey jwk) {
-<span class="fc" id="L528">		final var keyType = jwk.getType();</span>
-<span class="fc" id="L529">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
-<span class="fc" id="L530">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);</span>
-<span class="fc" id="L531">		final var pemCert = IuProcess.exec( //</span>
-<span class="fc" id="L532">				&quot;openssl&quot;, &quot;req&quot;, &quot;-x509&quot;, &quot;-key&quot;, privateKeyFile.toString(), &quot;-days&quot;, Integer.toString(days()), //</span>
-<span class="fc" id="L533">				&quot;-subj&quot;, subjectOrg() + &quot;/CN=&quot; + jwk.getKeyId().replaceAll(&quot;([+=/])&quot;, &quot;\\\\$1&quot;), //</span>
+<span class="fc" id="L526">		final var keyType = jwk.getType();</span>
+<span class="fc" id="L527">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
+<span class="fc" id="L528">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);</span>
+<span class="fc" id="L529">		final var pemCert = IuProcess.exec( //</span>
+<span class="fc" id="L530">				&quot;openssl&quot;, &quot;req&quot;, &quot;-x509&quot;, &quot;-key&quot;, privateKeyFile.toString(), &quot;-days&quot;, Integer.toString(days()), //</span>
+<span class="fc" id="L531">				&quot;-subj&quot;, subjectOrg() + &quot;/CN=&quot; + jwk.getKeyId().replaceAll(&quot;([+=/])&quot;, &quot;\\\\$1&quot;), //</span>
 				&quot;-addext&quot;, &quot;basicConstraints=CA:false&quot;, //
-<span class="fc" id="L535">				&quot;-addext&quot;, &quot;keyUsage=&quot; + keyUsage(jwk) //</span>
+<span class="fc" id="L533">				&quot;-addext&quot;, &quot;keyUsage=&quot; + keyUsage(jwk) //</span>
 		);
 
-<span class="fc" id="L538">		IuProcess.deleteTempFiles();</span>
+<span class="fc" id="L536">		IuProcess.deleteTempFiles();</span>
 
-<span class="fc" id="L540">		return WebKey.builder(keyType) //</span>
-<span class="fc" id="L541">				.keyId(jwk.getKeyId()) //</span>
-<span class="fc" id="L542">				.key(privateKey) //</span>
-<span class="fc" id="L543">				.key(jwk.getPublicKey()) //</span>
-<span class="fc" id="L544">				.algorithm(jwk.getAlgorithm()) //</span>
-<span class="fc" id="L545">				.use(jwk.getUse()) //</span>
-<span class="fc" id="L546">				.pem(pemCert) //</span>
-<span class="fc" id="L547">				.build();</span>
+<span class="fc" id="L538">		return WebKey.builder(keyType) //</span>
+<span class="fc" id="L539">				.keyId(jwk.getKeyId()) //</span>
+<span class="fc" id="L540">				.key(privateKey) //</span>
+<span class="fc" id="L541">				.key(jwk.getPublicKey()) //</span>
+<span class="fc" id="L542">				.algorithm(jwk.getAlgorithm()) //</span>
+<span class="fc" id="L543">				.use(jwk.getUse()) //</span>
+<span class="fc" id="L544">				.pem(pemCert) //</span>
+<span class="fc" id="L545">				.build();</span>
 	}
 
 	/**
@@ -554,65 +552,65 @@ public class WebKeyCli {
 	 * @return {@link X509CertificateAuthority}
 	 */
 	static X509CertificateAuthority ca(WebKey pwk) {
-<span class="fc" id="L557">		final var commonName = pwk.getKeyId();</span>
-<span class="fc" id="L558">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, pwk.getPrivateKey());</span>
-<span class="fc" id="L559">		final var pemCert = IuProcess.exec( //</span>
-<span class="fc" id="L560">				&quot;openssl&quot;, &quot;req&quot;, &quot;-x509&quot;, &quot;-key&quot;, privateKeyFile.toString(), &quot;-days&quot;, Integer.toString(caDays()), //</span>
-<span class="fc" id="L561">				&quot;-subj&quot;, subjectOrg() + &quot;/CN=&quot; + commonName.replaceAll(&quot;([+=/])&quot;, &quot;\\\\$1&quot;), //</span>
+<span class="fc" id="L555">		final var commonName = pwk.getKeyId();</span>
+<span class="fc" id="L556">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, pwk.getPrivateKey());</span>
+<span class="fc" id="L557">		final var pemCert = IuProcess.exec( //</span>
+<span class="fc" id="L558">				&quot;openssl&quot;, &quot;req&quot;, &quot;-x509&quot;, &quot;-key&quot;, privateKeyFile.toString(), &quot;-days&quot;, Integer.toString(caDays()), //</span>
+<span class="fc" id="L559">				&quot;-subj&quot;, subjectOrg() + &quot;/CN=&quot; + commonName.replaceAll(&quot;([+=/])&quot;, &quot;\\\\$1&quot;), //</span>
 				&quot;-addext&quot;, &quot;basicConstraints=critical,CA:true,pathlen:0&quot;, //
 				&quot;-addext&quot;, &quot;keyUsage=keyCertSign,cRLSign&quot; //
 		);
 
-<span class="fc" id="L566">		final var jwk = WebKey.builder(pwk.getType()) //</span>
-<span class="fc" id="L567">				.keyId(commonName) //</span>
-<span class="fc" id="L568">				.key(pwk.getPrivateKey()) //</span>
-<span class="fc" id="L569">				.key(pwk.getPublicKey()) //</span>
-<span class="fc" id="L570">				.pem(pemCert) //</span>
-<span class="fc" id="L571">				.build();</span>
+<span class="fc" id="L564">		final var jwk = WebKey.builder(pwk.getType()) //</span>
+<span class="fc" id="L565">				.keyId(commonName) //</span>
+<span class="fc" id="L566">				.key(pwk.getPrivateKey()) //</span>
+<span class="fc" id="L567">				.key(pwk.getPublicKey()) //</span>
+<span class="fc" id="L568">				.pem(pemCert) //</span>
+<span class="fc" id="L569">				.build();</span>
 
-<span class="fc" id="L573">		final var databaseFile = IuProcess.temp(PrintStream::print, &quot;&quot;);</span>
-<span class="fc" id="L574">		final var newCertsDir = IuProcess.createTempDirectory();</span>
-<span class="fc" id="L575">		final var caConfig = caConfig(privateKeyFile, databaseFile, newCertsDir, jwk);</span>
-<span class="fc" id="L576">		final var crl = PemEncoded.parse(IuProcess.exec( //</span>
-<span class="fc" id="L577">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-gencrl&quot;, &quot;-config&quot;, caConfig.toString(), &quot;-crldays&quot;, Integer.toString(caDays()) //</span>
-<span class="fc" id="L578">		)).next().asCRL();</span>
+<span class="fc" id="L571">		final var databaseFile = IuProcess.temp(PrintStream::print, &quot;&quot;);</span>
+<span class="fc" id="L572">		final var newCertsDir = IuProcess.createTempDirectory();</span>
+<span class="fc" id="L573">		final var caConfig = caConfig(privateKeyFile, databaseFile, newCertsDir, jwk);</span>
+<span class="fc" id="L574">		final var crl = PemEncoded.parse(IuProcess.exec( //</span>
+<span class="fc" id="L575">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-gencrl&quot;, &quot;-config&quot;, caConfig.toString(), &quot;-crldays&quot;, Integer.toString(caDays()) //</span>
+<span class="fc" id="L576">		)).next().asCRL();</span>
 
-<span class="fc" id="L580">		final var database = IuException.unchecked(() -&gt; Files.readAllBytes(databaseFile));</span>
-<span class="fc" id="L581">		IuProcess.deleteTempFiles();</span>
+<span class="fc" id="L578">		final var database = IuException.unchecked(() -&gt; Files.readAllBytes(databaseFile));</span>
+<span class="fc" id="L579">		IuProcess.deleteTempFiles();</span>
 
-<span class="fc" id="L583">		return new X509CertificateAuthority() {</span>
+<span class="fc" id="L581">		return new X509CertificateAuthority() {</span>
 			@Override
 			public WebKey getJwk() {
-<span class="fc" id="L586">				return jwk;</span>
+<span class="fc" id="L584">				return jwk;</span>
 			}
 
 			@Override
 			public byte[] getDatabase() {
-<span class="fc" id="L591">				return database;</span>
+<span class="fc" id="L589">				return database;</span>
 			}
 
 			@Override
 			public Iterable&lt;X509Certificate&gt; getCertificates() {
-<span class="fc" id="L596">				return IuIterable.empty();</span>
+<span class="fc" id="L594">				return IuIterable.empty();</span>
 			}
 
 			@Override
 			public Iterable&lt;X509CRL&gt; getCrl() {
-<span class="fc" id="L601">				return IuIterable.iter(crl);</span>
+<span class="fc" id="L599">				return IuIterable.iter(crl);</span>
 			}
 		};
 	}
 
 	private static String replacePropertyValue(String template, String name, Path path) {
-<span class="fc" id="L607">		return template.replace(&quot;${&quot; + name + &quot;}&quot;, path.toString().replace('\\', '/'));</span>
+<span class="fc" id="L605">		return template.replace(&quot;${&quot; + name + &quot;}&quot;, path.toString().replace('\\', '/'));</span>
 	}
 
 	private static Path caConfig(Path privateKeyFile, Path databaseFile, Path newCertsDir, WebKey jwk) {
-<span class="fc" id="L611">		final var certificateFile = IuProcess.temp(IuProcess::pem, jwk.getCertificateChain()[0]);</span>
-<span class="fc" id="L612">		IuProcess.exec( //</span>
-<span class="fc" id="L613">				&quot;openssl&quot;, &quot;x509&quot;, &quot;-text&quot;, &quot;-in&quot;, certificateFile.toString() //</span>
+<span class="fc" id="L609">		final var certificateFile = IuProcess.temp(IuProcess::pem, jwk.getCertificateChain()[0]);</span>
+<span class="fc" id="L610">		IuProcess.exec( //</span>
+<span class="fc" id="L611">				&quot;openssl&quot;, &quot;x509&quot;, &quot;-text&quot;, &quot;-in&quot;, certificateFile.toString() //</span>
 		);
-<span class="fc" id="L615">		var caConfigContents = &quot;&quot;&quot;</span>
+<span class="fc" id="L613">		var caConfigContents = &quot;&quot;&quot;</span>
 				[ ca ]
 				default_ca = a
 
@@ -634,12 +632,12 @@ public class WebKeyCli {
 				commonName = supplied
 				emailAddress = optional
 				&quot;&quot;&quot;;
-<span class="fc" id="L637">		caConfigContents = replacePropertyValue(caConfigContents, &quot;private_key&quot;, privateKeyFile);</span>
-<span class="fc" id="L638">		caConfigContents = replacePropertyValue(caConfigContents, &quot;certificate&quot;, certificateFile);</span>
-<span class="fc" id="L639">		caConfigContents = replacePropertyValue(caConfigContents, &quot;database&quot;, databaseFile);</span>
-<span class="fc" id="L640">		caConfigContents = replacePropertyValue(caConfigContents, &quot;new_certs_dir&quot;, newCertsDir);</span>
-<span class="fc" id="L641">		LOG.fine(&quot;OpenSSL CA config\n&quot; + caConfigContents);</span>
-<span class="fc" id="L642">		return IuProcess.temp(PrintStream::print, caConfigContents);</span>
+<span class="fc" id="L635">		caConfigContents = replacePropertyValue(caConfigContents, &quot;private_key&quot;, privateKeyFile);</span>
+<span class="fc" id="L636">		caConfigContents = replacePropertyValue(caConfigContents, &quot;certificate&quot;, certificateFile);</span>
+<span class="fc" id="L637">		caConfigContents = replacePropertyValue(caConfigContents, &quot;database&quot;, databaseFile);</span>
+<span class="fc" id="L638">		caConfigContents = replacePropertyValue(caConfigContents, &quot;new_certs_dir&quot;, newCertsDir);</span>
+<span class="fc" id="L639">		LOG.fine(&quot;OpenSSL CA config\n&quot; + caConfigContents);</span>
+<span class="fc" id="L640">		return IuProcess.temp(PrintStream::print, caConfigContents);</span>
 	}
 
 	/**
@@ -649,18 +647,18 @@ public class WebKeyCli {
 	 * @param jwk key to generate a CSR for
 	 */
 	static void req(PrintStream out, WebKey jwk) {
-<span class="fc" id="L652">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, jwk.getPrivateKey());</span>
-<span class="fc" id="L653">		final var csr = IuProcess.exec( //</span>
-<span class="fc" id="L654">				&quot;openssl&quot;, &quot;req&quot;, &quot;-new&quot;, &quot;-key&quot;, privateKeyFile.toString(), //</span>
-<span class="fc" id="L655">				&quot;-subj&quot;, subjectOrg() + &quot;/CN=&quot; + jwk.getKeyId().replaceAll(&quot;([+=/])&quot;, &quot;\\\\$1&quot;), //</span>
+<span class="fc" id="L650">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, jwk.getPrivateKey());</span>
+<span class="fc" id="L651">		final var csr = IuProcess.exec( //</span>
+<span class="fc" id="L652">				&quot;openssl&quot;, &quot;req&quot;, &quot;-new&quot;, &quot;-key&quot;, privateKeyFile.toString(), //</span>
+<span class="fc" id="L653">				&quot;-subj&quot;, subjectOrg() + &quot;/CN=&quot; + jwk.getKeyId().replaceAll(&quot;([+=/])&quot;, &quot;\\\\$1&quot;), //</span>
 				&quot;-addext&quot;, &quot;basicConstraints=CA:false&quot;, //
-<span class="fc" id="L657">				&quot;-addext&quot;, &quot;keyUsage=&quot; + keyUsage(jwk) //</span>
+<span class="fc" id="L655">				&quot;-addext&quot;, &quot;keyUsage=&quot; + keyUsage(jwk) //</span>
 		);
 
-<span class="fc" id="L660">		IuProcess.deleteTempFiles();</span>
+<span class="fc" id="L658">		IuProcess.deleteTempFiles();</span>
 
-<span class="fc" id="L662">		out.println(csr);</span>
-<span class="fc" id="L663">	}</span>
+<span class="fc" id="L660">		out.println(csr);</span>
+<span class="fc" id="L661">	}</span>
 
 	/**
 	 * Returns a copy of a CA with a new signed certificate appended to the valid
@@ -671,58 +669,58 @@ public class WebKeyCli {
 	 * @return Updated {@link X509CertificateAuthority}
 	 */
 	static X509CertificateAuthority sign(X509CertificateAuthority ca, Path csrFile) {
-<span class="fc" id="L674">		final var jwk = ca.getJwk();</span>
-<span class="fc" id="L675">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
-<span class="fc" id="L676">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);</span>
-<span class="fc" id="L677">		final var databaseFile = IuProcess.createTempFile();</span>
-<span class="fc" id="L678">		IuException.unchecked(() -&gt; Files.write(databaseFile, ca.getDatabase()));</span>
-<span class="fc" id="L679">		final var newCertsDir = IuProcess.createTempDirectory();</span>
-<span class="fc" id="L680">		final var caConfig = caConfig(privateKeyFile, databaseFile, newCertsDir, jwk);</span>
+<span class="fc" id="L672">		final var jwk = ca.getJwk();</span>
+<span class="fc" id="L673">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
+<span class="fc" id="L674">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);</span>
+<span class="fc" id="L675">		final var databaseFile = IuProcess.createTempFile();</span>
+<span class="fc" id="L676">		IuException.unchecked(() -&gt; Files.write(databaseFile, ca.getDatabase()));</span>
+<span class="fc" id="L677">		final var newCertsDir = IuProcess.createTempDirectory();</span>
+<span class="fc" id="L678">		final var caConfig = caConfig(privateKeyFile, databaseFile, newCertsDir, jwk);</span>
 
-<span class="fc" id="L682">		final var caOut = IuProcess.exec( //</span>
-<span class="fc" id="L683">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-batch&quot;, &quot;-in&quot;, csrFile.toString(), //</span>
-<span class="fc" id="L684">				&quot;-config&quot;, caConfig.toString(), &quot;-days&quot;, Integer.toString(days()) //</span>
+<span class="fc" id="L680">		final var caOut = IuProcess.exec( //</span>
+<span class="fc" id="L681">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-batch&quot;, &quot;-in&quot;, csrFile.toString(), //</span>
+<span class="fc" id="L682">				&quot;-config&quot;, caConfig.toString(), &quot;-days&quot;, Integer.toString(days()) //</span>
 		);
 
-<span class="fc" id="L687">		final var pemCert = PemEncoded.parse(caOut.substring(caOut.indexOf(&quot;-----BEGIN&quot;))).next().asCertificate();</span>
-<span class="fc" id="L688">		final Queue&lt;X509Certificate&gt; newCertificates = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L689">		final var certs = ca.getCertificates();</span>
-<span class="fc" id="L690">		certs.forEach(newCertificates::offer);</span>
-<span class="fc" id="L691">		newCertificates.offer(pemCert);</span>
+<span class="fc" id="L685">		final var pemCert = PemEncoded.parse(caOut.substring(caOut.indexOf(&quot;-----BEGIN&quot;))).next().asCertificate();</span>
+<span class="fc" id="L686">		final Queue&lt;X509Certificate&gt; newCertificates = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L687">		final var certs = ca.getCertificates();</span>
+<span class="fc" id="L688">		certs.forEach(newCertificates::offer);</span>
+<span class="fc" id="L689">		newCertificates.offer(pemCert);</span>
 
-<span class="fc" id="L693">		final var crlDays = Long.toString(</span>
-<span class="fc" id="L694">				Duration.between(Instant.now(), jwk.getCertificateChain()[0].getNotAfter().toInstant()).toDays());</span>
-<span class="fc" id="L695">		final var newCrl = PemEncoded.parse(IuProcess.exec( //</span>
-<span class="fc" id="L696">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-gencrl&quot;, &quot;-config&quot;, caConfig.toString(), &quot;-crldays&quot;, crlDays //</span>
-<span class="fc" id="L697">		)).next().asCRL();</span>
-<span class="fc" id="L698">		final var database = IuException.unchecked(() -&gt; Files.readAllBytes(databaseFile));</span>
+<span class="fc" id="L691">		final var crlDays = Long.toString(</span>
+<span class="fc" id="L692">				Duration.between(Instant.now(), jwk.getCertificateChain()[0].getNotAfter().toInstant()).toDays());</span>
+<span class="fc" id="L693">		final var newCrl = PemEncoded.parse(IuProcess.exec( //</span>
+<span class="fc" id="L694">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-gencrl&quot;, &quot;-config&quot;, caConfig.toString(), &quot;-crldays&quot;, crlDays //</span>
+<span class="fc" id="L695">		)).next().asCRL();</span>
+<span class="fc" id="L696">		final var database = IuException.unchecked(() -&gt; Files.readAllBytes(databaseFile));</span>
 
-<span class="fc" id="L700">		IuProcess.deleteTempFiles();</span>
-<span class="fc" id="L701">		IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L702">			Files.deleteIfExists(Path.of(databaseFile + &quot;.attr&quot;));</span>
-<span class="fc" id="L703">			Files.deleteIfExists(Path.of(databaseFile + &quot;.old&quot;));</span>
-<span class="fc" id="L704">		});</span>
+<span class="fc" id="L698">		IuProcess.deleteTempFiles();</span>
+<span class="fc" id="L699">		IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L700">			Files.deleteIfExists(Path.of(databaseFile + &quot;.attr&quot;));</span>
+<span class="fc" id="L701">			Files.deleteIfExists(Path.of(databaseFile + &quot;.old&quot;));</span>
+<span class="fc" id="L702">		});</span>
 
-<span class="fc" id="L706">		return new X509CertificateAuthority() {</span>
+<span class="fc" id="L704">		return new X509CertificateAuthority() {</span>
 
 			@Override
 			public WebKey getJwk() {
-<span class="fc" id="L710">				return jwk;</span>
+<span class="fc" id="L708">				return jwk;</span>
 			}
 
 			@Override
 			public byte[] getDatabase() {
-<span class="fc" id="L715">				return database;</span>
+<span class="fc" id="L713">				return database;</span>
 			}
 
 			@Override
 			public Iterable&lt;X509Certificate&gt; getCertificates() {
-<span class="fc" id="L720">				return newCertificates;</span>
+<span class="fc" id="L718">				return newCertificates;</span>
 			}
 
 			@Override
 			public Iterable&lt;X509CRL&gt; getCrl() {
-<span class="fc" id="L725">				return IuIterable.iter(newCrl);</span>
+<span class="fc" id="L723">				return IuIterable.iter(newCrl);</span>
 			}
 		};
 	}
@@ -735,81 +733,81 @@ public class WebKeyCli {
 	 * @return Updated CA
 	 */
 	static X509CertificateAuthority revoke(X509CertificateAuthority ca, BigInteger serial) {
-<span class="fc" id="L738">		final var certificates = Objects.requireNonNull(ca.getCertificates(), &quot;Missing certificate chain&quot;);</span>
+<span class="fc" id="L736">		final var certificates = Objects.requireNonNull(ca.getCertificates(), &quot;Missing certificate chain&quot;);</span>
 
-<span class="fc" id="L740">		final Queue&lt;X509Certificate&gt; newCertificates = new ArrayDeque&lt;&gt;();</span>
-<span class="fc" id="L741">		final var iter = certificates.iterator();</span>
+<span class="fc" id="L738">		final Queue&lt;X509Certificate&gt; newCertificates = new ArrayDeque&lt;&gt;();</span>
+<span class="fc" id="L739">		final var iter = certificates.iterator();</span>
 		final X509Certificate certToRevoke;
 		{
-<span class="fc" id="L744">			X509Certificate selectedCert = null;</span>
-<span class="fc bfc" id="L745" title="All 2 branches covered.">			while (iter.hasNext()) {</span>
-<span class="fc" id="L746">				final var cert = iter.next();</span>
-<span class="fc bfc" id="L747" title="All 2 branches covered.">				if (serial.equals(cert.getSerialNumber()))</span>
-<span class="fc" id="L748">					selectedCert = IuObject.once(selectedCert, cert);</span>
+<span class="fc" id="L742">			X509Certificate selectedCert = null;</span>
+<span class="fc bfc" id="L743" title="All 2 branches covered.">			while (iter.hasNext()) {</span>
+<span class="fc" id="L744">				final var cert = iter.next();</span>
+<span class="fc bfc" id="L745" title="All 2 branches covered.">				if (serial.equals(cert.getSerialNumber()))</span>
+<span class="fc" id="L746">					selectedCert = IuObject.once(selectedCert, cert);</span>
 				else
-<span class="fc" id="L750">					newCertificates.offer(cert); // retain all other certs</span>
-<span class="fc" id="L751">			}</span>
-<span class="fc" id="L752">			certToRevoke = Objects.requireNonNull(selectedCert, &quot;Invalid serial number&quot;);</span>
+<span class="fc" id="L748">					newCertificates.offer(cert); // retain all other certs</span>
+<span class="fc" id="L749">			}</span>
+<span class="fc" id="L750">			certToRevoke = Objects.requireNonNull(selectedCert, &quot;Invalid serial number&quot;);</span>
 		}
 
-<span class="fc" id="L755">		final var newCertsDir = IuProcess.createTempDirectory();</span>
-<span class="fc" id="L756">		final var certFileToRevoke = newCertsDir.resolve(WebKeyCli.formatSerialOSSL(serial) + &quot;.pem&quot;);</span>
-<span class="fc" id="L757">		IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L758">			try (final var out = Files.newOutputStream(certFileToRevoke); //</span>
-<span class="fc" id="L759">					final var ps = new PrintStream(out)) {</span>
-<span class="fc" id="L760">				IuProcess.pem(ps, certToRevoke);</span>
+<span class="fc" id="L753">		final var newCertsDir = IuProcess.createTempDirectory();</span>
+<span class="fc" id="L754">		final var certFileToRevoke = newCertsDir.resolve(WebKeyCli.formatSerialOSSL(serial) + &quot;.pem&quot;);</span>
+<span class="fc" id="L755">		IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L756">			try (final var out = Files.newOutputStream(certFileToRevoke); //</span>
+<span class="fc" id="L757">					final var ps = new PrintStream(out)) {</span>
+<span class="fc" id="L758">				IuProcess.pem(ps, certToRevoke);</span>
 			}
-<span class="fc" id="L762">		});</span>
+<span class="fc" id="L760">		});</span>
 
-<span class="fc" id="L764">		final var jwk = ca.getJwk();</span>
-<span class="fc" id="L765">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
-<span class="fc" id="L766">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);</span>
+<span class="fc" id="L762">		final var jwk = ca.getJwk();</span>
+<span class="fc" id="L763">		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), &quot;Missing private key&quot;);</span>
+<span class="fc" id="L764">		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);</span>
 
-<span class="fc" id="L768">		final var databaseFile = IuProcess.createTempFile();</span>
-<span class="fc" id="L769">		IuException.unchecked(() -&gt; Files.write(databaseFile, //</span>
+<span class="fc" id="L766">		final var databaseFile = IuProcess.createTempFile();</span>
+<span class="fc" id="L767">		IuException.unchecked(() -&gt; Files.write(databaseFile, //</span>
 				// ensure windows line endings have not corrupted the database
-<span class="fc" id="L771">				IuText.utf8(IuText.utf8(ca.getDatabase()).replace(&quot;\r\n&quot;, &quot;\n&quot;)) //</span>
+<span class="fc" id="L769">				IuText.utf8(IuText.utf8(ca.getDatabase()).replace(&quot;\r\n&quot;, &quot;\n&quot;)) //</span>
 		));
 
-<span class="fc" id="L774">		final var caConfig = caConfig(privateKeyFile, databaseFile, newCertsDir, jwk);</span>
-<span class="fc" id="L775">		IuProcess.exec( //</span>
-<span class="fc" id="L776">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-batch&quot;, &quot;-revoke&quot;, certFileToRevoke.toString(), //</span>
-<span class="fc" id="L777">				&quot;-config&quot;, caConfig.toString() //</span>
+<span class="fc" id="L772">		final var caConfig = caConfig(privateKeyFile, databaseFile, newCertsDir, jwk);</span>
+<span class="fc" id="L773">		IuProcess.exec( //</span>
+<span class="fc" id="L774">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-batch&quot;, &quot;-revoke&quot;, certFileToRevoke.toString(), //</span>
+<span class="fc" id="L775">				&quot;-config&quot;, caConfig.toString() //</span>
 		);
 
-<span class="fc" id="L780">		final var caCert = jwk.getCertificateChain()[0];</span>
+<span class="fc" id="L778">		final var caCert = jwk.getCertificateChain()[0];</span>
 		final var crlDays = Long
-<span class="fc" id="L782">				.toString(Duration.between(Instant.now(), caCert.getNotAfter().toInstant()).toDays() + 1L);</span>
-<span class="fc" id="L783">		final var newCrl = PemEncoded.parse(IuProcess.exec( //</span>
-<span class="fc" id="L784">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-gencrl&quot;, &quot;-config&quot;, caConfig.toString(), &quot;-crldays&quot;, crlDays //</span>
-<span class="fc" id="L785">		)).next().asCRL();</span>
-<span class="fc" id="L786">		final var database = IuException.unchecked(() -&gt; Files.readAllBytes(databaseFile));</span>
+<span class="fc" id="L780">				.toString(Duration.between(Instant.now(), caCert.getNotAfter().toInstant()).toDays() + 1L);</span>
+<span class="fc" id="L781">		final var newCrl = PemEncoded.parse(IuProcess.exec( //</span>
+<span class="fc" id="L782">				&quot;openssl&quot;, &quot;ca&quot;, &quot;-gencrl&quot;, &quot;-config&quot;, caConfig.toString(), &quot;-crldays&quot;, crlDays //</span>
+<span class="fc" id="L783">		)).next().asCRL();</span>
+<span class="fc" id="L784">		final var database = IuException.unchecked(() -&gt; Files.readAllBytes(databaseFile));</span>
 
-<span class="fc" id="L788">		IuProcess.deleteTempFiles();</span>
-<span class="fc" id="L789">		IuException.unchecked(() -&gt; {</span>
-<span class="fc" id="L790">			Files.deleteIfExists(Path.of(databaseFile + &quot;.attr&quot;));</span>
-<span class="fc" id="L791">			Files.deleteIfExists(Path.of(databaseFile + &quot;.old&quot;));</span>
-<span class="fc" id="L792">		});</span>
+<span class="fc" id="L786">		IuProcess.deleteTempFiles();</span>
+<span class="fc" id="L787">		IuException.unchecked(() -&gt; {</span>
+<span class="fc" id="L788">			Files.deleteIfExists(Path.of(databaseFile + &quot;.attr&quot;));</span>
+<span class="fc" id="L789">			Files.deleteIfExists(Path.of(databaseFile + &quot;.old&quot;));</span>
+<span class="fc" id="L790">		});</span>
 
-<span class="fc" id="L794">		return new X509CertificateAuthority() {</span>
+<span class="fc" id="L792">		return new X509CertificateAuthority() {</span>
 			@Override
 			public WebKey getJwk() {
-<span class="fc" id="L797">				return jwk;</span>
+<span class="fc" id="L795">				return jwk;</span>
 			}
 
 			@Override
 			public byte[] getDatabase() {
-<span class="fc" id="L802">				return database;</span>
+<span class="fc" id="L800">				return database;</span>
 			}
 
 			@Override
 			public Iterable&lt;X509CRL&gt; getCrl() {
-<span class="fc" id="L807">				return IuIterable.iter(newCrl);</span>
+<span class="fc" id="L805">				return IuIterable.iter(newCrl);</span>
 			}
 
 			@Override
 			public Iterable&lt;X509Certificate&gt; getCertificates() {
-<span class="fc" id="L812">				return newCertificates;</span>
+<span class="fc" id="L810">				return newCertificates;</span>
 			}
 		};
 	}
@@ -820,97 +818,97 @@ public class WebKeyCli {
 	 * @param arg arguments
 	 */
 	public static void main(String[] arg) {
-<span class="fc bfc" id="L823" title="All 2 branches covered.">		if (arg.length == 0) {</span>
-<span class="fc" id="L824">			System.err.print(USAGE);</span>
-<span class="fc" id="L825">			return;</span>
+<span class="fc bfc" id="L821" title="All 2 branches covered.">		if (arg.length == 0) {</span>
+<span class="fc" id="L822">			System.err.print(USAGE);</span>
+<span class="fc" id="L823">			return;</span>
 		}
 
 		try {
-<span class="fc" id="L829">			final var cmd = arg[0];</span>
+<span class="fc" id="L827">			final var cmd = arg[0];</span>
 
-<span class="fc" id="L831">			WebKey key = null;</span>
-<span class="fc" id="L832">			X509CertificateAuthority ca = null;</span>
-<span class="fc bfc" id="L833" title="All 2 branches covered.">			if (cmd.equals(&quot;create&quot;))</span>
-<span class="fc" id="L834">				key = create(arg);</span>
+<span class="fc" id="L829">			WebKey key = null;</span>
+<span class="fc" id="L830">			X509CertificateAuthority ca = null;</span>
+<span class="fc bfc" id="L831" title="All 2 branches covered.">			if (cmd.equals(&quot;create&quot;))</span>
+<span class="fc" id="L832">				key = create(arg);</span>
 			else {
-<span class="fc" id="L836">				WebKey inputKey = null;</span>
-<span class="fc" id="L837">				X509CertificateAuthority inputCa = null;</span>
-<span class="fc" id="L838">				final var json = IuJson.parse(IuProcess.read()).asJsonObject();</span>
-<span class="fc bfc" id="L839" title="All 2 branches covered.">				if (json.containsKey(&quot;kty&quot;))</span>
-<span class="fc" id="L840">					inputKey = CryptJsonAdapters.WEBKEY.fromJson(json);</span>
+<span class="fc" id="L834">				WebKey inputKey = null;</span>
+<span class="fc" id="L835">				X509CertificateAuthority inputCa = null;</span>
+<span class="fc" id="L836">				final var json = IuJson.parse(IuProcess.read()).asJsonObject();</span>
+<span class="fc bfc" id="L837" title="All 2 branches covered.">				if (json.containsKey(&quot;kty&quot;))</span>
+<span class="fc" id="L838">					inputKey = CryptJsonAdapters.WEBKEY.fromJson(json);</span>
 				else
-<span class="fc" id="L842">					inputCa = CryptJsonAdapters.CA.fromJson(json);</span>
+<span class="fc" id="L840">					inputCa = CryptJsonAdapters.CA.fromJson(json);</span>
 
-<span class="fc bfc" id="L844" title="All 2 branches covered.">				if (cmd.equals(&quot;ca&quot;)) {</span>
-<span class="fc" id="L845">					ca = ca(inputKey);</span>
-<span class="fc bfc" id="L846" title="All 2 branches covered.">				} else if (cmd.equals(&quot;export&quot;)) {</span>
-<span class="fc" id="L847">					export(System.out, inputCa, parseSerial(arg[1]));</span>
-<span class="fc" id="L848">					return;</span>
-<span class="fc bfc" id="L849" title="All 2 branches covered.">				} else if (cmd.equals(&quot;print&quot;)) {</span>
-<span class="fc bfc" id="L850" title="All 2 branches covered.">					if (inputKey != null)</span>
-<span class="fc" id="L851">						print(System.out, inputKey);</span>
+<span class="fc bfc" id="L842" title="All 2 branches covered.">				if (cmd.equals(&quot;ca&quot;)) {</span>
+<span class="fc" id="L843">					ca = ca(inputKey);</span>
+<span class="fc bfc" id="L844" title="All 2 branches covered.">				} else if (cmd.equals(&quot;export&quot;)) {</span>
+<span class="fc" id="L845">					export(System.out, inputCa, parseSerial(arg[1]));</span>
+<span class="fc" id="L846">					return;</span>
+<span class="fc bfc" id="L847" title="All 2 branches covered.">				} else if (cmd.equals(&quot;print&quot;)) {</span>
+<span class="fc bfc" id="L848" title="All 2 branches covered.">					if (inputKey != null)</span>
+<span class="fc" id="L849">						print(System.out, inputKey);</span>
 					else
-<span class="fc" id="L853">						print(System.out, inputCa);</span>
-<span class="fc" id="L854">					return;</span>
-<span class="fc bfc" id="L855" title="All 2 branches covered.">				} else if (cmd.equals(&quot;public&quot;)) {</span>
-<span class="fc bfc" id="L856" title="All 2 branches covered.">					if (inputKey != null)</span>
-<span class="fc" id="L857">						key = inputKey.wellKnown();</span>
+<span class="fc" id="L851">						print(System.out, inputCa);</span>
+<span class="fc" id="L852">					return;</span>
+<span class="fc bfc" id="L853" title="All 2 branches covered.">				} else if (cmd.equals(&quot;public&quot;)) {</span>
+<span class="fc bfc" id="L854" title="All 2 branches covered.">					if (inputKey != null)</span>
+<span class="fc" id="L855">						key = inputKey.wellKnown();</span>
 					else {
-<span class="fc" id="L859">						final var jwk = inputCa.getJwk().wellKnown();</span>
-<span class="fc" id="L860">						final var crl = inputCa.getCrl();</span>
-<span class="fc" id="L861">						ca = new X509CertificateAuthority() {</span>
+<span class="fc" id="L857">						final var jwk = inputCa.getJwk().wellKnown();</span>
+<span class="fc" id="L858">						final var crl = inputCa.getCrl();</span>
+<span class="fc" id="L859">						ca = new X509CertificateAuthority() {</span>
 
 							@Override
 							public WebKey getJwk() {
-<span class="fc" id="L865">								return jwk;</span>
+<span class="fc" id="L863">								return jwk;</span>
 							}
 
 							@Override
 							public byte[] getDatabase() {
-<span class="fc" id="L870">								return null;</span>
+<span class="fc" id="L868">								return null;</span>
 							}
 
 							@Override
 							public Iterable&lt;X509Certificate&gt; getCertificates() {
-<span class="fc" id="L875">								return null;</span>
+<span class="fc" id="L873">								return null;</span>
 							}
 
 							@Override
 							public Iterable&lt;X509CRL&gt; getCrl() {
-<span class="fc" id="L880">								return crl;</span>
+<span class="fc" id="L878">								return crl;</span>
 							}
 						};
-<span class="fc" id="L883">					}</span>
-<span class="fc bfc" id="L884" title="All 2 branches covered.">				} else if (cmd.equals(&quot;self&quot;))</span>
-<span class="fc" id="L885">					key = self(inputKey);</span>
-<span class="fc bfc" id="L886" title="All 2 branches covered.">				else if (cmd.equals(&quot;req&quot;)) {</span>
-<span class="fc" id="L887">					req(System.out, inputKey);</span>
-<span class="fc" id="L888">					return;</span>
-<span class="fc bfc" id="L889" title="All 2 branches covered.">				} else if (cmd.equals(&quot;sign&quot;))</span>
-<span class="fc" id="L890">					ca = sign(inputCa, Path.of(arg[1]));</span>
-<span class="fc bfc" id="L891" title="All 2 branches covered.">				else if (cmd.equals(&quot;cert&quot;))</span>
-<span class="fc" id="L892">					key = cert(inputKey, Path.of(arg[1]));</span>
-<span class="fc bfc" id="L893" title="All 2 branches covered.">				else if (cmd.equals(&quot;revoke&quot;))</span>
-<span class="fc" id="L894">					ca = revoke(inputCa, parseSerial(arg[1]));</span>
+<span class="fc" id="L881">					}</span>
+<span class="fc bfc" id="L882" title="All 2 branches covered.">				} else if (cmd.equals(&quot;self&quot;))</span>
+<span class="fc" id="L883">					key = self(inputKey);</span>
+<span class="fc bfc" id="L884" title="All 2 branches covered.">				else if (cmd.equals(&quot;req&quot;)) {</span>
+<span class="fc" id="L885">					req(System.out, inputKey);</span>
+<span class="fc" id="L886">					return;</span>
+<span class="fc bfc" id="L887" title="All 2 branches covered.">				} else if (cmd.equals(&quot;sign&quot;))</span>
+<span class="fc" id="L888">					ca = sign(inputCa, Path.of(arg[1]));</span>
+<span class="fc bfc" id="L889" title="All 2 branches covered.">				else if (cmd.equals(&quot;cert&quot;))</span>
+<span class="fc" id="L890">					key = cert(inputKey, Path.of(arg[1]));</span>
+<span class="fc bfc" id="L891" title="All 2 branches covered.">				else if (cmd.equals(&quot;revoke&quot;))</span>
+<span class="fc" id="L892">					ca = revoke(inputCa, parseSerial(arg[1]));</span>
 				else
-<span class="fc" id="L896">					throw new IllegalArgumentException(&quot;invalid command &quot; + cmd);</span>
+<span class="fc" id="L894">					throw new IllegalArgumentException(&quot;invalid command &quot; + cmd);</span>
 			}
 
 			final JsonValue json;
-<span class="fc bfc" id="L900" title="All 2 branches covered.">			if (key != null)</span>
-<span class="fc" id="L901">				json = CryptJsonAdapters.WEBKEY.toJson(key);</span>
+<span class="fc bfc" id="L898" title="All 2 branches covered.">			if (key != null)</span>
+<span class="fc" id="L899">				json = CryptJsonAdapters.WEBKEY.toJson(key);</span>
 			else
-<span class="fc" id="L903">				json = CryptJsonAdapters.CA.toJson(ca);</span>
+<span class="fc" id="L901">				json = CryptJsonAdapters.CA.toJson(ca);</span>
 
-<span class="fc" id="L905">			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(System.out)</span>
-<span class="fc" id="L906">					.write(json);</span>
-<span class="fc" id="L907">			System.out.println();</span>
+<span class="fc" id="L903">			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(System.out)</span>
+<span class="fc" id="L904">					.write(json);</span>
+<span class="fc" id="L905">			System.out.println();</span>
 
-<span class="fc" id="L909">		} catch (RuntimeException | Error e) {</span>
-<span class="fc" id="L910">			System.err.print(USAGE);</span>
-<span class="fc" id="L911">			throw e;</span>
-<span class="fc" id="L912">		}</span>
-<span class="fc" id="L913">	}</span>
+<span class="fc" id="L907">		} catch (RuntimeException | Error e) {</span>
+<span class="fc" id="L908">			System.err.print(USAGE);</span>
+<span class="fc" id="L909">			throw e;</span>
+<span class="fc" id="L910">		}</span>
+<span class="fc" id="L911">	}</span>
 
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
