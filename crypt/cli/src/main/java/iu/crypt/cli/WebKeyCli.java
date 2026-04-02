@@ -4,6 +4,7 @@ import java.io.PrintStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivateKey;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPublicKey;
@@ -22,6 +23,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.IuProcess;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
@@ -346,6 +348,60 @@ public class WebKeyCli {
 	}
 
 	/**
+	 * Prints a {@link PrivateKey} in PEM format.
+	 * 
+	 * @param out {@link PrintStream}
+	 * @param key {@link PrivateKey}
+	 * @see #pem(PrintStream, String, byte[])
+	 */
+	static void pem(PrintStream out, PrivateKey key) {
+		pem(out, "PRIVATE KEY", key.getEncoded());
+	}
+
+	/**
+	 * Prints a {@link X509Certificate} in PEM format.
+	 * 
+	 * @param out         {@link PrintStream}
+	 * @param certificate {@link X509Certificate}
+	 * @see #pem(PrintStream, String, byte[])
+	 */
+	static void pem(PrintStream out, X509Certificate certificate) {
+		pem(out, "CERTIFICATE", IuException.unchecked(certificate::getEncoded));
+	}
+
+	/**
+	 * Prints a {@link X509Certificate} in PEM format.
+	 * 
+	 * @param out {@link PrintStream}
+	 * @param crl {@link X509CRL}
+	 * @see #pem(PrintStream, String, byte[])
+	 */
+	static void pem(PrintStream out, X509CRL crl) {
+		pem(out, "X509 CRL", IuException.unchecked(crl::getEncoded));
+	}
+
+	/**
+	 * Prints encoded key data in PEM format, for interoperability with OpenSSL.
+	 * 
+	 * @param out     {@link PrintStream}, receives PEM data then flushes.
+	 * @param header  PEM header string
+	 * @param encoded encoded key data
+	 */
+	private static void pem(PrintStream out, String header, byte[] encoded) {
+		out.println("-----BEGIN " + header + "-----");
+		final var sb = new StringBuilder(IuText.base64(encoded));
+		for (var pos = 0; pos < sb.length() - 1; pos += 65) {
+			final var e = pos + 65;
+			if (e < sb.length())
+				out.println(sb.substring(pos, e));
+			else
+				out.println(sb.substring(pos));
+		}
+		out.println("-----END " + header + "-----");
+		out.flush();
+	}
+
+	/**
 	 * Exports an PEM-encpded X509 certificate chain for a CA-signed cert.
 	 * 
 	 * @param out    stream to print the certificate chain on
@@ -357,7 +413,7 @@ public class WebKeyCli {
 		var found = false;
 		for (final var cert : ca.getCertificates())
 			if (cert.getSerialNumber().equals(serial)) {
-				IuProcess.pem(out, cert);
+				pem(out, cert);
 				found = true;
 				break;
 			}
@@ -366,7 +422,7 @@ public class WebKeyCli {
 			throw new IllegalArgumentException("Invalid serial number");
 
 		for (final var cert : ca.getJwk().getCertificateChain())
-			IuProcess.pem(out, cert);
+			pem(out, cert);
 	}
 
 	/**
@@ -525,7 +581,7 @@ public class WebKeyCli {
 	static WebKey self(WebKey jwk) {
 		final var keyType = jwk.getType();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);
+		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, privateKey);
 		final var pemCert = IuProcess.exec( //
 				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", Integer.toString(days()), //
 				"-subj", subjectOrg() + "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
@@ -553,7 +609,7 @@ public class WebKeyCli {
 	 */
 	static X509CertificateAuthority ca(WebKey pwk) {
 		final var commonName = pwk.getKeyId();
-		final var privateKeyFile = IuProcess.temp(IuProcess::pem, pwk.getPrivateKey());
+		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, pwk.getPrivateKey());
 		final var pemCert = IuProcess.exec( //
 				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", Integer.toString(caDays()), //
 				"-subj", subjectOrg() + "/CN=" + commonName.replaceAll("([+=/])", "\\\\$1"), //
@@ -606,7 +662,7 @@ public class WebKeyCli {
 	}
 
 	private static Path caConfig(Path privateKeyFile, Path databaseFile, Path newCertsDir, WebKey jwk) {
-		final var certificateFile = IuProcess.temp(IuProcess::pem, jwk.getCertificateChain()[0]);
+		final var certificateFile = IuProcess.temp(WebKeyCli::pem, jwk.getCertificateChain()[0]);
 		IuProcess.exec( //
 				"openssl", "x509", "-text", "-in", certificateFile.toString() //
 		);
@@ -647,7 +703,7 @@ public class WebKeyCli {
 	 * @param jwk key to generate a CSR for
 	 */
 	static void req(PrintStream out, WebKey jwk) {
-		final var privateKeyFile = IuProcess.temp(IuProcess::pem, jwk.getPrivateKey());
+		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, jwk.getPrivateKey());
 		final var csr = IuProcess.exec( //
 				"openssl", "req", "-new", "-key", privateKeyFile.toString(), //
 				"-subj", subjectOrg() + "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
@@ -671,7 +727,7 @@ public class WebKeyCli {
 	static X509CertificateAuthority sign(X509CertificateAuthority ca, Path csrFile) {
 		final var jwk = ca.getJwk();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);
+		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, privateKey);
 		final var databaseFile = IuProcess.createTempFile();
 		IuException.unchecked(() -> Files.write(databaseFile, ca.getDatabase()));
 		final var newCertsDir = IuProcess.createTempDirectory();
@@ -755,13 +811,13 @@ public class WebKeyCli {
 		IuException.unchecked(() -> {
 			try (final var out = Files.newOutputStream(certFileToRevoke); //
 					final var ps = new PrintStream(out)) {
-				IuProcess.pem(ps, certToRevoke);
+				pem(ps, certToRevoke);
 			}
 		});
 
 		final var jwk = ca.getJwk();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(IuProcess::pem, privateKey);
+		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, privateKey);
 
 		final var databaseFile = IuProcess.createTempFile();
 		IuException.unchecked(() -> Files.write(databaseFile, //
