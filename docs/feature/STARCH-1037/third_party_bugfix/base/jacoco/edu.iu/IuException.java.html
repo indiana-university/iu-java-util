@@ -1349,6 +1349,21 @@ public final class IuException {
 	}
 
 	/**
+	 * Suppress an error if prior error occurred.
+	 * 
+	 * @param error      prior error if available; else null
+	 * @param toSuppress error to suppress
+	 * @return error, with toSuppress added; toSuppress if error is null
+	 */
+	public static Throwable suppress(Throwable error, Throwable toSuppress) {
+<span class="fc bfc" id="L1359" title="All 2 branches covered.">		if (error == null)</span>
+<span class="fc" id="L1360">			return toSuppress;</span>
+
+<span class="fc" id="L1362">		error.addSuppressed(toSuppress);</span>
+<span class="fc" id="L1363">		return error;</span>
+	}
+
+	/**
 	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
 	 * an another exception.
 	 * 
@@ -1367,14 +1382,11 @@ public final class IuException {
 	 */
 	public static Throwable suppress(Throwable throwable, UnsafeRunnable runnable) {
 		try {
-<span class="fc" id="L1370">			runnable.run();</span>
-<span class="fc" id="L1371">		} catch (Throwable e) {</span>
-<span class="fc bfc" id="L1372" title="All 2 branches covered.">			if (throwable == null)</span>
-<span class="fc" id="L1373">				throwable = e;</span>
-			else
-<span class="fc" id="L1375">				throwable.addSuppressed(e);</span>
-<span class="fc" id="L1376">		}</span>
-<span class="fc" id="L1377">		return throwable;</span>
+<span class="fc" id="L1385">			runnable.run();</span>
+<span class="fc" id="L1386">		} catch (Throwable e) {</span>
+<span class="fc" id="L1387">			throwable = suppress(throwable, e);</span>
+<span class="fc" id="L1388">		}</span>
+<span class="fc" id="L1389">		return throwable;</span>
 	}
 
 	/**
@@ -1390,8 +1402,8 @@ public final class IuException {
 	 * @throws Throwable from the first task the fails in error
 	 */
 	public static void suppress(UnsafeRunnable... tasks) throws Throwable {
-<span class="fc" id="L1393">		suppress(IuIterable.iter(tasks));</span>
-<span class="fc" id="L1394">	}</span>
+<span class="fc" id="L1405">		suppress(IuIterable.iter(tasks));</span>
+<span class="fc" id="L1406">	}</span>
 
 	/**
 	 * Runs a sequence of tasks with error suppression.
@@ -1406,12 +1418,12 @@ public final class IuException {
 	 * @throws Throwable from the first task the fails in error
 	 */
 	public static void suppress(Iterable&lt;UnsafeRunnable&gt; tasks) throws Throwable {
-<span class="fc" id="L1409">		Throwable e = null;</span>
-<span class="fc bfc" id="L1410" title="All 2 branches covered.">		for (final var task : tasks)</span>
-<span class="fc" id="L1411">			e = suppress(e, task);</span>
-<span class="fc bfc" id="L1412" title="All 2 branches covered.">		if (e != null)</span>
-<span class="fc" id="L1413">			throw e;</span>
-<span class="fc" id="L1414">	}</span>
+<span class="fc" id="L1421">		Throwable e = null;</span>
+<span class="fc bfc" id="L1422" title="All 2 branches covered.">		for (final var task : tasks)</span>
+<span class="fc" id="L1423">			e = suppress(e, task);</span>
+<span class="fc bfc" id="L1424" title="All 2 branches covered.">		if (e != null)</span>
+<span class="fc" id="L1425">			throw e;</span>
+<span class="fc" id="L1426">	}</span>
 
 	/**
 	 * Gets a stack trace from a {@link Throwable} as a {@link String}.
@@ -1420,11 +1432,11 @@ public final class IuException {
 	 * @return {@link String} representation of the stack trace.
 	 */
 	public static String trace(Throwable e) {
-<span class="fc" id="L1423">		final var w = new StringWriter();</span>
-<span class="fc" id="L1424">		try (final var pw = new PrintWriter(w)) {</span>
-<span class="fc" id="L1425">			e.printStackTrace(pw);</span>
+<span class="fc" id="L1435">		final var w = new StringWriter();</span>
+<span class="fc" id="L1436">		try (final var pw = new PrintWriter(w)) {</span>
+<span class="fc" id="L1437">			e.printStackTrace(pw);</span>
 		}
-<span class="fc" id="L1427">		return w.toString();</span>
+<span class="fc" id="L1439">		return w.toString();</span>
 	}
 
 	private IuException() {

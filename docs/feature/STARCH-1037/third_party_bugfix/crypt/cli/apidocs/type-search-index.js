@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.crypt.cli","l":"IuProcess"},{"p":"iu.crypt.cli","l":"WebKeyCli"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.crypt.cli","l":"WebKeyCli"}];updateSearchResults();

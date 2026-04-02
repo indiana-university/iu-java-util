@@ -1,7 +1,6 @@
 GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
 IU Web Cryptography CLI,iu.crypt.cli,WebKeyCli.new X509CertificateAuthority() {...},0,33,0,0,0,5,0,5,0,5
-IU Web Cryptography CLI,iu.crypt.cli,WebKeyCli,0,1866,2,141,0,398,2,105,0,33
+IU Web Cryptography CLI,iu.crypt.cli,WebKeyCli,0,1941,2,145,0,414,2,111,0,37
 IU Web Cryptography CLI,iu.crypt.cli,WebKeyCli.new X509CertificateAuthority() {...},0,33,0,0,0,5,0,5,0,5
 IU Web Cryptography CLI,iu.crypt.cli,WebKeyCli.new X509CertificateAuthority() {...},0,19,0,0,0,5,0,5,0,5
 IU Web Cryptography CLI,iu.crypt.cli,WebKeyCli.new X509CertificateAuthority() {...},0,29,0,0,0,5,0,5,0,5
-IU Web Cryptography CLI,iu.crypt.cli,IuProcess,0,382,0,18,0,87,0,33,0,24
