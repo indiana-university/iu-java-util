@@ -51,6 +51,12 @@ public class CliTestSupport implements BeforeEachCallback {
 	}
 
 	/**
+	 * Default constructor.
+	 */
+	public CliTestSupport() {
+	}
+
+	/**
 	 * Provides text to {@link System#in}
 	 * 
 	 * @param text mock console input
