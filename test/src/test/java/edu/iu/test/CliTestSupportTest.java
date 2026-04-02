@@ -16,7 +16,7 @@ import edu.iu.IuProcess;
 public class CliTestSupportTest {
 
 	@Test
-	void testRead() throws Throwable {
+	public void testRead() throws Throwable {
 		final var in = IdGenerator.generateId();
 		final var run = new Runnable() {
 			private volatile Throwable error;
