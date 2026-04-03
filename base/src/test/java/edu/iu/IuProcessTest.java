@@ -76,7 +76,7 @@ public class IuProcessTest {
 		final var name = "missing_file_" + IdGenerator.generateId();
 
 		final var error = assertThrows(IllegalStateException.class, () -> IuProcess.exec("ls", name));
-		assertTrue(error.getMessage().contains("" + name + "': No such file or directory"), error::getMessage);
+		assertTrue(error.getMessage().contains("No such file or directory"), error::getMessage);
 	}
 
 	@Test

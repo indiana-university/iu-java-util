@@ -663,9 +663,6 @@ public class WebKeyCli {
 
 	private static Path caConfig(Path privateKeyFile, Path databaseFile, Path newCertsDir, WebKey jwk) {
 		final var certificateFile = IuProcess.temp(WebKeyCli::pem, jwk.getCertificateChain()[0]);
-		IuProcess.exec( //
-				"openssl", "x509", "-text", "-in", certificateFile.toString() //
-		);
 		var caConfigContents = """
 				[ ca ]
 				default_ca = a
