@@ -370,7 +370,7 @@ public class WebKeyCli {
 	}
 
 	/**
-	 * Prints a {@link X509Certificate} in PEM format.
+	 * Prints a {@link X509CRL} in PEM format.
 	 * 
 	 * @param out {@link PrintStream}
 	 * @param crl {@link X509CRL}
