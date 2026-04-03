@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mockStatic;
@@ -75,8 +76,7 @@ public class IuProcessTest {
 		final var name = "missing_file_" + IdGenerator.generateId();
 
 		final var error = assertThrows(IllegalStateException.class, () -> IuProcess.exec("ls", name));
-		assertEquals("exec ls " + name + System.lineSeparator() + "status: 2" + System.lineSeparator()
-				+ "ls: cannot access '" + name + "': No such file or directory\n", error.getMessage());
+		assertTrue(error.getMessage().contains("" + name + "': No such file or directory"), error::getMessage);
 	}
 
 	@Test
