@@ -35,7 +35,7 @@ jobs:
         run: echo -n '${{ secrets.GITCONFIG }}' > /tmp/.gitconfig
 
       - name: Clone GitHub repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         env:
           GIT_CONFIG_GLOBAL: /tmp/.gitconfig
 
