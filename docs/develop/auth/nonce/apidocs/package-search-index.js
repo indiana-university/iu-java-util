@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html"},{"m":"iu.util.auth.nonce","l":"iu.auth.nonce"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.auth.nonce","l":"iu.auth.nonce"}];updateSearchResults();
