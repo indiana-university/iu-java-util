@@ -48,7 +48,7 @@ import edu.iu.UnsafeRunnable;
  * Controls execution of a single task.
  * 
  * <p>
- * This class implements the composite aggregation of {@link IuTaskConroller} by
+ * This class implements the composite aggregation of {@link IuTaskController} by
  * {@link IuParallelWorkloadController}.
  * </p>
  */
