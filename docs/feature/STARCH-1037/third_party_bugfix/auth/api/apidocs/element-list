@@ -5,3 +5,4 @@ edu.iu.auth.oauth
 edu.iu.auth.saml
 edu.iu.auth.session
 edu.iu.auth.spi
+iu.auth
