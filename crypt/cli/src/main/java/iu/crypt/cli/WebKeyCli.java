@@ -569,7 +569,7 @@ public class WebKeyCli {
 	static int caDays() {
 		return Integer.parseInt(Objects.requireNonNullElse( //
 				IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.ca.days"), //
-				"120"));
+				"830"));
 	}
 
 	/**
