@@ -265,7 +265,6 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			final var error = assertThrows(IllegalStateException.class, a::b);
 			assertEquals("<!doctype html>\n" + errorMessage, error.getMessage());
 			assertSame(ex, error.getCause());
-			error.printStackTrace();
 			assertInstanceOf(JsonParsingException.class, error.getSuppressed()[0]);
 		}
 	}
