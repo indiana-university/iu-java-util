@@ -23,7 +23,7 @@ jobs:
     name: Build and Verify Feature Branch
     runs-on: [ Linux ]
     container:
-      image: registry.docker.iu.edu/esas-build-test/esas-java-build:feature-STARCH-1013-image_workflow_refactor
+      image: registry.docker.iu.edu/esas-build-test/esas-java-build
       credentials:
         username: ${{ secrets.TEST_REGISTRY_USERNAME }}
         password: ${{ secrets.TEST_REGISTRY_PASSWORD }}
