@@ -114,15 +114,18 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	 */
 	public SamlServiceProvider(URI postUri, String realm, IuSamlServiceProviderMetadata config) {
 		var matchAcs = false;
-		for (final var acsUri : config.getAcsUris())
+		var acsUris = config.getAcsUris();
+		
+		for (final var acsUri : acsUris) {
 			if (acsUri.equals(postUri)) {
 				matchAcs = true;
 				break;
 			}
+		}
 
 		if (!matchAcs)
 			throw new IllegalArgumentException(
-					"Post URI doesn't match with allowed list of Assertion Consumer Service URLs");
+					"Post URI " + postUri + " doesn't match with allowed list of Assertion Consumer Service URLs" + acsUris);
 
 		this.postUri = postUri;
 		this.realm = realm;
