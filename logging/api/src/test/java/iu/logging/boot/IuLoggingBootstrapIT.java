@@ -53,6 +53,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
+import edu.iu.UnsafeRunnable;
 import edu.iu.logging.IuLogContext;
 import edu.iu.logging.IuLogEvent;
 import edu.iu.test.IuTestLogger;
@@ -101,7 +102,7 @@ public class IuLoggingBootstrapIT {
 
 				final var error = new IllegalStateException();
 				try (final var mockIuException = mockStatic(IuException.class)) {
-					mockIuException.when(() -> IuException.suppress(any(), any())).thenReturn(error);
+					mockIuException.when(() -> IuException.suppress(any(), any(UnsafeRunnable.class))).thenReturn(error);
 					mockIuException.when(() -> IuException.checked(any(Throwable.class))).thenReturn(error);
 					assertSame(error, assertThrows(IllegalStateException.class, () -> bootstrap.destroy()));
 				}

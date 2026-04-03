@@ -659,16 +659,25 @@ public interface WebKey extends WebKeyReference {
 		B ops(Operation... ops);
 
 		/**
-		 * Generates a public/private key pair for the algorithm specified by
-		 * {@link #algorithm(Algorithm)} using the default size.
+		 * Generates a public/private EC, EDDSA, or XDH key pair, or key based on
+		 * algorithm.
 		 * 
 		 * @return this
 		 */
 		B ephemeral();
 
 		/**
-		 * Generates a public/private key pair or secret key without setting
-		 * {@link #algorithm}.
+		 * Generates a public/private RSA key pair of the given size, or key based on
+		 * algorithm.
+		 * 
+		 * @param size key size
+		 * @return this
+		 */
+		B ephemeral(int size);
+
+		/**
+		 * Generates a public/private key pair or secret key suitable for use with the
+		 * specified algorithm.
 		 * 
 		 * @param algorithm algorithm the key will be used with
 		 * @return this

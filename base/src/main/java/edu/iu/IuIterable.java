@@ -464,10 +464,69 @@ public final class IuIterable {
 	 * @return The first element that meets the condition.
 	 */
 	public static <T> T select(Iterable<T> i, Predicate<T> p) {
-		for (final var e : i)
-			if (p.test(e))
-				return e;
+		if (i != null)
+			for (final var e : i)
+				if (p.test(e))
+					return e;
 		throw new NoSuchElementException();
+	}
+
+	/**
+	 * Returns the first {@link Iterable} element.
+	 * 
+	 * @param <T> item type
+	 * @param i   iterable
+	 * @return The first element from the iterable; null if empty
+	 */
+	public static <T> T first(Iterable<T> i) {
+		if (i == null)
+			return null;
+		final var it = i.iterator();
+		if (it.hasNext())
+			return it.next();
+		else
+			return null;
+	}
+
+	/**
+	 * Returns the single {@link Iterable} element.
+	 * 
+	 * @param <T> item type
+	 * @param i   iterable
+	 * @return The first element from the iterable
+	 * @throws NullPointerException     when i is null
+	 * @throws NoSuchElementException   when i is empty
+	 * @throws IllegalArgumentException when i contains more than one element
+	 */
+	public static <T> T single(Iterable<T> i) {
+		final var it = i.iterator();
+
+		final T next;
+		if (it.hasNext())
+			next = it.next();
+		else
+			throw new NoSuchElementException();
+
+		if (it.hasNext())
+			throw new IllegalArgumentException();
+
+		return next;
+	}
+
+	/**
+	 * Determines if a value is equal to one of the items in an iterable.
+	 * 
+	 * @param <T>   item type
+	 * @param i     iterable
+	 * @param value value to match
+	 * @return true if i is non-null and contains the value; else false
+	 */
+	public static <T> boolean contains(Iterable<T> i, T value) {
+		if (i != null)
+			for (final var e : i)
+				if (IuObject.equals(e, value))
+					return true;
+		return false;
 	}
 
 	/**

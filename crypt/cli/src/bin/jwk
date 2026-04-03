@@ -1,0 +1,4 @@
+#!/bin/bash
+. $(dirname $0)/crypt_env
+exec $JAVA iu.util.crypt.cli/iu.crypt.cli.WebKeyCli "$@"
+

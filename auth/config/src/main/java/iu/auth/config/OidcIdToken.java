@@ -42,7 +42,6 @@ import java.util.Objects;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
-import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebEncryption;
@@ -58,7 +57,7 @@ import jakarta.json.JsonObject;
 public class OidcIdToken extends Jwt {
 
 	private final Algorithm alg;
-	private final OAuthClient client;
+	private final String clientId;
 	private final String nonce;
 	private final String accessToken;
 	private final Duration maxAge;
@@ -67,7 +66,7 @@ public class OidcIdToken extends Jwt {
 	 * Constructor.
 	 * 
 	 * @param alg         Signature algorithm used to verify ID Token authenticity
-	 * @param client      Client to which this token was issued
+	 * @param clientId    Client ID to which this token was issued
 	 * @param nonce       One-Time number (nonce) value provided with the original
 	 *                    authentication request
 	 * @param accessToken Access token issued with this ID token.
@@ -75,14 +74,26 @@ public class OidcIdToken extends Jwt {
 	 *                    authentication credentials were last verified.
 	 * @param claims      JWT claims
 	 */
-	public OidcIdToken(Algorithm alg, OAuthClient client, String nonce, String accessToken, Duration maxAge,
+	public OidcIdToken(Algorithm alg, String clientId, String nonce, String accessToken, Duration maxAge,
 			JsonObject claims) {
 		super(claims);
 		this.alg = alg;
-		this.client = client;
+		this.clientId = clientId;
 		this.nonce = nonce;
 		this.accessToken = accessToken;
 		this.maxAge = maxAge;
+	}
+
+	/**
+	 * Creates a builder for generating a new ID token.
+	 * 
+	 * @param alg      Signature algorithm used to verify ID Token authenticity
+	 * @param clientId Client ID to issue a token on behalf of
+	 * @param maxAge   Max length of time since last successful authentication
+	 * @return ID Token builder
+	 */
+	public static OidcIdTokenBuilder<?> builder(Algorithm alg, String clientId, Duration maxAge) {
+		return new OidcIdTokenBuilder<>(alg, clientId, maxAge);
 	}
 
 	/**
@@ -92,7 +103,7 @@ public class OidcIdToken extends Jwt {
 	 * @param jwt         {@link WebSignedPayload#compact() JWS compact
 	 *                    serialization}
 	 * @param issuerKey   Issuer public {@link WebKey}
-	 * @param client      Client to which this token was issued
+	 * @param clientId    Client ID to which this token was issued
 	 * @param nonce       One-Time number (nonce) value provided with the original
 	 *                    authentication request
 	 * @param accessToken Access token issued with this ID token.
@@ -100,14 +111,14 @@ public class OidcIdToken extends Jwt {
 	 *                    authentication credentials were last verified.
 	 * @return {@link OidcIdToken}
 	 */
-	public static OidcIdToken verify(String jwt, WebKey issuerKey, OAuthClient client, String nonce, String accessToken,
+	public static OidcIdToken verify(String jwt, WebKey issuerKey, String clientId, String nonce, String accessToken,
 			Duration maxAge) {
 		final var jws = WebSignedPayload.parse(jwt);
 		jws.verify(issuerKey);
 		final var claims = IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject();
 
 		final var alg = jws.getSignatures().iterator().next().getHeader().getAlgorithm();
-		return new OidcIdToken(alg, client, nonce, accessToken, maxAge, claims);
+		return new OidcIdToken(alg, clientId, nonce, accessToken, maxAge, claims);
 	}
 
 	/**
@@ -119,7 +130,7 @@ public class OidcIdToken extends Jwt {
 	 * @param issuerKey   Issuer public {@link WebKey}
 	 * @param audienceKey Audience private {@link WebKey}, ignored if the JWT is not
 	 *                    encrypted
-	 * @param client      Client to which this token was issued
+	 * @param clientId    Client ID to which this token was issued
 	 * @param nonce       One-Time number (nonce) value provided with the original
 	 *                    authentication request
 	 * @param accessToken Access token issued with this ID token.
@@ -127,12 +138,12 @@ public class OidcIdToken extends Jwt {
 	 *                    authentication credentials were last verified.
 	 * @return {@link JsonObject} of token claims
 	 */
-	public static OidcIdToken decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey, OAuthClient client,
+	public static OidcIdToken decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey, String clientId,
 			String nonce, String accessToken, Duration maxAge) {
 		return verify(
 				WebEncryption.parse(jwt)
 						.decryptText(Objects.requireNonNull(audienceKey, "Missing audience key for decryption")),
-				issuerKey, client, nonce, accessToken, maxAge);
+				issuerKey, clientId, nonce, accessToken, maxAge);
 	}
 
 	@Override
@@ -141,7 +152,7 @@ public class OidcIdToken extends Jwt {
 
 		final var azp = IuJson.get(claims, "azp");
 		if (azp != null)
-			IuObject.once(client.getClientId(), azp, "azp must match client_id");
+			IuObject.once(clientId, azp, "azp must match client_id");
 
 		final var nonce = getNonce();
 		if (this.nonce == null) {
@@ -214,6 +225,16 @@ public class OidcIdToken extends Jwt {
 	 */
 	public String getAccessToken() {
 		return accessToken;
+	}
+
+	/**
+	 * Gets the access token as a bearer token.
+	 * 
+	 * @return bearer token
+	 */
+	public BearerToken getBearerToken() {
+		return new BearerToken(getIssuer().toString(), getIssuedAt(), getAuthTime(), getExpires(), getSubject(),
+				accessToken);
 	}
 
 }

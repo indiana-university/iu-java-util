@@ -1,0 +1,22 @@
+#!/bin/bash
+
+ROOT=$(readlink -f $(dirname $0)/..)
+
+case $(uname -o) in
+Cygwin|Msys)
+  SEP=\;
+  ROOT=$(cygpath -w $ROOT)
+  export MSYS_NO_PATHCONV=1
+;;
+
+*)
+  SEP=:
+esac
+
+LIB=$ROOT/lib
+for l in $(ls $LIB)
+do
+	CLASSPATH=${CLASSPATH}${CLASSPATH+$SEP}${LIB}/${l}
+done
+
+export JAVA="java -p $CLASSPATH -m"

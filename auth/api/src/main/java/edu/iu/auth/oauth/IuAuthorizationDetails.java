@@ -39,7 +39,8 @@ public interface IuAuthorizationDetails {
 	/**
 	 * Authorization details type.
 	 * 
-	 * @return type string
+	 * @return type string; when used with a builder, non-null to add full JSON to
+	 *         the ID token; null will omit from ID token
 	 * @see <a href=
 	 *      "https://www.rfc-editor.org/rfc/rfc9396.html#name-authorization-details-types">RFC
 	 *      9396 OAuth 2.0 Rich Authorization Requests</a>

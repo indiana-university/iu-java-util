@@ -35,9 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import java.net.URI;
+import java.net.http.HttpRequest;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -51,7 +52,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuText;
-import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -108,17 +108,25 @@ public class OidcIdTokenTest {
 				.sign(IuText.utf8(claims.toString())) //
 				.compact();
 
-		final var client = mock(OAuthClient.class);
-		when(client.getClientId()).thenReturn(clientId);
 		final var maxAge = Duration.ofHours(12L);
 		final var ttl = Duration.ofMinutes(15L);
 
-		final var verified = OidcIdToken.verify(idToken, key, client, nonce, accessToken, maxAge);
+		final var verified = OidcIdToken.verify(idToken, key, clientId, nonce, accessToken, maxAge);
 		assertDoesNotThrow(() -> verified.validateClaims(aud, ttl));
 		assertEquals(accessToken, verified.getAccessToken());
 		assertEquals(name, verified.getFullName());
 		assertEquals(email, verified.getEmail());
 		assertEquals(role, verified.getRoles().iterator().next());
+
+		final var bearer = verified.getBearerToken();
+		assertEquals(sub, bearer.getName());
+		assertEquals(iss.toString(), bearer.getIssuer());
+		assertEquals(iat, bearer.getIssuedAt());
+		assertEquals(authTime, bearer.getAuthTime());
+		assertEquals(exp, bearer.getExpires());
+		final var rb = mock(HttpRequest.Builder.class);
+		assertDoesNotThrow(() -> bearer.applyTo(rb));
+		verify(rb).header("Authorization", "Bearer " + accessToken);
 	}
 
 	@Test
