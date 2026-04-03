@@ -37,6 +37,8 @@ import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -53,6 +55,7 @@ import java.util.logging.Logger;
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
 import edu.iu.IuRuntimeEnvironment;
+import edu.iu.UnsafeConsumer;
 import edu.iu.client.HttpException;
 import edu.iu.client.HttpResponseHandler;
 import edu.iu.client.IuHttp;
@@ -71,6 +74,16 @@ import jakarta.json.JsonValue;
 public final class Vault implements IuVault {
 
 	private static final Logger LOG = Logger.getLogger(Vault.class.getName());
+
+	/**
+	 * Authentication method types.
+	 */
+	private enum AuthType {
+		/** AppRole authentication using role_id and secret_id */
+		APPROLE,
+		/** Kubernetes authentication using JWT and role */
+		KUBERNETES
+	}
 
 	/**
 	 * Implements {@link IuVault#of(Properties, Function)}.
@@ -105,13 +118,26 @@ public final class Vault implements IuVault {
 					prop(properties, "iu.vault.loginEndpoint", URI::create),
 					"Missing iu.vault.loginEndpoint or iu.vault.token");
 
-			final var roleId = Objects.requireNonNull( //
-					prop(properties, "iu.vault.roleId", a -> a), "Missing iu.vault.roleId");
-			final var secretId = Objects.requireNonNull( //
-					prop(properties, "iu.vault.secretId", a -> a), "Missing iu.vault.secretId");
+			// Check for Kubernetes auth properties
+			final var kubeRole = prop(properties, "iu.vault.kubeRole", a -> a);
+			final var tokenPath = prop(properties, "iu.vault.tokenPath", a -> a);
 
-			return new Vault(endpoint, secretNames, loginEndpoint, roleId, secretId, cubbyhole, valueAdapter,
-					secretCache);
+			if (kubeRole != null) {
+				// Use Kubernetes authentication
+				final var effectiveTokenPath = tokenPath != null ? tokenPath
+						: "/var/run/secrets/tokens/vault-jwt";
+				return new Vault(endpoint, secretNames, loginEndpoint, AuthType.KUBERNETES, kubeRole,
+						effectiveTokenPath, cubbyhole, valueAdapter, secretCache);
+			} else {
+				// Use AppRole authentication
+				final var roleId = Objects.requireNonNull( //
+						prop(properties, "iu.vault.roleId", a -> a), "Missing iu.vault.roleId");
+				final var secretId = Objects.requireNonNull( //
+						prop(properties, "iu.vault.secretId", a -> a), "Missing iu.vault.secretId");
+
+				return new Vault(endpoint, secretNames, loginEndpoint, AuthType.APPROLE, roleId, secretId, cubbyhole,
+						valueAdapter, secretCache);
+			}
 		}
 	}
 
@@ -146,8 +172,9 @@ public final class Vault implements IuVault {
 	private final URI endpoint;
 	private final String[] secretNames;
 	private final URI loginEndpoint;
-	private final String roleId;
-	private final String secretId;
+	private final AuthType authType;
+	private final String roleInfo;
+	private final String tokenInfo;
 	private final boolean cubbyhole;
 	private final Function<Type, IuJsonAdapter<?>> valueAdapter;
 	private final Map<String, JsonObject> secretCache;
@@ -161,21 +188,24 @@ public final class Vault implements IuVault {
 		this.secretNames = secretNames;
 		this.token = token;
 		this.loginEndpoint = null;
-		this.roleId = null;
-		this.secretId = null;
+		this.authType = null;
+		this.roleInfo = null;
+		this.tokenInfo = null;
 		this.cubbyhole = cubbyhole;
 		this.valueAdapter = valueAdapter;
 		this.secretCache = secretCache;
 	}
 
-	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId,
-			boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter, Map<String, JsonObject> secretCache) {
+	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, AuthType authType, String roleInfo,
+			String tokenInfo, boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter,
+			Map<String, JsonObject> secretCache) {
 		this.endpoint = endpoint;
 		this.secretNames = secretNames;
 		this.token = null;
 		this.loginEndpoint = loginEndpoint;
-		this.roleId = roleId;
-		this.secretId = secretId;
+		this.authType = authType;
+		this.roleInfo = roleInfo;
+		this.tokenInfo = tokenInfo;
 		this.cubbyhole = cubbyhole;
 		this.valueAdapter = valueAdapter;
 		this.secretCache = secretCache;
@@ -349,8 +379,17 @@ public final class Vault implements IuVault {
 
 	private void approle(HttpRequest.Builder requestBuilder) {
 		final var payload = IuJson.object();
-		payload.add("role_id", roleId);
-		payload.add("secret_id", secretId);
+		payload.add("role_id", roleInfo);
+		payload.add("secret_id", tokenInfo);
+		requestBuilder.header("Content-Type", "application/json;charset=utf-8");
+		requestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
+	}
+
+	private void kubeauth(HttpRequest.Builder requestBuilder) {
+		final String jwt = IuException.unchecked(() -> Files.readString(Path.of(tokenInfo), StandardCharsets.UTF_8));
+		final var payload = IuJson.object();
+		payload.add("jwt", jwt);
+		payload.add("role", roleInfo);
 		requestBuilder.header("Content-Type", "application/json;charset=utf-8");
 		requestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
 	}
@@ -361,8 +400,15 @@ public final class Vault implements IuVault {
 			token = null;
 
 		if (token == null) {
+			// Determine which authentication method to use
+			final UnsafeConsumer<HttpRequest.Builder> authMethod;
+			if (authType == AuthType.KUBERNETES)
+				authMethod = this::kubeauth;
+			else
+				authMethod = this::approle;
+
 			final var authResponse = IuException.unchecked( //
-					() -> IuHttp.send(loginEndpoint, this::approle, IuHttp.READ_JSON_OBJECT) //
+					() -> IuHttp.send(loginEndpoint, authMethod, IuHttp.READ_JSON_OBJECT) //
 							.getJsonObject("auth"));
 
 			tokenExpires = Instant.now().truncatedTo(ChronoUnit.SECONDS)
