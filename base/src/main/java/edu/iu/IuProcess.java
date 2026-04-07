@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
@@ -99,16 +100,40 @@ public final class IuProcess {
 
 	/**
 	 * Executes a command.
-	 * 
+	 *
 	 * @param cmd command followed by arguments
 	 * @return output if successful
 	 */
 	public static String exec(String... cmd) {
+		return pipe(null, cmd);
+	}
+
+	/**
+	 * Executes and pipes input into a command.
+	 *
+	 * @param input input data to feed to the command; null for no input
+	 * @param cmd   command followed by arguments
+	 * @return output if successful
+	 */
+	public static String pipe(byte[] input, String... cmd) {
 		final var statusProcess = IuException.unchecked(() -> new ProcessBuilder(cmd).start());
 
-		final var exp = Instant.now().plusSeconds(15L);
+		final var ttlSeconds = Optional
+				.ofNullable(IuRuntimeEnvironment.envOptional("iu.util.processTtl", Integer::parseInt)).orElse(120);
+		final var exp = Instant.now().plusSeconds(ttlSeconds);
 		final var out = new StringBuffer();
 		final var err = new StringBuffer();
+
+		final IuUtilityTaskController<?> writeIn;
+		if (input == null)
+			writeIn = null;
+		else
+			writeIn = new IuUtilityTaskController<>(() -> {
+				try (final var in = statusProcess.getOutputStream()) {
+					in.write(input);
+				}
+				return null;
+			}, exp);
 
 		final var readOut = new IuUtilityTaskController<>(() -> {
 			try (final var in = statusProcess.getInputStream(); //
@@ -137,6 +162,8 @@ public final class IuProcess {
 
 		final var checkStatusCode = new IuUtilityTaskController<>(() -> statusProcess.waitFor(), exp);
 		final var code = IuException.unchecked(() -> {
+			if (writeIn != null)
+				writeIn.get();
 			readOut.get();
 			readErr.get();
 			return checkStatusCode.get();

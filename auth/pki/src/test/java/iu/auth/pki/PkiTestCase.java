@@ -34,9 +34,9 @@ package iu.auth.pki;
 import static org.mockito.Mockito.mock;
 
 import edu.iu.auth.config.IuCertificateAuthority;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuVault;
+import edu.iu.crypt.WebKey;
 import iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
@@ -44,12 +44,11 @@ public class PkiTestCase {
 
 	static {
 		final var vault = mock(IuVault.class);
-		AuthConfig.registerInterface("realm", IuPrivateKeyPrincipal.class, vault);
 		AuthConfig.registerInterface("realm", IuCertificateAuthority.class, vault);
 	}
 
-	static IuPrivateKeyPrincipal pkp(String pkp) {
-		return AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(IuJson.parse(pkp));
+	static WebKey jwk(String jwk) {
+		return AuthConfig.adaptJson(WebKey.class).fromJson(IuJson.parse(jwk));
 	}
 
 	static IuCertificateAuthority ca(String ca) {

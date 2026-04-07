@@ -37,6 +37,7 @@ import java.util.Set;
 
 import edu.iu.IuIterable;
 import edu.iu.auth.saml.IuSamlAssertion;
+import edu.iu.crypt.WebKey;
 
 /**
  * Provides client configuration metadata for interacting with an SAML
@@ -129,7 +130,7 @@ public interface IuSamlServiceProviderMetadata extends IuSessionConfiguration {
 	 * 
 	 * @return SAML SP identity keys
 	 */
-	IuPrivateKeyPrincipal getIdentity();
+	WebKey getIdentity();
 
 	/**
 	 * Gets the name of the SAML Assertion Attribute that contains the principal

@@ -39,6 +39,7 @@ import edu.iu.auth.config.IuPrivateKeyPrincipal;
 /**
  * Represents a configured private key principal trusted as a token issuer.
  */
+@Deprecated
 public interface IuTrustedIssuer extends IuAuthConfig {
 
 	/**

@@ -41,6 +41,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  * Configures the private key holder of an {@link X509Certificate X.509
  * certificate chain}.
  */
+@Deprecated
 public interface IuPrivateKeyPrincipal {
 
 	/**

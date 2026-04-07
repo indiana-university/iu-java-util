@@ -43,8 +43,8 @@ import javax.security.auth.Subject;
 import edu.iu.IuObject;
 import edu.iu.auth.IuApiCredentials;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.oauth.IuCallerAttributes;
+import edu.iu.crypt.WebKey;
 import iu.crypt.Jwt;
 
 /**
@@ -59,13 +59,12 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	/**
 	 * Constructor, for use by the self-issuing client endpoint.
 	 * 
-	 * @param pkp      Issuer identity metadata
+	 * @param jwk      Issuer key
 	 * @param audience Remote audience URI
 	 * @param tokenTtl Duration between token issue and expiration times
 	 * @param caller   Caller attributes
 	 */
-	public SelfIssuedAccessToken(IuPrivateKeyPrincipal pkp, URI audience, Duration tokenTtl,
-			IuCallerAttributes caller) {
+	public SelfIssuedAccessToken(WebKey jwk, URI audience, Duration tokenTtl, IuCallerAttributes caller) {
 
 		Objects.requireNonNull(caller, "missing caller attributes");
 		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), "missing authn_principal");
@@ -76,26 +75,24 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 		final var impersonatedPrincipal = caller.getImpersonatedPrincipal();
 		final var sub = impersonatedPrincipal == null ? authnPrincipal : impersonatedPrincipal;
 
-		final var jwk = pkp.getJwk();
 		final var iss = URI.create(jwk.getKeyId());
 		accessToken = RemoteAccessToken.builder().jti() //
 				.iss(iss).aud(audience).sub(sub) //
 				.iat().exp(Instant.now().plus(tokenTtl)) //
 				.caller(caller).build();
-		bearerToken = accessToken.sign("JWT", pkp.getAlg(), jwk);
+		bearerToken = accessToken.sign("JWT", jwk.getAlgorithm(), jwk);
 	}
 
 	/**
 	 * Constructor, for use by the verifying server endpoint.
 	 * 
-	 * @param pkp         Issuer identity metadata
+	 * @param jwk         Issuer key
 	 * @param audience    Remote audience URI
 	 * @param tokenTtl    Duration between token issue and expiration times
 	 * @param bearerToken Bearer token
 	 */
-	public SelfIssuedAccessToken(IuPrivateKeyPrincipal pkp, URI audience, Duration tokenTtl, String bearerToken) {
+	public SelfIssuedAccessToken(WebKey jwk, URI audience, Duration tokenTtl, String bearerToken) {
 		this.bearerToken = bearerToken;
-		final var jwk = pkp.getJwk();
 		final var iss = URI.create(jwk.getKeyId());
 		accessToken = new RemoteAccessToken(Jwt.verify(bearerToken, jwk));
 		accessToken.validateClaims(audience, tokenTtl);

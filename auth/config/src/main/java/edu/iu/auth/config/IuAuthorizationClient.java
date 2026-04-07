@@ -38,6 +38,7 @@ import java.util.Set;
 
 import edu.iu.IuIterable;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.crypt.WebKey;
 
 /**
  * Provides client configuration.
@@ -230,7 +231,7 @@ public interface IuAuthorizationClient {
 	/**
 	 * Defines credentials issued to this client.
 	 */
-	interface Credentials extends IuPrivateKeyPrincipal {
+	interface Credentials {
 
 		/**
 		 * Gets the grant types the credentials are authorized for use with.
@@ -253,6 +254,12 @@ public interface IuAuthorizationClient {
 		 */
 		Instant getExpires();
 
+		/**
+		 * Gets the JWK private or secret key.
+		 * 
+		 * @return {@link WebKey}
+		 */
+		WebKey getJwk();
 	}
 
 	/**

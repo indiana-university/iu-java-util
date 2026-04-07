@@ -6,19 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
-import java.security.PrivateKey;
-import java.security.cert.CRLException;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateKey;
 import java.util.HexFormat;
 import java.util.concurrent.ThreadLocalRandom;
@@ -29,12 +22,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuProcess;
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.X500Utils;
 import edu.iu.test.CliTestSupport;
 import edu.iu.test.IuTestLogger;
@@ -59,81 +50,6 @@ public class WebKeyCliTest {
 		assertEquals(serial, WebKeyCli.parseSerial(HexFormat.ofDelimiter(":").formatHex(serial.toByteArray())));
 		assertEquals(serial, WebKeyCli.parseSerial(WebKeyCli.formatSerial(serial)));
 		assertThrows(IllegalArgumentException.class, () -> WebKeyCli.parseSerial("foobar!"));
-	}
-
-	@Test
-	public void testKeyUsageECDH() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getAlgorithm()).thenReturn(Algorithm.ECDH_ES);
-		assertEquals("keyAgreement", WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageEDDSA() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getAlgorithm()).thenReturn(Algorithm.EDDSA);
-		assertEquals("digitalSignature", WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageRSAOAEP() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getAlgorithm()).thenReturn(Algorithm.RSA_OAEP);
-		assertEquals("keyEncipherment", WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageDir() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getAlgorithm()).thenReturn(Algorithm.DIRECT);
-		assertThrows(IllegalArgumentException.class, () -> WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageECP256() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getType()).thenReturn(WebKey.Type.EC_P256);
-		assertEquals("digitalSignature,keyAgreement", WebKeyCli.keyUsage(jwk));
-		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
-		assertEquals("digitalSignature", WebKeyCli.keyUsage(jwk));
-		assertEquals("keyAgreement", WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageED25519() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getType()).thenReturn(WebKey.Type.ED25519);
-		assertEquals("digitalSignature", WebKeyCli.keyUsage(jwk));
-		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
-		assertEquals("digitalSignature", WebKeyCli.keyUsage(jwk));
-		assertThrows(IllegalArgumentException.class, () -> WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageX25519() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getType()).thenReturn(WebKey.Type.X25519);
-		assertEquals("keyAgreement", WebKeyCli.keyUsage(jwk));
-		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
-		assertThrows(IllegalArgumentException.class, () -> WebKeyCli.keyUsage(jwk));
-		assertEquals("keyAgreement", WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageRSA() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getType()).thenReturn(WebKey.Type.RSA);
-		assertEquals("digitalSignature,keyEncipherment", WebKeyCli.keyUsage(jwk));
-		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
-		assertEquals("digitalSignature", WebKeyCli.keyUsage(jwk));
-		assertEquals("keyEncipherment", WebKeyCli.keyUsage(jwk));
-	}
-
-	@Test
-	public void testKeyUsageRAW() {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getType()).thenReturn(WebKey.Type.RAW);
-		assertThrows(IllegalArgumentException.class, () -> WebKeyCli.keyUsage(jwk));
 	}
 
 	@Test
@@ -294,49 +210,6 @@ public class WebKeyCliTest {
 	}
 
 	@Test
-	public void testPemPrivateKey() {
-		final var encoded = IdGenerator.generateId().getBytes();
-		final var key = mock(PrivateKey.class);
-		when(key.getEncoded()).thenReturn(encoded);
-		try (final var out = new PrintStream(CliTestSupport.OUT)) {
-			WebKeyCli.pem(out, key);
-		}
-		assertEquals(
-				"-----BEGIN PRIVATE KEY-----" + System.lineSeparator() + IuText.base64(encoded) + System.lineSeparator()
-						+ "-----END PRIVATE KEY-----" + System.lineSeparator() + "",
-				CliTestSupport.OUT.toString());
-	}
-
-	@Test
-	public void testPemCert() throws CertificateEncodingException {
-		final var encoded = new byte[80];
-		ThreadLocalRandom.current().nextBytes(encoded);
-		final var key = mock(X509Certificate.class);
-		when(key.getEncoded()).thenReturn(encoded);
-		try (final var out = new PrintStream(CliTestSupport.OUT)) {
-			WebKeyCli.pem(out, key);
-		}
-		assertEquals(
-				"-----BEGIN CERTIFICATE-----" + System.lineSeparator() + IuText.base64(encoded).substring(0, 65)
-						+ System.lineSeparator() + IuText.base64(encoded).substring(65) + System.lineSeparator()
-						+ "-----END CERTIFICATE-----" + System.lineSeparator() + "",
-				CliTestSupport.OUT.toString());
-	}
-
-	@Test
-	public void testPemCRL() throws CRLException {
-		final var encoded = IdGenerator.generateId().getBytes();
-		final var key = mock(X509CRL.class);
-		when(key.getEncoded()).thenReturn(encoded);
-		try (final var out = new PrintStream(CliTestSupport.OUT)) {
-			WebKeyCli.pem(out, key);
-		}
-		assertEquals("-----BEGIN X509 CRL-----" + System.lineSeparator() + IuText.base64(encoded)
-				+ System.lineSeparator() + "-----END X509 CRL-----" + System.lineSeparator() + "",
-				CliTestSupport.OUT.toString());
-	}
-
-	@Test
 	void testSelf() {
 		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
 		final var kid = IdGenerator.generateId();
@@ -439,8 +312,8 @@ public class WebKeyCliTest {
 		final var caCert = caWithCert.getJwk().getCertificateChain()[0];
 		final var certFile = IuProcess.createTempFile();
 		try (final var out = Files.newOutputStream(certFile); final var ps = new PrintStream(out)) {
-			WebKeyCli.pem(ps, newCert);
-			WebKeyCli.pem(ps, caCert);
+			PemEncoded.print(ps, newCert);
+			PemEncoded.print(ps, caCert);
 		}
 		CliTestSupport.input(eejwk.toString());
 		WebKeyCli.main(new String[] { "cert", certFile.toString() });

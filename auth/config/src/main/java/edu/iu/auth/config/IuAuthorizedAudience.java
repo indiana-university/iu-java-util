@@ -39,6 +39,7 @@ import edu.iu.auth.nonce.IuOneTimeNumberConfig;
 /**
  * Provides audience configuration.
  */
+@Deprecated
 public interface IuAuthorizedAudience {
 
 	/**
