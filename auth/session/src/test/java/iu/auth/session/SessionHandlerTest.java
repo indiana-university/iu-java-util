@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.config.IuSessionConfiguration;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTestLogger;
@@ -60,8 +60,6 @@ import edu.iu.test.IuTestLogger;
 public class SessionHandlerTest {
 	private URI resourceUri;
 	private IuSessionConfiguration configuration;
-	private WebKey issuerKey;
-	private Algorithm algorithm;
 	private SessionHandler sessionHandler;
 	private InMemorySessionStore dataStore;
 
@@ -71,17 +69,17 @@ public class SessionHandlerTest {
 		public void setup() {
 			resourceUri = URI.create("http://" + IdGenerator.generateId());
 			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
-			issuerKey = WebKey.ephemeral(Algorithm.HS256);
-			algorithm = Algorithm.HS256;
-			when(configuration.getAlg()).thenReturn(algorithm);
+			final var issuerKey = WebKey.builder(Algorithm.HS256).ephemeral().build();
+			when(configuration.getJwk()).thenReturn(issuerKey);
+			when(configuration.getEnc()).thenReturn(Encryption.A128GCM);
 			dataStore = new InMemorySessionStore();
-			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, dataStore);
+			sessionHandler = new SessionHandler(resourceUri, () -> configuration, dataStore);
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 
 		@Test
 		public void testSessionHandlerConstructorWithValidParameters() {
-			assertDoesNotThrow(() -> new SessionHandler(resourceUri, configuration, () -> issuerKey, dataStore));
+			assertDoesNotThrow(() -> new SessionHandler(resourceUri, () -> configuration, dataStore));
 		}
 
 		@Test
@@ -148,8 +146,7 @@ public class SessionHandlerTest {
 
 		@Test
 		public void testStoreSessionAndActivateSessionSuccess() {
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
-			when(configuration.getInactiveTtl()).thenCallRealMethod();
+			Session session = new Session(resourceUri, configuration);
 			session.setStrict(false);
 
 			String cookie = sessionHandler.store(session);
@@ -169,7 +166,7 @@ public class SessionHandlerTest {
 
 		@Test
 		public void testStoreSessionAndActivateSessionSuccessWithInvalidCookieFirst() {
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			Session session = new Session(resourceUri, configuration);
 			session.setStrict(false);
 			when(configuration.getInactiveTtl()).thenCallRealMethod();
 
@@ -194,8 +191,8 @@ public class SessionHandlerTest {
 		public void testStoreSessionAndActivateSessionSuccessSubpath() {
 			final var path = "/" + IdGenerator.generateId();
 			final var uriWithPath = URI.create(resourceUri + path);
-			sessionHandler = new SessionHandler(uriWithPath, configuration, () -> issuerKey, dataStore);
-			Session session = new Session(uriWithPath, Duration.ofHours(12L));
+			sessionHandler = new SessionHandler(uriWithPath, () -> configuration, dataStore);
+			Session session = new Session(uriWithPath, configuration);
 			session.setStrict(false);
 
 			when(configuration.getInactiveTtl()).thenCallRealMethod();
@@ -219,7 +216,7 @@ public class SessionHandlerTest {
 		@Test
 		public void testPurgeStoredSessionWhenExpire() {
 			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(150L));
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			Session session = new Session(resourceUri, configuration);
 			session.setStrict(false);
 
 			String cookie = sessionHandler.store(session);
@@ -236,7 +233,7 @@ public class SessionHandlerTest {
 		public void testPurgeTask() {
 			final var purgeTask = new InMemorySessionStore.PurgeTask();
 			assertDoesNotThrow(purgeTask::run);
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			Session session = new Session(resourceUri, configuration);
 			sessionHandler.store(session);
 			assertDoesNotThrow(purgeTask::run);
 		}
@@ -244,7 +241,7 @@ public class SessionHandlerTest {
 		@Test
 		public void testStoreWithNoPurgeTask() {
 			final var purgeTask = new InMemorySessionStore.PurgeTask();
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			Session session = new Session(resourceUri, configuration);
 			sessionHandler.store(session);
 			assertDoesNotThrow(purgeTask::run);
 		}
@@ -253,7 +250,7 @@ public class SessionHandlerTest {
 		public void testStoreWithPurgeTaskAndActivate() {
 			final var purgeTask = new InMemorySessionStore.PurgeTask();
 			when(configuration.getInactiveTtl()).thenReturn(Duration.ofMillis(250L));
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			Session session = new Session(resourceUri, configuration);
 			String cookie = sessionHandler.store(session);
 			final var cookieMatcher = Pattern
 					.compile(sessionHandler.getSessionCookieName() + "=([^;]+); Path=/; HttpOnly; SameSite=Strict")
@@ -272,18 +269,18 @@ public class SessionHandlerTest {
 		public void setup() {
 			resourceUri = URI.create("https://" + IdGenerator.generateId());
 			configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
-			issuerKey = WebKey.ephemeral(Algorithm.HS256);
-			algorithm = Algorithm.HS256;
-			when(configuration.getAlg()).thenReturn(algorithm);
+			final var issuerKey = WebKey.builder(Algorithm.HS256).ephemeral().build();
+			when(configuration.getJwk()).thenReturn(issuerKey);
+			when(configuration.getEnc()).thenReturn(Encryption.A256GCM);
 			dataStore = new InMemorySessionStore();
-			sessionHandler = new SessionHandler(resourceUri, configuration, () -> issuerKey, dataStore);
+			sessionHandler = new SessionHandler(resourceUri, () -> configuration, dataStore);
 			IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 		}
 
 		@Test
 		public void testStoreWithHttpsResourceUrl() {
 			final var purgeTask = new InMemorySessionStore.PurgeTask();
-			Session session = new Session(resourceUri, Duration.ofHours(12L));
+			Session session = new Session(resourceUri, configuration);
 			sessionHandler.store(session);
 			assertDoesNotThrow(purgeTask::run);
 		}

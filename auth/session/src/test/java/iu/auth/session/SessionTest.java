@@ -31,7 +31,6 @@
  */
 package iu.auth.session;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
@@ -56,14 +56,12 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -78,7 +76,7 @@ public class SessionTest {
 
 	private Session session;
 	private URI resourceUri;
-	private Duration expires;
+	private IuSessionConfiguration configuration;
 
 	interface SessionDetailInterface {
 		String getFoo();
@@ -89,8 +87,8 @@ public class SessionTest {
 	@BeforeEach
 	void setUp() {
 		resourceUri = URI.create(IdGenerator.generateId());
-		expires = Duration.ofHours(1);
-		session = new Session(resourceUri, expires);
+		configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+		session = new Session(resourceUri, configuration);
 	}
 
 	@Test
@@ -99,7 +97,8 @@ public class SessionTest {
 		final var header = mock(WebCryptoHeader.class);
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
-			final var error = assertThrows(IllegalArgumentException.class, () -> new Session(token, null, null, null));
+			final var error = assertThrows(IllegalArgumentException.class,
+					() -> new Session(token, null, configuration));
 			assertEquals("Invalid token key protection algorithm", error.getMessage());
 		}
 	}
@@ -109,9 +108,11 @@ public class SessionTest {
 		final var token = IdGenerator.generateId();
 		final var header = mock(WebCryptoHeader.class);
 		when(header.getAlgorithm()).thenReturn(Algorithm.DIRECT);
+		when(header.getExtendedParameter("enc")).thenReturn(Encryption.A256GCM);
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
-			final var error = assertThrows(IllegalArgumentException.class, () -> new Session(token, null, null, null));
+			final var error = assertThrows(IllegalArgumentException.class,
+					() -> new Session(token, null, configuration));
 			assertEquals("Invalid token content encryption algorithm", error.getMessage());
 		}
 	}
@@ -122,9 +123,11 @@ public class SessionTest {
 		final var header = mock(WebCryptoHeader.class);
 		when(header.getAlgorithm()).thenReturn(Algorithm.DIRECT);
 		when(header.getExtendedParameter("enc")).thenReturn(Encryption.A256GCM);
+		when(configuration.getEnc()).thenReturn(Encryption.A256GCM);
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
-			final var error = assertThrows(IllegalArgumentException.class, () -> new Session(token, null, null, null));
+			final var error = assertThrows(IllegalArgumentException.class,
+					() -> new Session(token, null, configuration));
 			assertEquals("Invalid token type", error.getMessage());
 		}
 	}
@@ -132,10 +135,8 @@ public class SessionTest {
 	@Test
 	public void testTokenConstructor() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var maxSessionTtl = Duration.ofHours(1);
 		final var token = IdGenerator.generateId();
-		final var secretKey = new byte[32];
-		ThreadLocalRandom.current().nextBytes(secretKey);
+		final var secretKey = WebKey.ephemeral(Encryption.A256GCM);
 
 		final var issuerKey = mock(WebKey.class);
 		final var header = mock(WebCryptoHeader.class);
@@ -145,6 +146,7 @@ public class SessionTest {
 
 		final var claims = mock(JsonObject.class);
 
+		final var maxSessionTtl = configuration.getMaxSessionTtl();
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class);
 				final var mockJwt = mockStatic(Jwt.class);
 				final var mockSessionJwt = mockConstruction(SessionJwt.class, (a, ctx) -> {
@@ -156,11 +158,13 @@ public class SessionTest {
 			mockJwt.when(() -> Jwt.decryptAndVerify(eq(token), eq(issuerKey), argThat(a -> {
 				final var audienceKey = assertInstanceOf(WebKey.class, a);
 				assertEquals(WebKey.Type.RAW, audienceKey.getType());
-				assertArrayEquals(secretKey, audienceKey.getKey());
+				assertEquals(secretKey, audienceKey);
 				return true;
 			}))).thenReturn(claims);
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
-			final var session = assertDoesNotThrow(() -> new Session(token, secretKey, issuerKey, maxSessionTtl));
+			when(configuration.getEnc()).thenReturn(Encryption.A256GCM);
+			when(configuration.getJwk()).thenReturn(issuerKey);
+			final var session = assertDoesNotThrow(() -> new Session(token, secretKey, configuration));
 			assertTrue(Duration.between(Instant.now(), session.getExpires()).compareTo(maxSessionTtl) <= 0);
 
 			final var sessionJwt = mockSessionJwt.constructed().get(0);
@@ -248,20 +252,28 @@ public class SessionTest {
 	public void testTokenizeWithValidParameters() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
-		final var secretKey = EphemeralKeys.secret("AES", 256);
-		final var issuerKey = WebKey.ephemeral(Algorithm.HS256);
-		final var algorithm = WebKey.Algorithm.HS256;
+		final var secretKey = WebKey.ephemeral(Encryption.AES_192_CBC_HMAC_SHA_384);
+		final var issuerKey = WebKey.builder(Algorithm.PS384).ephemeral().build();
+		when(configuration.getJwk()).thenReturn(issuerKey);
+		when(configuration.getEnc()).thenReturn(Encryption.AES_192_CBC_HMAC_SHA_384);
+
 		final var detail = session.getDetail(SessionDetailInterface.class);
 		assertInstanceOf(SessionDetail.class, Proxy.getInvocationHandler(detail));
 
 		final var foo = IdGenerator.generateId();
 		detail.setFoo(foo);
 
-		final var token = session.tokenize(secretKey, issuerKey, algorithm);
+		final var token = session.tokenize(secretKey, configuration);
 		assertNotNull(token);
 
-		final var fromToken = new Session(token, secretKey, issuerKey, expires);
+		final var fromToken = new Session(token, secretKey, configuration);
 		assertEquals(foo, fromToken.getDetail(SessionDetailInterface.class).getFoo());
 	}
 
+	@Test
+	void testStrict() {
+		assertTrue(session.isStrict());
+		session.setStrict(false);
+		assertFalse(session.isStrict());
+	}
 }

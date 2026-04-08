@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.saml;
 
 import java.net.URI;
 import java.time.Duration;
@@ -48,7 +48,7 @@ import edu.iu.crypt.WebKey;
  * requiring authorization on behalf of an SAML identity provider.
  * </p>
  */
-public interface IuSamlServiceProviderMetadata extends IuSessionConfiguration {
+public interface IuSamlServiceProviderMetadata {
 
 	/**
 	 * Gets whether to fail on address mismatch or not, true if required, false if

@@ -488,8 +488,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>auth</module>
 				<module>logging</module>
 				<module>web</module>
-				<module>site</module>
 				<module>redis</module>
+				<module>site</module>
 			</modules>
 		</profile>
 		<profile>

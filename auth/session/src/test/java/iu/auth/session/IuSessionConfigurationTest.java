@@ -29,10 +29,9 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 
@@ -40,18 +39,13 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.saml.IuSamlAssertion;
-
 @SuppressWarnings("javadoc")
-public class IuSamlServiceProviderMetadataTest {
+public class IuSessionConfigurationTest {
 
 	@Test
-	public void testSamlClientDefault() {
-		final var client = mock(IuSamlServiceProviderMetadata.class, CALLS_REAL_METHODS);
-		assertEquals(client.getMetadataTtl(), Duration.ofMinutes(5L));
-		assertEquals(client.getAuthenticatedSessionTimeout(), Duration.ofHours(12L));
-		assertFalse(client.isFailOnAddressMismatch());
-		assertFalse(client.getAllowedRange().iterator().hasNext());
-		assertEquals(IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID, client.getPrincipalNameAttribute());
+	public void testDefault() {
+		final var config = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+		assertEquals(Duration.ofMinutes(15L), config.getInactiveTtl());
+		assertEquals(Duration.ofHours(12L), config.getMaxSessionTtl());
 	}
 }

@@ -63,7 +63,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSessionVerifier;
 import edu.iu.auth.session.IuSession;

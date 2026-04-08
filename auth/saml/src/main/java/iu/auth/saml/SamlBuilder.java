@@ -74,7 +74,6 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
-import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import net.shibboleth.shared.resolver.CriteriaSet;
 import net.shibboleth.shared.xml.ParserPool;

@@ -29,55 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.config;
+package iu.auth.saml;
 
-import java.security.cert.X509Certificate;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 
-import edu.iu.crypt.WebEncryption.Encryption;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
+import java.time.Duration;
 
-/**
- * Configures the private key holder of an {@link X509Certificate X.509
- * certificate chain}.
- */
-@Deprecated
-public interface IuPrivateKeyPrincipal {
+import org.junit.jupiter.api.Test;
 
-	/**
-	 * Gets the algorithm to use for creating new digital signatures or as the key
-	 * protection algorithm when creating an encrypted messages.
-	 * 
-	 * @return {@link Algorithm}
-	 */
-	Algorithm getAlg();
+import edu.iu.auth.saml.IuSamlAssertion;
+import iu.auth.saml.IuSamlServiceProviderMetadata;
 
-	/**
-	 * Gets the key protection algorithm to use for creating encrypted messages.
-	 * 
-	 * @return {@link Algorithm}
-	 */
-	Algorithm getEncryptAlg();
+@SuppressWarnings("javadoc")
+public class IuSamlServiceProviderMetadataTest {
 
-	/**
-	 * Gets the content protection algorithm to use for creating encrypted messages.
-	 * 
-	 * @return {@link Encryption}
-	 */
-	Encryption getEnc();
-
-	/**
-	 * Gets the signature verification key.
-	 * 
-	 * @return {@link WebKey}
-	 */
-	WebKey getJwk();
-
-	/**
-	 * Gets the encryption key.
-	 * 
-	 * @return {@link WebKey}
-	 */
-	WebKey getEncryptJwk();
-
+	@Test
+	public void testSamlClientDefault() {
+		final var client = mock(IuSamlServiceProviderMetadata.class, CALLS_REAL_METHODS);
+		assertEquals(client.getMetadataTtl(), Duration.ofMinutes(5L));
+		assertEquals(client.getAuthenticatedSessionTimeout(), Duration.ofHours(12L));
+		assertFalse(client.isFailOnAddressMismatch());
+		assertFalse(client.getAllowedRange().iterator().hasNext());
+		assertEquals(IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID, client.getPrincipalNameAttribute());
+	}
 }

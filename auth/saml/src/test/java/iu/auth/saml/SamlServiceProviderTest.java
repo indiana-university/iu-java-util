@@ -87,14 +87,12 @@ import edu.iu.IuIterable;
 import edu.iu.IuProcess;
 import edu.iu.IuText;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.X500Utils;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
-import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
 @SuppressWarnings("javadoc")
@@ -106,20 +104,19 @@ public class SamlServiceProviderTest {
 	@BeforeAll
 	static void setup() throws Exception {
 		final var acsUri = URI.create("test://postUrl/");
-		
+
 		final var kid = IdGenerator.generateId();
 		final var jwk = WebKey.builder(WebKey.Type.RSA).keyId(kid).ephemeral(2048).build();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
 		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
 
-//		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
 		final var pemCert = IuProcess.exec( //
 				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
 				"-subj", "/CN=" + kid.replaceAll("([+=/])", "\\\\$1"), //
 				"-addext", "basicConstraints=CA:false", //
 				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
 		);
-		
+
 		final var identity = WebKey.builder(jwk.getType()) //
 				.keyId(jwk.getKeyId()) //
 				.key(jwk.getPrivateKey()) //
@@ -129,7 +126,7 @@ public class SamlServiceProviderTest {
 				.build();
 
 		IuProcess.deleteTempFiles();
-		
+
 		config = getConfig(
 				Arrays.asList(
 						SamlServiceProviderTest.class.getClassLoader().getResource("metadata_sample.xml").toURI()),
@@ -265,7 +262,6 @@ public class SamlServiceProviderTest {
 		}
 	}
 
-	@SuppressWarnings("deprecation")
 	@Test
 	public void testGetSingleSignOnLocationInvalidSamlBinding() throws Exception {
 
@@ -273,8 +269,6 @@ public class SamlServiceProviderTest {
 		final var realm = "iu-saml-test";
 		final var id = new TestId();
 		AuthConfig.register(new Verifier(id.getName(), true));
-		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
 
 		final var cert = mock(X509Certificate.class);
 		final var mockWebKey = mock(WebKey.class);
@@ -285,8 +279,6 @@ public class SamlServiceProviderTest {
 				SamlServiceProviderTest.class.getClassLoader().getResource("metadata_invalid_binding.xml").toURI()),
 				"urn:example:sp", mockWebKey, Arrays.asList(acsUri));
 		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
-			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			assertThrows(IllegalStateException.class, () -> new SamlServiceProvider(postUri, realm, metadata));
 		}
@@ -369,7 +361,6 @@ public class SamlServiceProviderTest {
 		}
 	}
 
-	@SuppressWarnings("deprecation")
 	@Test
 	public void testInvalidAcsUrl() throws Exception {
 
@@ -387,12 +378,8 @@ public class SamlServiceProviderTest {
 
 		final var id = new TestId();
 		AuthConfig.register(new Verifier(id.getName(), true));
-		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
 
 		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
-			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
 			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 			assertThrows(IllegalArgumentException.class, () -> new SamlServiceProvider(postUri, realm, metadata));
 		}

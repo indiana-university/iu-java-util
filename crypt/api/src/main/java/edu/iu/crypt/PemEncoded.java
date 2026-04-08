@@ -284,7 +284,7 @@ public final class PemEncoded {
 	 * 
 	 * @param out {@link PrintStream}
 	 * @param key {@link PrivateKey}
-	 * @see #pem(PrintStream, String, byte[])
+	 * @see #print(PrintStream, String, byte[])
 	 */
 	public static void print(PrintStream out, PrivateKey key) {
 		print(out, "PRIVATE KEY", key.getEncoded());
@@ -295,7 +295,7 @@ public final class PemEncoded {
 	 * 
 	 * @param out         {@link PrintStream}
 	 * @param certificate {@link X509Certificate}
-	 * @see #pem(PrintStream, String, byte[])
+	 * @see #print(PrintStream, String, byte[])
 	 */
 	public static void print(PrintStream out, X509Certificate certificate) {
 		print(out, "CERTIFICATE", IuException.unchecked(certificate::getEncoded));
@@ -306,7 +306,7 @@ public final class PemEncoded {
 	 * 
 	 * @param out {@link PrintStream}
 	 * @param crl {@link X509CRL}
-	 * @see #pem(PrintStream, String, byte[])
+	 * @see #print(PrintStream, String, byte[])
 	 */
 	public static void print(PrintStream out, X509CRL crl) {
 		print(out, "X509 CRL", IuException.unchecked(crl::getEncoded));
