@@ -87,6 +87,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuProcess;
 import edu.iu.IuText;
 import edu.iu.auth.IuPrincipalIdentity;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.X500Utils;
@@ -207,26 +208,6 @@ public class SamlServiceProviderTest {
 		}
 	}
 
-//	@Test
-//	public void testVerifyKey() {
-//		final var postUri = URI.create("test://postUrl/");
-//		final var realm = "iu-saml-test";
-//
-//		final var id = new TestId();
-//		AuthConfig.register(new Verifier(id.getName(), true));
-//		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-//		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-//		mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-//
-//		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
-//			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
-//			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-//					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
-//			final SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
-//			samlprovider.getVerifyKey();
-//		}
-//	}
-
 	@Test
 	public void testServiceProviderNotTrusted() {
 		final var postUri = URI.create("test://postUrl/");
@@ -303,32 +284,6 @@ public class SamlServiceProviderTest {
 			assertNotNull(samlprovider.getServiceProviderMetaData());
 		}
 	}
-
-//	@Test
-//	public void testGetVerifyAlg()
-//			throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
-//		final var postUri = URI.create("test://postUrl/");
-//		final var realm = "iu-saml-test";
-//		final var id = new TestId();
-//		AuthConfig.register(new Verifier(id.getName(), true));
-//		final var mockIuTrustedIssuer = mock(IuTrustedIssuer.class);
-//		when(mockIuTrustedIssuer.getPrincipal(any())).thenReturn(id);
-//
-//		SamlBuilder builder = new SamlBuilder(config);
-//
-//		try (final var mockAuthConfig = mockStatic(AuthConfig.class, CALLS_REAL_METHODS)) {
-//			mockAuthConfig.when(() -> AuthConfig.get(IuTrustedIssuer.class))
-//					.thenReturn(Arrays.asList(mockIuTrustedIssuer));
-//			mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
-//			SamlServiceProvider samlprovider = new SamlServiceProvider(postUri, realm, config);
-//			Field f;
-//			f = SamlServiceProvider.class.getDeclaredField("samlBuilder");
-//			f.setAccessible(true);
-//			f.set(samlprovider, builder);
-//			mockPrincipalIdentity.when(() -> IuPrincipalIdentity.verify(any(), any())).thenReturn(true);
-//			assertNotNull(samlprovider.getVerifyAlg());
-//		}
-//	}
 
 	@Test
 	public void testWithBinding()

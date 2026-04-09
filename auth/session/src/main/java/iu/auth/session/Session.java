@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import edu.iu.IuObject;
+import edu.iu.auth.config.IuSessionConfiguration;
 import edu.iu.auth.session.IuSession;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey;
@@ -87,7 +88,7 @@ class Session implements IuSession {
 	 * 
 	 * @param token         tokenized session
 	 * @param secretKey     secret key to use for detokenizing the session.
-	 * @param configuration session manager configuration
+	 * @param configuration session configuration
 	 */
 	Session(String token, WebKey secretKey, IuSessionConfiguration configuration) {
 		final var jose = WebCryptoHeader.getProtectedHeader(token);

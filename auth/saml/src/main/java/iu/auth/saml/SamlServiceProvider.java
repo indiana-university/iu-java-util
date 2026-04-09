@@ -58,6 +58,7 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import iu.auth.config.AuthConfig;
 import iu.auth.config.IuAuthConfig;
 import iu.auth.config.IuSamlServiceProvider;

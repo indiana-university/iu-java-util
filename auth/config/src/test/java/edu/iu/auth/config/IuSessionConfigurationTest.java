@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.session;
+package edu.iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -38,6 +38,8 @@ import static org.mockito.Mockito.mock;
 import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
+
+import edu.iu.auth.config.IuSessionConfiguration;
 
 @SuppressWarnings("javadoc")
 public class IuSessionConfigurationTest {

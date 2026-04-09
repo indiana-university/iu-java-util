@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.saml;
+package edu.iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,8 +40,8 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
-import iu.auth.saml.IuSamlServiceProviderMetadata;
 
 @SuppressWarnings("javadoc")
 public class IuSamlServiceProviderMetadataTest {

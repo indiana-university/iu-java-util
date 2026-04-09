@@ -147,13 +147,13 @@ public class PkiPrincipalTest extends PkiTestCase {
 	@Test
 	public void testCa() {
 		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
-		final var cakid = IdGenerator.generateId();
-		final var cajwk = WebKey.builder(WebKey.Type.ED448).keyId(cakid).ephemeral().build();
-		final var caprivateKey = Objects.requireNonNull(cajwk.getPrivateKey(), "Missing private key");
-		final var caprivateKeyFile = IuProcess.temp(PemEncoded::print, caprivateKey);
+		final var caKid = IdGenerator.generateId();
+		final var caJwk = WebKey.builder(WebKey.Type.ED448).keyId(caKid).ephemeral().build();
+		final var caPrivateKey = Objects.requireNonNull(caJwk.getPrivateKey(), "Missing private key");
+		final var caPrivateKeyFile = IuProcess.temp(PemEncoded::print, caPrivateKey);
 		final var caCert = IuProcess.exec( //
-				"openssl", "req", "-x509", "-key", caprivateKeyFile.toString(), "-days", "1", //
-				"-subj", "/CN=" + cakid.replaceAll("([+=/])", "\\\\$1"), //
+				"openssl", "req", "-x509", "-key", caPrivateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + caKid.replaceAll("([+=/])", "\\\\$1"), //
 				"-addext", "basicConstraints=critical,CA:true,pathlen:0", //
 				"-addext", "keyUsage=keyCertSign,cRLSign" //
 		);
@@ -165,7 +165,7 @@ public class PkiPrincipalTest extends PkiTestCase {
 				+ "default_ca = a" + System.lineSeparator() //
 				+ System.lineSeparator() //
 				+ "[ a ]" + System.lineSeparator() //
-				+ "private_key = " + caprivateKeyFile.toString().replace('\\', '/') + System.lineSeparator() //
+				+ "private_key = " + caPrivateKeyFile.toString().replace('\\', '/') + System.lineSeparator() //
 				+ "certificate = " + certificateFile.toString().replace('\\', '/') + System.lineSeparator() //
 				+ "database = " + databaseFile.toString().replace('\\', '/') + System.lineSeparator() //
 				+ "new_certs_dir = " + newCertsDir.toString().replace('\\', '/') + System.lineSeparator() // //
@@ -221,7 +221,7 @@ public class PkiPrincipalTest extends PkiTestCase {
 
 		final var pki = new PkiPrincipal(signed);
 		assertEquals(kid, pki.getName());
-		assertEquals(cakid, pki.getIssuer());
+		assertEquals(caKid, pki.getIssuer());
 		assertEquals(signed.getCertificateChain()[0].getNotBefore().toInstant(), pki.getAuthTime());
 		assertEquals(signed.getCertificateChain()[0].getNotAfter().toInstant(), pki.getExpires());
 		assertFalse(pki.getIssuedAt().isBefore(pki.getAuthTime()), pki::toString);
@@ -231,7 +231,7 @@ public class PkiPrincipalTest extends PkiTestCase {
 
 		final var pub = new PkiPrincipal(signed.wellKnown());
 		assertEquals(kid, pub.getName());
-		assertEquals(cakid, pub.getIssuer());
+		assertEquals(caKid, pub.getIssuer());
 		assertEquals(signed.getCertificateChain()[0].getNotBefore().toInstant(), pub.getAuthTime());
 		assertEquals(signed.getCertificateChain()[0].getNotAfter().toInstant(), pub.getExpires());
 		assertFalse(pub.getIssuedAt().isBefore(pub.getAuthTime()), pub::toString);

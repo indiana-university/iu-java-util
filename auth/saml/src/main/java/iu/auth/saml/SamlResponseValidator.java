@@ -68,6 +68,7 @@ import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngin
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import iu.auth.config.AuthConfig;

@@ -41,6 +41,7 @@ import edu.iu.IuDataStore;
 import edu.iu.IuDigest;
 import edu.iu.IuObject;
 import edu.iu.IuText;
+import edu.iu.auth.config.IuSessionConfiguration;
 import edu.iu.auth.session.IuSession;
 import edu.iu.auth.session.IuSessionHandler;
 import edu.iu.crypt.WebKey;

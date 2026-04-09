@@ -182,7 +182,7 @@ public class WebKeyCli {
 	 * @param out stream to print on
 	 * @param jwk key to print
 	 */
-	static void print(PrintStream out, WebKey jwk) {
+	public static void print(PrintStream out, WebKey jwk) {
 		final var kid = jwk.getKeyId();
 		final var type = jwk.getType();
 		final var alg = jwk.getAlgorithm();
@@ -288,7 +288,7 @@ public class WebKeyCli {
 	 * @param arg arguments
 	 * @return generated key
 	 */
-	static WebKey create(String[] arg) {
+	public static WebKey create(String[] arg) {
 		var i = 1;
 
 		if (arg.length < 2)
@@ -403,7 +403,7 @@ public class WebKeyCli {
 	 * 
 	 * @return X509 subject organization
 	 */
-	static String subjectOrg() {
+	public static String subjectOrg() {
 		final var subjectOrg = IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.org");
 		if (subjectOrg == null)
 			return "";
@@ -419,7 +419,7 @@ public class WebKeyCli {
 	 * @return Environment variable IU_CRYPT_CLI_PKI_DAYS, system property
 	 *         iu.crypt.cli.pki.days, or default of 120.
 	 */
-	static int days() {
+	public static int days() {
 		return Integer.parseInt(Objects.requireNonNullElse( //
 				IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.days"), //
 				"120"));
@@ -431,7 +431,7 @@ public class WebKeyCli {
 	 * @return Environment variable IU_CRYPT_CLI_PKI_CA_DAYS, system property
 	 *         iu.crypt.cli.pki.ca.days, or default of 830.
 	 */
-	static int caDays() {
+	public static int caDays() {
 		return Integer.parseInt(Objects.requireNonNullElse( //
 				IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.ca.days"), //
 				"830"));
@@ -443,7 +443,7 @@ public class WebKeyCli {
 	 * @param jwk JWK
 	 * @return updated JWK
 	 */
-	static WebKey self(WebKey jwk) {
+	public static WebKey self(WebKey jwk) {
 		final var keyType = jwk.getType();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
 		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
