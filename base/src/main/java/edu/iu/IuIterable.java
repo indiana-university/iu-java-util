@@ -464,11 +464,25 @@ public final class IuIterable {
 	 * @return The first element that meets the condition.
 	 */
 	public static <T> T select(Iterable<T> i, Predicate<T> p) {
+		return select(i, p, null);
+	}
+
+	/**
+	 * Selects the first {@link Iterable} element that matches a {@link Predicate}
+	 * condition.
+	 * 
+	 * @param <T> item type
+	 * @param i   iterable
+	 * @param p   predicate
+	 * @param msg message for the {@link NoSuchElementException} exception if thrown
+	 * @return The first element that meets the condition.
+	 */
+	public static <T> T select(Iterable<T> i, Predicate<T> p, String msg) {
 		if (i != null)
 			for (final var e : i)
 				if (p.test(e))
 					return e;
-		throw new NoSuchElementException();
+		throw new NoSuchElementException(msg);
 	}
 
 	/**
