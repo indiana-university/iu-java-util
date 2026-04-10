@@ -60,11 +60,12 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	 * Constructor, for use by the self-issuing client endpoint.
 	 * 
 	 * @param jwk      Issuer key
+	 * @param issuer   Token issuer URI
 	 * @param audience Remote audience URI
 	 * @param tokenTtl Duration between token issue and expiration times
 	 * @param caller   Caller attributes
 	 */
-	public SelfIssuedAccessToken(WebKey jwk, URI audience, Duration tokenTtl, IuCallerAttributes caller) {
+	public SelfIssuedAccessToken(WebKey jwk, URI issuer, URI audience, Duration tokenTtl, IuCallerAttributes caller) {
 
 		Objects.requireNonNull(caller, "missing caller attributes");
 		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), "missing authn_principal");
@@ -75,9 +76,8 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 		final var impersonatedPrincipal = caller.getImpersonatedPrincipal();
 		final var sub = impersonatedPrincipal == null ? authnPrincipal : impersonatedPrincipal;
 
-		final var iss = URI.create(jwk.getKeyId());
 		accessToken = RemoteAccessToken.builder().jti() //
-				.iss(iss).aud(audience).sub(sub) //
+				.iss(issuer).aud(audience).sub(sub) //
 				.iat().exp(Instant.now().plus(tokenTtl)) //
 				.caller(caller).build();
 		bearerToken = accessToken.sign("JWT", jwk.getAlgorithm(), jwk);
