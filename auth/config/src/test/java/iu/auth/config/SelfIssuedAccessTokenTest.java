@@ -70,7 +70,8 @@ public class SelfIssuedAccessTokenTest {
 	@Test
 	public void testIssueAndVerify() {
 		final var issuer = URI.create(IdGenerator.generateId());
-		final var jwk = WebKey.builder(Algorithm.EDDSA).ephemeral().keyId(issuer.toString()).build();
+		final var kid = IdGenerator.generateId();
+		final var jwk = WebKey.builder(Algorithm.EDDSA).ephemeral().keyId(kid).build();
 		final var audience = URI.create(IdGenerator.generateId());
 		final var tokenTtl = Duration.ofSeconds(15L);
 		final var caller = mock(IuCallerAttributes.class, CALLS_REAL_METHODS);
@@ -83,7 +84,7 @@ public class SelfIssuedAccessTokenTest {
 		when(caller.getRequestUri()).thenReturn(requestUri);
 		when(caller.getUserAgent()).thenReturn(userAgent);
 
-		final var accessToken = new SelfIssuedAccessToken(jwk, audience, tokenTtl, caller);
+		final var accessToken = new SelfIssuedAccessToken(jwk, issuer, audience, tokenTtl, caller);
 		assertDoesNotThrow(accessToken::toString);
 		assertEquals(authnPrincipal, accessToken.getName());
 		assertEquals(issuer.toString(), accessToken.getIssuer());
@@ -116,7 +117,7 @@ public class SelfIssuedAccessTokenTest {
 		assertDoesNotThrow(() -> accessToken.applyTo(rb));
 		verify(rb).header(eq("Authorization"), argThat(authMatcher));
 
-		final var verifiedToken = new SelfIssuedAccessToken(jwk, audience, tokenTtl, authMatcher.token);
+		final var verifiedToken = new SelfIssuedAccessToken(jwk, issuer, audience, tokenTtl, authMatcher.token);
 		assertEquals(authnPrincipal, verifiedToken.getName());
 		assertEquals(issuer.toString(), verifiedToken.getIssuer());
 		final var verifiedIat = verifiedToken.getIssuedAt();
@@ -136,7 +137,8 @@ public class SelfIssuedAccessTokenTest {
 	@Test
 	void testImpersonated() {
 		final var issuer = URI.create(IdGenerator.generateId());
-		final var jwk = WebKey.builder(Algorithm.EDDSA).ephemeral().keyId(issuer.toString()).build();
+		final var kid = IdGenerator.generateId();
+		final var jwk = WebKey.builder(Algorithm.EDDSA).ephemeral().keyId(kid).build();
 		final var audience = URI.create(IdGenerator.generateId());
 		final var tokenTtl = Duration.ofSeconds(15L);
 		final var caller = mock(IuCallerAttributes.class, CALLS_REAL_METHODS);
@@ -151,7 +153,7 @@ public class SelfIssuedAccessTokenTest {
 		when(caller.getRequestUri()).thenReturn(requestUri);
 		when(caller.getUserAgent()).thenReturn(userAgent);
 
-		final var accessToken = new SelfIssuedAccessToken(jwk, audience, tokenTtl, caller);
+		final var accessToken = new SelfIssuedAccessToken(jwk, issuer, audience, tokenTtl, caller);
 		assertEquals(impersonatedPrincipal, accessToken.getName());
 
 		final var authMatcher = new ArgumentMatcher<String>() {
@@ -168,7 +170,7 @@ public class SelfIssuedAccessTokenTest {
 		final var rb = mock(HttpRequest.Builder.class);
 		assertDoesNotThrow(() -> accessToken.applyTo(rb));
 		verify(rb).header(eq("Authorization"), argThat(authMatcher));
-		final var verifiedToken = new SelfIssuedAccessToken(jwk, audience, tokenTtl, authMatcher.token);
+		final var verifiedToken = new SelfIssuedAccessToken(jwk, issuer, audience, tokenTtl, authMatcher.token);
 
 		assertEquals(impersonatedPrincipal, verifiedToken.getName());
 		assertEquals(authMatcher.token, verifiedToken.getBearerToken());
@@ -199,7 +201,7 @@ public class SelfIssuedAccessTokenTest {
 		final var bearerToken = accessToken.sign("JWT", jwk.getAlgorithm(), jwk);
 
 		assertThrows(IllegalArgumentException.class,
-				() -> new SelfIssuedAccessToken(jwk, audience, tokenTtl, bearerToken));
+				() -> new SelfIssuedAccessToken(jwk, issuer, audience, tokenTtl, bearerToken));
 	}
 
 }

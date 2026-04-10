@@ -39,8 +39,6 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.config.IuSessionConfiguration;
-
 @SuppressWarnings("javadoc")
 public class IuSessionConfigurationTest {
 

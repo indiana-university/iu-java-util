@@ -87,16 +87,16 @@ public class SelfIssuedAccessToken implements IuApiCredentials {
 	 * Constructor, for use by the verifying server endpoint.
 	 * 
 	 * @param jwk         Issuer key
+	 * @param issuer      Token issuer URI
 	 * @param audience    Remote audience URI
 	 * @param tokenTtl    Duration between token issue and expiration times
 	 * @param bearerToken Bearer token
 	 */
-	public SelfIssuedAccessToken(WebKey jwk, URI audience, Duration tokenTtl, String bearerToken) {
+	public SelfIssuedAccessToken(WebKey jwk, URI issuer, URI audience, Duration tokenTtl, String bearerToken) {
 		this.bearerToken = bearerToken;
-		final var iss = URI.create(jwk.getKeyId());
 		accessToken = new RemoteAccessToken(Jwt.verify(bearerToken, jwk));
 		accessToken.validateClaims(audience, tokenTtl);
-		IuObject.once(iss, accessToken.getIssuer(), "issuer mismatch");
+		IuObject.once(issuer, accessToken.getIssuer(), "issuer mismatch");
 
 		final var caller = Objects.requireNonNull(accessToken.getCallerAttributes(), "missing caller attributes");
 		final var authnPrincipal = Objects.requireNonNull(caller.getAuthnPrincipal(), "missing authn_principal");

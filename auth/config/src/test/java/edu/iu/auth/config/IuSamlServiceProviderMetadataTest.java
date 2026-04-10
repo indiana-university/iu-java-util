@@ -40,7 +40,6 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
 
 @SuppressWarnings("javadoc")
