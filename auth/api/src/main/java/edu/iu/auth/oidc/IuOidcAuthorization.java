@@ -32,8 +32,8 @@ public interface IuOidcAuthorization {
 	IuAuthorizationRedirect authorize(IuRequestAttributes attributes, String code, String state);
 
 	/**
-	 * Gets the {@link BursarPayPIuAuthorizedPrincipalrincipal} previously
-	 * authorized for a web session.
+	 * Gets the {@link IuAuthorizedPrincipal} previously authorized for a web
+	 * session.
 	 * 
 	 * @param attributes request attributes
 	 * @return Verified {@link IuAuthorizedPrincipal}
