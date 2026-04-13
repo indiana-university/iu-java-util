@@ -35,7 +35,7 @@ import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 
 /**
- * {@link BursarPayAuthorizationResource} implementation resource.
+ * {@link IuOidcAuthorization} implementation resource.
  */
 public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 
@@ -73,8 +73,8 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 	protected abstract void handlePostAuth(OidcPostAuthSession postAuth);
 
 	/**
-	 * Reads the OIDC provider metadata using {@link #oidcProvider}, or returns the
-	 * last known good version if cached and not expired or temporarily unavailable.
+	 * Reads the OIDC provider metadata, or returns the last known good version if
+	 * cached and not expired or temporarily unavailable.
 	 * 
 	 * @return {@link IuOpenIdProviderMetadata}
 	 */

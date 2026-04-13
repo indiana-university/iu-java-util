@@ -9,7 +9,7 @@ import edu.iu.auth.IuPrincipalIdentity;
 import jakarta.json.JsonObject;
 
 /**
- * Session-bound {@link BursarPayPrincipal} instance sourced from
+ * Session-bound {@link IuPrincipalIdentity} instance sourced from
  * {@link OidcIdToken}.
  */
 public class OidcIdTokenPrincipal implements IuPrincipalIdentity {
