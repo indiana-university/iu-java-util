@@ -27,8 +27,7 @@ public interface IuOidcAuthorization {
 	 * @param attributes request attributes
 	 * @param code       authorization code
 	 * @param state      state parameter value
-	 * @return Verified {@link BursarPayAuthorizationResult}; null if an authorized
-	 *         session could not be restored using the request cookies
+	 * @return Verified {@link IuAuthorizationRedirect}
 	 */
 	IuAuthorizationRedirect authorize(IuRequestAttributes attributes, String code, String state);
 
@@ -37,8 +36,7 @@ public interface IuOidcAuthorization {
 	 * authorized for a web session.
 	 * 
 	 * @param attributes request attributes
-	 * @return Verified {@link IuAuthorizedPrincipal}; null if an authorized session
-	 *         could not be restored using the request cookies
+	 * @return Verified {@link IuAuthorizedPrincipal}
 	 */
 	IuAuthorizedPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes);
 
