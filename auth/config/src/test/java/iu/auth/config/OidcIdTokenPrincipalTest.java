@@ -1,6 +1,7 @@
 package iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +40,24 @@ public class OidcIdTokenPrincipalTest {
 		assertEquals(authTime, principal.getAuthTime());
 		assertEquals(exp, principal.getExpires());
 		assertEquals(principal, principal.getSubject().getPrincipals().iterator().next());
+	}
+
+	@Test
+	void testSubMissing() {
+		final var userInfo = IuJson.object().build();
+		assertEquals("userinfo missing sub claim",
+				assertThrows(IllegalArgumentException.class, () -> new OidcIdTokenPrincipal(null, userInfo))
+						.getMessage());
+	}
+
+	@Test
+	void testSubMismatch() {
+		final var idToken = mock(OidcIdToken.class);
+		when(idToken.getSubject()).thenReturn(IdGenerator.generateId());
+		final var userInfo = IuJson.object().add("sub", IdGenerator.generateId()).build();
+		assertEquals("userinfo sub claim doesn't match id token",
+				assertThrows(IllegalArgumentException.class, () -> new OidcIdTokenPrincipal(idToken, userInfo))
+						.getMessage());
 	}
 
 }

@@ -3,7 +3,7 @@ package edu.iu.auth.oidc;
 import java.net.URI;
 
 /**
- * Holds redirect metadata supporting interactive flows between authentication
+ * Passes redirect metadata supporting interactive flows between authentication
  * and authorization endpoints.
  */
 public interface IuAuthorizationRedirect {

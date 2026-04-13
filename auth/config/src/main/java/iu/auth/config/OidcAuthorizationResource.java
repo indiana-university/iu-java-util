@@ -13,7 +13,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuAuthorizationFailedException;
 import edu.iu.IuBadRequestException;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -25,7 +24,9 @@ import edu.iu.auth.config.IuOidcClient;
 import edu.iu.auth.config.IuOpenIdProviderMetadata;
 import edu.iu.auth.oauth.IuCallerAttributes;
 import edu.iu.auth.oidc.IuAuthorizationRedirect;
+import edu.iu.auth.oidc.IuAuthorizedPrincipal;
 import edu.iu.auth.oidc.IuOidcAuthorization;
+import edu.iu.auth.session.IuSession;
 import edu.iu.auth.session.IuSessionHandler;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
@@ -144,7 +145,7 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 	}
 
 	/**
-	 * Authorizes a request to the token endpoint.
+	 * Adds authorization attributes to a token endpoint code request.
 	 * 
 	 * @param caller         caller attributes for adding as authorization details
 	 *                       to the client assertion
@@ -152,7 +153,8 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 	 * @param nonce          nonce value from the original authorization request
 	 * @param requestBuilder {@link HttpRequest.Builder}
 	 */
-	protected void tokenAuth(IuCallerAttributes caller, String code, String nonce, HttpRequest.Builder requestBuilder) {
+	protected void codeTokenAuth(IuCallerAttributes caller, String code, String nonce,
+			HttpRequest.Builder requestBuilder) {
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		params.put("grant_type", IuIterable.iter("authorization_code"));
 		params.put("code", IuIterable.iter(code));
@@ -169,27 +171,16 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 		requestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(params)));
 	}
 
-	@Override
-	public IuAuthorizationRedirect authorize(IuRequestAttributes requestAttributes, String code, String state) {
-		final var sessionHandler = getSessionHandler();
-		final var session = sessionHandler.activate(requestAttributes.getCookies());
-		if (session == null)
-			throw new IllegalStateException("missing or expired preAuth session");
-
-		final var preAuth = session.getDetail(OidcPreAuthSession.class);
-		if (!IuObject.equals(preAuth.getState(), state))
-			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
-
+	/**
+	 * Handles a token response.
+	 * 
+	 * @param postAuth      post-auth session detail for storing verified response
+	 *                      tokens
+	 * @param nonce         nonce value from the original authorization request
+	 * @param tokenResponse parsed response from the OP token endpoint
+	 */
+	void handleTokenResponse(OidcPostAuthSession postAuth, String nonce, OAuthTokenResponse tokenResponse) {
 		final var oidcClient = getOidcClient();
-		final var nonce = preAuth.getNonce();
-		final var oidcProviderMetadata = oidcProviderMetadata();
-
-		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-		final var caller = new RequestCallerAttributes(requestAttributes, oidcClient.getClientId(), null);
-		final var tokenResponse = OAuthTokenResponse
-				.from(IuException.unchecked(() -> IuHttp.send(oidcProviderMetadata.getTokenEndpoint(),
-						rb -> tokenAuth(caller, code, nonce, rb), IuHttp.READ_JSON_OBJECT)));
-
 		final var issuer = Objects.requireNonNull(oidcProviderMetadata.getIssuer(), "missing issuer");
 		final var issuerKey = IuObject.convert(oidcProviderMetadata.getJwksUri(), WebKey::readJwks).iterator().next();
 
@@ -208,8 +199,6 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 		} else
 			idToken = encryptedIdToken; // not encrypted
 
-		final var postAuth = session.getDetail(OidcPostAuthSession.class);
-
 		final var verifiedIdToken = OidcIdToken.verify(idToken, issuerKey, oidcClient.getClientId(), nonce, accessToken,
 				oidcClient.getMaxAge());
 		verifiedIdToken.validateClaims(URI.create(oidcClient.getClientId()), oidcClient.getTokenTtl());
@@ -219,10 +208,34 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 		postAuth.setIdToken(idToken);
 		postAuth.setAccessToken(accessToken);
 		postAuth.setRefreshToken(tokenResponse.getRefreshToken());
+
+		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 		postAuth.setNotAfter(IuObject.require(now.plusSeconds(tokenResponse.getExpiresIn()), now::isBefore,
 				"non-positive expires_in"));
 
 		handlePostAuth(postAuth);
+	}
+
+	@Override
+	public IuAuthorizationRedirect authorize(IuRequestAttributes requestAttributes, String code, String state) {
+		final var sessionHandler = getSessionHandler();
+		final var session = sessionHandler.activate(requestAttributes.getCookies());
+		if (session == null)
+			throw new IllegalStateException("missing or expired preAuth session");
+
+		final var preAuth = session.getDetail(OidcPreAuthSession.class);
+		if (!IuObject.equals(preAuth.getState(), state))
+			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
+
+		final var oidcClient = getOidcClient();
+		final var nonce = preAuth.getNonce();
+		final var oidcProviderMetadata = oidcProviderMetadata();
+
+		final var caller = new RequestCallerAttributes(requestAttributes, oidcClient.getClientId(), null);
+
+		handleTokenResponse(session.getDetail(OidcPostAuthSession.class), nonce,
+				OAuthTokenResponse.from(IuException.unchecked(() -> IuHttp.send(oidcProviderMetadata.getTokenEndpoint(),
+						rb -> codeTokenAuth(caller, code, nonce, rb), IuHttp.READ_JSON_OBJECT))));
 
 		return new IuAuthorizationRedirect() {
 			@Override
@@ -237,47 +250,94 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 		};
 	}
 
+	/**
+	 * Adds authorization attributes to a token endpoint refresh request.
+	 * 
+	 * @param caller         caller attributes for adding as authorization details
+	 *                       to the client assertion
+	 * @param refreshToken   refresh token from the most recent token response
+	 * @param nonce          nonce value from the original authorization request
+	 * @param requestBuilder {@link HttpRequest.Builder}
+	 */
+	protected void refreshTokenAuth(IuCallerAttributes caller, String refreshToken, String nonce,
+			HttpRequest.Builder requestBuilder) {
+		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
+		params.put("grant_type", IuIterable.iter("refresh_token"));
+		params.put("refresh_token", IuIterable.iter(refreshToken));
+		params.put("nonce", IuIterable.iter(nonce));
+
+		final var oidcClient = getOidcClient();
+
+		final var assertion = new SelfIssuedAccessToken(oidcClient.getAssertionJwk(),
+				URI.create(oidcClient.getClientId()), oidcProviderMetadata().getTokenEndpoint(),
+				oidcClient.getAssertionTtl(), caller);
+		params.put("client_assertion_type", IuIterable.iter("urn:ietf:params:oauth:client-assertion-type:jwt-bearer"));
+		params.put("client_assertion", IuIterable.iter(assertion.getBearerToken()));
+		requestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
+		requestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(params)));
+	}
+
+	/**
+	 * Refreshes the tokens for an authorization session with expired id and/or
+	 * access tokens.
+	 * 
+	 * @param requestAttributes incoming request attributes
+	 * @param refreshToken      refresh token from most recent token endpoint
+	 *                          response
+	 * @param session           session with expired tokens
+	 * @return set-cookie header value for the updated session
+	 */
+	protected String refresh(IuRequestAttributes requestAttributes, String refreshToken, IuSession session) {
+		final var preAuth = session.getDetail(OidcPreAuthSession.class);
+		final var nonce = preAuth.getNonce();
+		final var postAuth = session.getDetail(OidcPostAuthSession.class);
+
+		final var oidcClient = getOidcClient();
+		final var oidcProviderMetadata = oidcProviderMetadata();
+
+		final var caller = new RequestCallerAttributes(requestAttributes, oidcClient.getClientId(), null);
+		handleTokenResponse(postAuth, nonce,
+				OAuthTokenResponse.from(IuException.unchecked(() -> IuHttp.send(oidcProviderMetadata.getTokenEndpoint(),
+						rb -> refreshTokenAuth(caller, refreshToken, nonce, rb), IuHttp.READ_JSON_OBJECT))));
+
+		return getSessionHandler().store(session);
+	}
+
 	@Override
-	public IuPrincipalIdentity getAuthorizedPrincipal(IuRequestAttributes requestAttributes) {
+	public IuAuthorizedPrincipal getAuthorizedPrincipal(IuRequestAttributes requestAttributes) {
 		final var sessionHandler = getSessionHandler();
 		final var session = sessionHandler.activate(requestAttributes.getCookies());
-		if (session == null) {
-			LOG.info(() -> "missing or expired authorization session");
-			return null;
-		}
+		if (session == null)
+			throw new IllegalStateException("missing or expired authorization session");
 
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
 		final var nonce = preAuth.getNonce();
-		if (nonce == null) {
-			LOG.info(() -> "missing pre-auth nonce");
-			return null;
-		}
+		if (nonce == null)
+			throw new IllegalStateException("missing pre-auth nonce");
 
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
-		final var accessToken = postAuth.getAccessToken();
-		if (accessToken == null) {
-			LOG.info(() -> "missing post-auth access token");
-			return null;
-		}
-
-		final var idToken = postAuth.getIdToken();
-		if (idToken == null) {
-			LOG.info(() -> "missing post-auth ID token");
-			return null;
-		}
 
 		final var notAfter = postAuth.getNotAfter();
-		if (notAfter == null) {
-			LOG.info(() -> "missing post-auth not-after date");
-			return null;
-		}
+		if (notAfter == null)
+			throw new IllegalStateException("missing post-auth not-after date");
 
+		final String setCookie;
 		if (Instant.now().isAfter(notAfter)) {
-			// TODO: refresh tokens and pass Set-Cookie to return w/ principal
+			final var refreshToken = postAuth.getRefreshToken();
+			if (refreshToken == null)
+				throw new IllegalStateException("Session expired with no refresh token");
+			else
+				setCookie = refresh(requestAttributes, refreshToken, session);
+		} else
+			setCookie = null;
 
-			LOG.info(() -> "expired authorization session");
-			return null;
-		}
+		final var accessToken = postAuth.getAccessToken();
+		if (accessToken == null)
+			throw new IllegalStateException("missing post-auth access token");
+
+		final var idToken = postAuth.getIdToken();
+		if (idToken == null)
+			throw new IllegalStateException("missing post-auth ID token");
 
 		final var oidcProviderMetadata = oidcProviderMetadata();
 		final var issuer = IuObject.convert(oidcProviderMetadata.getJwksUri(), WebKey::readJwks).iterator().next();
@@ -301,7 +361,18 @@ public abstract class OidcAuthorizationResource implements IuOidcAuthorization {
 		} else
 			userinfoResponse = encryptedUserinfoResponse; // not encrypted
 
-		return new OidcIdTokenPrincipal(verifiedIdToken, IuJson.parse(userinfoResponse).asJsonObject());
+		final var principal = new OidcIdTokenPrincipal(verifiedIdToken, IuJson.parse(userinfoResponse).asJsonObject());
+		return new IuAuthorizedPrincipal() {
+			@Override
+			public String getSetCookie() {
+				return setCookie;
+			}
+
+			@Override
+			public IuPrincipalIdentity getPrincipal() {
+				return principal;
+			}
+		};
 	}
 
 }

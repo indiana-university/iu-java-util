@@ -2,6 +2,7 @@ package iu.auth.config;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -113,7 +114,7 @@ public class OidcAuthorizatonResourceTest {
 						.add("jwks_uri", jwksUri.toString()) //
 						.add("authorization_endpoint", authorizationEndpoint.toString()) //
 						.add("token_endpoint", tokenEndpoint.toString()) //
-						.add("userInfo_endpoint", userinfoEndpoint.toString()) //
+						.add("userinfo_endpoint", userinfoEndpoint.toString()) //
 						.build());
 
 		sessionHandler = mock(IuSessionHandler.class);
@@ -567,6 +568,349 @@ public class OidcAuthorizatonResourceTest {
 			assertEquals("iss mismatch in id token",
 					assertThrows(IuBadRequestException.class, () -> resource.authorize(attributes, code, state))
 							.getMessage());
+		}
+	}
+
+	@Test
+	void testGetPrincipalMissingOrExpired() {
+		final var attributes = mock(IuRequestAttributes.class);
+		assertEquals("missing or expired authorization session",
+				assertThrows(IllegalStateException.class, () -> resource.getAuthorizedPrincipal(attributes))
+						.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalMissingNonce() {
+		final var attributes = mock(IuRequestAttributes.class);
+		final var cookies = mock(Iterable.class);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		assertEquals("missing pre-auth nonce",
+				assertThrows(IllegalStateException.class, () -> resource.getAuthorizedPrincipal(attributes))
+						.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalMissingAccessToken() {
+		final var attributes = mock(IuRequestAttributes.class);
+		final var cookies = mock(Iterable.class);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var nonce = IdGenerator.generateId();
+		when(preAuth.getNonce()).thenReturn(nonce);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var notAfter = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1L);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+
+		assertEquals("missing post-auth access token",
+				assertThrows(IllegalStateException.class, () -> resource.getAuthorizedPrincipal(attributes))
+						.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalMissingIdToken() {
+		final var attributes = mock(IuRequestAttributes.class);
+		final var cookies = mock(Iterable.class);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var nonce = IdGenerator.generateId();
+		when(preAuth.getNonce()).thenReturn(nonce);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var notAfter = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1L);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+
+		final var accessToken = IdGenerator.generateId();
+		when(postAuth.getAccessToken()).thenReturn(accessToken);
+
+		assertEquals("missing post-auth ID token",
+				assertThrows(IllegalStateException.class, () -> resource.getAuthorizedPrincipal(attributes))
+						.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalMissingNotAfter() {
+		final var attributes = mock(IuRequestAttributes.class);
+		final var cookies = mock(Iterable.class);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var nonce = IdGenerator.generateId();
+		when(preAuth.getNonce()).thenReturn(nonce);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var accessToken = IdGenerator.generateId();
+		when(postAuth.getAccessToken()).thenReturn(accessToken);
+
+		final var idToken = IdGenerator.generateId();
+		when(postAuth.getIdToken()).thenReturn(idToken);
+
+		assertEquals("missing post-auth not-after date",
+				assertThrows(IllegalStateException.class, () -> resource.getAuthorizedPrincipal(attributes))
+						.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalExpiredNoRefresh() {
+		final var attributes = mock(IuRequestAttributes.class);
+		final var cookies = mock(Iterable.class);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var nonce = IdGenerator.generateId();
+		when(preAuth.getNonce()).thenReturn(nonce);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var accessToken = IdGenerator.generateId();
+		when(postAuth.getAccessToken()).thenReturn(accessToken);
+
+		final var idToken = IdGenerator.generateId();
+		when(postAuth.getIdToken()).thenReturn(idToken);
+
+		final var notAfter = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(1L);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+
+		assertEquals("Session expired with no refresh token",
+				assertThrows(IllegalStateException.class, () -> resource.getAuthorizedPrincipal(attributes))
+						.getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalWithRefresh() {
+		final var requestUri = URI.create(IdGenerator.generateId());
+		final var remoteAddr = IdGenerator.generateId();
+		final var userAgent = IdGenerator.generateId();
+		final var cookies = mock(Iterable.class);
+		final var attributes = mock(IuRequestAttributes.class);
+		when(attributes.getRequestUri()).thenReturn(requestUri);
+		when(attributes.getRemoteAddr()).thenReturn(remoteAddr);
+		when(attributes.getUserAgent()).thenReturn(userAgent);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var nonce = IdGenerator.generateId();
+		when(preAuth.getNonce()).thenReturn(nonce);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var notAfter = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(1L);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+
+		final var akid = IdGenerator.generateId();
+		final var assertKey = WebKey.builder(Algorithm.EDDSA).keyId(akid).ephemeral().build();
+		when(oidcClient.getAssertionJwk()).thenReturn(assertKey);
+		when(oidcClient.getAssertionTtl()).thenReturn(Duration.ofSeconds(15L));
+		when(oidcClient.getTokenTtl()).thenReturn(Duration.ofSeconds(15L));
+		when(oidcClient.getMaxAge()).thenReturn(Duration.ofHours(1L));
+
+		when(oidcClient.getDecryptJwk()).thenReturn(null);
+
+		final var kid = IdGenerator.generateId();
+		final var issuerKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
+
+		final var refreshToken = IdGenerator.generateId();
+		final var newAccessToken = IdGenerator.generateId();
+		final var authnPrincipal = IdGenerator.generateId();
+		final var authTime = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(5L);
+		final var exp = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(15L);
+		final var idTokenBuilder = OidcIdToken.builder(Algorithm.EDDSA, clientId, Duration.ofHours(12L)) //
+				.jti() //
+				.iss(issuer) //
+				.aud(URI.create(clientId)) //
+				.sub(authnPrincipal) //
+				.authTime(authTime) //
+				.iat() //
+				.exp(exp) //
+				.nonce(nonce) //
+				.accessToken(newAccessToken) //
+		;
+
+		final var idClaims = idTokenBuilder.build();
+		final var newIdToken = idClaims.sign("JWT", Algorithm.EDDSA, issuerKey);
+
+		final var newRefreshToken = IdGenerator.generateId();
+		http.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+			final var bp = mock(BodyPublisher.class);
+			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
+				mockBodyPublishers.when(() -> BodyPublishers.ofString(argThat(b -> {
+					final var params = IuWebUtils.parseQueryString(b);
+					assertEquals("refresh_token", params.get("grant_type").iterator().next());
+					assertEquals(refreshToken, params.get("refresh_token").iterator().next());
+					assertEquals(nonce, params.get("nonce").iterator().next());
+					assertEquals("urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+							params.get("client_assertion_type").iterator().next());
+
+					final var assertion = new SelfIssuedAccessToken(assertKey.wellKnown(), URI.create(clientId),
+							tokenEndpoint, oidcClient.getAssertionTtl(),
+							params.get("client_assertion").iterator().next());
+					assertEquals(clientId, assertion.getName());
+
+					return true;
+				}))).thenReturn(bp);
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("Content-Type", "application/x-www-form-urlencoded");
+				verify(rb).POST(bp);
+			}
+			return true;
+		}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(IuJson.object() //
+				.add("id_token", newIdToken) //
+				.add("access_token", newAccessToken) //
+				.add("refresh_token", newRefreshToken) //
+				.add("expires_in", 15) //
+				.build());
+
+		http.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+			final var rb = mock(HttpRequest.Builder.class);
+			assertDoesNotThrow(() -> a.accept(rb));
+			verify(rb).header("Authorization", "Bearer " + newAccessToken);
+			return true;
+		}), eq(IuHttp.READ_UTF8))).thenReturn(IuJson.object() //
+				.add("sub", authnPrincipal) //
+				.build().toString());
+
+		when(postAuth.getAccessToken()).thenReturn(newAccessToken);
+		when(postAuth.getIdToken()).thenReturn(newIdToken);
+		when(postAuth.getRefreshToken()).thenReturn(refreshToken, newRefreshToken);
+
+		final var setCookie = IdGenerator.generateId();
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+		try (final var mockWebKey = mockStatic(WebKey.class, CALLS_REAL_METHODS)) {
+			mockWebKey.when(() -> WebKey.readJwks(jwksUri)).thenReturn(IuIterable.iter(issuerKey));
+			final var principal = resource.getAuthorizedPrincipal(attributes);
+			verify(postAuth).setAccessToken(newAccessToken);
+			verify(postAuth).setIdToken(newIdToken);
+			verify(postAuth).setRefreshToken(newRefreshToken);
+			verify(postAuth).setNotAfter(any(Instant.class));
+			assertEquals(setCookie, principal.getSetCookie());
+			assertEquals(authnPrincipal, principal.getPrincipal().getName());
+			assertEquals(postAuth, postAuthHandled);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipal() {
+		final var attributes = mock(IuRequestAttributes.class);
+		final var cookies = mock(Iterable.class);
+		when(attributes.getCookies()).thenReturn(cookies);
+
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var nonce = IdGenerator.generateId();
+		when(preAuth.getNonce()).thenReturn(nonce);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var accessToken = IdGenerator.generateId();
+		when(postAuth.getAccessToken()).thenReturn(accessToken);
+
+		final var notAfter = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1L);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+
+		final var kid = IdGenerator.generateId();
+		final var issuerKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
+
+		final var authnPrincipal = IdGenerator.generateId();
+		final var authTime = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(5L);
+		final var exp = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(15L);
+		final var idTokenBuilder = OidcIdToken.builder(Algorithm.EDDSA, clientId, Duration.ofHours(12L)) //
+				.jti() //
+				.iss(issuer) //
+				.aud(URI.create(clientId)) //
+				.sub(authnPrincipal) //
+				.authTime(authTime) //
+				.iat() //
+				.exp(exp) //
+				.nonce(nonce) //
+				.accessToken(accessToken) //
+		;
+
+		final var idClaims = idTokenBuilder.build();
+		final var idToken = idClaims.sign("JWT", Algorithm.EDDSA, issuerKey);
+		when(postAuth.getIdToken()).thenReturn(idToken);
+
+		when(oidcClient.getTokenTtl()).thenReturn(Duration.ofSeconds(15L));
+		when(oidcClient.getMaxAge()).thenReturn(Duration.ofHours(1L));
+
+		final var dkid = IdGenerator.generateId();
+		final var decryptKey = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES).keyId(dkid).ephemeral()
+				.build();
+		when(oidcClient.getDecryptJwk()).thenReturn(IuIterable.iter(decryptKey));
+
+		final var encryptedUserinfo = WebEncryption.builder(Encryption.A256GCM).compact()
+				.addRecipient(Algorithm.ECDH_ES).keyId(dkid).key(decryptKey.wellKnown()).contentType("application/json")
+				.encrypt(IuJson.object() //
+						.add("sub", authnPrincipal) //
+						.build().toString())
+				.compact();
+
+		http.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+			final var rb = mock(HttpRequest.Builder.class);
+			assertDoesNotThrow(() -> a.accept(rb));
+			verify(rb).header("Authorization", "Bearer " + accessToken);
+			return true;
+		}), eq(IuHttp.READ_UTF8))).thenReturn(encryptedUserinfo);
+
+		try (final var mockWebKey = mockStatic(WebKey.class, CALLS_REAL_METHODS)) {
+			mockWebKey.when(() -> WebKey.readJwks(jwksUri)).thenReturn(IuIterable.iter(issuerKey));
+			final var principal = resource.getAuthorizedPrincipal(attributes);
+			assertNull(null, principal.getSetCookie());
+			assertEquals(authnPrincipal, principal.getPrincipal().getName());
 		}
 	}
 
