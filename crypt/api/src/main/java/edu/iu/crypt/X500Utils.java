@@ -47,6 +47,7 @@ import javax.security.auth.x500.X500Principal;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
+import edu.iu.crypt.WebKey.Use;
 
 /**
  * Provides basic metadata inspection utilities for {@link X500Principal}.
@@ -92,6 +93,85 @@ public final class X500Utils {
 		}
 		IuObject.convert(cn, a -> nameBuilder.insert(0, a));
 		return nameBuilder.length() == 0 ? null : nameBuilder.toString();
+	}
+
+	/**
+	 * Gets parameters for the X509 keyUsage PKI extension.
+	 * 
+	 * @param jwk key to inspect
+	 * @return keyUsage parameters
+	 */
+	@SuppressWarnings("deprecation")
+	public static String keyUsage(WebKey jwk) {
+		final var alg = jwk.getAlgorithm();
+		if (alg != null)
+			switch (alg) {
+			case ECDH_ES:
+			case ECDH_ES_A128KW:
+			case ECDH_ES_A192KW:
+			case ECDH_ES_A256KW:
+				return "keyAgreement";
+
+			case EDDSA:
+			case ES256:
+			case ES384:
+			case ES512:
+			case PS256:
+			case PS384:
+			case PS512:
+			case RS256:
+			case RS384:
+			case RS512:
+				return "digitalSignature";
+
+			case RSA1_5:
+			case RSA_OAEP:
+			case RSA_OAEP_256:
+				return "keyEncipherment";
+
+			default:
+				throw new IllegalArgumentException("Invalid key algorithm for PKI " + alg);
+			}
+
+		final var keyType = jwk.getType();
+		final var use = jwk.getUse();
+		switch (keyType) {
+		case EC_P256:
+		case EC_P384:
+		case EC_P521:
+			if (Use.SIGN.equals(use))
+				return "digitalSignature";
+			else if (Use.ENCRYPT.equals(use))
+				return "keyAgreement";
+			else
+				return "digitalSignature,keyAgreement";
+
+		case RSASSA_PSS:
+		case ED25519:
+		case ED448:
+			if (Use.ENCRYPT.equals(use))
+				throw new IllegalArgumentException("Invalid key use for " + keyType);
+			else
+				return "digitalSignature";
+
+		case X25519:
+		case X448:
+			if (Use.SIGN.equals(use))
+				throw new IllegalArgumentException("Invalid key use for " + keyType);
+			else
+				return "keyAgreement";
+
+		case RSA:
+			if (Use.SIGN.equals(use))
+				return "digitalSignature";
+			else if (Use.ENCRYPT.equals(use))
+				return "keyEncipherment";
+			else
+				return "digitalSignature,keyEncipherment";
+
+		default:
+			throw new IllegalArgumentException("Invalid key type for PKI " + keyType);
+		}
 	}
 
 	/**

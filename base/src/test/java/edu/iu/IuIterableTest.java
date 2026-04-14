@@ -245,11 +245,14 @@ public class IuIterableTest {
 	@Test
 	public void testSelect() {
 		var set = Set.of("two");
+		final var msg = IdGenerator.generateId();
 		assertEquals("two", select(iter("one", "two", "three"), set::contains));
-		assertThrows(NoSuchElementException.class, () -> select(iter("four", "five"), set::contains));
+		assertEquals(msg,
+				assertThrows(NoSuchElementException.class, () -> select(iter("four", "five"), set::contains, msg))
+						.getMessage());
 		assertThrows(NoSuchElementException.class, () -> select(null, set::contains));
 	}
-	
+
 	@Test
 	public void testFirst() {
 		assertNull(first(null));

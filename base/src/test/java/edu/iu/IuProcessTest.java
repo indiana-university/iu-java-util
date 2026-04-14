@@ -72,6 +72,15 @@ public class IuProcessTest {
 	}
 
 	@Test
+	public void testCat() {
+		assertEquals("hello\n", IuProcess.pipe("hello\n".getBytes(), "cat"));
+		assertFalse(logRecords.isEmpty());
+		final var record = logRecords.poll();
+		assertEquals(Level.FINE, record.getLevel());
+		assertEquals("exec cat" + System.lineSeparator() + "hello\n", record.getMessage());
+	}
+
+	@Test
 	public void testLsMissingFile() {
 		final var name = "missing_file_" + IdGenerator.generateId();
 
