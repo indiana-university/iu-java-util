@@ -32,6 +32,7 @@ import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuBadRequestException;
+import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuRequestAttributes;
@@ -52,6 +53,11 @@ import edu.iu.test.IuTestLogger;
 public class OidcAuthorizatonResourceTest {
 
 	static {
+		IuException.unchecked(() -> {
+			final var f = AuthConfig.class.getDeclaredField("sealed");
+			f.setAccessible(true);
+			f.set(null, false);
+		});
 		AuthConfig.registerInterface(IuOpenIdProviderMetadata.class);
 	}
 
