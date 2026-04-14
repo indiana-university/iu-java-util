@@ -44,7 +44,6 @@ import edu.iu.IuText;
 import edu.iu.auth.config.IuSessionConfiguration;
 import edu.iu.auth.session.IuSession;
 import edu.iu.auth.session.IuSessionHandler;
-import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.WebKey;
 
 /**
@@ -58,29 +57,25 @@ public class SessionHandler implements IuSessionHandler {
 	private static final Logger LOG = Logger.getLogger(SessionHandler.class.getName());
 
 	private final URI resourceUri;
-	private final IuSessionConfiguration configuration;
-	private final Supplier<WebKey> issuerKey;
+	private final Supplier<IuSessionConfiguration> configuration;
 	private final IuDataStore dataStore;
 
 	/**
 	 * Constructor.
 	 * 
 	 * @param resourceUri   root protected resource URI
-	 * @param configuration {#link {@link IuSessionConfiguration}
-	 * @param issuerKey     issuer key supplier
+	 * @param configuration Supplies {#link {@link IuSessionConfiguration}
 	 * @param dataStore     data store
 	 */
-	public SessionHandler(URI resourceUri, IuSessionConfiguration configuration, Supplier<WebKey> issuerKey,
-			IuDataStore dataStore) {
+	public SessionHandler(URI resourceUri, Supplier<IuSessionConfiguration> configuration, IuDataStore dataStore) {
 		this.resourceUri = resourceUri;
 		this.configuration = configuration;
-		this.issuerKey = issuerKey;
 		this.dataStore = dataStore;
 	}
 
 	@Override
 	public IuSession create() {
-		return new Session(resourceUri, configuration.getMaxSessionTtl());
+		return new Session(resourceUri, configuration.get());
 	}
 
 	@Override
@@ -110,21 +105,23 @@ public class SessionHandler implements IuSessionHandler {
 		if (activatedSession == null)
 			return null;
 
-		return new Session(activatedSession, secretKey, issuerKey.get(), configuration.getMaxSessionTtl());
+		return new Session(activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
+				configuration.get());
 	}
 
 	@Override
 	public String store(IuSession session) {
-		final var secretKey = EphemeralKeys.secret("AES", 256);
+		final var config = configuration.get();
+
+		final var secretKey = WebKey.ephemeral(config.getEnc());
 		final var s = (Session) session;
 
-		dataStore.put(hashKey(secretKey), IuText.utf8(s.tokenize(secretKey, issuerKey.get(), configuration.getAlg())),
-				configuration.getInactiveTtl());
+		dataStore.put(hashKey(secretKey.getKey()), IuText.utf8(s.tokenize(secretKey, config)), config.getInactiveTtl());
 
 		final var cookieBuilder = new StringBuilder();
 		cookieBuilder.append(getSessionCookieName());
 		cookieBuilder.append('=');
-		cookieBuilder.append(IuText.base64Url(secretKey));
+		cookieBuilder.append(IuText.base64Url(secretKey.getKey()));
 		cookieBuilder.append("; Path=");
 
 		final var path = resourceUri.getPath();

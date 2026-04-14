@@ -40,6 +40,20 @@ import java.net.URI;
 public interface OAuthAuthorizationClient extends OAuthClient {
 
 	/**
+	 * Gets the token URI.
+	 * 
+	 * @return OAuth 2.0 Token URI
+	 */
+	URI getTokenUri();
+
+	/**
+	 * Gets the JWKS URI.
+	 * 
+	 * @return JWKS URI for verifying JWT token signature
+	 */
+	URI getJwksUri();
+
+	/**
 	 * Gets the authorization endpoint URI.
 	 * 
 	 * @return OAuth 2.0 authorization endpoint URI

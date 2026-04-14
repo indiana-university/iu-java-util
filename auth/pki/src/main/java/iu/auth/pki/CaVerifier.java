@@ -57,17 +57,15 @@ import edu.iu.IuDigest;
 import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
 import edu.iu.auth.config.IuCertificateAuthority;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.X500Utils;
-import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Verifies {@link PkiPrincipal} identities.
  */
-public final class CaVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
+public final class CaVerifier implements PrincipalVerifier<PkiPrincipal> {
 
 	private static final Logger LOG = Logger.getLogger(CaVerifier.class.getName());
 
@@ -147,34 +145,16 @@ public final class CaVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrus
 								.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
 
 					} catch (CertPathValidatorException e) {
+						LOG.log(Level.INFO, e, () -> "ca:invalid:" + X500Utils.getCommonName(issuerPrincipal)
+								+ " rejected " + pki.getName());
+
 						throw new IuAuthenticationException(null, e);
 					}
 			}
 		}
-		if (trusted.isEmpty())
+		if (trusted.isEmpty()) {
 			throw new IllegalArgumentException("issuer not trusted");
-	}
-
-	@Override
-	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal pkp) {
-		final var issuerPrincipal = cert.getSubjectX500Principal();
-
-		final List<Certificate> pathToAnchor = new ArrayList<>();
-		for (final var cert : WebCertificateReference.verify(pkp.getJwk())) {
-			pathToAnchor.add(cert);
-			if (issuerPrincipal.equals(cert.getIssuerX500Principal()))
-				try {
-					final var validator = CertPathValidator.getInstance("PKIX");
-					final var certFactory = CertificateFactory.getInstance("X.509");
-					validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);
-					return new PkiPrincipal(pkp);
-				} catch (Throwable e) {
-					LOG.log(Level.INFO, e, () -> "ca:invalid:" + getRealm() + " rejected " + X500Utils
-							.getCommonName(((X509Certificate) pathToAnchor.get(0)).getSubjectX500Principal()));
-					break;
-				}
 		}
-		return null;
 	}
 
 	@Override

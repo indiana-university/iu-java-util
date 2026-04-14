@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.auth.oauth.OAuthAuthorizationClient;
 import edu.iu.auth.oauth.OAuthClient;
 import edu.iu.client.IuHttp;
 import edu.iu.crypt.WebKey;
@@ -49,7 +50,7 @@ import edu.iu.crypt.WebToken;
  */
 public abstract class OAuthAccessTokenGrant {
 
-	private final Supplier<? extends OAuthClient> client;
+	private final Supplier<? extends OAuthAuthorizationClient> client;
 
 	private String accessToken;
 	private Instant notAfter;
@@ -57,9 +58,9 @@ public abstract class OAuthAccessTokenGrant {
 	/**
 	 * Constructor.
 	 * 
-	 * @param client Configured {@link OAuthClient}
+	 * @param client Configured {@link OAuthAuthorizationClient}
 	 */
-	public OAuthAccessTokenGrant(Supplier<? extends OAuthClient> client) {
+	public OAuthAccessTokenGrant(Supplier<? extends OAuthAuthorizationClient> client) {
 		this.client = client;
 	}
 
@@ -93,7 +94,7 @@ public abstract class OAuthAccessTokenGrant {
 	 * 
 	 * @return Configured {@link OAuthClient}
 	 */
-	protected OAuthClient getClient() {
+	protected OAuthAuthorizationClient getClient() {
 		return client.get();
 	}
 

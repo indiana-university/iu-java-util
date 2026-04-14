@@ -43,7 +43,7 @@ import java.util.Queue;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.auth.config.IuSessionConfiguration;
+import edu.iu.auth.session.IuSessionHandler;
 import edu.iu.client.IuJsonAdapter;
 
 @SuppressWarnings("javadoc")
@@ -85,7 +85,7 @@ public class SessionAdapterFactoryTest {
 	}
 
 	public interface IllegalSession {
-		IuSessionConfiguration getConfiguration(); // disallowed, not same module
+		IuSessionHandler getHandler(); // disallowed, not same module
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })

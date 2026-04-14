@@ -76,7 +76,6 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
-import edu.iu.crypt.WebKey.Algorithm;
 import net.shibboleth.shared.resolver.CriteriaSet;
 import net.shibboleth.shared.xml.ParserPool;
 
@@ -162,9 +161,6 @@ final class SamlBuilder {
 	/** allowed list of IP addresses to validate against SAML response */
 	final IuSubjectConfirmationValidator subjectConfirmationValidator;
 
-	/** token signature verification algorithm */
-	final Algorithm verifyAlg;
-
 	/** metadata resolver object */
 	private MetadataResolver metadataResolver;
 
@@ -183,9 +179,7 @@ final class SamlBuilder {
 		this.metadataUris = Objects.requireNonNull(config.getMetadataUris(), "metadataUris");
 		this.metadataTtl = Objects.requireNonNull(config.getMetadataTtl(), "metadataTtl");
 		this.acsUris = Objects.requireNonNull(config.getAcsUris(), "acsUris");
-		this.certificate = Objects.requireNonNull(config.getIdentity().getJwk().getCertificateChain()[0],
-				"certificate");
-		this.verifyAlg = Objects.requireNonNull(config.getIdentity().getAlg());
+		this.certificate = Objects.requireNonNull(config.getIdentity().getCertificateChain()[0], "certificate");
 		this.serviceProviderEntityId = Objects.requireNonNull(config.getServiceProviderEntityId(),
 				"serviceProviderEntityId");
 		this.identityProviderEntityIds = Objects.requireNonNull(config.getIdentityProviderEntityIds(),
@@ -196,23 +190,25 @@ final class SamlBuilder {
 
 		final var resolver = getMetadata();
 		final var entityId = Objects.requireNonNull(config.getIdentityProviderEntityIds(), "identityProviderEntityId");
-		
+
 		for (String idpEntityId : entityId) {
 			final var entity = Objects.requireNonNull(
-					IuException.unchecked(() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(idpEntityId)))),
+					IuException.unchecked(
+							() -> resolver.resolveSingle(new CriteriaSet(new EntityIdCriterion(idpEntityId)))),
 					"Entity " + idpEntityId + " not found in SAML metadata");
 			final var idp = Objects.requireNonNull(entity.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol"),
 					"Missing SAML 2.0 IDP descriptor for " + entityId);
-			
+
 			List<Credential> certs = new ArrayList<>();
 			for (final var keyDescriptor : idp.getKeyDescriptors())
 				for (final var x509data : keyDescriptor.getKeyInfo().getX509Datas())
 					for (final var x509cert : x509data.getX509Certificates())
-						certs.add(new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));
+						certs.add(
+								new BasicX509Credential(PemEncoded.parse(x509cert.getValue()).next().asCertificate()));
 
 			CredentialResolver credentialResolver = new StaticCredentialResolver(certs);
 			credentialResolverMap.put(idpEntityId, credentialResolver);
-			
+
 			URI singleSignOnLocation = null;
 			for (final var sso : idp.getSingleSignOnServices())
 				if ("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect".equals(sso.getBinding())) {
@@ -224,7 +220,7 @@ final class SamlBuilder {
 				throw new IllegalStateException("Missing SAML 2.0 Redirect Binding in IDP descriptor for " + entityId);
 
 			if (this.singleSignOnLocation == null)
-			this.singleSignOnLocation = singleSignOnLocation;
+				this.singleSignOnLocation = singleSignOnLocation;
 		}
 	}
 

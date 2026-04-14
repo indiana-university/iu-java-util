@@ -64,6 +64,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuText;
 import edu.iu.UnsafeConsumer;
 
 @SuppressWarnings("javadoc")
@@ -111,6 +112,18 @@ public class IuHttpTest extends IuHttpTestCase {
 				.thenReturn(new ByteArrayInputStream(IuJson.object().add("foo", "bar").build().toString().getBytes()));
 		final var o = IuHttp.READ_JSON_OBJECT.apply(resp);
 		assertEquals("bar", o.getString("foo"));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testReadUtf8() throws HttpException {
+		final var resp = mock(HttpResponse.class);
+		when(resp.statusCode()).thenReturn(200);
+		final var msg = IdGenerator.generateId();
+		when(resp.body())
+				.thenReturn(new ByteArrayInputStream(IuText.utf8(msg)));
+		final var o = IuHttp.READ_UTF8.apply(resp);
+		assertEquals(msg, o);
 	}
 
 	@SuppressWarnings("unchecked")

@@ -36,15 +36,12 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.BeforeEach;
 
 import edu.iu.IuException;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.test.IuTestLogger;
-import iu.auth.config.AuthConfig;
 
 @SuppressWarnings("javadoc")
 public class SamlTestCase {
 
 	static {
-		AuthConfig.registerInterface(IuPrivateKeyPrincipal.class);
 		IuException.unchecked(() -> Class.forName(SamlBuilder.class.getName()));
 	}
 

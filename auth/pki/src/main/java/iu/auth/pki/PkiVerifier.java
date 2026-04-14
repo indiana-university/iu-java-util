@@ -52,21 +52,16 @@ import java.util.logging.Logger;
 import edu.iu.IuDigest;
 import edu.iu.IuException;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
-import edu.iu.crypt.X500Utils;
 import edu.iu.crypt.WebKey.Use;
-import iu.auth.config.AuthConfig;
-import iu.auth.config.IuTrustedIssuer;
+import edu.iu.crypt.X500Utils;
 import iu.auth.principal.PrincipalVerifier;
-import iu.crypt.CryptJsonAdapters;
 
 /**
  * Verifies {@link PkiPrincipal} end-entity identities.
  */
-public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTrustedIssuer {
+public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal> {
 
 	private static final Logger LOG = Logger.getLogger(PkiVerifier.class.getName());
 
@@ -77,10 +72,9 @@ public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTru
 	/**
 	 * Constructor.
 	 * 
-	 * @param pkp private key principal
+	 * @param jwk {@link WebKey}
 	 */
-	public PkiVerifier(IuPrivateKeyPrincipal pkp) {
-		final var jwk = pkp.getJwk();
+	public PkiVerifier(WebKey jwk) {
 		final var privateKey = jwk.getPrivateKey();
 		if (privateKey == null)
 			pkhash = null;
@@ -94,6 +88,7 @@ public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTru
 		final var keyUsage = new KeyUsage(cert);
 		if (!keyUsage.matches(Use.SIGN))
 			throw new IllegalArgumentException("X.509 certificate not valid for digital signature");
+
 		realm = X500Utils.getCommonName(cert.getSubjectX500Principal());
 		if (!realm.equals(jwk.getKeyId()))
 			throw new IllegalArgumentException("Key ID doesn't match CN");
@@ -167,43 +162,9 @@ public final class PkiVerifier implements PrincipalVerifier<PkiPrincipal>, IuTru
 										result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
 					});
 				} catch (CertPathValidatorException e) {
+					LOG.log(Level.INFO, e, () -> "pki:invalid:" + realm + " rejected " + pki.getName());
 					throw new IuAuthenticationException(null, e);
 				}
-		}
-	}
-
-	@Override
-	public PkiPrincipal getPrincipal(IuPrivateKeyPrincipal pkp) {
-		final var jwk = pkp.getJwk();
-		if (!realm.equals(pkp.getJwk().getKeyId()))
-			return null;
-
-		final var privateKey = jwk.getPrivateKey();
-		if (isAuthoritative()) {
-			if (privateKey == null || !Arrays.equals(pkhash, IuDigest.sha256(privateKey.getEncoded()))) {
-				LOG.log(Level.FINE, new IllegalArgumentException("private key mismatch"), () -> "pki:invalid:" + realm);
-				return null;
-			}
-		} else if (privateKey != null) {
-			final var wellKnownJwk = pkp.getJwk().wellKnown();
-			final var wellKnownPkpBuilder = IuJson.object(IuJson.unwrap(pkp));
-			wellKnownPkpBuilder.add("jwk", CryptJsonAdapters.WEBKEY.toJson(wellKnownJwk));
-			pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(wellKnownPkpBuilder.build());
-		}
-
-		try {
-			IuException.checked(CertPathValidatorException.class, () -> {
-				final var validator = CertPathValidator.getInstance("PKIX");
-				final var certFactory = CertificateFactory.getInstance("X.509");
-				final var certPath = certFactory.generateCertPath(List.of(jwk.getCertificateChain()));
-				validator.validate(certPath, trustParams);
-			});
-
-			return new PkiPrincipal(pkp);
-
-		} catch (CertPathValidatorException e) {
-			LOG.log(Level.FINE, e, () -> "pki:invalid:" + realm);
-			return null;
 		}
 	}
 

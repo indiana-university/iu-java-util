@@ -68,7 +68,6 @@ import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngin
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
@@ -114,8 +113,7 @@ class SamlResponseValidator {
 				samlBuilder.getIdentityProviderEntityIds());
 
 		config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);
-		final var identity = SamlServiceProvider.serviceProviderIdentity(config);
-		decrypter = getDecrypter(identity);
+		decrypter = getDecrypter(config.getIdentity());
 
 		LOG.fine("SamlResponseValidator spEntityId: " + spEntityId + "; postUri: " + postUri.toString()
 				+ "; allowedRange: " + samlBuilder.getAllowedRange() + "; staticParams: "
@@ -164,14 +162,12 @@ class SamlResponseValidator {
 	 * Gets a {@link Decrypter} for deciphering encrypted SAML Response and
 	 * Assertion content.
 	 * 
-	 * @param identity SAML SP {@link IuPrincipalIdentity}
+	 * @param identity SAML SP {@link WebKey}
 	 * @return {@link Decrypter}
 	 */
-	static Decrypter getDecrypter(IuPrincipalIdentity identity) {
-		final var encryptKey = identity.getSubject().getPrivateCredentials(WebKey.class).stream().findFirst().get();
-
-		final var pem = PemEncoded.serialize(new KeyPair(encryptKey.getPublicKey(), encryptKey.getPrivateKey()),
-				encryptKey.getCertificateChain());
+	static Decrypter getDecrypter(WebKey identity) {
+		final var pem = PemEncoded.serialize(new KeyPair(identity.getPublicKey(), identity.getPrivateKey()),
+				identity.getCertificateChain());
 		final var sb = new StringBuilder();
 		pem.forEachRemaining(sb::append);
 

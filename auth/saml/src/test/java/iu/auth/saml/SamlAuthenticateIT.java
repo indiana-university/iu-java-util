@@ -52,12 +52,10 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.logging.Level;
-import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -65,7 +63,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
 import edu.iu.auth.saml.IuSamlAssertion;
 import edu.iu.auth.saml.IuSamlSessionVerifier;
@@ -73,7 +70,6 @@ import edu.iu.auth.session.IuSession;
 import edu.iu.client.IuVault;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
-import iu.auth.pki.PkiVerifier;
 
 /**
  * Integration tests for SAML authentication
@@ -97,17 +93,14 @@ public class SamlAuthenticateIT {
 	@BeforeAll
 	public static void setupClass() {
 		AuthConfig.registerInterface("realm", IuSamlServiceProviderMetadata.class, IuVault.RUNTIME);
-		AuthConfig.registerInterface(IuPrivateKeyPrincipal.class);
 		final var realm = AuthConfig.load(IuSamlServiceProviderMetadata.class, REALM);
 		postUri = realm.getAcsUris().iterator().next();
-
-		AuthConfig.register(new PkiVerifier(realm.getIdentity()));
 
 		final var provider = new SamlServiceProvider(postUri, REALM, realm);
 		AuthConfig.register(provider);
 		AuthConfig.seal();
 
-		final var identity = SamlServiceProvider.serviceProviderIdentity(realm);
+		final var identity = realm.getIdentity();
 		System.out.println("Verified SAML Service Provider " + identity);
 	}
 

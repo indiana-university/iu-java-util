@@ -37,6 +37,7 @@ import java.util.Set;
 
 import edu.iu.IuIterable;
 import edu.iu.auth.saml.IuSamlAssertion;
+import edu.iu.crypt.WebKey;
 
 /**
  * Provides client configuration metadata for interacting with an SAML
@@ -47,7 +48,7 @@ import edu.iu.auth.saml.IuSamlAssertion;
  * requiring authorization on behalf of an SAML identity provider.
  * </p>
  */
-public interface IuSamlServiceProviderMetadata extends IuSessionConfiguration {
+public interface IuSamlServiceProviderMetadata {
 
 	/**
 	 * Gets whether to fail on address mismatch or not, true if required, false if
@@ -129,7 +130,7 @@ public interface IuSamlServiceProviderMetadata extends IuSessionConfiguration {
 	 * 
 	 * @return SAML SP identity keys
 	 */
-	IuPrivateKeyPrincipal getIdentity();
+	WebKey getIdentity();
 
 	/**
 	 * Gets the name of the SAML Assertion Attribute that contains the principal

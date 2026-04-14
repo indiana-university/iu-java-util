@@ -34,19 +34,14 @@ package iu.auth.pki;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.security.auth.Subject;
 
 import edu.iu.IuObject;
 import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
 import edu.iu.crypt.WebCertificateReference;
-import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.X500Utils;
-import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Use;
 
 /**
  * PKI principal identity implementation class.
@@ -56,11 +51,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 		IuObject.assertNotOpen(PkiPrincipal.class);
 	}
 
-	private final Algorithm alg;
-	private final Algorithm encryptAlg;
-	private final Encryption enc;
-	private final WebKey verify;
-	private final WebKey encrypt;
+	private final WebKey jwk;
 	private final String name;
 	private final String issuer;
 	private final Instant issuedAt;
@@ -70,13 +61,11 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 	/**
 	 * Constructor.
 	 * 
-	 * @param pkp Authentication realm metadata with original algorithm and
-	 *            certificate values
+	 * @param jwk Identity {@link WebKey}
 	 */
-	public PkiPrincipal(IuPrivateKeyPrincipal pkp) {
-		final var jwk = pkp.getJwk();
-		final var keyType = jwk.getType();
-		final var privateKey = jwk.getPrivateKey();
+	public PkiPrincipal(WebKey jwk) {
+		this.jwk = jwk;
+
 		final var certificateChain = Objects.requireNonNull( //
 				WebCertificateReference.verify(jwk), "missing certificate chain");
 
@@ -84,46 +73,6 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 		name = X500Utils.getCommonName(cert.getSubjectX500Principal());
 		if (!name.equals(jwk.getKeyId()))
 			throw new IllegalArgumentException("Key ID doesn't match CN");
-
-		final var keyUsage = new KeyUsage(cert);
-
-		alg = Objects.requireNonNull(pkp.getAlg(), "Missing digital signature algorithm");
-		if (!keyUsage.matches(Use.SIGN))
-			throw new IllegalArgumentException("X.509 certificate doesn't allow digital signature");
-		if (!Set.of(alg.type).contains(keyType))
-			throw new IllegalArgumentException("Invalid key type " + keyType + " for algorithm " + alg);
-
-		final var verifyBuilder = WebKey.builder(keyType) //
-				.algorithm(alg) //
-				.keyId("verify") //
-				.key(cert.getPublicKey()) //
-				.cert(certificateChain);
-		if (privateKey != null)
-			verifyBuilder.key(privateKey);
-		verifyBuilder.ops(keyUsage.ops(true, privateKey != null));
-		verify = verifyBuilder.build();
-
-		encryptAlg = pkp.getEncryptAlg();
-		if (encryptAlg != null) {
-			if (!keyUsage.matches(Use.ENCRYPT))
-				throw new IllegalArgumentException("X.509 certificate doesn't allow encryption");
-			if (!Set.of(encryptAlg.type).contains(keyType))
-				throw new IllegalArgumentException("Invalid key type " + keyType + " for algorithm " + encryptAlg);
-			enc = Objects.requireNonNull(pkp.getEnc(), "Missing content encryption algorithm");
-
-			final var encryptBuilder = WebKey.builder(keyType) //
-					.algorithm(encryptAlg) //
-					.keyId("encrypt") //
-					.key(cert.getPublicKey()) //
-					.cert(certificateChain);
-			if (privateKey != null)
-				encryptBuilder.key(privateKey);
-			encryptBuilder.ops(keyUsage.ops(false, privateKey != null));
-			encrypt = encryptBuilder.build();
-		} else {
-			enc = null;
-			encrypt = null;
-		}
 
 		issuer = X500Utils.getCommonName(cert.getIssuerX500Principal());
 		issuedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -164,15 +113,9 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 		final var priv = subject.getPrivateCredentials();
 		final var pub = subject.getPublicCredentials();
 
-		if (verify.getPrivateKey() != null)
-			priv.add(verify);
-		pub.add(verify.wellKnown());
-
-		if (encrypt != null) {
-			if (encrypt.getPrivateKey() != null)
-				priv.add(encrypt);
-			pub.add(encrypt.wellKnown());
-		}
+		if (jwk.getPrivateKey() != null)
+			priv.add(jwk);
+		pub.add(jwk.wellKnown());
 
 		subject.setReadOnly();
 		return subject;
@@ -180,7 +123,7 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 
 	@Override
 	public int hashCode() {
-		return IuObject.hashCode(alg, enc, encrypt, encryptAlg, verify);
+		return IuObject.hashCode(jwk);
 	}
 
 	@Override
@@ -188,23 +131,15 @@ public final class PkiPrincipal implements IuPrincipalIdentity {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
 		PkiPrincipal other = (PkiPrincipal) obj;
-		return alg == other.alg //
-				&& enc == other.enc //
-				&& encryptAlg == other.encryptAlg //
-				&& IuObject.equals(encrypt, other.encrypt) //
-				&& IuObject.equals(verify, other.verify);
+		return IuObject.equals(jwk, other.jwk);
 	}
 
 	@Override
 	public String toString() {
 		final var sb = new StringBuilder();
-		if (verify.getPrivateKey() == null)
-			sb.append("Well-Known");
-		else
-			sb.append("Authoritative");
-		sb.append(" PKI Principal ").append(getName());
+		sb.append("PKI Principal ").append(name);
 
-		final var certChain = verify.getCertificateChain();
+		final var certChain = jwk.getCertificateChain();
 		final var issuer = certChain[certChain.length - 1].getIssuerX500Principal();
 		final var subject = certChain[0].getSubjectX500Principal();
 		if (subject.equals(issuer))

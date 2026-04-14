@@ -64,7 +64,8 @@ package edu.iu.auth.config;
 
 import java.time.Duration;
 
-import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 
 /**
  * Provides session configuration metadata for session handler
@@ -77,13 +78,19 @@ import edu.iu.crypt.WebKey.Algorithm;
 public interface IuSessionConfiguration {
 
 	/**
-	 * Gets the signature algorithm to use for stored session tokens.
-	 * @return {@link Algorithm}
+	 * Gets the key to use for signing and verifying stored session tokens.
+	 * 
+	 * @return {@link WebKey}
 	 */
-	default Algorithm getAlg() {
-		return Algorithm.ES256;
-	}
-	
+	WebKey getJwk();
+
+	/**
+	 * Gets the encryption algorithm to use for protecting stored session tokens.
+	 * 
+	 * @return {@link Encryption}
+	 */
+	Encryption getEnc();
+
 	/**
 	 * Gets time to live active {@link Duration} for store session.
 	 * 
@@ -101,5 +108,5 @@ public interface IuSessionConfiguration {
 	default Duration getMaxSessionTtl() {
 		return Duration.ofHours(12L);
 	}
-	
+
 }

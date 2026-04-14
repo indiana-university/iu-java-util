@@ -39,15 +39,12 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.crypt.WebKey.Algorithm;
-
 @SuppressWarnings("javadoc")
 public class IuSessionConfigurationTest {
 
 	@Test
 	public void testDefault() {
 		final var config = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
-		assertEquals(Algorithm.ES256, config.getAlg());
 		assertEquals(Duration.ofMinutes(15L), config.getInactiveTtl());
 		assertEquals(Duration.ofHours(12L), config.getMaxSessionTtl());
 	}

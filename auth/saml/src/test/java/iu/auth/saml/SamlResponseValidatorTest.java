@@ -55,10 +55,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.logging.Level;
-
-import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,10 +88,11 @@ import org.w3c.dom.Element;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
-import edu.iu.auth.IuPrincipalIdentity;
-import edu.iu.auth.config.IuPrivateKeyPrincipal;
+import edu.iu.IuProcess;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.client.IuJson;
+import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.X500Utils;
 import edu.iu.test.IuTestLogger;
 import iu.auth.config.AuthConfig;
 import net.shibboleth.shared.resolver.CriteriaSet;
@@ -112,12 +112,11 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 	private String allowedIp;
 	private ExplicitKeySignatureTrustEngine trustEngine;
 	private IuSubjectConfirmationValidator subjectConfigurationValidator;
-	private IuPrincipalIdentity identity;
+	private WebKey identity;
 	private IuSamlServiceProviderMetadata config;
 	private SAMLSignatureProfileValidator signatureProfileValidator;
 
 	private MockedStatic<AuthConfig> mockAuthConfig;
-	private MockedStatic<SamlServiceProvider> mockSamlServiceProvider;
 	private MockedStatic<SamlBuilder> mockSamlBuilder;
 
 	@SuppressWarnings("unchecked")
@@ -145,12 +144,11 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 		mockAuthConfig = mockStatic(AuthConfig.class);
 		mockAuthConfig.when(() -> AuthConfig.adaptJson(any(Class.class))).thenCallRealMethod();
 		mockAuthConfig.when(() -> AuthConfig.adaptJson(any(Type.class))).thenCallRealMethod();
-		mockSamlServiceProvider = mockStatic(SamlServiceProvider.class);
 		mockSamlBuilder = mockStatic(SamlBuilder.class);
 
-		identity = mock(IuPrincipalIdentity.class);
+		identity = mock(WebKey.class);
 		config = mock(IuSamlServiceProviderMetadata.class);
-		mockSamlServiceProvider.when(() -> SamlServiceProvider.serviceProviderIdentity(config)).thenReturn(identity);
+		when(config.getIdentity()).thenReturn(identity);
 		mockAuthConfig.when(() -> AuthConfig.load(IuSamlServiceProviderMetadata.class, realm)).thenReturn(config);
 
 		signatureProfileValidator = mock(SAMLSignatureProfileValidator.class);
@@ -160,7 +158,6 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 	@AfterEach
 	public void teardown() {
 		mockAuthConfig.close();
-		mockSamlServiceProvider.close();
 		mockSamlBuilder.close();
 	}
 
@@ -195,43 +192,35 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 
 	@Test
 	public void testGetDecrypter() {
-		// For demonstration purposes only, not for production use
-		// to recreate: pkp create saml_sp SamlResponseValidatorTest | pkp self
-		final var pkp = AuthConfig.adaptJson(IuPrivateKeyPrincipal.class).fromJson(IuJson
-				.parse("""
-						{
-						    "type": "pki",
-						    "alg": "RS256",
-						    "encrypt_alg": "RSA-OAEP",
-						    "enc": "A256GCM",
-						    "jwk": {
-						        "kid": "SamlResponseValidatorTest",
-						        "x5c": [
-						            "MIID+DCCAuCgAwIBAgIUO1OT5DL8EAO9xpaQoTZPlf9AWZ8wDQYJKoZIhvcNAQELBQAwgYcxCzAJBgNVBAYTAlVTMRAwDgYDVQQIDAdJbmRpYW5hMRQwEgYDVQQHDAtCbG9vbWluZ3RvbjEbMBkGA1UECgwSSW5kaWFuYSBVbml2ZXJzaXR5MQ8wDQYDVQQLDAZTVEFSQ0gxIjAgBgNVBAMMGVNhbWxSZXNwb25zZVZhbGlkYXRvclRlc3QwHhcNMjQwODEzMTIyMDE2WhcNMjYxMTIxMTIyMDE2WjCBhzELMAkGA1UEBhMCVVMxEDAOBgNVBAgMB0luZGlhbmExFDASBgNVBAcMC0Jsb29taW5ndG9uMRswGQYDVQQKDBJJbmRpYW5hIFVuaXZlcnNpdHkxDzANBgNVBAsMBlNUQVJDSDEiMCAGA1UEAwwZU2FtbFJlc3BvbnNlVmFsaWRhdG9yVGVzdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANMKQKCq3p1zEU8agnT0fJixfjlmQrgNECRG+5wBfVZIfzUd7iW2gtM6oDAZNqrXLIq6jVB9zqWkSmiA0X73x7ivH9lQJiugNfVJjKGoNQwSeg7gcxmJ8N4YyZudsE3ayIx4W10iVECjkjiXnYeA4/UmVr9iB/8GUoASgS1rdDN2M9Mqsf7KK80fykEp16FSVV4f4byi/n6nqLo3GG9fFZlMYGjpBvSO67y5q+XbeklZWWHn7rx0uA+3aGgIkzhqEyM8p7KWr/+Q6ZV9KPoT4zybtSa7lDb7FjmfWc0oc33KwWWZ0pV/CQAsorItihF2/77JhitZD2Sd3ZI6U/V3I5MCAwEAAaNaMFgwHQYDVR0OBBYEFDypUMQd0PRGYlSFRLoJ823FMs67MB8GA1UdIwQYMBaAFDypUMQd0PRGYlSFRLoJ823FMs67MAkGA1UdEwQCMAAwCwYDVR0PBAQDAgWgMA0GCSqGSIb3DQEBCwUAA4IBAQAXXnTjuYMwCSmbWlAEM2tImpUZc7ZCeG1KiOzbUQYccHnFhfHVkAlvzp3EwpuemDXvKg54BdjJmAuLAs22k0Quk0B90MdP+a2Ww4cqdJ2alqZ+vN/UNij3pnQ0HXqrfXp2+uYlMtL8YxtqSxc95ADvXVwXWAO695gZx3aH20s0Ri8npv0MF5wC8LamNjkP9/uV6qZ0r63iBrC4QURtDK3rApzNjAdVt4cKSIOhtpuMs5Pt/CQ/99nJukPG0tVQj3tXNAlP31blYGWl9I7XkPjBbrIwE8xgcgs4P29uGlHXtrdsiKBPFBy7/fcFsTgGcwy/TapY3TKVXYflXV4BIpV6"
-						        ],
-						        "kty": "RSA",
-						        "n": "0wpAoKrenXMRTxqCdPR8mLF-OWZCuA0QJEb7nAF9Vkh_NR3uJbaC0zqgMBk2qtcsirqNUH3OpaRKaIDRfvfHuK8f2VAmK6A19UmMoag1DBJ6DuBzGYnw3hjJm52wTdrIjHhbXSJUQKOSOJedh4Dj9SZWv2IH_wZSgBKBLWt0M3Yz0yqx_sorzR_KQSnXoVJVXh_hvKL-fqeoujcYb18VmUxgaOkG9I7rvLmr5dt6SVlZYefuvHS4D7doaAiTOGoTIzynspav_5DplX0o-hPjPJu1JruUNvsWOZ9ZzShzfcrBZZnSlX8JACyisi2KEXb_vsmGK1kPZJ3dkjpT9Xcjkw",
-						        "e": "AQAB",
-						        "d": "LO6-YtbujeRdd5Oj2gXh71q_DraMlwZE_QxV7tnMV04ZM3R7a3En-pQ9XfBIWOh2VdUxWEVo9ZB8vTJMKHXWAqbap5iuf9RdGKv_sr2PCdJ3RWqZZwMdExSA_E5_Jpxh3bKUdUhlWtvYuo7hXePd5Si0CIx1OmGcuCL4ePSraXcqvVXt-uIW6AxZ_qx6JYa8XqwVDgzkO973nU3rtsRwt7CmU_mpj8RtDRqiJnY7xpdkzOpgQNzS93x578XeH7nhvRWFBLVXKQR0GUVLuvltt5luzIoknzIushNhtPwGn0Nca8L7iYMQDEZaUdBly2te21gwD7ra1fqngEBZ0J7u7Q",
-						        "p": "72gxxLCXCm2deQgvXU-JqaRSSyBFdoX9dtowIScEyi_XthcG_XvBm_KX_Jwwobuw_waaMoXQNydycUC4kDtAlLEYUEdsfvRhJlP0t3s1nDLZUEHsisupvTKTGimB9ScRZAfphOYQurjDzuIzYe03G4YMJS0TH3VtJdESLSEwGj0",
-						        "q": "4aq-ApTzyttfKg-pi3uSDgKvn8NqzLrS4Ph23KFzTSSvjG5NVjLpIOd26M_bXlJueKQsXmS6W4eMAU3KAB2ucY7XLskoRIC_9MKj6tzmr5hdeJbkPhhsCPLm3LK-0bgQAzeqwd2UfkSA3BofBbxeKIy_jf_FHXI9mPYd_t7nog8",
-						        "dp": "wUIzKrwCsYBbJmDdG04hqrfjVpHugQcY3OC1CY4d57lHQM7F7coBOIpU9q5-85A4CSajQzWSJ3PIhnPgiU3LjDyJjAScKL_NzMrpOVRUqorBsnAFKuXNV9WDuhLXvbaT61QXxhiSWKjeKBuhruN3INjM5RXF4hdAzM5BBf1Mf2E",
-						        "dq": "ZXVXkl-XsFeq1IVQK-b1xpjMjx7T8JH6Z60t-4oXBdL9njylRqEDEYkffBKfxSt4gYMGc7YD10z81EU-EYlGucWH14AXO51LMGcmPVzt1nrBY4sruQNP50IWK5mtkyqXAGtRuXG-5no0GUEhO3nyN3b4VIZvAAsxyIi2-bUMHV8",
-						        "qi": "5zXt64qF5lfYsQTarbDZVvQBGPJjfdbly65uUE-NsJzVnNNI--engb3KmTFpDAaIJZ7EQnDTcCkVKuZTbtqDqbXaWxHe1D_apQslRZka2JqWUKUxqHJIPcDOItNQJZdDc4zFViLg3aWTfxOpJd54fjb2zFBRq87GJ5npSLsfuuM"
-						    }
-						}
-						"""));
-		final var subject = new Subject();
-		subject.getPrivateCredentials().add(pkp.getJwk());
-		final var identity = mock(IuPrincipalIdentity.class);
-		when(identity.getSubject()).thenReturn(subject);
+		final var kid = IdGenerator.generateId();
+		final var jwk = WebKey.builder(WebKey.Type.RSA).keyId(kid).ephemeral(2048).build();
+		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + kid.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
+		);
+		
+		final var identity = WebKey.builder(jwk.getType()) //
+				.keyId(jwk.getKeyId()) //
+				.key(jwk.getPrivateKey()) //
+				.key(jwk.getPublicKey()) //
+				.algorithm(jwk.getAlgorithm()) //
+				.pem(pemCert) //
+				.build();
+
+		IuProcess.deleteTempFiles();
 
 		try (final var mockResolver = mockConstruction(StaticKeyInfoCredentialResolver.class, (a, ctx) -> {
 			final List<?> certs = (List<?>) ctx.arguments().get(0);
 			assertEquals(1, certs.size());
 			final var basicX509 = assertInstanceOf(BasicX509Credential.class, certs.get(0));
-			assertEquals(pkp.getJwk().getPrivateKey(), basicX509.getPrivateKey());
-			assertEquals(pkp.getJwk().getCertificateChain()[0], basicX509.getEntityCertificate());
+			assertEquals(identity.getPrivateKey(), basicX509.getPrivateKey());
+			assertEquals(identity.getCertificateChain()[0], basicX509.getEntityCertificate());
 		}); final var mockDecrypter = mockConstruction(Decrypter.class, (a, ctx) -> {
 			assertNull(ctx.arguments().get(0));
 			assertSame(mockResolver.constructed().get(0), ctx.arguments().get(1));
@@ -493,8 +482,9 @@ public class SamlResponseValidatorTest extends SamlTestCase {
 
 			IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE, "saml:pre-validate\n" + content);
 			IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE,
-					"saml:post-validate:" + principalName + ":" + authnAuthority + " @" + authnInstant + "; issuer: " + iss + " @"
-							+ issuedInstant + ", expires " + expires + "; assertions: [" + assertion + "]");
+					"saml:post-validate:" + principalName + ":" + authnAuthority + " @" + authnInstant + "; issuer: "
+							+ iss + " @" + issuedInstant + ", expires " + expires + "; assertions: [" + assertion
+							+ "]");
 
 			assertDoesNotThrow(() -> samlResponseValidator.validate(response));
 

@@ -35,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -43,6 +45,9 @@ import java.util.Map;
 import javax.security.auth.x500.X500Principal;
 
 import org.junit.jupiter.api.Test;
+
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebKey.Use;
 
 @SuppressWarnings("javadoc")
 public class X500UtilsTest {
@@ -138,8 +143,7 @@ public class X500UtilsTest {
 		assertEquals("expected DIGIT at 3",
 				assertThrows(IllegalArgumentException.class, () -> X500Utils.parse("1.A.2.3=foo")).getMessage());
 		assertEquals("unexpected at 2",
-				assertThrows(IllegalArgumentException.class, () -> X500Utils.parse("0123.1.2.3=foo"))
-						.getMessage());
+				assertThrows(IllegalArgumentException.class, () -> X500Utils.parse("0123.1.2.3=foo")).getMessage());
 		assertEquals("expected EQUALS at 4",
 				assertThrows(IllegalArgumentException.class, () -> X500Utils.parse("foo bar")).getMessage());
 		assertEquals("expected PLUS or COMMA at 8",
@@ -173,6 +177,81 @@ public class X500UtilsTest {
 				assertThrows(IllegalArgumentException.class, () -> X500Utils.parse("cn=#ax")).getMessage());
 		assertEquals("expected <stringchar> or SHARP at 4",
 				assertThrows(IllegalArgumentException.class, () -> X500Utils.parse("cn= #ax")).getMessage());
+	}
+
+	@Test
+	public void testKeyUsageECDH() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getAlgorithm()).thenReturn(Algorithm.ECDH_ES);
+		assertEquals("keyAgreement", X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageEDDSA() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getAlgorithm()).thenReturn(Algorithm.EDDSA);
+		assertEquals("digitalSignature", X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageRSAOAEP() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getAlgorithm()).thenReturn(Algorithm.RSA_OAEP);
+		assertEquals("keyEncipherment", X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageDir() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getAlgorithm()).thenReturn(Algorithm.DIRECT);
+		assertThrows(IllegalArgumentException.class, () -> X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageECP256() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getType()).thenReturn(WebKey.Type.EC_P256);
+		assertEquals("digitalSignature,keyAgreement", X500Utils.keyUsage(jwk));
+		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
+		assertEquals("digitalSignature", X500Utils.keyUsage(jwk));
+		assertEquals("keyAgreement", X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageED25519() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getType()).thenReturn(WebKey.Type.ED25519);
+		assertEquals("digitalSignature", X500Utils.keyUsage(jwk));
+		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
+		assertEquals("digitalSignature", X500Utils.keyUsage(jwk));
+		assertThrows(IllegalArgumentException.class, () -> X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageX25519() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getType()).thenReturn(WebKey.Type.X25519);
+		assertEquals("keyAgreement", X500Utils.keyUsage(jwk));
+		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
+		assertThrows(IllegalArgumentException.class, () -> X500Utils.keyUsage(jwk));
+		assertEquals("keyAgreement", X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageRSA() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getType()).thenReturn(WebKey.Type.RSA);
+		assertEquals("digitalSignature,keyEncipherment", X500Utils.keyUsage(jwk));
+		when(jwk.getUse()).thenReturn(Use.SIGN, Use.ENCRYPT);
+		assertEquals("digitalSignature", X500Utils.keyUsage(jwk));
+		assertEquals("keyEncipherment", X500Utils.keyUsage(jwk));
+	}
+
+	@Test
+	public void testKeyUsageRAW() {
+		final var jwk = mock(WebKey.class);
+		when(jwk.getType()).thenReturn(WebKey.Type.RAW);
+		assertThrows(IllegalArgumentException.class, () -> X500Utils.keyUsage(jwk));
 	}
 
 }

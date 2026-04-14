@@ -41,12 +41,9 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
-
-import javax.security.auth.Subject;
 
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.util.XMLObjectSupport;
@@ -57,19 +54,14 @@ import org.opensaml.saml.saml2.core.NameIDPolicy;
 import org.opensaml.saml.saml2.core.Response;
 
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.IuPrincipalIdentity;
 import edu.iu.auth.config.IuSamlServiceProviderMetadata;
-import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
 import iu.auth.config.AuthConfig;
 import iu.auth.config.IuAuthConfig;
 import iu.auth.config.IuSamlServiceProvider;
-import iu.auth.config.IuTrustedIssuer;
 import iu.auth.principal.PrincipalVerifier;
 
 /**
@@ -115,7 +107,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	public SamlServiceProvider(URI postUri, String realm, IuSamlServiceProviderMetadata config) {
 		var matchAcs = false;
 		var acsUris = config.getAcsUris();
-		
+
 		for (final var acsUri : acsUris) {
 			if (acsUri.equals(postUri)) {
 				matchAcs = true;
@@ -124,8 +116,8 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 		}
 
 		if (!matchAcs)
-			throw new IllegalArgumentException(
-					"Post URI " + postUri + " doesn't match with allowed list of Assertion Consumer Service URLs" + acsUris);
+			throw new IllegalArgumentException("Post URI " + postUri
+					+ " doesn't match with allowed list of Assertion Consumer Service URLs" + acsUris);
 
 		this.postUri = postUri;
 		this.realm = realm;
@@ -229,53 +221,6 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 	}
 
 	/**
-	 * Gets the token signature verification algorithm.
-	 * 
-	 * @return {@link Algorithm}
-	 */
-	Algorithm getVerifyAlg() {
-		return samlBuilder.verifyAlg;
-	}
-
-	/**
-	 * Gets the token signature verification key.
-	 * 
-	 * @return {@link WebKey}
-	 */
-	WebKey getVerifyKey() {
-		final var config = AuthConfig.load(IuSamlServiceProviderMetadata.class, realm);
-		final var identity = serviceProviderIdentity(config);
-		return identity.getSubject().getPrivateCredentials(WebKey.class).stream()
-				.filter(a -> "verify".equals(a.getKeyId())).findFirst().get();
-	}
-
-	/**
-	 * Looks for an authoritative trusted issuer identity matching the SAML Service
-	 * Provider configuration and returns its principal identity.
-	 * 
-	 * <p>
-	 * This identity will have {@link Subject#getPrivateCredentials(Class) private}
-	 * {@link WebKey} {@link Subject#getPrivateCredentials(Class) credentials} with
-	 * kid values {@code verify} and {@code encrypt} suitable for use with
-	 * SP-related crypto operations.
-	 * </p>
-	 * 
-	 * @param config {@link IuSamlServiceProviderMetadata}
-	 * @return {@link IuPrincipalIdentity}
-	 */
-	static IuPrincipalIdentity serviceProviderIdentity(IuSamlServiceProviderMetadata config) {
-		final var identity = IuIterable.stream(AuthConfig.get(IuTrustedIssuer.class)) //
-				.map(a -> a.getPrincipal(config.getIdentity())) //
-				.filter(Objects::nonNull).findFirst() //
-				.orElseThrow(() -> new IllegalStateException("service provider is not trusted"));
-
-		if (!IuException.unchecked(() -> IuPrincipalIdentity.verify(identity, identity.getName())))
-			throw new IllegalStateException("service provider is not authoritative");
-		else
-			return identity;
-	}
-
-	/**
 	 * Authorize SAML response return back from IDP
 	 * 
 	 * @param address      IP address use by user to authenticate
@@ -300,7 +245,8 @@ public final class SamlServiceProvider implements IuSamlServiceProvider, Princip
 			LOG.fine(() -> "SAML2 authentication response\nEntity ID: " + entityId + "\nPOST URL: " + postUri.toString()
 					+ "\n" + XmlDomUtil.getContent(response.getDOM()));
 
-			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, address, samlBuilder);
+			final var samlResponseValidator = new SamlResponseValidator(realm, postUri, entityId, sessionId, address,
+					samlBuilder);
 			return IuException.unchecked(() -> samlResponseValidator.validate(response));
 
 		} finally {
