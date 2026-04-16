@@ -38,16 +38,6 @@
 						<release>11</release>
 					</configuration>
 				</plugin>
-				<plugin>
-					<artifactId>maven-jar-plugin</artifactId>
-					<configuration>
-						<archive>
-							<manifest>
-								<addExtensions>false</addExtensions>
-							</manifest>
-						</archive>
-					</configuration>
-				</plugin>
 			</plugins>
 		</pluginManagement>
 	</build>

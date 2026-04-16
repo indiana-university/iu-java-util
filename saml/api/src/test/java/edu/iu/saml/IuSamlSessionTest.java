@@ -29,42 +29,33 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
+package edu.iu.auth.saml;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.IdGenerator;
-import edu.iu.IuRequestAttributes;
+import edu.iu.auth.spi.IuSamlSpi;
+import iu.auth.IuAuthSpiFactory;
 
 @SuppressWarnings("javadoc")
-public class RequestCallerAttributesTest {
+public class IuSamlSessionTest {
 
 	@Test
-	public void testCallerAttributes() {
-		final var remoteAddr = IdGenerator.generateId();
-		final var requestUri = URI.create(IdGenerator.generateId());
-		final var userAgent = IdGenerator.generateId();
-		final var authnPrincipal = IdGenerator.generateId();
-		final var impersonatedPrincipal = IdGenerator.generateId();
-
-		final var requestAttributes = mock(IuRequestAttributes.class);
-		when(requestAttributes.getRemoteAddr()).thenReturn(remoteAddr);
-		when(requestAttributes.getRequestUri()).thenReturn(requestUri);
-		when(requestAttributes.getUserAgent()).thenReturn(userAgent);
-
-		final var callerAttributes = new RequestCallerAttributes(requestAttributes, authnPrincipal,
-				impersonatedPrincipal);
-		assertEquals(remoteAddr, callerAttributes.getRemoteAddr());
-		assertEquals(requestUri, callerAttributes.getRequestUri());
-		assertEquals(userAgent, callerAttributes.getUserAgent());
-		assertEquals(authnPrincipal, callerAttributes.getAuthnPrincipal());
-		assertEquals(impersonatedPrincipal, callerAttributes.getImpersonatedPrincipal());
+	public void testCreate() {
+		final var postUri = mock(URI.class);
+		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
+			final var mockSpi = mock(IuSamlSpi.class);
+			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSamlSpi.class)).thenReturn(mockSpi);
+			final var mockSessionVerifier = mock(IuSamlSessionVerifier.class);
+			when(mockSpi.createVerifier(postUri)).thenReturn(mockSessionVerifier);
+			assertSame(mockSessionVerifier, IuSamlSessionVerifier.create(postUri));
+		}
 	}
 
 }

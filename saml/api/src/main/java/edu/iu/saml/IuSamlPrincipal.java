@@ -29,42 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
+package edu.iu.saml;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.security.Principal;
+import java.time.Instant;
 
-import java.net.URI;
+/**
+ * Designates an authenticated principal identity.
+ */
+public interface IuSamlPrincipal extends Principal {
 
-import org.junit.jupiter.api.Test;
+	/**
+	 * Gets the entity ID of the authority that verified the principal user's
+	 * credentials.
+	 * 
+	 * @return authentication authority entity ID
+	 */
+	String getAuthnAuthority();
 
-import edu.iu.IdGenerator;
-import edu.iu.IuRequestAttributes;
+	/**
+	 * Gets the point in time authentication took place.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getAuthnInstant();
 
-@SuppressWarnings("javadoc")
-public class RequestCallerAttributesTest {
+	/**
+	 * Gets the point in time authentication expires, and after which the user must
+	 * authenticate again with the IDP.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getExpires();
 
-	@Test
-	public void testCallerAttributes() {
-		final var remoteAddr = IdGenerator.generateId();
-		final var requestUri = URI.create(IdGenerator.generateId());
-		final var userAgent = IdGenerator.generateId();
-		final var authnPrincipal = IdGenerator.generateId();
-		final var impersonatedPrincipal = IdGenerator.generateId();
-
-		final var requestAttributes = mock(IuRequestAttributes.class);
-		when(requestAttributes.getRemoteAddr()).thenReturn(remoteAddr);
-		when(requestAttributes.getRequestUri()).thenReturn(requestUri);
-		when(requestAttributes.getUserAgent()).thenReturn(userAgent);
-
-		final var callerAttributes = new RequestCallerAttributes(requestAttributes, authnPrincipal,
-				impersonatedPrincipal);
-		assertEquals(remoteAddr, callerAttributes.getRemoteAddr());
-		assertEquals(requestUri, callerAttributes.getRequestUri());
-		assertEquals(userAgent, callerAttributes.getUserAgent());
-		assertEquals(authnPrincipal, callerAttributes.getAuthnPrincipal());
-		assertEquals(impersonatedPrincipal, callerAttributes.getImpersonatedPrincipal());
-	}
+	/**
+	 * Gets assertions with released attributes.
+	 * 
+	 * @return {@link IuSamlAssertions}
+	 */
+	Iterable<IuSamlAssertion> getAssertions();
 
 }

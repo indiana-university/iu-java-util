@@ -29,42 +29,59 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.config;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+package edu.iu.saml;
 
 import java.net.URI;
 
-import org.junit.jupiter.api.Test;
-
-import edu.iu.IdGenerator;
 import edu.iu.IuRequestAttributes;
+import edu.iu.IuStatefulRedirect;
 
-@SuppressWarnings("javadoc")
-public class RequestCallerAttributesTest {
+/**
+ * SAML 2.0 Service Provider interface.
+ *
+ */
+public interface IuSamlServiceProvider {
 
-	@Test
-	public void testCallerAttributes() {
-		final var remoteAddr = IdGenerator.generateId();
-		final var requestUri = URI.create(IdGenerator.generateId());
-		final var userAgent = IdGenerator.generateId();
-		final var authnPrincipal = IdGenerator.generateId();
-		final var impersonatedPrincipal = IdGenerator.generateId();
+	/**
+	 * Gets configured SP metadata as raw XML.
+	 * 
+	 * @return SP metadata XML
+	 */
+	String metadata();
 
-		final var requestAttributes = mock(IuRequestAttributes.class);
-		when(requestAttributes.getRemoteAddr()).thenReturn(remoteAddr);
-		when(requestAttributes.getRequestUri()).thenReturn(requestUri);
-		when(requestAttributes.getUserAgent()).thenReturn(userAgent);
+	/**
+	 * Initiate an authentication request.
+	 * 
+	 * @param requestAttributes Incoming request attributes
+	 * @param postUri           HTTP POST URI for handling the SAML response
+	 * @param returnUri         URI to return the user to after successful
+	 *                          authentication
+	 * 
+	 * @return {@link IuStatefulRedirect}
+	 */
+	IuStatefulRedirect initRequest(URI postUri, URI returnUri);
 
-		final var callerAttributes = new RequestCallerAttributes(requestAttributes, authnPrincipal,
-				impersonatedPrincipal);
-		assertEquals(remoteAddr, callerAttributes.getRemoteAddr());
-		assertEquals(requestUri, callerAttributes.getRequestUri());
-		assertEquals(userAgent, callerAttributes.getUserAgent());
-		assertEquals(authnPrincipal, callerAttributes.getAuthnPrincipal());
-		assertEquals(impersonatedPrincipal, callerAttributes.getImpersonatedPrincipal());
-	}
+	/**
+	 * Handles a SAML assertion consumer service POST request.
+	 * 
+	 * @param requestAttributes Incoming request attributes
+	 * @param samlResponse      SAML response that received back from identity
+	 *                          provider after user has been authenticate
+	 * @param relayState        state value that received back from identity
+	 *                          provider after successful authentication.
+	 * 
+	 * @return {@link IuStatefulRedirect}
+	 */
+	IuStatefulRedirect verifyResponse(IuRequestAttributes requestAttributes, String samlResponse, String relayState);
+
+	/**
+	 * Gets the authenticated SAML principal.
+	 * 
+	 * @param requestAttributes Incoming request attributes
+	 * @return {@link IuSamlPrincipal}.
+	 * @throws IuAuthenticationException If not authenticated or authentication has
+	 *                                   expired
+	 */
+	IuSamlPrincipal getPrincipalIdentity(IuRequestAttributes requestAttributes);
 
 }

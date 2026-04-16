@@ -29,42 +29,99 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth;
+package iu.saml;
 
-import java.net.HttpCookie;
-import java.net.URI;
+import java.time.Instant;
+
+import edu.iu.saml.IuSamlAssertion;
 
 /**
- * Encapsulates attributes commonly associated with an HTTP request.
+ * SAML session details interface
  */
-public interface IuRequestAttributes {
+public interface SamlPostAuthentication {
 
 	/**
-	 * Gets the full request URI to the resource that issued the token.
+	 * Get invalid status
 	 * 
-	 * @return Request URI
+	 * @return invalid status
 	 */
-	URI getRequestUri();
+	boolean isInvalid();
 
 	/**
-	 * Gets the remote client IP address.
+	 * Set invalid status
 	 * 
-	 * @return IP address
+	 * @param invalid invalid status
 	 */
-	String getRemoteAddr();
+	void setInvalid(boolean invalid);
 
 	/**
-	 * Gets the caller's user agent.
+	 * Get name
 	 * 
-	 * @return User-Agent header value
+	 * @return name
 	 */
-	String getUserAgent();
+	String getName();
 
 	/**
-	 * Gets incoming request cookies.
+	 * Set name
 	 * 
-	 * @return request cookies
+	 * @param name name
 	 */
-	Iterable<HttpCookie> getCookies();
+	void setName(String name);
+
+	/**
+	 * Get authenticating authority
+	 * 
+	 * @return authenticating authority
+	 */
+	String getAuthnAuthority();
+
+	/**
+	 * Set authenticating authority
+	 * 
+	 * @param authnAuthority authenticating authority
+	 */
+	void setAuthnAuthority(String authnAuthority);
+
+	/**
+	 * Gets authentication time.
+	 * 
+	 * @return authentication time
+	 */
+	Instant getAuthnInstant();
+
+	/**
+	 * Sets authentication time.
+	 * 
+	 * @param authnInstant authentication time
+	 */
+	void setAuthnInstant(Instant authnInstant);
+
+	/**
+	 * Gets expiration time.
+	 * 
+	 * @return expiration time
+	 */
+	Instant getExpires();
+
+	/**
+	 * Sets expiration time.
+	 * 
+	 * @param expires expiration time
+	 */
+	void setExpires(Instant expires);
+
+	/**
+	 * Get SAML assertions
+	 * 
+	 * @return SAML assertions
+	 */
+	Iterable<IuSamlAssertion> getAssertions();
+
+	/**
+	 * Set SAML assertions
+	 * 
+	 * @param assertions SAML assertions
+	 */
+	void setAssertions(Iterable<IuSamlAssertion> assertions);
 
 }

@@ -10,10 +10,10 @@
 		<version>7.0.8-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-session-parent</artifactId>
+	<artifactId>iu-java-saml-parent</artifactId>
 	<packaging>pom</packaging>
 
-	<name>IU Session Management Parent POM</name>
+	<name>IU SAML 2.0 Service Provider Parent POM</name>
 
 	<profiles>
 		<profile>

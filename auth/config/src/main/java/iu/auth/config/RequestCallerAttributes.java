@@ -33,7 +33,7 @@ package iu.auth.config;
 
 import java.net.URI;
 
-import edu.iu.auth.IuRequestAttributes;
+import edu.iu.IuRequestAttributes;
 import edu.iu.auth.oauth.IuCallerAttributes;
 
 /**
