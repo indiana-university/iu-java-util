@@ -29,33 +29,20 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.auth.saml;
+package edu.iu.saml;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
-
-import java.net.URI;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.auth.spi.IuSamlSpi;
-import iu.auth.IuAuthSpiFactory;
-
 @SuppressWarnings("javadoc")
-public class IuSamlSessionTest {
+public class IuSamlAssertionTest {
 
 	@Test
-	public void testCreate() {
-		final var postUri = mock(URI.class);
-		try (final var mockSpiFactory = mockStatic(IuAuthSpiFactory.class)) {
-			final var mockSpi = mock(IuSamlSpi.class);
-			mockSpiFactory.when(() -> IuAuthSpiFactory.get(IuSamlSpi.class)).thenReturn(mockSpi);
-			final var mockSessionVerifier = mock(IuSamlSessionVerifier.class);
-			when(mockSpi.createVerifier(postUri)).thenReturn(mockSessionVerifier);
-			assertSame(mockSessionVerifier, IuSamlSessionVerifier.create(postUri));
-		}
+	public void testConst() {
+		assertEquals(IuSamlAssertion.EDU_PERSON_PRINCIPAL_NAME_OID,"urn:oid:1.3.6.1.4.1.5923.1.1.1.6");
+		assertEquals(IuSamlAssertion.DISPLAY_NAME_OID,"urn:oid:2.16.840.1.113730.3.1.241");
+		assertEquals(IuSamlAssertion.MAIL_OID,"urn:oid:0.9.2342.19200300.100.1.3");
 	}
 
 }

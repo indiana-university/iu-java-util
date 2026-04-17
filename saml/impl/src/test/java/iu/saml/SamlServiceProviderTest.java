@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
@@ -16,11 +17,14 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterOutputStream;
@@ -32,9 +36,12 @@ import org.mockito.ArgumentMatcher;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.UnmarshallingException;
+import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.metadata.resolver.ChainingMetadataResolver;
 import org.opensaml.saml.metadata.resolver.MetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.DOMMetadataResolver;
+import org.opensaml.saml.saml2.core.Issuer;
+import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
@@ -52,6 +59,8 @@ import org.w3c.dom.Element;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuProcess;
+import edu.iu.IuRequestAttributes;
+import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
@@ -60,6 +69,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.X500Utils;
+import edu.iu.saml.IuSamlAssertion;
 import edu.iu.session.IuSession;
 import edu.iu.session.IuSessionHandler;
 import edu.iu.test.IuTestLogger;
@@ -276,8 +286,8 @@ public class SamlServiceProviderTest {
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
 		when(sessionHandler.create()).thenReturn(session);
-		final var postAuth = mock(SamlPreAuthentication.class);
-		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(postAuth);
+		final var preAuth = mock(SamlPreAuthentication.class);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(preAuth);
 
 		final var sp = new SamlServiceProvider(() -> config, sessionHandler);
 
@@ -316,13 +326,13 @@ public class SamlServiceProviderTest {
 					return true;
 				}
 			}
-			verify(postAuth).setPostUri(postUri);
-			verify(postAuth).setReturnUri(returnUri);
+			verify(preAuth).setPostUri(postUri);
+			verify(preAuth).setReturnUri(returnUri);
 
 			final var sessionIdListener = new StringListener();
-			verify(postAuth).setSessionId(argThat(sessionIdListener));
+			verify(preAuth).setSessionId(argThat(sessionIdListener));
 			final var relayStateListener = new StringListener();
-			verify(postAuth).setRelayState(argThat(relayStateListener));
+			verify(preAuth).setRelayState(argThat(relayStateListener));
 
 			assertEquals(relayStateListener.value, params.get("RelayState").iterator().next());
 
@@ -336,6 +346,283 @@ public class SamlServiceProviderTest {
 			assertEquals(sessionIdListener.value, xml.getAttribute("ID"));
 			assertEquals(ssoLocation.toString(), xml.getAttribute("Destination"));
 			assertEquals(postUri.toString(), xml.getAttribute("AssertionConsumerServiceURL"));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testVerifyResponseInvalid() {
+		final var entityId = IdGenerator.generateId();
+		final var config = mock(IuSamlServiceProviderMetadata.class);
+		when(config.getIdentityProviderEntityIds()).thenReturn(IuIterable.iter(entityId));
+
+		final var postUri = URI.create(IdGenerator.generateId());
+		final var remoteAddr = IdGenerator.generateId();
+		final var cookies = mock(Iterable.class);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getRequestUri()).thenReturn(postUri);
+		when(requestAttributes.getRemoteAddr()).thenReturn(remoteAddr);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(SamlPreAuthentication.class);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(preAuth);
+
+		final var returnUri = URI.create(IdGenerator.generateId());
+		final var sessionId = IdGenerator.generateId();
+		final var relayState = IdGenerator.generateId();
+		when(preAuth.getPostUri()).thenReturn(postUri);
+		when(preAuth.getReturnUri()).thenReturn(returnUri);
+		when(preAuth.getSessionId()).thenReturn(sessionId);
+		when(preAuth.getRelayState()).thenReturn(relayState);
+
+		final var postAuth = mock(SamlPostAuthentication.class);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
+
+		final var setCookie = IdGenerator.generateId();
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var sp = new SamlServiceProvider(() -> config, sessionHandler);
+
+		IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.INFO, "Invalid SAML Response",
+				IllegalArgumentException.class, a -> a.getMessage().equals("RelayState mismatch"));
+		final var redirect = sp.verifyResponse(requestAttributes, IdGenerator.generateId(), IdGenerator.generateId());
+
+		verify(postAuth).setInvalid(true);
+
+		assertEquals(returnUri, redirect.getLocation());
+		assertEquals(setCookie, redirect.getSetCookie());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testVerifyResponse() {
+		final var entityId = IdGenerator.generateId();
+		final var config = mock(IuSamlServiceProviderMetadata.class);
+		when(config.getIdentityProviderEntityIds()).thenReturn(IuIterable.iter(entityId));
+
+		final var postUri = URI.create(IdGenerator.generateId());
+		final var remoteAddr = IdGenerator.generateId();
+		final var cookies = mock(Iterable.class);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getRequestUri()).thenReturn(postUri);
+		when(requestAttributes.getRemoteAddr()).thenReturn(remoteAddr);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(SamlPreAuthentication.class);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(preAuth);
+
+		final var returnUri = URI.create(IdGenerator.generateId());
+		final var sessionId = IdGenerator.generateId();
+		final var relayState = IdGenerator.generateId();
+		when(preAuth.getPostUri()).thenReturn(postUri);
+		when(preAuth.getReturnUri()).thenReturn(returnUri);
+		when(preAuth.getSessionId()).thenReturn(sessionId);
+		when(preAuth.getRelayState()).thenReturn(relayState);
+
+		final var postAuth = mock(SamlPostAuthentication.class);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
+
+		final var name = IdGenerator.generateId();
+		final var authnAuthority = IdGenerator.generateId();
+		final var authnInstant = Instant.now();
+		final var expires = authnInstant.plusSeconds(15L);
+		final var authnAssertion = mock(IuSamlAssertion.class);
+		final var assertions = List.of(authnAssertion);
+
+		final var setCookie = IdGenerator.generateId();
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var samlResponseBytes = new byte[32];
+		ThreadLocalRandom.current().nextBytes(samlResponseBytes);
+		final var samlResponse = IuText.base64(samlResponseBytes);
+		final var sp = new SamlServiceProvider(() -> config, sessionHandler);
+
+		final var responseXml = "<Response>" + IdGenerator.generateId() + "</Response>";
+		final var responseDom = XmlDomUtil.parse(responseXml).getDocumentElement();
+		final var response = mock(Response.class);
+		when(response.getDOM()).thenReturn(responseDom);
+		final var issuer = mock(Issuer.class);
+		when(issuer.getValue()).thenReturn(entityId);
+		when(response.getIssuer()).thenReturn(issuer);
+
+		final var address = mock(InetAddress.class);
+		final var metadata = mock(MetadataResolver.class);
+		final var trustEngine = mock(ExplicitKeySignatureTrustEngine.class);
+		final var samlPrincipal = mock(SamlPrincipal.class);
+		when(samlPrincipal.getName()).thenReturn(name);
+		when(samlPrincipal.getAuthnAuthority()).thenReturn(authnAuthority);
+		when(samlPrincipal.getAuthnInstant()).thenReturn(authnInstant);
+		when(samlPrincipal.getExpires()).thenReturn(expires);
+		when(samlPrincipal.getAssertions()).thenReturn(assertions);
+
+		try (final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
+				final var mockSamlServiceProvider = mockStatic(SamlServiceProvider.class);
+				final var mockIuWebUtils = mockStatic(IuWebUtils.class);
+				final var mockSamlResponseValidator = mockConstruction(SamlResponseValidator.class, (a, ctx) -> {
+					assertEquals(postUri, ctx.arguments().get(0));
+					assertEquals(entityId, ctx.arguments().get(1));
+					assertEquals(sessionId, ctx.arguments().get(2));
+					assertEquals(address, ctx.arguments().get(3));
+					assertEquals(config, ctx.arguments().get(4));
+					assertEquals(trustEngine, ctx.arguments().get(5));
+					when(a.validate(response)).thenReturn(samlPrincipal);
+				})) {
+			mockXMLObjectSupport.when(() -> XMLObjectSupport
+					.unmarshallFromInputStream(eq(XMLObjectProviderRegistrySupport.getParserPool()), argThat(a -> {
+						assertArrayEquals(samlResponseBytes, assertDoesNotThrow(() -> IuStream.read(a)));
+						return true;
+					}))).thenReturn(response);
+			mockIuWebUtils.when(() -> IuWebUtils.getInetAddress(remoteAddr)).thenReturn(address);
+			mockSamlServiceProvider.when(() -> SamlServiceProvider.readMetadata(config)).thenReturn(metadata);
+			mockSamlServiceProvider.when(() -> SamlServiceProvider.createTrustEngine(entityId, metadata))
+					.thenReturn(trustEngine);
+
+			IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 authentication response\n"
+					+ "Entity ID: " + entityId + "\n" + "POST URL: " + postUri + "\n" + responseXml);
+			final var redirect = sp.verifyResponse(requestAttributes, samlResponse, relayState);
+
+			verify(postAuth).setName(name);
+			verify(postAuth).setAuthnAuthority(authnAuthority);
+			verify(postAuth).setAuthnInstant(authnInstant);
+			verify(postAuth).setExpires(expires);
+			verify(postAuth).setAssertions(assertions);
+
+			assertEquals(returnUri, redirect.getLocation());
+			assertEquals(setCookie, redirect.getSetCookie());
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testVerifyResponseSocial() {
+		final var entityId = IdGenerator.generateId();
+		final var config = mock(IuSamlServiceProviderMetadata.class);
+		when(config.getIdentityProviderEntityIds()).thenReturn(IuIterable.iter(entityId));
+
+		final var postUri = URI.create(IdGenerator.generateId());
+		final var remoteAddr = IdGenerator.generateId();
+		final var cookies = mock(Iterable.class);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getRequestUri()).thenReturn(postUri);
+		when(requestAttributes.getRemoteAddr()).thenReturn(remoteAddr);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var preAuth = mock(SamlPreAuthentication.class);
+		when(session.getDetail(SamlPreAuthentication.class)).thenReturn(preAuth);
+
+		final var returnUri = URI.create(IdGenerator.generateId());
+		final var sessionId = IdGenerator.generateId();
+		final var relayState = IdGenerator.generateId();
+		when(preAuth.getPostUri()).thenReturn(postUri);
+		when(preAuth.getReturnUri()).thenReturn(returnUri);
+		when(preAuth.getSessionId()).thenReturn(sessionId);
+		when(preAuth.getRelayState()).thenReturn(relayState);
+
+		final var postAuth = mock(SamlPostAuthentication.class);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
+
+		final var name = IdGenerator.generateId();
+		final var authnAuthority = IdGenerator.generateId();
+		final var authnInstant = Instant.now();
+		final var expires = authnInstant.plusSeconds(15L);
+		final var authnAssertion = mock(IuSamlAssertion.class);
+		final var assertions = List.of(authnAssertion);
+
+		final var setCookie = IdGenerator.generateId();
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var samlResponseBytes = new byte[32];
+		ThreadLocalRandom.current().nextBytes(samlResponseBytes);
+		final var samlResponse = IuText.base64(samlResponseBytes);
+		final var sp = new SamlServiceProvider(() -> config, sessionHandler);
+
+		final var responseXml = "<Response>" + IdGenerator.generateId() + "</Response>";
+		final var responseDom = XmlDomUtil.parse(responseXml).getDocumentElement();
+		final var response = mock(Response.class);
+		when(response.getDOM()).thenReturn(responseDom);
+		final var issuer = mock(Issuer.class);
+		when(issuer.getValue()).thenReturn(entityId);
+		when(response.getIssuer()).thenReturn(issuer);
+
+		final var address = mock(InetAddress.class);
+		final var metadata = mock(MetadataResolver.class);
+		final var trustEngine = mock(ExplicitKeySignatureTrustEngine.class);
+		final var samlPrincipal = mock(SamlPrincipal.class);
+		when(samlPrincipal.getName()).thenReturn(name);
+		when(samlPrincipal.getAuthnAuthority()).thenReturn(authnAuthority);
+		when(samlPrincipal.getAuthnInstant()).thenReturn(authnInstant);
+		when(samlPrincipal.getExpires()).thenReturn(expires);
+		when(samlPrincipal.getAssertions()).thenReturn(assertions);
+
+		try (final var mockXMLObjectSupport = mockStatic(XMLObjectSupport.class);
+				final var mockSamlServiceProvider = mockStatic(SamlServiceProvider.class);
+				final var mockIuWebUtils = mockStatic(IuWebUtils.class);
+				final var mockSamlResponseValidator = mockConstruction(SamlResponseValidator.class, (a, ctx) -> {
+					assertEquals(postUri, ctx.arguments().get(0));
+					assertEquals(entityId, ctx.arguments().get(1));
+					assertEquals(sessionId, ctx.arguments().get(2));
+					assertEquals(address, ctx.arguments().get(3));
+					assertEquals(config, ctx.arguments().get(4));
+					assertEquals(trustEngine, ctx.arguments().get(5));
+					when(a.validate(response)).thenReturn(samlPrincipal);
+				})) {
+			mockXMLObjectSupport.when(() -> XMLObjectSupport
+					.unmarshallFromInputStream(eq(XMLObjectProviderRegistrySupport.getParserPool()), argThat(a -> {
+						assertArrayEquals(samlResponseBytes, assertDoesNotThrow(() -> IuStream.read(a)));
+						return true;
+					}))).thenReturn(response);
+			mockIuWebUtils.when(() -> IuWebUtils.getInetAddress(remoteAddr)).thenReturn(address);
+			mockSamlServiceProvider.when(() -> SamlServiceProvider.readMetadata(config)).thenReturn(metadata);
+			mockSamlServiceProvider.when(() -> SamlServiceProvider.createTrustEngine(entityId, metadata))
+					.thenReturn(trustEngine);
+
+			IuTestLogger.expect(SamlServiceProvider.class.getName(), Level.FINE, "SAML2 authentication response\n"
+					+ "Entity ID: " + entityId + "\n" + "POST URL: " + postUri + "\n" + responseXml);
+			final var redirect = sp.verifyResponse(requestAttributes, samlResponse, null);
+
+			verify(postAuth).setName(name);
+			verify(postAuth).setAuthnAuthority(authnAuthority);
+			verify(postAuth).setAuthnInstant(authnInstant);
+			verify(postAuth).setExpires(expires);
+			verify(postAuth).setAssertions(assertions);
+
+			assertEquals(returnUri, redirect.getLocation());
+			assertEquals(setCookie, redirect.getSetCookie());
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipal() {
+		final var cookies = mock(Iterable.class);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var postAuth = mock(SamlPostAuthentication.class);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
+
+		final var sp = new SamlServiceProvider(null, sessionHandler);
+
+		final var principal = mock(SamlPrincipal.class);
+		try (final var mockSamlPrincipal = mockStatic(SamlPrincipal.class)) {
+			mockSamlPrincipal.when(() -> SamlPrincipal.from(postAuth)).thenReturn(principal);
+			assertEquals(principal, sp.getPrincipalIdentity(requestAttributes));
 		}
 	}
 

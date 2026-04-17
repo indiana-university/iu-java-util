@@ -437,6 +437,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 
 		final var returnUri = Objects.requireNonNull(preAuth.getReturnUri(), "Missing returnUri");
 		final var postUri = Objects.requireNonNull(preAuth.getPostUri(), "Missing postUri");
+		IuObject.once(postUri, requestAttributes.getRequestUri(), "postUri mismatch");
 		final var sessionId = Objects.requireNonNull(preAuth.getSessionId(), "Missing sessionId");
 
 		try {
@@ -469,6 +470,9 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 
 				final var samlPrincipal = IuException.unchecked(() -> samlResponseValidator.validate(response));
 				postAuth.setName(samlPrincipal.getName());
+				postAuth.setAuthnAuthority(samlPrincipal.getAuthnAuthority());
+				postAuth.setAuthnInstant(samlPrincipal.getAuthnInstant());
+				postAuth.setExpires(samlPrincipal.getExpires());
 				postAuth.setAssertions(samlPrincipal.getAssertions());
 
 			} finally {
