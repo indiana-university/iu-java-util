@@ -42,6 +42,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -54,8 +55,13 @@ import edu.iu.crypt.X500Utils;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
-public class PkiPrincipalTest extends PkiTestCase {
+public class PkiPrincipalTest {
 
+	@BeforeEach
+	void setup() {
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
+	}
+	
 	@Test
 	public void testSelf() {
 		final var kid = IdGenerator.generateId();
@@ -87,7 +93,11 @@ public class PkiPrincipalTest extends PkiTestCase {
 
 		final var pub = new PkiPrincipal(self.wellKnown());
 		assertEquals(cn, pub.getName());
-		assertEquals(self.wellKnown(), pki.getJwk());
+		assertEquals(self.wellKnown(), pub.getJwk());
+		
+		assertEquals(pki, new PkiPrincipal(self));
+		assertNotEquals(pki, pub);
+		assertNotEquals(pki.hashCode(), pub.hashCode());
 
 		assertNotEquals(pub, this);
 		assertDoesNotThrow(pki::toString);
@@ -100,34 +110,6 @@ public class PkiPrincipalTest extends PkiTestCase {
 		final var jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
 		assertEquals("missing certificate chain",
 				assertThrows(NullPointerException.class, () -> new PkiPrincipal(jwk)).getMessage());
-	}
-
-	@Test
-	public void testSelfWrongKeyId() {
-		final var kid = IdGenerator.generateId();
-		final var jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
-		final var keyType = jwk.getType();
-		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
-
-		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
-		final var pemCert = IuProcess.exec( //
-				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
-				"-subj", "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
-				"-addext", "basicConstraints=CA:false", //
-				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
-		);
-		IuProcess.deleteTempFiles();
-
-		final var self = WebKey.builder(keyType) //
-				.keyId(IdGenerator.generateId()) //
-				.key(privateKey) //
-				.key(jwk.getPublicKey()) //
-				.algorithm(jwk.getAlgorithm()) //
-				.pem(pemCert) //
-				.build();
-		assertEquals("Key ID doesn't match CN",
-				assertThrows(IllegalArgumentException.class, () -> new PkiPrincipal(self)).getMessage());
 	}
 
 	@Test
@@ -211,8 +193,8 @@ public class PkiPrincipalTest extends PkiTestCase {
 		assertEquals(signed, pki.getJwk());
 
 		final var pub = new PkiPrincipal(signed.wellKnown());
-		assertEquals(cn, pki.getName());
-		assertEquals(signed.wellKnown(), pki.getJwk());
+		assertEquals(cn, pub.getName());
+		assertEquals(signed.wellKnown(), pub.getJwk());
 
 		assertDoesNotThrow(pki::toString);
 		assertDoesNotThrow(pub::toString);

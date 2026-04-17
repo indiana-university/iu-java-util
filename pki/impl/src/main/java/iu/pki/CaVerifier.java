@@ -29,10 +29,8 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.pki;
+package iu.pki;
 
-import java.math.BigInteger;
-import java.net.URI;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
@@ -46,27 +44,24 @@ import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import edu.iu.IuDigest;
 import edu.iu.IuException;
-import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.X500Utils;
+import edu.iu.pki.IuCertificateAuthority;
+import edu.iu.pki.IuPkiVerifier;
 import edu.iu.pki.KeyUsage;
-import iu.auth.principal.PrincipalVerifier;
 
 /**
  * Verifies {@link PkiPrincipal} identities.
  */
-public final class CaVerifier implements PrincipalVerifier<PkiPrincipal> {
+public final class CaVerifier implements IuPkiVerifier {
 
 	private static final Logger LOG = Logger.getLogger(CaVerifier.class.getName());
 
@@ -84,7 +79,7 @@ public final class CaVerifier implements PrincipalVerifier<PkiPrincipal> {
 		if (!keyUsage.isCA())
 			throw new IllegalArgumentException("X.509 certificate is not a valid CA signing cert");
 
-		final var anchor = new TrustAnchor(ca.getCertificate(), null);
+		final var anchor = new TrustAnchor(cert, null);
 		final var pkix = IuException.unchecked(() -> new PKIXParameters(Set.of(anchor)));
 		final Queue<X509CRL> crl = new ArrayDeque<>();
 		ca.getCrl().forEach(crl::offer);
@@ -94,73 +89,40 @@ public final class CaVerifier implements PrincipalVerifier<PkiPrincipal> {
 	}
 
 	@Override
-	public String getAuthScheme() {
-		return null;
-	}
-
-	@Override
-	public URI getAuthenticationEndpoint() {
-		return null;
-	}
-
-	@Override
-	public Class<PkiPrincipal> getType() {
-		return PkiPrincipal.class;
-	}
-
-	@Override
-	public String getRealm() {
-		return X500Utils.getCommonName(cert.getSubjectX500Principal());
-	}
-
-	@Override
-	public boolean isAuthoritative() {
-		return false;
-	}
-
-	@Override
-	public void verify(PkiPrincipal pki) throws IuAuthenticationException {
-		final var subject = pki.getSubject();
-		final var keys = subject.getPublicCredentials(WebKey.class);
-		if (keys.isEmpty())
-			throw new IllegalArgumentException("missing public key");
-
+	public void verify(WebKey jwk) {
+		final List<Certificate> pathToAnchor = new ArrayList<>();
 		final var issuerPrincipal = cert.getSubjectX500Principal();
-		final Set<BigInteger> trusted = new HashSet<>();
-		for (final var jwk : keys) {
-			final List<Certificate> pathToAnchor = new ArrayList<>();
-			for (final var cert : WebCertificateReference.verify(jwk)) {
-				pathToAnchor.add(cert);
-				if (issuerPrincipal.equals(cert.getIssuerX500Principal()) //
-						&& trusted.add(new BigInteger(
-								IuDigest.sha256(IuException.unchecked(jwk.getCertificateChain()[0]::getEncoded)))))
-					try {
-						final var result = (PKIXCertPathValidatorResult) IuException
-								.checked(CertPathValidatorException.class, () -> {
-									final var validator = CertPathValidator.getInstance("PKIX");
-									final var certFactory = CertificateFactory.getInstance("X.509");
-									return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);
-								});
+		for (final var cert : WebCertificateReference.verify(jwk)) {
+			final var commonName = X500Utils.getCommonName(cert.getSubjectX500Principal());
+			pathToAnchor.add(cert);
+			if (issuerPrincipal.equals(cert.getIssuerX500Principal()))
+				try {
+					final var result = (PKIXCertPathValidatorResult) IuException
+							.checked(CertPathValidatorException.class, () -> {
+								final var validator = CertPathValidator.getInstance("PKIX");
+								final var certFactory = CertificateFactory.getInstance("X.509");
+								return validator.validate(certFactory.generateCertPath(pathToAnchor), trustParams);
+							});
 
-						LOG.info(() -> "ca:verify:" + pki.getName() + "; trustAnchor: " + X500Utils
-								.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
+					LOG.info(() -> "ca:verify:" + commonName + "; trustAnchor: " + X500Utils
+							.getCommonName(result.getTrustAnchor().getTrustedCert().getSubjectX500Principal()));
+					return;
 
-					} catch (CertPathValidatorException e) {
-						LOG.log(Level.INFO, e, () -> "ca:invalid:" + X500Utils.getCommonName(issuerPrincipal)
-								+ " rejected " + pki.getName());
-
-						throw new IuAuthenticationException(null, e);
-					}
-			}
+				} catch (CertPathValidatorException e) {
+					final var msg = "ca:invalid:" + issuerPrincipal + " rejected " + commonName;
+					LOG.log(Level.INFO, msg, e);
+					throw new IllegalArgumentException(msg, e);
+				}
 		}
-		if (trusted.isEmpty()) {
-			throw new IllegalArgumentException("issuer not trusted");
-		}
+
+		final var msg = "ca:no-match:" + issuerPrincipal + " rejected " + jwk.getKeyId();
+		LOG.log(Level.INFO, msg);
+		throw new IllegalArgumentException(msg);
 	}
 
 	@Override
 	public String toString() {
-		return "CaVerifier [" + getRealm() + "]";
+		return "CaVerifier [" + cert.getSubjectX500Principal() + "]";
 	}
 
 }

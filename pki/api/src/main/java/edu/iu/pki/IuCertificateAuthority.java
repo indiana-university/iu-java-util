@@ -29,30 +29,28 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.pki;
+package edu.iu.pki;
 
-import static org.mockito.Mockito.mock;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
 
-import edu.iu.auth.config.IuCertificateAuthority;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuVault;
-import edu.iu.crypt.WebKey;
-import iu.auth.config.AuthConfig;
+/**
+ * Provides public key data for an X.509 certificate authority.
+ */
+public interface IuCertificateAuthority {
 
-@SuppressWarnings("javadoc")
-public class PkiTestCase {
+	/**
+	 * Gets the CA signing certificate.
+	 * 
+	 * @return {@link X509Certificate}
+	 */
+	X509Certificate getCertificate();
 
-	static {
-		final var vault = mock(IuVault.class);
-		AuthConfig.registerInterface("realm", IuCertificateAuthority.class, vault);
-	}
-
-	static WebKey jwk(String jwk) {
-		return AuthConfig.adaptJson(WebKey.class).fromJson(IuJson.parse(jwk));
-	}
-
-	static IuCertificateAuthority ca(String ca) {
-		return AuthConfig.adaptJson(IuCertificateAuthority.class).fromJson(IuJson.parse(ca));
-	}
+	/**
+	 * Gets the most recently published certificate revocation list.
+	 * 
+	 * @return {@link X509CRL}
+	 */
+	Iterable<X509CRL> getCrl();
 
 }

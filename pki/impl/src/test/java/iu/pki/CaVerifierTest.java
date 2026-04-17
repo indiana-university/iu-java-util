@@ -29,17 +29,12 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.pki;
+package iu.pki;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -50,8 +45,6 @@ import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.logging.Level;
 
-import javax.security.auth.Subject;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,16 +53,15 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuProcess;
-import edu.iu.auth.IuAuthenticationException;
-import edu.iu.auth.config.IuCertificateAuthority;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.X500Utils;
+import edu.iu.pki.IuCertificateAuthority;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
-public class CaVerifierTest extends PkiTestCase {
+public class CaVerifierTest {
 
 	private String cakid;
 	private String caCert;
@@ -79,6 +71,7 @@ public class CaVerifierTest extends PkiTestCase {
 
 	@BeforeEach
 	void setup() {
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
 		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
 		cakid = IdGenerator.generateId();
 		final var caJwk = WebKey.builder(WebKey.Type.ED448).keyId(cakid).ephemeral().build();
@@ -172,17 +165,9 @@ public class CaVerifierTest extends PkiTestCase {
 				.build();
 
 		final var verifier = new CaVerifier(ca);
-		assertNull(verifier.getAuthScheme());
-		assertNull(verifier.getAuthenticationEndpoint());
-		assertSame(PkiPrincipal.class, verifier.getType());
-		assertEquals(cakid, verifier.getRealm());
-		assertEquals("CaVerifier [" + cakid + "]", verifier.toString());
-		assertFalse(verifier.isAuthoritative());
-
-		final var pki = new PkiPrincipal(signed);
-
+		assertEquals("CaVerifier [CN=" + cakid + "]", verifier.toString());
 		IuTestLogger.expect(CaVerifier.class.getName(), Level.INFO, "ca:verify:" + kid + "; trustAnchor: " + cakid);
-		assertDoesNotThrow(() -> verifier.verify(pki));
+		assertDoesNotThrow(() -> verifier.verify(signed));
 	}
 
 	@Test
@@ -215,16 +200,6 @@ public class CaVerifierTest extends PkiTestCase {
 	}
 
 	@Test
-	public void testRejectsInvalid() {
-		final var verifier = new CaVerifier(ca);
-		final var ipki = mock(PkiPrincipal.class);
-		final var sub = new Subject();
-		when(ipki.getSubject()).thenReturn(sub);
-		var e = assertThrows(IllegalArgumentException.class, () -> verifier.verify(ipki));
-		assertEquals("missing public key", e.getMessage());
-	}
-
-	@Test
 	public void testRejectSelfSigned() {
 		final var verifier = new CaVerifier(ca);
 
@@ -248,8 +223,10 @@ public class CaVerifierTest extends PkiTestCase {
 				.pem(pemCert) //
 				.build();
 
-		final var e = assertThrows(IllegalArgumentException.class, () -> verifier.verify(new PkiPrincipal(signed)));
-		assertEquals("issuer not trusted", e.getMessage(), () -> IuException.trace(e));
+		final var msg = "ca:no-match:CN=" + cakid + " rejected " + kid;
+		IuTestLogger.expect(CaVerifier.class.getName(), Level.INFO, msg);
+		final var e = assertThrows(IllegalArgumentException.class, () -> verifier.verify(signed));
+		assertEquals(msg, e.getMessage(), () -> IuException.trace(e));
 	}
 
 	@Test
@@ -289,9 +266,9 @@ public class CaVerifierTest extends PkiTestCase {
 				.build();
 
 		final var verifier = new CaVerifier(ca);
-		IuTestLogger.expect(CaVerifier.class.getName(), Level.INFO, "ca:invalid:" + cakid + " rejected " + kid,
+		IuTestLogger.expect(CaVerifier.class.getName(), Level.INFO, "ca:invalid:CN=" + cakid + " rejected " + kid,
 				CertPathValidatorException.class);
-		final var e = assertThrows(IuAuthenticationException.class, () -> verifier.verify(new PkiPrincipal(signed)));
+		final var e = assertThrows(IllegalArgumentException.class, () -> verifier.verify(signed));
 		assertInstanceOf(CertPathValidatorException.class, e.getCause(), () -> IuException.trace(e));
 	}
 

@@ -29,23 +29,16 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.auth.pki;
+package iu.pki;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.security.cert.CertPathValidatorException;
 import java.util.Objects;
 import java.util.logging.Level;
-
-import javax.security.auth.Subject;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +47,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.IuProcess;
-import edu.iu.auth.IuAuthenticationException;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -62,13 +54,14 @@ import edu.iu.crypt.X500Utils;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
-public class PkiVerifierTest extends PkiTestCase {
+public class SelfSignedVerifierTest {
 
 	private WebKey jwk;
 	private String pemCert;
 
 	@BeforeEach
 	void setup() {
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
 		final var kid = IdGenerator.generateId();
 		jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
@@ -97,18 +90,12 @@ public class PkiVerifierTest extends PkiTestCase {
 				.algorithm(jwk.getAlgorithm()) //
 				.pem(pemCert) //
 				.build();
-		final var pkiv = new PkiVerifier(self);
-		assertNull(pkiv.getAuthScheme());
-		assertNull(pkiv.getAuthenticationEndpoint());
-		assertEquals(PkiPrincipal.class, pkiv.getType());
-		assertEquals(jwk.getKeyId(), pkiv.getRealm());
-		assertEquals("PkiVerifier [" + jwk.getKeyId() + "]", pkiv.toString());
-		assertTrue(pkiv.isAuthoritative());
+		final var pkiv = new SelfSignedVerifier(self);
+		assertEquals("SelfSignedVerifier[" + jwk.getKeyId() + "]", pkiv.toString());
 
-		final var pki = new PkiPrincipal(self);
-		IuTestLogger.expect(PkiVerifier.class.getName(), Level.INFO,
+		IuTestLogger.expect(SelfSignedVerifier.class.getName(), Level.INFO,
 				"pki:auth:" + jwk.getKeyId() + "; trustAnchor: " + jwk.getKeyId());
-		assertDoesNotThrow(() -> pkiv.verify(pki));
+		assertDoesNotThrow(() -> pkiv.verify(self));
 	}
 
 	@Test
@@ -120,18 +107,11 @@ public class PkiVerifierTest extends PkiTestCase {
 				.algorithm(jwk.getAlgorithm()) //
 				.pem(pemCert) //
 				.build();
-		final var pkiv = new PkiVerifier(self.wellKnown());
-		assertNull(pkiv.getAuthScheme());
-		assertNull(pkiv.getAuthenticationEndpoint());
-		assertEquals(PkiPrincipal.class, pkiv.getType());
-		assertEquals(jwk.getKeyId(), pkiv.getRealm());
-		assertEquals("PkiVerifier [" + jwk.getKeyId() + "]", pkiv.toString());
-		assertFalse(pkiv.isAuthoritative());
+		final var pkiv = new SelfSignedVerifier(self.wellKnown());
 
-		final var pki = new PkiPrincipal(self);
-		IuTestLogger.expect(PkiVerifier.class.getName(), Level.INFO,
+		IuTestLogger.expect(SelfSignedVerifier.class.getName(), Level.INFO,
 				"pki:verify:" + jwk.getKeyId() + "; trustAnchor: " + jwk.getKeyId());
-		assertDoesNotThrow(() -> pkiv.verify(pki));
+		assertDoesNotThrow(() -> pkiv.verify(self));
 	}
 
 	@Test
@@ -159,38 +139,7 @@ public class PkiVerifierTest extends PkiTestCase {
 				.pem(pemCert) //
 				.build();
 		assertEquals("X.509 certificate not valid for digital signature",
-				assertThrows(IllegalArgumentException.class, () -> new PkiVerifier(self)).getMessage());
-	}
-
-	@Test
-	public void testCNMismatch() {
-		final var self = WebKey.builder(jwk.getType()) //
-				.keyId(IdGenerator.generateId()) //
-				.key(jwk.getPrivateKey()) //
-				.key(jwk.getPublicKey()) //
-				.algorithm(jwk.getAlgorithm()) //
-				.pem(pemCert) //
-				.build();
-		assertEquals("Key ID doesn't match CN",
-				assertThrows(IllegalArgumentException.class, () -> new PkiVerifier(self)).getMessage());
-	}
-
-	@Test
-	public void testSelfSignedRejectsInvalid() {
-		final var self = WebKey.builder(jwk.getType()) //
-				.keyId(jwk.getKeyId()) //
-				.key(jwk.getPrivateKey()) //
-				.key(jwk.getPublicKey()) //
-				.algorithm(jwk.getAlgorithm()) //
-				.pem(pemCert) //
-				.build();
-		final var pkiv = new PkiVerifier(self.wellKnown());
-
-		final var ipki = mock(PkiPrincipal.class);
-		final var sub = new Subject();
-		when(ipki.getSubject()).thenReturn(sub);
-		var e = assertThrows(IllegalArgumentException.class, () -> pkiv.verify(ipki));
-		assertEquals("missing public key", e.getMessage());
+				assertThrows(IllegalArgumentException.class, () -> new SelfSignedVerifier(self)).getMessage());
 	}
 
 	@Test
@@ -202,12 +151,11 @@ public class PkiVerifierTest extends PkiTestCase {
 				.algorithm(jwk.getAlgorithm()) //
 				.pem(pemCert) //
 				.build();
-		final var pkiv = new PkiVerifier(self);
+		final var pkiv = new SelfSignedVerifier(self);
 
 		final var wellKnown = self.wellKnown();
 
-		final var wpki = new PkiPrincipal(wellKnown);
-		var e = assertThrows(IllegalArgumentException.class, () -> pkiv.verify(wpki));
+		var e = assertThrows(NullPointerException.class, () -> pkiv.verify(wellKnown));
 		assertEquals("missing private key", e.getMessage());
 	}
 
@@ -220,7 +168,7 @@ public class PkiVerifierTest extends PkiTestCase {
 				.algorithm(jwk.getAlgorithm()) //
 				.pem(pemCert) //
 				.build();
-		final var pkiv = new PkiVerifier(self);
+		final var pkiv = new SelfSignedVerifier(self);
 
 		final var kid = IdGenerator.generateId();
 		final var jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
@@ -241,21 +189,21 @@ public class PkiVerifierTest extends PkiTestCase {
 				.pem(pemCert) //
 				.build();
 
-		final var wpki = new PkiPrincipal(wrongSelf);
-		var e = assertThrows(IllegalArgumentException.class, () -> pkiv.verify(wpki));
-		assertEquals("private key mismatch", e.getMessage());
+		final var msg = "pki:invalid-private:" + this.jwk.getKeyId() + " rejected " + jwk.getKeyId();
+		IuTestLogger.allow(SelfSignedVerifier.class.getName(), Level.INFO, msg);
+		var e = assertThrows(IllegalArgumentException.class, () -> pkiv.verify(wrongSelf));
+		assertEquals(msg, e.getMessage());
 	}
 
 	@Test
 	public void testSelfSignedWellKnwonRejectsInvalidCert() {
 		final var self = WebKey.builder(jwk.getType()) //
 				.keyId(jwk.getKeyId()) //
-				.key(jwk.getPrivateKey()) //
 				.key(jwk.getPublicKey()) //
 				.algorithm(jwk.getAlgorithm()) //
 				.pem(pemCert) //
 				.build();
-		final var pkiv = new PkiVerifier(self.wellKnown());
+		final var pkiv = new SelfSignedVerifier(self);
 
 		final var kid = IdGenerator.generateId();
 		final var jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
@@ -276,10 +224,9 @@ public class PkiVerifierTest extends PkiTestCase {
 				.pem(pemCert) //
 				.build();
 
-		final var wpki = new PkiPrincipal(wrongSelf);
-		IuTestLogger.expect(PkiVerifier.class.getName(), Level.INFO, "pki:invalid:" + this.jwk.getKeyId() + " rejected " + jwk.getKeyId(),
-				CertPathValidatorException.class);
-		var e = assertThrows(IuAuthenticationException.class, () -> pkiv.verify(wpki));
+		IuTestLogger.expect(SelfSignedVerifier.class.getName(), Level.INFO,
+				"pki:invalid:" + this.jwk.getKeyId() + " rejected " + jwk.getKeyId(), CertPathValidatorException.class);
+		var e = assertThrows(IllegalArgumentException.class, () -> pkiv.verify(wrongSelf));
 		assertInstanceOf(CertPathValidatorException.class, e.getCause(), () -> IuException.trace(e));
 	}
 
