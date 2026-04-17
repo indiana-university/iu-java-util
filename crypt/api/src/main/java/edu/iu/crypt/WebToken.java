@@ -160,7 +160,7 @@ public interface WebToken {
 	String getScope();
 
 	/**
-	 * Gets the authorization_details entries by type
+	 * Gets authorization_details entries by type
 	 * 
 	 * @param <T>             authorization details interface type
 	 * @param detailInterface authorization details interface class
