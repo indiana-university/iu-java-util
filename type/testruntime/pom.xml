@@ -65,7 +65,7 @@
 							<archive>
 								<manifest>
 									<addClasspath>true</addClasspath>
-									<addExtensions>false</addExtensions>
+									<classpathPrefix>META-INF/lib</classpathPrefix>
 								</manifest>
 								<manifestEntries>
 									<Extension-List>parsson</Extension-List>
