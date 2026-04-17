@@ -39,7 +39,7 @@ import edu.iu.saml.IuSamlAssertion;
 import edu.iu.saml.IuSamlPrincipal;
 
 /**
- * SAML {@link IuPrincipalIdentity} implementation.
+ * {@link IuSamlPrincipal} implementation.
  */
 public final class SamlPrincipal implements IuSamlPrincipal {
 	static {
