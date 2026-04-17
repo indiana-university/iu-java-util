@@ -52,7 +52,6 @@ public interface IuSamlServiceProvider {
 	/**
 	 * Initiate an authentication request.
 	 * 
-	 * @param requestAttributes Incoming request attributes
 	 * @param postUri           HTTP POST URI for handling the SAML response
 	 * @param returnUri         URI to return the user to after successful
 	 *                          authentication
@@ -78,9 +77,7 @@ public interface IuSamlServiceProvider {
 	 * Gets the authenticated SAML principal.
 	 * 
 	 * @param requestAttributes Incoming request attributes
-	 * @return {@link IuSamlPrincipal}.
-	 * @throws IuAuthenticationException If not authenticated or authentication has
-	 *                                   expired
+	 * @return {@link IuSamlPrincipal}
 	 */
 	IuSamlPrincipal getPrincipalIdentity(IuRequestAttributes requestAttributes);
 

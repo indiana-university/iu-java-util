@@ -65,7 +65,7 @@ public interface IuSamlPrincipal extends Principal {
 	/**
 	 * Gets assertions with released attributes.
 	 * 
-	 * @return {@link IuSamlAssertions}
+	 * @return {@link IuSamlAssertion}
 	 */
 	Iterable<IuSamlAssertion> getAssertions();
 
