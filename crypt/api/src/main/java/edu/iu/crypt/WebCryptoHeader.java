@@ -364,6 +364,19 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	}
 
 	/**
+	 * Determines whether or not a compact-encoded string represents a serialized
+	 * JWE.
+	 * 
+	 * @param serialized JWE or JWS serialization
+	 * @return true if serialized message is a JWE; false if JWS
+	 * @throws IllegalArgumentException or similar if the serialization header is
+	 *                                  invalid
+	 */
+	static boolean isEncrypted(String serialized) {
+		return WebCryptoHeader.getProtectedHeader(serialized).getAlgorithm().use.equals(Use.ENCRYPT);
+	}
+
+	/**
 	 * Verifies all parameters in a {@link WebCryptoHeader}.
 	 * 
 	 * @param header {@link WebCryptoHeader}

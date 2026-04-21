@@ -29,40 +29,43 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.session;
+package edu.iu.jwt;
 
-import java.util.Map;
-import java.util.Objects;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import iu.crypt.Jwt;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-/**
- * JWT token implementation that includes {@link Session} details.
- */
-public class SessionJwt extends Jwt {
+import edu.iu.IdGenerator;
+import edu.iu.crypt.WebKey;
+import iu.jwt.spi.Init;
 
-	/**
-	 * Default constructor
-	 *
-	 * @param claims {@link JsonObject} claims
-	 */
-	public SessionJwt(JsonObject claims) {
-		super(claims);
-		Objects.requireNonNull(getDetails(), "Missing session details");
+@SuppressWarnings("javadoc")
+@ExtendWith({ IuJwtSpiTestSupport.class })
+public class WebTokenTest {
+
+	@Test
+	public void testBuilder() {
+		WebToken.builder();
+		verify(Init.SPI).getJwtBuilder();
 	}
 
-	/**
-	 * Gets the session details.
-	 *
-	 * @return {@link JsonObject} session details
-	 */
-	public Map<String, Map<String, JsonValue>> getDetails() {
-		return IuJson.get(claims, "details",
-				IuJsonAdapter.of(Map.class, IuJsonAdapter.of(Map.class, IuJsonAdapter.from(a -> a))));
+	@Test
+	public void testDecryptAndVerify() {
+		final var jwt = IdGenerator.generateId();
+		final var issuerKey = mock(WebKey.class);
+		final var audienceKey = mock(WebKey.class);
+		WebToken.decryptAndVerify(jwt, issuerKey, audienceKey);
+		verify(Init.SPI).decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
+	}
+
+	@Test
+	public void testVerify() {
+		final var jwt = IdGenerator.generateId();
+		final var issuerKey = mock(WebKey.class);
+		WebToken.verify(jwt, issuerKey);
+		verify(Init.SPI).verifyJwt(jwt, issuerKey);
 	}
 
 }

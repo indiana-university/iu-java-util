@@ -37,6 +37,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -55,6 +56,8 @@ public final class JsonProxy implements InvocationHandler {
 	static {
 		IuObject.assertNotOpen(JsonProxy.class);
 	}
+
+	private static final Object NULL = new Object();
 
 	/**
 	 * Wraps a JSON object in a java interface.
@@ -87,15 +90,22 @@ public final class JsonProxy implements InvocationHandler {
 
 	private final JsonObject value;
 	private final Function<Type, IuJsonAdapter<?>> valueAdapter;
+	private final Map<String, Object> resolved;
 
 	private JsonProxy(JsonObject value, Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		this.value = value;
 		this.valueAdapter = valueAdapter;
+		this.resolved = new HashMap<>();
 	}
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		final var methodName = method.getName();
+		if (resolved.containsKey(methodName)) {
+			final var resolved = this.resolved.get(methodName);
+			return resolved == NULL ? null : resolved;
+		}
+
 		if (methodName.equals("hashCode"))
 			return value.hashCode();
 
@@ -115,7 +125,7 @@ public final class JsonProxy implements InvocationHandler {
 			final var writer = new StringWriter();
 			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(writer)
 					.write(value);
-			return writer.toString();
+			return checkResolvedValue(methodName, writer.toString());
 		}
 
 		final String propertyName;
@@ -128,26 +138,33 @@ public final class JsonProxy implements InvocationHandler {
 		} else
 			throw new UnsupportedOperationException();
 
-		final JsonValue rv = returnValueWithCaseConversion(propertyName);
+		final JsonValue jsonValue = returnValueWithCaseConversion(propertyName);
 
-		if (rv == null && method.isDefault()) {
+		if (jsonValue == null && method.isDefault()) {
 			final var type = proxy.getClass().getInterfaces()[0];
-			return MethodHandles.privateLookupIn(type, MethodHandles.lookup()).unreflectSpecial(method, type)
-					.bindTo(proxy).invokeWithArguments(args);
+			return checkResolvedValue(methodName, MethodHandles.privateLookupIn(type, MethodHandles.lookup())
+					.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args));
 		}
 
 		final var genericReturnType = method.getGenericReturnType();
 		try {
-			return valueAdapter.apply(genericReturnType).fromJson(rv);
+			return checkResolvedValue(methodName, valueAdapter.apply(genericReturnType).fromJson(jsonValue));
 		} catch (UnsupportedOperationException e) {
-			if (rv == null)
-				return null;
+			if (jsonValue == null)
+				return checkResolvedValue(methodName, null);
 			else
 				throw e;
 		} catch (Throwable e) {
 			throw new IllegalArgumentException(
 					"Invalid JSON value for return type " + genericReturnType + " in property " + propertyName, e);
 		}
+	}
+
+	private <T> T checkResolvedValue(String methodName, T value) {
+		synchronized (resolved) {
+			resolved.put(methodName, value == null ? NULL : value);
+		}
+		return value;
 	}
 
 	private JsonValue returnValueWithCaseConversion(String propertyName) {

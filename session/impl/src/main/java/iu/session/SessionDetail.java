@@ -33,12 +33,11 @@ package iu.session;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Type;
 import java.util.Map;
-import java.util.function.Function;
 
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.config.IuConfig;
 import jakarta.json.JsonValue;
 
 /**
@@ -55,20 +54,15 @@ class SessionDetail implements InvocationHandler {
 	/** session */
 	private final Session session;
 
-	/** adapter factory */
-	private final Function<Type, IuJsonAdapter<?>> adapterFactory;
-
 	/**
 	 * Constructor
 	 * 
-	 * @param attributes     attributes
-	 * @param session        session
-	 * @param adapterFactory adapter factory
+	 * @param attributes attributes
+	 * @param session    session
 	 */
-	SessionDetail(Map<String, JsonValue> attributes, Session session, Function<Type, IuJsonAdapter<?>> adapterFactory) {
+	SessionDetail(Map<String, JsonValue> attributes, Session session) {
 		this.attributes = attributes;
 		this.session = session;
-		this.adapterFactory = adapterFactory;
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -90,7 +84,7 @@ class SessionDetail implements InvocationHandler {
 			else
 				throw new UnsupportedOperationException(method.toString());
 
-			return adapterFactory.apply(method.getGenericReturnType()).fromJson(attributes.get(key));
+			return IuConfig.adaptJson(method.getGenericReturnType()).fromJson(attributes.get(key));
 
 		} else if (args.length == 1) {
 			if (methodName.equals("equals"))
@@ -103,7 +97,7 @@ class SessionDetail implements InvocationHandler {
 					if (attributes.remove(key) != null)
 						session.setChanged(true);
 				} else {
-					IuJsonAdapter adapter = adapterFactory.apply(method.getGenericParameterTypes()[0]);
+					IuJsonAdapter adapter = IuConfig.adaptJson(method.getGenericParameterTypes()[0]);
 					final var jsonValue = adapter.toJson(value);
 					if (!IuObject.equals(jsonValue, attributes.put(key, jsonValue)))
 						session.setChanged(true);

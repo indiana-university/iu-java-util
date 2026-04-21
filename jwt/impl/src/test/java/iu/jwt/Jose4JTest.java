@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.crypt;
+package iu.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,15 +65,20 @@ import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
-import edu.iu.crypt.WebToken;
 import edu.iu.test.IuTestLogger;
+import iu.jwt.spi.Init;
 
 @SuppressWarnings("javadoc")
 public class Jose4JTest {
+	
+	static {
+		Init.init();
+	}
 
 	@BeforeEach
 	public void setup() {
-		IuTestLogger.allow(Jwe.class.getName(), Level.FINE);
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
+		IuTestLogger.allow("iu.crypt", Level.FINE);
 	}
 
 	@Test
@@ -147,10 +152,10 @@ public class Jose4JTest {
 
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).key(issuerJwk.getPublicKey()).build();
 		final var audienceKey = WebKey.builder(WebKey.Type.X25519).key(receiverJwk.getPrivateKey()).build();
-		final var jwt = WebToken.decryptAndVerify(serializedJwt, issuerKey, audienceKey);
+		final var jwt = Jwt.decryptAndVerify(serializedJwt, issuerKey, audienceKey);
 		assertEquals(issuer, jwt.getIssuer());
 		assertEquals(subject, jwt.getSubject());
-		assertDoesNotThrow(() -> jwt.validateClaims(audience, Duration.ofMinutes(10L)));
+		assertDoesNotThrow(() -> jwt.validateClaims(issuer, audience, Duration.ofMinutes(10L)));
 	}
 
 	/**

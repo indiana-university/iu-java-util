@@ -6,36 +6,23 @@
 
 	<parent>
 		<groupId>edu.iu.util</groupId>
-		<artifactId>iu-java-parent</artifactId>
+		<artifactId>iu-java-jwt-parent</artifactId>
 		<version>7.1.0-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-config</artifactId>
-	<name>IU Configuration Utilities</name>
+	<artifactId>iu-java-jwt-api</artifactId>
+	<name>IU JSON Web Token API</name>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-crypt</artifactId>
 			<version>${project.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-client</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-crypt-impl</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -44,18 +31,5 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-
-	<build>
-		<pluginManagement>
-			<plugins>
-				<plugin>
-					<artifactId>maven-compiler-plugin</artifactId>
-					<configuration>
-						<release>11</release>
-					</configuration>
-				</plugin>
-			</plugins>
-		</pluginManagement>
-	</build>
 
 </project>

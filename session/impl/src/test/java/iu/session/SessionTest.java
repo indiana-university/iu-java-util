@@ -39,13 +39,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -54,7 +50,6 @@ import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.logging.Level;
 
@@ -62,18 +57,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.config.IuConfig;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
-import iu.crypt.Jwt;
+import iu.jwt.spi.Init;
 import iu.session.config.IuSessionConfiguration;
-import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class SessionTest {
+
+	static {
+		Init.init();
+		IuConfig.registerInterface(SessionDetailAttributes.class);
+	}
 
 	private Session session;
 	private URI resourceUri;
@@ -99,7 +99,7 @@ public class SessionTest {
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
 			final var error = assertThrows(IllegalArgumentException.class,
-					() -> new Session(token, null, configuration));
+					() -> new Session(resourceUri, token, null, configuration));
 			assertEquals("Invalid token key protection algorithm", error.getMessage());
 		}
 	}
@@ -113,7 +113,7 @@ public class SessionTest {
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
 			final var error = assertThrows(IllegalArgumentException.class,
-					() -> new Session(token, null, configuration));
+					() -> new Session(resourceUri, token, null, configuration));
 			assertEquals("Invalid token content encryption algorithm", error.getMessage());
 		}
 	}
@@ -128,48 +128,8 @@ public class SessionTest {
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
 			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
 			final var error = assertThrows(IllegalArgumentException.class,
-					() -> new Session(token, null, configuration));
+					() -> new Session(resourceUri, token, null, configuration));
 			assertEquals("Invalid token type", error.getMessage());
-		}
-	}
-
-	@Test
-	public void testTokenConstructor() {
-		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var token = IdGenerator.generateId();
-		final var secretKey = WebKey.ephemeral(Encryption.A256GCM);
-
-		final var issuerKey = mock(WebKey.class);
-		final var header = mock(WebCryptoHeader.class);
-		when(header.getAlgorithm()).thenReturn(Algorithm.DIRECT);
-		when(header.getExtendedParameter("enc")).thenReturn(Encryption.A256GCM);
-		when(header.getContentType()).thenReturn("session+jwt");
-
-		final var claims = mock(JsonObject.class);
-
-		final var maxSessionTtl = configuration.getMaxSessionTtl();
-		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class);
-				final var mockJwt = mockStatic(Jwt.class);
-				final var mockSessionJwt = mockConstruction(SessionJwt.class, (a, ctx) -> {
-					assertEquals(claims, ctx.arguments().get(0));
-					when(a.getIssuer()).thenReturn(resourceUri);
-					when(a.getSubject()).thenReturn(resourceUri.toString());
-					when(a.getExpires()).thenReturn(Instant.now().plus(maxSessionTtl));
-				})) {
-			mockJwt.when(() -> Jwt.decryptAndVerify(eq(token), eq(issuerKey), argThat(a -> {
-				final var audienceKey = assertInstanceOf(WebKey.class, a);
-				assertEquals(WebKey.Type.RAW, audienceKey.getType());
-				assertEquals(secretKey, audienceKey);
-				return true;
-			}))).thenReturn(claims);
-			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
-			when(configuration.getEnc()).thenReturn(Encryption.A256GCM);
-			when(configuration.getJwk()).thenReturn(issuerKey);
-			final var session = assertDoesNotThrow(() -> new Session(token, secretKey, configuration));
-			assertTrue(Duration.between(Instant.now(), session.getExpires()).compareTo(maxSessionTtl) <= 0);
-
-			final var sessionJwt = mockSessionJwt.constructed().get(0);
-			verify(sessionJwt).validateClaims(resourceUri, maxSessionTtl);
 		}
 	}
 
@@ -267,7 +227,7 @@ public class SessionTest {
 		final var token = session.tokenize(secretKey, configuration);
 		assertNotNull(token);
 
-		final var fromToken = new Session(token, secretKey, configuration);
+		final var fromToken = new Session(resourceUri, token, secretKey, configuration);
 		assertEquals(foo, fromToken.getDetail(SessionDetailInterface.class).getFoo());
 	}
 

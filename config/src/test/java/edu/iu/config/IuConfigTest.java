@@ -34,7 +34,6 @@ package edu.iu.config;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,26 +43,32 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuProcess;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
 import edu.iu.client.IuVaultKeyedValue;
-import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import iu.crypt.CryptJsonAdapters;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class IuConfigTest {
@@ -111,8 +116,9 @@ public class IuConfigTest {
 		final var invalidKey = IdGenerator.generateId();
 		assertThrows(NullPointerException.class, () -> IuConfig.load(LoadableConfig.class, key));
 
+		final var cacheTtl = Duration.ofSeconds(1L);
 		final var vault = mock(IuVault.class);
-		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableConfig.class, vault));
+		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableConfig.class, cacheTtl, vault));
 		assertThrows(IllegalArgumentException.class,
 				() -> IuConfig.registerInterface("loadable", LoadableConfig.class, vault));
 
@@ -123,14 +129,16 @@ public class IuConfigTest {
 		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
 		verify(vault).get("loadable/" + key);
 		assertInstanceOf(LoadableConfig.class, IuConfig.adaptJson(LoadableConfig.class).fromJson(IuJson.string(key)));
-		verify(vault, times(2)).get("loadable/" + key);
+		verify(vault).get("loadable/" + key); // cached by key
 		assertThrows(IllegalArgumentException.class, () -> IuConfig.load(LoadableConfig.class, invalidKey));
 
 		IuConfig.seal();
 		assertThrows(IllegalStateException.class,
 				() -> IuConfig.registerInterface("unloadable", UnloadableConfig.class, vault));
+
+		assertDoesNotThrow(() -> Thread.sleep(1000L)); // expires cache
 		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
-		verify(vault, times(3)).get("loadable/" + key);
+		verify(vault, times(2)).get("loadable/" + key); // returned to vault after cache expired
 	}
 
 	@SuppressWarnings("unchecked")
@@ -160,28 +168,58 @@ public class IuConfigTest {
 	}
 
 	@Test
-	public void testAdaptWebKey() {
-		assertSame(CryptJsonAdapters.WEBKEY, IuConfig.adaptJson(WebKey.class));
-	}
+	void testJsonKeyAndCertAdapters() {
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
+		final var kid = IdGenerator.generateId();
+		final var jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
 
-	@Test
-	public void testAdaptAlgorithm() {
-		assertSame(CryptJsonAdapters.ALG, IuConfig.adaptJson(Algorithm.class));
-	}
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=critical,CA:true,pathlen:0", //
+				"-addext", "keyUsage=keyCertSign,cRLSign" //
+		);
 
-	@Test
-	public void testAdaptEncryption() {
-		assertSame(CryptJsonAdapters.ENC, IuConfig.adaptJson(Encryption.class));
-	}
+		final var databaseFile = IuProcess.temp(PrintStream::print, "");
+		final var newCertsDir = IuProcess.createTempDirectory();
+		final var certificateFile = IuProcess.temp(PrintStream::println, pemCert);
+		var caConfigContents = "[ ca ]" + System.lineSeparator() //
+				+ "default_ca = a" + System.lineSeparator() //
+				+ System.lineSeparator() //
+				+ "[ a ]" + System.lineSeparator() //
+				+ "private_key = " + privateKeyFile.toString().replace('\\', '/') + System.lineSeparator() //
+				+ "certificate = " + certificateFile.toString().replace('\\', '/') + System.lineSeparator() //
+				+ "database = " + databaseFile.toString().replace('\\', '/') + System.lineSeparator() //
+				+ "new_certs_dir = " + newCertsDir.toString().replace('\\', '/') + System.lineSeparator() // //
+				+ "copy_extensions = copyall" + System.lineSeparator() //
+				+ "rand_serial = yes" + System.lineSeparator() //
+				+ "policy = b" + System.lineSeparator() //
+				+ System.lineSeparator() //
+				+ "[ b ]" + System.lineSeparator() //
+				+ "countryName = optional" + System.lineSeparator() //
+				+ "stateOrProvinceName = optional" + System.lineSeparator() //
+				+ "localityName = optional" + System.lineSeparator() //
+				+ "organizationName = optional" + System.lineSeparator() //
+				+ "organizationalUnitName = optional" + System.lineSeparator() //
+				+ "commonName = supplied" + System.lineSeparator() //
+				+ "emailAddress = optional" + System.lineSeparator();
+		final var caConfig = IuProcess.temp(PrintStream::print, caConfigContents);
 
-	@Test
-	public void testAdaptCrl() {
-		assertSame(CryptJsonAdapters.CRL, IuConfig.adaptJson(X509CRL.class));
-	}
+		final var crl = PemEncoded.parse(IuProcess.exec( //
+				"openssl", "ca", "-gencrl", "-config", caConfig.toString(), "-crldays", "1" //
+		)).next().asCRL();
 
-	@Test
-	public void testAdaptCert() {
-		assertSame(CryptJsonAdapters.CERT, IuConfig.adaptJson(X509Certificate.class));
+		final var signedKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).key(privateKey).pem(pemCert).build();
+		assertEquals(signedKey, IuConfig.adaptJson(WebKey.class).fromJson(IuJson.parse(signedKey.toString())));
+		assertEquals(signedKey.getCertificateChain()[0], IuConfig.adaptJson(X509Certificate.class).fromJson(IuJson
+				.string(IuText.base64(assertDoesNotThrow(() -> signedKey.getCertificateChain()[0].getEncoded())))));
+		assertEquals(crl, IuConfig.adaptJson(X509CRL.class)
+				.fromJson(IuJson.string(IuText.base64(assertDoesNotThrow(() -> crl.getEncoded())))));
+		
+		IuProcess.deleteTempFiles();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -229,12 +267,10 @@ public class IuConfigTest {
 		when(vkv.getValue()).thenReturn("{}");
 		when(vault.get("verifiable/" + key)).thenReturn(vkv);
 
-		final var verifier = mock(java.util.function.Consumer.class);
-		assertDoesNotThrow(() -> IuConfig.registerInterface("verifiable", VerifiableConfig.class, verifier, vault));
+		assertDoesNotThrow(() -> IuConfig.registerInterface("verifiable", VerifiableConfig.class, vault));
 
 		VerifiableConfig config = IuConfig.load(VerifiableConfig.class, key);
 		assertInstanceOf(VerifiableConfig.class, config);
-		verify(verifier, times(1)).accept(config);
 	}
 
 }

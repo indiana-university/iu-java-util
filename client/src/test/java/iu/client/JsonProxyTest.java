@@ -133,6 +133,7 @@ public class JsonProxyTest {
 	public void testOpaque() {
 		final var data = IuJson.wrap(IuJson.object().build(), JsonBackedInterface.class);
 		assertNull(data.getOpaque());
+		assertNull(data.getOpaque());
 		final var data2 = IuJson.wrap(IuJson.object().add("opaque", "foo").build(), JsonBackedInterface.class);
 		assertThrows(UnsupportedOperationException.class, data2::getOpaque);
 	}

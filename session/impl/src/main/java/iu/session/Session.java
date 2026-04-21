@@ -35,16 +35,18 @@ import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 
 import edu.iu.IuObject;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.jwt.WebToken;
 import edu.iu.session.IuSession;
-import iu.crypt.Jwt;
 import iu.session.config.IuSessionConfiguration;
 import jakarta.json.JsonValue;
 
@@ -86,11 +88,14 @@ class Session implements IuSession {
 	/**
 	 * Session token constructor.
 	 * 
+	 * @param resourceUri   root protected resource URI
 	 * @param token         tokenized session
 	 * @param secretKey     secret key to use for detokenizing the session.
 	 * @param configuration session configuration
 	 */
-	Session(String token, WebKey secretKey, IuSessionConfiguration configuration) {
+	Session(URI resourceUri, String token, WebKey secretKey, IuSessionConfiguration configuration) {
+		this.resourceUri = resourceUri;
+
 		final var jose = WebCryptoHeader.getProtectedHeader(token);
 		if (!Algorithm.DIRECT.equals(jose.getAlgorithm()))
 			throw new IllegalArgumentException("Invalid token key protection algorithm");
@@ -99,17 +104,23 @@ class Session implements IuSession {
 		if (!"session+jwt".equals(jose.getContentType()))
 			throw new IllegalArgumentException("Invalid token type");
 
-		final var jwt = new SessionJwt(Jwt.decryptAndVerify(token, configuration.getJwk(), secretKey));
-
-		resourceUri = Objects.requireNonNull(jwt.getIssuer(), "Missing token issuer");
-		jwt.validateClaims(resourceUri, configuration.getMaxSessionTtl());
+		final var jwt = WebToken.decryptAndVerify(token, configuration.getJwk(), secretKey);
+		jwt.validateClaims(resourceUri, resourceUri, configuration.getMaxSessionTtl());
 		IuObject.require(jwt.getSubject(), resourceUri.toString()::equals);
 		expires = Objects.requireNonNull(jwt.getExpires());
-		details = new LinkedHashMap<>(Objects.requireNonNull(jwt.getDetails()));
+
+		details = new LinkedHashMap<>();
+		final var tokenDetails = jwt.getClaim("details", SessionDetailAttributes[].class);
+		if (tokenDetails != null)
+			for (final var tokenDetail : tokenDetails) {
+				final var className = tokenDetail.getClassName();
+				final var attributes = new LinkedHashMap<>(tokenDetail.getAttributes());
+				details.put(className, attributes);
+			}
 	}
 
 	/**
-	 * Token constructor
+	 * Tokenize this session.
 	 * 
 	 * @param secretKey     secret key
 	 * @param configuration session configuration
@@ -117,15 +128,31 @@ class Session implements IuSession {
 	 */
 	String tokenize(WebKey secretKey, IuSessionConfiguration configuration) {
 		final var issuerKey = configuration.getJwk();
-		return new SessionJwtBuilder() //
+		final var tokenBuilder = WebToken.builder() //
 				.iss(resourceUri) //
 				.sub(resourceUri.toString()) //
 				.aud(resourceUri) //
 				.iat() //
-				.exp(expires) //
-				.details(details) //
-				.build().signAndEncrypt("session+jwt", issuerKey.getAlgorithm(), issuerKey, Algorithm.DIRECT,
-						configuration.getEnc(), secretKey);
+				.exp(expires);
+
+		final Queue<SessionDetailAttributes> attributeQueue = new ArrayDeque<>();
+		for (final var detailsEntry : details.entrySet())
+			attributeQueue.offer(new SessionDetailAttributes() {
+				@Override
+				public String getClassName() {
+					return detailsEntry.getKey();
+				}
+
+				@Override
+				public Map<String, JsonValue> getAttributes() {
+					return detailsEntry.getValue();
+				}
+			});
+		tokenBuilder.claim("details", attributeQueue.toArray(SessionDetailAttributes[]::new),
+				SessionDetailAttributes[].class);
+
+		return tokenBuilder.build().signAndEncrypt("session+jwt", issuerKey.getAlgorithm(), issuerKey, Algorithm.DIRECT,
+				configuration.getEnc(), secretKey);
 	}
 
 	@Override
@@ -134,10 +161,8 @@ class Session implements IuSession {
 		if (!module.isNamed())
 			throw new IllegalArgumentException("Invalid session type, must be in a named module");
 
-		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
-				new SessionDetail(
-						details.computeIfAbsent(module.getName() + "/" + type.getName(), a -> new LinkedHashMap<>()),
-						this, new SessionAdapterFactory<>(type))));
+		return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, new SessionDetail(
+				details.computeIfAbsent(module.getName() + "/" + type.getName(), a -> new LinkedHashMap<>()), this)));
 	}
 
 	@Override

@@ -48,7 +48,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
@@ -78,8 +77,7 @@ class SessionDetailTest {
 		attributes = new HashMap<>();
 		session = Mockito.mock(Session.class);
 		sessionDetail = (SessionDetailInterface) Proxy.newProxyInstance(SessionDetailInterface.class.getClassLoader(),
-				new Class[] { SessionDetailInterface.class },
-				new SessionDetail(attributes, session, IuJsonAdapter::of));
+				new Class[] { SessionDetailInterface.class }, new SessionDetail(attributes, session));
 	}
 
 	@Test

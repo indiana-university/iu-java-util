@@ -29,42 +29,45 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.session;
+package iu.jwt.spi;
 
-import java.util.Map;
-
-import edu.iu.IuObject;
-import iu.crypt.JwtBuilder;
-import jakarta.json.JsonValue;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.logging.Logger;
 
 /**
- * Extends {@link JwtBuilder} to add claims values for use with {@link Session}.
+ * Initialization stub to be <em>explicitly</em> loaded from the bootstrap
+ * module in control of the implementation's {@link ModuleLayer}, before
+ * attempting to use any crypto functions, while the implementation module's
+ * {@link ClassLoader} is in control of the
+ * {@link Thread#getContextClassLoader()} current thread's context.
+ * 
+ * <p>
+ * Note: When both iu.util.jwt.api and iu.util.jwt.impl are in named modules
+ * loaded by the {@link ClassLoader#getSystemClassLoader() System ClassLoader},
+ * explicit initialization is not needed.
+ * </p>
  */
-class SessionJwtBuilder extends JwtBuilder<SessionJwtBuilder> {
+public final class Init {
+
+	private static final Logger LOG = Logger.getLogger(Init.class.getName());
+
+	private Init() {
+	}
+
+	/** {@link IuJwtSpi} instance */
+	public static final IuJwtSpi SPI;
+
 	static {
-		IuObject.assertNotOpen(SessionJwtBuilder.class);
+		SPI = ServiceLoader.load(IuJwtSpi.class).findFirst().get();
+		LOG.config("init iu-java-jwt SPI " + SPI);
 	}
 
 	/**
-	 * Default constructor.
+	 * Verifies the SPI has fully initialized.
 	 */
-	SessionJwtBuilder() {
-	}
-
-	/**
-	 * Sets the session details.
-	 * 
-	 * @param details {@link Map} of session details
-	 * @return this
-	 */
-	SessionJwtBuilder details(Map<String, Map<String, JsonValue>> details) {
-		return param("details", details);
-	}
-
-	@Override
-	public SessionJwt build() {
-		prepare();
-		return new SessionJwt(toJson());
+	public static void init() {
+		Objects.requireNonNull(SPI);
 	}
 
 }

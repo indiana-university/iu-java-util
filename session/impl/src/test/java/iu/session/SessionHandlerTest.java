@@ -149,9 +149,10 @@ public class SessionHandlerTest {
 		when(store.get(hashKey)).thenReturn(IuText.utf8(activated));
 		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
 		try (final var mockSession = mockConstruction(Session.class, (a, ctx) -> {
-			assertEquals(activated, ctx.arguments().get(0));
-			assertEquals(WebKey.builder(WebKey.Type.RAW).key(secretKey).build(), ctx.arguments().get(1));
-			assertEquals(config, ctx.arguments().get(2));
+			assertEquals(resourceUri, ctx.arguments().get(0));
+			assertEquals(activated, ctx.arguments().get(1));
+			assertEquals(WebKey.builder(WebKey.Type.RAW).key(secretKey).build(), ctx.arguments().get(2));
+			assertEquals(config, ctx.arguments().get(3));
 		})) {
 			final var session = handler.activate(IuIterable.iter(cookie));
 			assertEquals(session, mockSession.constructed().get(0));

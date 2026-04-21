@@ -7,8 +7,9 @@ module iu.util.session.impl {
 	opens iu.session.config;
 	
 	requires transitive iu.util;
+	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
-	requires iu.util.crypt;
-	requires iu.util.crypt.impl;
+	requires iu.util.config;
+	requires iu.util.jwt.api;
 	requires transitive iu.util.session;
 }

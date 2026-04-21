@@ -21,8 +21,8 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-crypt</artifactId>
+			<groupId>edu.iu.util</groupId>
+			<artifactId>iu-java-jwt-api</artifactId>
 			<version>${project.version}</version>
 			<scope>provided</scope>
 		</dependency>
@@ -34,8 +34,25 @@
 		</dependency>
 		<dependency>
 			<groupId>edu.iu.util</groupId>
+			<artifactId>iu-java-client</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>edu.iu.util</groupId>
+			<artifactId>iu-java-config</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>edu.iu.util</groupId>
 			<artifactId>iu-java-crypt-impl</artifactId>
 			<version>${project.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>edu.iu.util</groupId>
+			<artifactId>iu-java-jwt-impl</artifactId>
+			<version>${project.version}</version>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -44,7 +61,7 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
-	
+
 	<build>
 		<plugins>
 			<plugin>

@@ -29,43 +29,35 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.session;
+package edu.iu.jwt;
 
-import java.lang.reflect.Type;
-import java.util.function.Function;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
+import java.util.Optional;
+import java.util.ServiceLoader;
 
-/**
- * Session adapter factory.
- * 
- * @param <T> source type
- */
-public class SessionAdapterFactory<T> implements Function<T, IuJsonAdapter<?>> {
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
-	private final Class<?> baseType;
+import iu.jwt.spi.Init;
+import iu.jwt.spi.IuJwtSpi;
 
-	/**
-	 * Constructor
-	 * 
-	 * @param baseType base type
-	 */
-	public SessionAdapterFactory(Class<?> baseType) {
-		this.baseType = baseType;
-	}
+@SuppressWarnings({ "javadoc", "exports" })
+public class IuJwtSpiTestSupport implements BeforeAllCallback {
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
-	public IuJsonAdapter<?> apply(T t) {
-		if (t instanceof Class) {
-			final var c = (Class) t;
-			if (c.isInterface() //
-					&& c.getModule().isOpen(c.getPackageName(), baseType.getModule()))
-				return IuJsonAdapter.from(c, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, (Function) this);
+	public void beforeAll(ExtensionContext context) throws Exception {
+		final var serviceLoader = mock(ServiceLoader.class);
+		final var spi = mock(IuJwtSpi.class);
+		when(serviceLoader.findFirst()).thenReturn(Optional.of(spi));
+		try (final var mockServiceLoader = mockStatic(ServiceLoader.class)) {
+			mockServiceLoader.when(() -> ServiceLoader.load(IuJwtSpi.class)).thenReturn(serviceLoader);
+			Init.init();
+			assertSame(spi, Init.SPI);
 		}
-
-		return IuJsonAdapter.of((Type) t, (Function) this);
 	}
 
 }

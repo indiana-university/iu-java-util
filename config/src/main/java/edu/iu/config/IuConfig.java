@@ -34,27 +34,25 @@ package edu.iu.config;
 import java.lang.reflect.Type;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import edu.iu.IuCacheMap;
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVault;
-import edu.iu.crypt.WebCryptoHeader;
-import edu.iu.crypt.WebEncryption;
-import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
-import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebSignedPayload;
-import iu.crypt.CryptJsonAdapters;
-import iu.crypt.Jwe;
-import iu.crypt.JwsBuilder;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 /**
  * Secure configuration utility.
@@ -66,15 +64,15 @@ public class IuConfig {
 
 	private static class StorageConfig<T> {
 		private final String prefix;
-		private final Consumer<? super T> verifier;
 		private final IuJsonAdapter<T> adapter;
 		private final IuVault[] vault;
+		private final Map<String, T> cache;
 
-		private StorageConfig(String prefix, Consumer<? super T> verifier, IuJsonAdapter<T> adapter, IuVault... vault) {
+		private StorageConfig(String prefix, IuJsonAdapter<T> adapter, Duration cacheTtl, IuVault... vault) {
 			this.prefix = prefix;
-			this.verifier = verifier;
 			this.adapter = adapter;
 			this.vault = vault;
+			this.cache = new IuCacheMap<>(cacheTtl == null ? Duration.ofSeconds(15L) : cacheTtl);
 		}
 	}
 
@@ -86,14 +84,26 @@ public class IuConfig {
 	}
 
 	private static void registerDefaults() {
-		registerAdapter(Algorithm.class, CryptJsonAdapters.ALG);
-		registerAdapter(Encryption.class, CryptJsonAdapters.ENC);
-		registerAdapter(WebKey.class, CryptJsonAdapters.WEBKEY);
-		registerAdapter(WebCryptoHeader.class, CryptJsonAdapters.JOSE);
-		registerAdapter(WebEncryption.class, Jwe.JSON);
-		registerAdapter(WebSignedPayload.class, JwsBuilder.JSON);
-		registerAdapter(X509Certificate.class, CryptJsonAdapters.CERT);
-		registerAdapter(X509CRL.class, CryptJsonAdapters.CRL);
+		registerAdapter(JsonValue.class, IuJsonAdapter.from( //
+				a -> a, //
+				a -> a));
+		registerAdapter(JsonObject.class, IuJsonAdapter.from( //
+				a -> a == null //
+						? null //
+						: a.asJsonObject(), //
+				a -> a));
+		registerAdapter(WebKey.class, IuJsonAdapter.from( //
+				v -> WebKey.parse(v.toString()), //
+				v -> IuJson.parse(v.toString()) //
+		));
+		registerAdapter(X509Certificate.class, IuJsonAdapter.from( //
+				v -> PemEncoded.asCertificate(IuText.base64(((JsonString) v).getString())), //
+				v -> IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
+		));
+		registerAdapter(X509CRL.class, IuJsonAdapter.from( //
+				v -> PemEncoded.asCRL(IuText.base64(((JsonString) v).getString())), //
+				v -> IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
+		));
 	}
 
 	/**
@@ -111,7 +121,7 @@ public class IuConfig {
 		if (STORAGE.containsKey(type))
 			throw new IllegalArgumentException("already configured");
 
-		STORAGE.put(type, new StorageConfig<>(null, null, adapter));
+		STORAGE.put(type, new StorageConfig<>(null, adapter, null));
 	}
 
 	/**
@@ -127,7 +137,8 @@ public class IuConfig {
 	}
 
 	/**
-	 * Registers a vault for loading authorization configuration.
+	 * Registers a vault for loading authorization configuration using the default
+	 * cache TTL of 15 seconds.
 	 * 
 	 * @param <T>             configuration type
 	 * @param prefix          prefix to append to vault key to classify the resource
@@ -146,12 +157,11 @@ public class IuConfig {
 	 * @param prefix          prefix to append to vault key to classify the resource
 	 *                        names used by {@link #load(Class, String)}
 	 * @param configInterface configuration interface
-	 * @param verifier        provides additional verification logic to be apply
-	 *                        before returning each loaded instance
+	 * @param cacheTtl        time period for caching config objects
 	 * @param vault           vault to use for loading configuration
 	 */
-	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface,
-			Consumer<? super T> verifier, IuVault... vault) {
+	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface, Duration cacheTtl,
+			IuVault... vault) {
 		if (sealed)
 			throw new IllegalStateException("sealed");
 
@@ -174,7 +184,7 @@ public class IuConfig {
 				propertyAdapter::toJson);
 
 		STORAGE.put(configInterface,
-				Objects.requireNonNull(new StorageConfig<>(prefix + '/', verifier, adapter, vault)));
+				Objects.requireNonNull(new StorageConfig<>(prefix + '/', adapter, cacheTtl, vault)));
 	}
 
 	/**
@@ -186,20 +196,24 @@ public class IuConfig {
 	 * @return loaded configuration
 	 */
 	public static <T> T load(Class<T> configInterface, String key) {
-		final var vaultConfig = Objects.requireNonNull(STORAGE.get(configInterface), "not configured");
+		@SuppressWarnings("unchecked") // enforced on put (above)
+		final StorageConfig<T> vaultConfig = (StorageConfig<T>) Objects.requireNonNull(STORAGE.get(configInterface),
+				"not configured");
+
+		final var value = vaultConfig.cache.get(key);
+		if (configInterface.isInstance(value))
+			return configInterface.cast(value);
+
 		return (new Object() {
 			T value;
 			Throwable error;
 
-			@SuppressWarnings({ "unchecked", "rawtypes" })
 			void check(IuVault vault) {
 				final var keyedValue = vault.get(vaultConfig.prefix + key).getValue();
 				final var config = IuJson.parse(keyedValue).asJsonObject();
 
 				final var value = IuJson.wrap(config, configInterface, IuConfig::adaptJson);
-				if (vaultConfig.verifier != null)
-					((Consumer) vaultConfig.verifier).accept(value);
-
+				vaultConfig.cache.put(key, value);
 				this.value = value;
 			}
 

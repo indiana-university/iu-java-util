@@ -29,15 +29,18 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.crypt;
+package edu.iu.jwt;
 
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Use;
+import iu.jwt.spi.Init;
 
 /**
  * Represents a JSON Web Token (JWT).
@@ -54,21 +57,12 @@ public interface WebToken {
 	}
 
 	/**
-	 * Convenience method to determine if a JWT is encrypted.
-	 * 
-	 * @param jwt JWT
-	 * @return true if the JWT is encrypted; else false
-	 */
-	static boolean isEncrypted(String jwt) {
-		return WebCryptoHeader.getProtectedHeader(jwt).getAlgorithm().use.equals(Use.ENCRYPT);
-	}
-
-	/**
 	 * Verifies a signed JSON Web Token (JWT).
 	 * 
 	 * @param jwt       Signed JWT
 	 * @param issuerKey Public key of the token issuer
 	 * @return {@link WebToken}
+	 * @see WebCryptoHeader#isEncrypted(String)
 	 */
 	static WebToken verify(String jwt, WebKey issuerKey) {
 		return Init.SPI.verifyJwt(jwt, issuerKey);
@@ -81,6 +75,7 @@ public interface WebToken {
 	 * @param issuerKey   Public key of the token issuer
 	 * @param audienceKey Public key of the token audience
 	 * @return {@link WebToken}
+	 * @see WebCryptoHeader#isEncrypted(String)
 	 */
 	static WebToken decryptAndVerify(String jwt, WebKey issuerKey, WebKey audienceKey) {
 		return Init.SPI.decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
@@ -170,6 +165,25 @@ public interface WebToken {
 	<T> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type);
 
 	/**
+	 * Gets a generic claim value.
+	 * 
+	 * @param name claim name
+	 * @param type claim type
+	 * @return claim value
+	 */
+	Object getClaim(String name, Type type);
+
+	/**
+	 * Gets a claim value.
+	 * 
+	 * @param <T>  claim value type
+	 * @param name claim name
+	 * @param type claim type
+	 * @return claim value
+	 */
+	<T> T getClaim(String name, Class<T> type);
+
+	/**
 	 * Verify JWT registered claims are well-formed and within the allowed time
 	 * window.
 	 * 
@@ -180,17 +194,18 @@ public interface WebToken {
 	 * not empty:
 	 * </p>
 	 * <ul>
-	 * <li>{@link #getIssuer()}</li>
-	 * <li>{@link #getAudience()}</li>
+	 * <li>{@link #getIssuer()}, matching the provided value</li>
+	 * <li>{@link #getAudience()}, including the provided value</li>
 	 * <li>{@link #getSubject()}</li>
-	 * <li>{@link #getIssuedAt()}</li>
-	 * <li>{@link #getExpires()}</li>
+	 * <li>{@link #getIssuedAt()}, as on or before the current time</li>
+	 * <li>{@link #getExpires()}, as on or after the current time</li>
 	 * </ul>
 	 * 
+	 * @param issuer   Expected issuer {@link URI}
 	 * @param audience Expected audience {@link URI}
 	 * @param ttl      Maximum assertion time to live allowed by configuration
 	 */
-	void validateClaims(URI audience, Duration ttl);
+	void validateClaims(URI issuer, URI audience, Duration ttl);
 
 	/**
 	 * Encodes all claims as a signed JSON Web Token

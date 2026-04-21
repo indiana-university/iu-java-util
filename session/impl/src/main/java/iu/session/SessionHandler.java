@@ -105,7 +105,7 @@ public class SessionHandler implements IuSessionHandler {
 		if (activatedSession == null)
 			return null;
 
-		return new Session(activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
+		return new Session(resourceUri, activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
 				configuration.get());
 	}
 

@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.crypt;
+package iu.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,15 +46,18 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.NoSuchElementException;
 import java.util.logging.Level;
 
 import javax.crypto.AEADBadTagException;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
+import edu.iu.config.IuConfig;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -68,6 +71,15 @@ public class JwtTest {
 
 	interface Details {
 		String getType();
+	}
+
+	static {
+		IuConfig.registerInterface(Details.class);
+	}
+
+	@BeforeEach
+	void setup() {
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
 	}
 
 	@Test
@@ -228,7 +240,7 @@ public class JwtTest {
 				.add("nonce", nonce).build());
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
 		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
-		assertEquals(jwt, new Jwt(Jwt.verify(signed, issuerKey)));
+		assertEquals(jwt, Jwt.verify(signed, issuerKey));
 
 		final var error = assertThrows(IllegalArgumentException.class,
 				() -> Jwt.verify(signed, WebKey.ephemeral(Algorithm.ES256)));
@@ -260,8 +272,8 @@ public class JwtTest {
 		final var signed = jwt.signAndEncrypt("JWT", Algorithm.ES256, issuerKey, Algorithm.ECDH_ES, Encryption.A128GCM,
 				audienceKey);
 
-		IuTestLogger.allow(Jwe.class.getName(), Level.FINE);
-		assertEquals(jwt, new Jwt(Jwt.decryptAndVerify(signed, issuerKey, audienceKey)));
+		IuTestLogger.allow("iu.crypt", Level.FINE);
+		assertEquals(jwt, Jwt.decryptAndVerify(signed, issuerKey, audienceKey));
 
 		final var decryptError = assertThrows(IllegalStateException.class, () -> Jwt.decryptAndVerify(signed,
 				WebKey.ephemeral(Algorithm.ES256), WebKey.builder(Type.X25519).ephemeral(Algorithm.ECDH_ES).build()));
@@ -273,68 +285,98 @@ public class JwtTest {
 	}
 
 	@Test
+	public void testValidateMissingExpectedIssuer() {
+		final var jwt = new Jwt(IuJson.object().build());
+		final var error = assertThrows(NullPointerException.class, () -> jwt.validateClaims(null, null, null));
+		assertEquals("Missing expectedIssuer", error.getMessage());
+	}
+
+	@Test
 	public void testValidateMissingIssuer() {
 		final var jwt = new Jwt(IuJson.object().build());
-		final var error = assertThrows(NullPointerException.class, () -> jwt.validateClaims(null, null));
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, null, null));
 		assertEquals("Missing iss claim", error.getMessage());
 	}
 
 	@Test
 	public void testValidateMissingSubject() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.build());
-		final var error = assertThrows(NullPointerException.class, () -> jwt.validateClaims(null, null));
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, null, null));
 		assertEquals("Missing sub claim", error.getMessage());
 	}
 
 	@Test
-	public void testValidateMissingAudience() {
+	public void testValidateMissingExpectedAudience() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.add("sub", IdGenerator.generateId()) //
 				.build());
-		final var error = assertThrows(NullPointerException.class, () -> jwt.validateClaims(null, null));
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, null, null));
+		assertEquals("Missing expectedAudience", error.getMessage());
+	}
+
+	@Test
+	public void testValidateMissingAudience() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var expectedAudience = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.build());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, expectedAudience, null));
 		assertEquals("Missing aud claim", error.getMessage());
 	}
 
 	@Test
 	public void testValidateClaimsAudMismatch() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.add("sub", IdGenerator.generateId()) //
 				.add("aud", IdGenerator.generateId()) //
 				.build());
 		final var expectedAudience = URI.create(IdGenerator.generateId());
-		final var error = assertThrows(IllegalArgumentException.class,
-				() -> jwt.validateClaims(expectedAudience, Duration.ofMinutes(2L)));
-		assertEquals("Token aud claim doesn't include " + expectedAudience, error.getMessage());
+		final var error = assertThrows(NoSuchElementException.class,
+				() -> jwt.validateClaims(expectedIssuer, expectedAudience, Duration.ofMinutes(2L)));
+		assertEquals("Token aud claim " + jwt.getAudience() + " doesn't include " + expectedAudience,
+				error.getMessage());
 	}
 
 	@Test
 	public void testValidateClaimsMissingIssuedAt() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var audience = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.add("sub", IdGenerator.generateId()) //
 				.add("aud", audience.toString()) //
 				.build());
 		final var error = assertThrows(NullPointerException.class,
-				() -> jwt.validateClaims(audience, Duration.ofMinutes(2L)));
+				() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
 		assertEquals("Missing iat claim", error.getMessage());
 	}
 
 	@Test
 	public void testValidateClaimsMissingExpires() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var audience = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.add("sub", IdGenerator.generateId()) //
 				.add("aud", audience.toString()) //
 				.add("iat", Instant.now().getEpochSecond()) //
 				.build());
 		final var error = assertThrows(NullPointerException.class,
-				() -> jwt.validateClaims(audience, Duration.ofMinutes(2L)));
+				() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
 		assertEquals("Missing exp claim", error.getMessage());
 	}
 
@@ -342,16 +384,17 @@ public class JwtTest {
 	public void testValidateClaimsInvalidExpires() {
 		final var iat = Instant.now();
 		final var exp = iat.plusSeconds(300L);
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var audience = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.add("sub", IdGenerator.generateId()) //
 				.add("aud", audience.toString()) //
 				.add("iat", iat.getEpochSecond()) //
 				.add("exp", exp.getEpochSecond()) //
 				.build());
 		final var error = assertThrows(IllegalArgumentException.class,
-				() -> jwt.validateClaims(audience, Duration.ofMinutes(2L)));
+				() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
 		assertEquals("Token exp claim must be no more than PT2M in the future", error.getMessage());
 	}
 
@@ -359,15 +402,16 @@ public class JwtTest {
 	public void testValidateClaimsSuccess() {
 		final var iat = Instant.now();
 		final var exp = iat.plusSeconds(30L);
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
 		final var audience = URI.create(IdGenerator.generateId());
 		final var jwt = new Jwt(IuJson.object() //
-				.add("iss", IdGenerator.generateId()) //
+				.add("iss", expectedIssuer.toString()) //
 				.add("sub", IdGenerator.generateId()) //
 				.add("aud", audience.toString()) //
 				.add("iat", iat.getEpochSecond()) //
 				.add("exp", exp.getEpochSecond()) //
 				.build());
-		assertDoesNotThrow(() -> jwt.validateClaims(audience, Duration.ofMinutes(2L)));
+		assertDoesNotThrow(() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
 	}
 
 	@Test
@@ -392,7 +436,7 @@ public class JwtTest {
 		assertNotNull(details);
 		assertFalse(details.iterator().hasNext());
 	}
-	
+
 	@Test
 	public void testIgnoresNonMatcingAuthorizationDetails() {
 		final var issuer = URI.create(IdGenerator.generateId());
@@ -415,5 +459,5 @@ public class JwtTest {
 		assertNotNull(details);
 		assertFalse(details.iterator().hasNext());
 	}
-	
+
 }
