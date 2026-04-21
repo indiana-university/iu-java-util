@@ -10,6 +10,12 @@ import iu.jwt.spi.IuJwtSpi;
  */
 public class JwtSpi implements IuJwtSpi {
 
+	/**
+	 * Default constructor.
+	 */
+	public JwtSpi() {
+	}
+
 	@Override
 	public WebTokenBuilder getJwtBuilder() {
 		return new JwtBuilder<>();
