@@ -74,7 +74,7 @@ public interface SamlPreAuthentication {
 	URI getPostUri();
 
 	/**
-	 * Set pst URI
+	 * Set post URI
 	 * 
 	 * @param postUri post URI
 	 */

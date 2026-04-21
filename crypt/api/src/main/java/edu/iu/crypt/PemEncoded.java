@@ -322,8 +322,8 @@ public final class PemEncoded {
 	private static void print(PrintStream out, String header, byte[] encoded) {
 		out.println("-----BEGIN " + header + "-----");
 		final var sb = new StringBuilder(IuText.base64(encoded));
-		for (var pos = 0; pos < sb.length() - 1; pos += 65) {
-			final var e = pos + 65;
+		for (var pos = 0; pos < sb.length(); pos += 64) {
+			final var e = pos + 64;
 			if (e < sb.length())
 				out.println(sb.substring(pos, e));
 			else

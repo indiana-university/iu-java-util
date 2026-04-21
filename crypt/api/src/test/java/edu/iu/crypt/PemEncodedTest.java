@@ -496,8 +496,8 @@ public class PemEncodedTest extends IuCryptApiTestCase {
 		PemEncoded.print(ps, privateKey);
 
 		final var b64 = IuText.base64(encoded);
-		assertEquals("-----BEGIN PRIVATE KEY-----" + System.lineSeparator() + b64.substring(0, 65)
-				+ System.lineSeparator() + b64.substring(65, 130) + System.lineSeparator() + b64.substring(130)
+		assertEquals("-----BEGIN PRIVATE KEY-----" + System.lineSeparator() + b64.substring(0, 64)
+				+ System.lineSeparator() + b64.substring(64, 128) + System.lineSeparator() + b64.substring(128)
 				+ System.lineSeparator() + "-----END PRIVATE KEY-----" + System.lineSeparator(), out.toString());
 	}
 
@@ -512,8 +512,8 @@ public class PemEncodedTest extends IuCryptApiTestCase {
 		PemEncoded.print(ps, cert);
 
 		final var b64 = IuText.base64(encoded);
-		assertEquals("-----BEGIN CERTIFICATE-----" + System.lineSeparator() + b64.substring(0, 65)
-				+ System.lineSeparator() + b64.substring(65, 130) + System.lineSeparator() + b64.substring(130)
+		assertEquals("-----BEGIN CERTIFICATE-----" + System.lineSeparator() + b64.substring(0, 64)
+				+ System.lineSeparator() + b64.substring(64, 128) + System.lineSeparator() + b64.substring(128)
 				+ System.lineSeparator() + "-----END CERTIFICATE-----" + System.lineSeparator(), out.toString());
 	}
 
@@ -528,8 +528,8 @@ public class PemEncodedTest extends IuCryptApiTestCase {
 		PemEncoded.print(ps, crl);
 
 		final var b64 = IuText.base64(encoded);
-		assertEquals("-----BEGIN X509 CRL-----" + System.lineSeparator() + b64.substring(0, 65) + System.lineSeparator()
-				+ b64.substring(65, 130) + System.lineSeparator() + b64.substring(130) + System.lineSeparator()
+		assertEquals("-----BEGIN X509 CRL-----" + System.lineSeparator() + b64.substring(0, 64) + System.lineSeparator()
+				+ b64.substring(64, 128) + System.lineSeparator() + b64.substring(128) + System.lineSeparator()
 				+ "-----END X509 CRL-----" + System.lineSeparator(), out.toString());
 	}
 

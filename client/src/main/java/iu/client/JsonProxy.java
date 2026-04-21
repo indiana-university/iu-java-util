@@ -103,13 +103,16 @@ public final class JsonProxy implements InvocationHandler {
 		final var methodName = method.getName();
 		if (resolved.containsKey(methodName)) {
 			final var resolved = this.resolved.get(methodName);
-			return resolved == NULL ? null : resolved;
+			return resolved == NULL //
+					? null //
+					: resolved;
 		}
 
-		if (methodName.equals("hashCode"))
-			return value.hashCode();
+		final var paramTypes = method.getParameterTypes();
 
-		if (methodName.equals("equals")) {
+		if (methodName.equals("equals") //
+				&& paramTypes.length == 1 //
+				&& paramTypes[0] == Object.class) {
 			if (args[0] == null)
 				return false;
 			if (!Proxy.isProxyClass(args[0].getClass()))
@@ -120,6 +123,12 @@ public final class JsonProxy implements InvocationHandler {
 				return false;
 			return ((JsonProxy) other).value.equals(value);
 		}
+
+		if (paramTypes.length > 0)
+			throw new UnsupportedOperationException();
+
+		if (methodName.equals("hashCode"))
+			return value.hashCode();
 
 		if (methodName.equals("toString")) {
 			final var writer = new StringWriter();
@@ -133,13 +142,10 @@ public final class JsonProxy implements InvocationHandler {
 			propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
 		else if (methodName.startsWith("is"))
 			propertyName = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
-		else if (method.isDefault()) {
-			propertyName = null;
-		} else
+		else
 			throw new UnsupportedOperationException();
 
-		final JsonValue jsonValue = returnValueWithCaseConversion(propertyName);
-
+		final var jsonValue = returnValueWithCaseConversion(propertyName);
 		if (jsonValue == null && method.isDefault()) {
 			final var type = proxy.getClass().getInterfaces()[0];
 			return checkResolvedValue(methodName, MethodHandles.privateLookupIn(type, MethodHandles.lookup())
@@ -168,9 +174,6 @@ public final class JsonProxy implements InvocationHandler {
 	}
 
 	private JsonValue returnValueWithCaseConversion(String propertyName) {
-		if (propertyName == null)
-			return null;
-
 		if (value.containsKey(propertyName))
 			return value.get(propertyName);
 
