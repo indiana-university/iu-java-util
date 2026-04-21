@@ -255,7 +255,7 @@ public class IuConfig {
 
 	/**
 	 * Provides JSON adapters for components that used
-	 * {@link #registerInterface(String, Class, Consumer, IuVault...)} to register
+	 * {@link #registerInterface(String, Class, Duration, IuVault...)} to register
 	 * configuration interfaces for authentication and authorization.
 	 * 
 	 * @param type type
