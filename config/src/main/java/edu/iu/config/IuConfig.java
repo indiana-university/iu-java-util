@@ -38,7 +38,6 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
@@ -50,6 +49,7 @@ import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVault;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
+import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
@@ -86,6 +86,11 @@ public class IuConfig {
 	private static void registerDefaults() {
 		registerAdapter(JsonValue.class, IuJsonAdapter.from( //
 				a -> a, //
+				a -> a));
+		registerAdapter(JsonArray.class, IuJsonAdapter.from( //
+				a -> a == null //
+						? null //
+						: a.asJsonArray(), //
 				a -> a));
 		registerAdapter(JsonObject.class, IuJsonAdapter.from( //
 				a -> a == null //

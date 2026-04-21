@@ -34,6 +34,7 @@ package edu.iu.config;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,7 +61,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuProcess;
-import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
@@ -69,6 +69,9 @@ import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTestLogger;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
 public class IuConfigTest {
@@ -168,6 +171,35 @@ public class IuConfigTest {
 	}
 
 	@Test
+	void testJsonValueAdapters() {
+		final var valueAdapter = IuConfig.adaptJson(JsonValue.class);
+		final var value = mock(JsonValue.class);
+		assertEquals(value, valueAdapter.fromJson(valueAdapter.toJson(value)));
+		assertNull(valueAdapter.toJson(null));
+		assertNull(valueAdapter.fromJson(null));
+	}
+
+	@Test
+	void testJsonObjectAdapters() {
+		final var valueAdapter = IuConfig.adaptJson(JsonObject.class);
+		final var o = mock(JsonObject.class);
+		when(o.asJsonObject()).thenReturn(o);
+		assertEquals(o, valueAdapter.fromJson(valueAdapter.toJson(o)));
+		assertNull(valueAdapter.toJson(null));
+		assertNull(valueAdapter.fromJson(null));
+	}
+
+	@Test
+	void testJsonArrayAdapters() {
+		final var valueAdapter = IuConfig.adaptJson(JsonArray.class);
+		final var a = mock(JsonArray.class);
+		when(a.asJsonArray()).thenReturn(a);
+		assertEquals(a, valueAdapter.fromJson(valueAdapter.toJson(a)));
+		assertNull(valueAdapter.toJson(null));
+		assertNull(valueAdapter.fromJson(null));
+	}
+
+	@Test
 	void testJsonKeyAndCertAdapters() {
 		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
 		final var kid = IdGenerator.generateId();
@@ -182,6 +214,14 @@ public class IuConfigTest {
 				"-addext", "basicConstraints=critical,CA:true,pathlen:0", //
 				"-addext", "keyUsage=keyCertSign,cRLSign" //
 		);
+
+		final var signedKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).key(privateKey).pem(pemCert).build();
+		final var keyAdapter = IuConfig.adaptJson(WebKey.class);
+		assertEquals(signedKey, keyAdapter.fromJson(keyAdapter.toJson(signedKey)));
+
+		final var cert = signedKey.getCertificateChain()[0];
+		final var certAdapter = IuConfig.adaptJson(X509Certificate.class);
+		assertEquals(cert, certAdapter.fromJson(certAdapter.toJson(cert)));
 
 		final var databaseFile = IuProcess.temp(PrintStream::print, "");
 		final var newCertsDir = IuProcess.createTempDirectory();
@@ -211,14 +251,9 @@ public class IuConfigTest {
 		final var crl = PemEncoded.parse(IuProcess.exec( //
 				"openssl", "ca", "-gencrl", "-config", caConfig.toString(), "-crldays", "1" //
 		)).next().asCRL();
+		final var crlAdapter = IuConfig.adaptJson(X509CRL.class);
+		assertEquals(crl, crlAdapter.fromJson(crlAdapter.toJson(crl)));
 
-		final var signedKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).key(privateKey).pem(pemCert).build();
-		assertEquals(signedKey, IuConfig.adaptJson(WebKey.class).fromJson(IuJson.parse(signedKey.toString())));
-		assertEquals(signedKey.getCertificateChain()[0], IuConfig.adaptJson(X509Certificate.class).fromJson(IuJson
-				.string(IuText.base64(assertDoesNotThrow(() -> signedKey.getCertificateChain()[0].getEncoded())))));
-		assertEquals(crl, IuConfig.adaptJson(X509CRL.class)
-				.fromJson(IuJson.string(IuText.base64(assertDoesNotThrow(() -> crl.getEncoded())))));
-		
 		IuProcess.deleteTempFiles();
 	}
 
