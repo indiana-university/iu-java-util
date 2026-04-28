@@ -162,7 +162,7 @@ public interface WebToken {
 	 * @param type            authorization_details type property value
 	 * @return first entry with a matching type property
 	 */
-	<T> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type);
+	<T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type);
 
 	/**
 	 * Gets a generic claim value.

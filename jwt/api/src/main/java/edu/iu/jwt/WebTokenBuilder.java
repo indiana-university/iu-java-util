@@ -118,6 +118,15 @@ public interface WebTokenBuilder {
 	WebTokenBuilder nonce(String nonce);
 
 	/**
+	 * Adds an authorization details entry.
+	 * 
+	 * @param authorizationDetails authorizaiton details
+	 * @param type                 authorization details interface
+	 * @return this
+	 */
+	<T extends IuAuthorizationDetails> WebTokenBuilder authorizationDetails(T authorizationDetails, Class<T> type);
+
+	/**
 	 * Sets a custom claim value.
 	 * 
 	 * @param name  claim name

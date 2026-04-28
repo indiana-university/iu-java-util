@@ -47,6 +47,8 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
+import edu.iu.config.IuConfig;
+import edu.iu.jwt.IuAuthorizationDetails;
 import jakarta.json.JsonString;
 
 @SuppressWarnings("javadoc")
@@ -105,4 +107,43 @@ public class JwtBuilderTest {
 		final var jwt = new JwtBuilder<>().aud(audience).build();
 		assertTrue(IuIterable.remaindersAreEqual(IuIterable.iter(audience).iterator(), jwt.getAudience().iterator()));
 	}
+
+	public interface Details extends IuAuthorizationDetails {
+		String getFoo();
+	}
+
+	@Test
+	public void testDetails() {
+		Details.class.getModule().addOpens("iu.jwt", IuJson.class.getModule());
+		IuConfig.registerInterface(Details.class);
+		final var type = IdGenerator.generateId();
+		final var foo = IdGenerator.generateId();
+		final var foo2 = IdGenerator.generateId();
+		final var jwt = new JwtBuilder<>().authorizationDetails(new Details() {
+			@Override
+			public String getType() {
+				return type;
+			}
+
+			@Override
+			public String getFoo() {
+				return foo;
+			}
+		}, Details.class).authorizationDetails(new Details() {
+			@Override
+			public String getType() {
+				return type;
+			}
+
+			@Override
+			public String getFoo() {
+				return foo2;
+			}
+		}, Details.class).build();
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type).iterator();
+		assertEquals(foo, details.next().getFoo());
+		assertEquals(foo2, details.next().getFoo());
+	}
+
 }

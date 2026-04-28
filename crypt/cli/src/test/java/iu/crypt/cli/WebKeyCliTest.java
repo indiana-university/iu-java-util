@@ -95,6 +95,15 @@ public class WebKeyCliTest {
 	}
 
 	@Test
+	void testED25519Export() {
+		CliTestSupport.input(WebKey.builder(WebKey.Type.ED25519).ephemeral().build().toString());
+		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "export" }));
+		assertEquals("", CliTestSupport.ERR.toString());
+		assertEquals(PemEncoded.KeyType.PRIVATE_KEY,
+				PemEncoded.parse(CliTestSupport.OUT.toString()).next().getKeyType());
+	}
+
+	@Test
 	void testECWithAlg() {
 		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "create", "EC_P521", "ECDH-ES" }));
 		final var key = WebKey.parse(CliTestSupport.OUT.toString());
@@ -198,6 +207,23 @@ public class WebKeyCliTest {
 				+ System.lineSeparator() + " 1) " + cert.getNotAfter() + " "
 				+ WebKeyCli.formatSerial(cert.getSerialNumber()) + " " + kid + " EE,digitalSignature"
 				+ System.lineSeparator() + System.lineSeparator(), CliTestSupport.OUT.toString());
+	}
+
+	@Test
+	void testExportSelfCert() {
+		final var kid = IdGenerator.generateId();
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var jwk = WebKeyCli.self(WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build()).wellKnown();
+		final var cert = jwk.getCertificateChain()[0];
+
+		CliTestSupport.input(jwk.toString());
+		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "export" }));
+		assertEquals("", CliTestSupport.ERR.toString());
+
+		final var pem = PemEncoded.parse(CliTestSupport.OUT.toString());
+		final var pemCert = pem.next();
+		assertEquals(PemEncoded.KeyType.CERTIFICATE, pemCert.getKeyType());
+		assertEquals(cert, pemCert.asCertificate());
 	}
 
 	@Test

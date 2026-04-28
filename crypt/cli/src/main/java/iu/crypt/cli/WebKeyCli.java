@@ -346,6 +346,23 @@ public class WebKeyCli {
 	}
 
 	/**
+	 * Exports a PEM-encpded key and certificate data.
+	 * 
+	 * @param out stream to print the certificate chain on
+	 * @param jwk key to output as PEM-encoded
+	 */
+	static void export(PrintStream out, WebKey jwk) {
+		final var privateKey = jwk.getPrivateKey();
+		if (privateKey != null)
+			PemEncoded.print(out, privateKey);
+
+		final var certChain = jwk.getCertificateChain();
+		if (certChain != null)
+			for (final var cert : certChain)
+				PemEncoded.print(out, cert);
+	}
+
+	/**
 	 * Exports an PEM-encpded X509 certificate chain for a CA-signed cert.
 	 * 
 	 * @param out    stream to print the certificate chain on
@@ -760,7 +777,10 @@ public class WebKeyCli {
 				if (cmd.equals("ca")) {
 					ca = ca(inputKey);
 				} else if (cmd.equals("export")) {
-					export(System.out, inputCa, parseSerial(arg[1]));
+					if (inputKey != null)
+						export(System.out, inputKey);
+					else
+						export(System.out, inputCa, parseSerial(arg[1]));
 					return;
 				} else if (cmd.equals("print")) {
 					if (inputKey != null)
@@ -822,7 +842,9 @@ public class WebKeyCli {
 					.write(json);
 			System.out.println();
 
-		} catch (RuntimeException | Error e) {
+		} catch (RuntimeException |
+
+				Error e) {
 			System.err.print(USAGE);
 			throw e;
 		}

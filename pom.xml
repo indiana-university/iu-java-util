@@ -479,11 +479,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>client</module>
 				<module>test</module>
 				<module>crypt</module>
+				<module>config</module>
 				<module>jwt</module>
 				<module>pki</module>
 				<module>session</module>
 				<module>saml</module>
-				<module>config</module>
+				<module>oidc</module>
 				<module>jdbc</module>
 				<module>type</module>
 				<module>logging</module>

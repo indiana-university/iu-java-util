@@ -46,6 +46,7 @@ import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.config.IuConfig;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -53,6 +54,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
@@ -83,6 +85,10 @@ public class Jwt implements WebToken {
 	static final <T> IuJsonAdapter<T> adapt(Type type) {
 		if (type == Instant.class)
 			return (IuJsonAdapter<T>) NUMERIC_DATE;
+		else if ((type instanceof Class) //
+				&& IuAuthorizationDetails.class.isAssignableFrom((Class<?>) type))
+			return (IuJsonAdapter<T>) IuJsonAdapter.from((Class<?>) type,
+					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, Jwt::adapt);
 		else
 			return (IuJsonAdapter<T>) IuConfig.adaptJson(type);
 	}
@@ -246,7 +252,8 @@ public class Jwt implements WebToken {
 	}
 
 	@Override
-	public <T> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type) {
+	public <T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface,
+			String type) {
 		final Queue<T> rv = new ArrayDeque<>();
 		final var authorizationDetails = claims.get("authorization_details");
 		if (authorizationDetails instanceof JsonArray) {
