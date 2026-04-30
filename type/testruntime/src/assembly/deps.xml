@@ -14,6 +14,7 @@
 			<scope>provided</scope>
 			<excludes>
 				<exclude>${project.groupId}:${project.artifactId}</exclude>
+				<exclude>jakarta.json:jakarta.json-api</exclude>
 			</excludes>
 			<outputFileNameMapping>${artifact.artifactId}${dashClassifier?}.${artifact.extension}</outputFileNameMapping>
 		</dependencySet>
