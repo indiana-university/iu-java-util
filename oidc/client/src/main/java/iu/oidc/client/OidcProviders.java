@@ -34,7 +34,7 @@ public final class OidcProviders {
 	 * Gets OIDC provider metadata.
 	 * 
 	 * @param config {@link IuOidcProvider} provider configuration
-	 * @return {@link IuOpenIdProviderMetadata}
+	 * @return {@link IuOidcProviderMetadata}
 	 */
 	public static IuOidcProviderMetadata getMetadata(IuOidcProvider config) {
 		final var metadata = config.getMetadata();

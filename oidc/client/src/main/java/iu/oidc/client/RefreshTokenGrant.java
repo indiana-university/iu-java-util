@@ -51,9 +51,8 @@ public class RefreshTokenGrant extends OidcTokenGrant {
 	 * Constructor.
 	 *
 	 * @param config        {@link IuOidcClientReference}
-	 * @param tokenResponse {@link IuTokenResponse} that supplied the refresh token
+	 * @param tokenResponse {@link IuOidcTokenResponse} that supplied the refresh token
 	 * @param notAfter      expiration time
-	 * @param refreshToken  refresh token from the last request
 	 */
 	public RefreshTokenGrant(IuOidcClientReference config, IuOidcTokenResponse tokenResponse, Instant notAfter) {
 		super(config, tokenResponse, notAfter);

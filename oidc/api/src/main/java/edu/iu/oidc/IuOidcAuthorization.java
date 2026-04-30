@@ -28,7 +28,7 @@ public interface IuOidcAuthorization {
 	 * @param attributes request attributes
 	 * @param code       authorization code
 	 * @param state      state parameter value
-	 * @return Verified {@link IuAuthorizationRedirect}
+	 * @return Verified {@link IuStatefulRedirect}
 	 */
 	IuStatefulRedirect authorize(IuRequestAttributes attributes, String code, String state);
 

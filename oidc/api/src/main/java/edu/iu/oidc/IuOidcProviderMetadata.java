@@ -253,7 +253,7 @@ public interface IuOidcProviderMetadata {
 	 * Basic Authentication Scheme specified in Section 2.3.1 of OAuth 2.0
 	 * [RFC6749].
 	 * 
-	 * @return {@link Iterable} of {@link AuthMethod}
+	 * @return {@link Iterable} of supported auth methods
 	 */
 	Iterable<String> getTokenEndpointAuthMethodsSupported();
 

@@ -104,9 +104,8 @@ public abstract class OidcTokenGrant {
 
 	/**
 	 * Creates POST params and passes to
-	 * {@link #tokenAuth(OidcPreAuthSession, java.net.http.HttpRequest.Builder, Map)}.
+	 * {@link #tokenAuth(java.net.http.HttpRequest.Builder, Map)}.
 	 * 
-	 * @param nonce          param value
 	 * @param requestBuilder {@link HttpRequest.Builder}
 	 */
 	final void tokenAuth(HttpRequest.Builder requestBuilder) {
@@ -223,8 +222,9 @@ public abstract class OidcTokenGrant {
 		final var jose = WebCryptoHeader.getProtectedHeader(idToken);
 		final var alg = Objects.requireNonNull(jose.getAlgorithm(), "ID token header missing signature algorithm");
 		final var kid = Objects.requireNonNull(jose.getKeyId(), "ID token header missing issuer key ID");
-		final var issuerKey = IuIterable.select(IuObject.convert(metadata.getJwksUri(), WebKey::readJwks),
-				k -> kid.equals(k.getKeyId()), "issuer key not found using kid " + kid);
+
+		final var issuerKey = IuIterable.select(WebKey.readJwks(metadata.getJwksUri()), k -> kid.equals(k.getKeyId()),
+				"issuer key not found using kid " + kid);
 
 		final var verifiedIdToken = WebToken.verify(idToken, issuerKey);
 		verifiedIdToken.validateClaims(metadata.getIssuer(), URI.create(clientId), oidcClient.getTokenTtl());

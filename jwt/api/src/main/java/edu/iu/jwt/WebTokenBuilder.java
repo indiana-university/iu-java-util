@@ -119,8 +119,9 @@ public interface WebTokenBuilder {
 
 	/**
 	 * Adds an authorization details entry.
-	 * 
-	 * @param authorizationDetails authorizaiton details
+	 *
+	 * @param <T>                  authorization details type
+	 * @param authorizationDetails authorization details
 	 * @param type                 authorization details interface
 	 * @return this
 	 */

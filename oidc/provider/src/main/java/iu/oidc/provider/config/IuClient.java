@@ -31,8 +31,6 @@
  */
 package iu.oidc.provider.config;
 
-import edu.iu.crypt.WebEncryption.Encryption;
-
 /**
  * Provider view of a client registration.
  */
@@ -44,15 +42,6 @@ public interface IuClient {
 	 * @return Client ID
 	 */
 	String getClientId();
-
-	/**
-	 * Gets the client's preferred encryption algorithm.
-	 * 
-	 * @return {@link Encryption}; default is A256GCM
-	 */
-	default Encryption getEnc() {
-		return Encryption.A256GCM;
-	}
 
 	/**
 	 * Gets credentials issued to this client.
