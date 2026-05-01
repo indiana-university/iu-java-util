@@ -41,7 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -57,11 +59,12 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.config.IuConfig;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Type;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
@@ -69,8 +72,7 @@ import jakarta.json.JsonObject;
 @SuppressWarnings("javadoc")
 public class JwtTest {
 
-	interface Details {
-		String getType();
+	interface Details extends IuAuthorizationDetails {
 	}
 
 	static {
@@ -80,6 +82,16 @@ public class JwtTest {
 	@BeforeEach
 	void setup() {
 		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
+	}
+
+	@Test
+	public void testAdaptNonClass() {
+		final var type = mock(Type.class);
+		final var adapter = mock(IuJsonAdapter.class);
+		try (final var mockConfig = mockStatic(IuConfig.class)) {
+			mockConfig.when(() -> IuConfig.adaptJson(type)).thenReturn(adapter);
+			assertEquals(adapter, Jwt.adapt(type));
+		}
 	}
 
 	@Test
@@ -268,15 +280,16 @@ public class JwtTest {
 				.add("exp", expires.getEpochSecond()) //
 				.add("nonce", nonce).build());
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
-		final var audienceKey = WebKey.builder(Type.X25519).ephemeral(Algorithm.ECDH_ES).build();
+		final var audienceKey = WebKey.builder(WebKey.Type.X25519).ephemeral(Algorithm.ECDH_ES).build();
 		final var signed = jwt.signAndEncrypt("JWT", Algorithm.ES256, issuerKey, Algorithm.ECDH_ES, Encryption.A128GCM,
 				audienceKey);
 
 		IuTestLogger.allow("iu.crypt", Level.FINE);
 		assertEquals(jwt, Jwt.decryptAndVerify(signed, issuerKey, audienceKey));
 
-		final var decryptError = assertThrows(IllegalStateException.class, () -> Jwt.decryptAndVerify(signed,
-				WebKey.ephemeral(Algorithm.ES256), WebKey.builder(Type.X25519).ephemeral(Algorithm.ECDH_ES).build()));
+		final var decryptError = assertThrows(IllegalStateException.class,
+				() -> Jwt.decryptAndVerify(signed, WebKey.ephemeral(Algorithm.ES256),
+						WebKey.builder(WebKey.Type.X25519).ephemeral(Algorithm.ECDH_ES).build()));
 		assertInstanceOf(AEADBadTagException.class, decryptError.getCause());
 
 		final var error = assertThrows(IllegalArgumentException.class,

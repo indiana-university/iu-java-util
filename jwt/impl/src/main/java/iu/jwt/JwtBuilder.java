@@ -36,9 +36,12 @@ import java.net.URI;
 import java.time.Instant;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonBuilder;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
+import jakarta.json.JsonArrayBuilder;
 
 /**
  * Mutable builder implementation for programmatically constructing new
@@ -54,6 +57,7 @@ import edu.iu.jwt.WebTokenBuilder;
 public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implements WebTokenBuilder {
 
 	private boolean setIssuedAt;
+	private JsonArrayBuilder authorizationDetails;
 
 	/**
 	 * Default constructor
@@ -113,6 +117,15 @@ public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implem
 		return claim("nonce", nonce, String.class);
 	}
 
+	@SuppressWarnings("unchecked")
+	@Override
+	public <T extends IuAuthorizationDetails> B authorizationDetails(T authorizationDetails, Class<T> type) {
+		if (this.authorizationDetails == null)
+			this.authorizationDetails = IuJson.array();
+		this.authorizationDetails.add(Jwt.adapt(type).toJson(authorizationDetails));
+		return (B) this;
+	}
+
 	@Override
 	public B claim(String name, Object value, Type type) {
 		return param(name, value, Jwt.adapt(type));
@@ -129,6 +142,8 @@ public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implem
 	protected void prepare() {
 		if (setIssuedAt)
 			claim("iat", Instant.now(), Instant.class);
+		if (authorizationDetails != null)
+			param("authorization_details", authorizationDetails.build());
 	}
 
 	@Override

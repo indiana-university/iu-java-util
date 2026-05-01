@@ -165,15 +165,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<plugins>
 				<plugin>
 					<artifactId>maven-resources-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.5.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>3.2.2</version>
+					<version>3.5.5</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-failsafe-plugin</artifactId>
-					<version>3.2.2</version>
+					<version>3.5.5</version>
 					<executions>
 						<execution>
 							<goals>
@@ -185,15 +185,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-assembly-plugin</artifactId>
-					<version>3.6.0</version>
+					<version>3.8.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.4.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-jar-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.4.2</version>
 					<configuration>
 						<archive>
 							<manifestEntries>
@@ -204,22 +204,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-war-plugin</artifactId>
-					<version>3.3.2</version>
+					<version>3.5.1</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-dependency-plugin</artifactId>
-					<version>3.6.0</version>
+					<version>3.10.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-compiler-plugin</artifactId>
-					<version>3.11.0</version>
+					<version>3.15.0</version>
 					<configuration>
 						<release>17</release>
 					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-source-plugin</artifactId>
-					<version>3.2.1</version>
+					<version>3.4.0</version>
 					<executions>
 						<execution>
 							<id>default-source-jar</id>
@@ -232,7 +232,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-javadoc-plugin</artifactId>
-					<version>3.5.0</version>
+					<version>3.12.0</version>
 					<configuration>
 						<windowtitle>${project.name} ${project.version}</windowtitle>
 						<doctitle>${project.name}</doctitle>
@@ -311,19 +311,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-install-plugin</artifactId>
-					<version>3.1.0</version>
+					<version>3.1.4</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-plugin-plugin</artifactId>
-					<version>3.8.1</version>
+					<version>3.15.2</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-clean-plugin</artifactId>
-					<version>3.1.0</version>
+					<version>3.5.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-deploy-plugin</artifactId>
-					<version>3.1.0</version>
+					<version>3.1.4</version>
 				</plugin>
 				<plugin>
 					<groupId>org.jacoco</groupId>
@@ -479,11 +479,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>client</module>
 				<module>test</module>
 				<module>crypt</module>
+				<module>config</module>
 				<module>jwt</module>
 				<module>pki</module>
 				<module>session</module>
 				<module>saml</module>
-				<module>config</module>
+				<module>oidc</module>
 				<module>jdbc</module>
 				<module>type</module>
 				<module>logging</module>
