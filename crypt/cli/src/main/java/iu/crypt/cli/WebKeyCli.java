@@ -4,7 +4,6 @@ import java.io.PrintStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivateKey;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPublicKey;
@@ -30,7 +29,6 @@ import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.X500Utils;
 import edu.iu.crypt.X509CertificateAuthority;
 import iu.crypt.CryptJsonAdapters;
@@ -184,7 +182,7 @@ public class WebKeyCli {
 	 * @param out stream to print on
 	 * @param jwk key to print
 	 */
-	static void print(PrintStream out, WebKey jwk) {
+	public static void print(PrintStream out, WebKey jwk) {
 		final var kid = jwk.getKeyId();
 		final var type = jwk.getType();
 		final var alg = jwk.getAlgorithm();
@@ -290,7 +288,7 @@ public class WebKeyCli {
 	 * @param arg arguments
 	 * @return generated key
 	 */
-	static WebKey create(String[] arg) {
+	public static WebKey create(String[] arg) {
 		var i = 1;
 
 		if (arg.length < 2)
@@ -348,57 +346,20 @@ public class WebKeyCli {
 	}
 
 	/**
-	 * Prints a {@link PrivateKey} in PEM format.
+	 * Exports a PEM-encpded key and certificate data.
 	 * 
-	 * @param out {@link PrintStream}
-	 * @param key {@link PrivateKey}
-	 * @see #pem(PrintStream, String, byte[])
+	 * @param out stream to print the certificate chain on
+	 * @param jwk key to output as PEM-encoded
 	 */
-	static void pem(PrintStream out, PrivateKey key) {
-		pem(out, "PRIVATE KEY", key.getEncoded());
-	}
+	static void export(PrintStream out, WebKey jwk) {
+		final var privateKey = jwk.getPrivateKey();
+		if (privateKey != null)
+			PemEncoded.print(out, privateKey);
 
-	/**
-	 * Prints a {@link X509Certificate} in PEM format.
-	 * 
-	 * @param out         {@link PrintStream}
-	 * @param certificate {@link X509Certificate}
-	 * @see #pem(PrintStream, String, byte[])
-	 */
-	static void pem(PrintStream out, X509Certificate certificate) {
-		pem(out, "CERTIFICATE", IuException.unchecked(certificate::getEncoded));
-	}
-
-	/**
-	 * Prints a {@link X509CRL} in PEM format.
-	 * 
-	 * @param out {@link PrintStream}
-	 * @param crl {@link X509CRL}
-	 * @see #pem(PrintStream, String, byte[])
-	 */
-	static void pem(PrintStream out, X509CRL crl) {
-		pem(out, "X509 CRL", IuException.unchecked(crl::getEncoded));
-	}
-
-	/**
-	 * Prints encoded key data in PEM format, for interoperability with OpenSSL.
-	 * 
-	 * @param out     {@link PrintStream}, receives PEM data then flushes.
-	 * @param header  PEM header string
-	 * @param encoded encoded key data
-	 */
-	private static void pem(PrintStream out, String header, byte[] encoded) {
-		out.println("-----BEGIN " + header + "-----");
-		final var sb = new StringBuilder(IuText.base64(encoded));
-		for (var pos = 0; pos < sb.length() - 1; pos += 65) {
-			final var e = pos + 65;
-			if (e < sb.length())
-				out.println(sb.substring(pos, e));
-			else
-				out.println(sb.substring(pos));
-		}
-		out.println("-----END " + header + "-----");
-		out.flush();
+		final var certChain = jwk.getCertificateChain();
+		if (certChain != null)
+			for (final var cert : certChain)
+				PemEncoded.print(out, cert);
 	}
 
 	/**
@@ -413,7 +374,7 @@ public class WebKeyCli {
 		var found = false;
 		for (final var cert : ca.getCertificates())
 			if (cert.getSerialNumber().equals(serial)) {
-				pem(out, cert);
+				PemEncoded.print(out, cert);
 				found = true;
 				break;
 			}
@@ -422,7 +383,7 @@ public class WebKeyCli {
 			throw new IllegalArgumentException("Invalid serial number");
 
 		for (final var cert : ca.getJwk().getCertificateChain())
-			pem(out, cert);
+			PemEncoded.print(out, cert);
 	}
 
 	/**
@@ -454,91 +415,12 @@ public class WebKeyCli {
 	}
 
 	/**
-	 * Gets parameters for the X509 keyUsage PKI extension.
-	 * 
-	 * @param jwk key to inspect
-	 * @return keyUsage parameters
-	 */
-	@SuppressWarnings("deprecation")
-	static String keyUsage(WebKey jwk) {
-		final var alg = jwk.getAlgorithm();
-		if (alg != null)
-			switch (alg) {
-			case ECDH_ES:
-			case ECDH_ES_A128KW:
-			case ECDH_ES_A192KW:
-			case ECDH_ES_A256KW:
-				return "keyAgreement";
-
-			case EDDSA:
-			case ES256:
-			case ES384:
-			case ES512:
-			case PS256:
-			case PS384:
-			case PS512:
-			case RS256:
-			case RS384:
-			case RS512:
-				return "digitalSignature";
-
-			case RSA1_5:
-			case RSA_OAEP:
-			case RSA_OAEP_256:
-				return "keyEncipherment";
-
-			default:
-				throw new IllegalArgumentException("Invalid key algorithm for PKI " + alg);
-			}
-
-		final var keyType = jwk.getType();
-		final var use = jwk.getUse();
-		switch (keyType) {
-		case EC_P256:
-		case EC_P384:
-		case EC_P521:
-			if (Use.SIGN.equals(use))
-				return "digitalSignature";
-			else if (Use.ENCRYPT.equals(use))
-				return "keyAgreement";
-			else
-				return "digitalSignature,keyAgreement";
-
-		case RSASSA_PSS:
-		case ED25519:
-		case ED448:
-			if (Use.ENCRYPT.equals(use))
-				throw new IllegalArgumentException("Invalid key use for " + keyType);
-			else
-				return "digitalSignature";
-
-		case X25519:
-		case X448:
-			if (Use.SIGN.equals(use))
-				throw new IllegalArgumentException("Invalid key use for " + keyType);
-			else
-				return "keyAgreement";
-
-		case RSA:
-			if (Use.SIGN.equals(use))
-				return "digitalSignature";
-			else if (Use.ENCRYPT.equals(use))
-				return "keyEncipherment";
-			else
-				return "digitalSignature,keyEncipherment";
-
-		default:
-			throw new IllegalArgumentException("Invalid key type for PKI " + keyType);
-		}
-	}
-
-	/**
 	 * Reads the X509 subject organization from environment IU_CRYPT_CLI_PKI_ORG or
 	 * System property iu.crypt.cli.pki.org.
 	 * 
 	 * @return X509 subject organization
 	 */
-	static String subjectOrg() {
+	public static String subjectOrg() {
 		final var subjectOrg = IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.org");
 		if (subjectOrg == null)
 			return "";
@@ -554,7 +436,7 @@ public class WebKeyCli {
 	 * @return Environment variable IU_CRYPT_CLI_PKI_DAYS, system property
 	 *         iu.crypt.cli.pki.days, or default of 120.
 	 */
-	static int days() {
+	public static int days() {
 		return Integer.parseInt(Objects.requireNonNullElse( //
 				IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.days"), //
 				"120"));
@@ -566,7 +448,7 @@ public class WebKeyCli {
 	 * @return Environment variable IU_CRYPT_CLI_PKI_CA_DAYS, system property
 	 *         iu.crypt.cli.pki.ca.days, or default of 830.
 	 */
-	static int caDays() {
+	public static int caDays() {
 		return Integer.parseInt(Objects.requireNonNullElse( //
 				IuRuntimeEnvironment.envOptional("iu.crypt.cli.pki.ca.days"), //
 				"830"));
@@ -578,15 +460,15 @@ public class WebKeyCli {
 	 * @param jwk JWK
 	 * @return updated JWK
 	 */
-	static WebKey self(WebKey jwk) {
+	public static WebKey self(WebKey jwk) {
 		final var keyType = jwk.getType();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, privateKey);
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
 		final var pemCert = IuProcess.exec( //
 				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", Integer.toString(days()), //
 				"-subj", subjectOrg() + "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
 				"-addext", "basicConstraints=CA:false", //
-				"-addext", "keyUsage=" + keyUsage(jwk) //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
 		);
 
 		IuProcess.deleteTempFiles();
@@ -609,7 +491,7 @@ public class WebKeyCli {
 	 */
 	static X509CertificateAuthority ca(WebKey pwk) {
 		final var commonName = pwk.getKeyId();
-		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, pwk.getPrivateKey());
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, pwk.getPrivateKey());
 		final var pemCert = IuProcess.exec( //
 				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", Integer.toString(caDays()), //
 				"-subj", subjectOrg() + "/CN=" + commonName.replaceAll("([+=/])", "\\\\$1"), //
@@ -662,7 +544,7 @@ public class WebKeyCli {
 	}
 
 	private static Path caConfig(Path privateKeyFile, Path databaseFile, Path newCertsDir, WebKey jwk) {
-		final var certificateFile = IuProcess.temp(WebKeyCli::pem, jwk.getCertificateChain()[0]);
+		final var certificateFile = IuProcess.temp(PemEncoded::print, jwk.getCertificateChain()[0]);
 		var caConfigContents = """
 				[ ca ]
 				default_ca = a
@@ -700,12 +582,12 @@ public class WebKeyCli {
 	 * @param jwk key to generate a CSR for
 	 */
 	static void req(PrintStream out, WebKey jwk) {
-		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, jwk.getPrivateKey());
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, jwk.getPrivateKey());
 		final var csr = IuProcess.exec( //
 				"openssl", "req", "-new", "-key", privateKeyFile.toString(), //
 				"-subj", subjectOrg() + "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
 				"-addext", "basicConstraints=CA:false", //
-				"-addext", "keyUsage=" + keyUsage(jwk) //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
 		);
 
 		IuProcess.deleteTempFiles();
@@ -724,7 +606,7 @@ public class WebKeyCli {
 	static X509CertificateAuthority sign(X509CertificateAuthority ca, Path csrFile) {
 		final var jwk = ca.getJwk();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, privateKey);
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
 		final var databaseFile = IuProcess.createTempFile();
 		IuException.unchecked(() -> Files.write(databaseFile, ca.getDatabase()));
 		final var newCertsDir = IuProcess.createTempDirectory();
@@ -808,13 +690,13 @@ public class WebKeyCli {
 		IuException.unchecked(() -> {
 			try (final var out = Files.newOutputStream(certFileToRevoke); //
 					final var ps = new PrintStream(out)) {
-				pem(ps, certToRevoke);
+				PemEncoded.print(ps, certToRevoke);
 			}
 		});
 
 		final var jwk = ca.getJwk();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(WebKeyCli::pem, privateKey);
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
 
 		final var databaseFile = IuProcess.createTempFile();
 		IuException.unchecked(() -> Files.write(databaseFile, //
@@ -895,7 +777,10 @@ public class WebKeyCli {
 				if (cmd.equals("ca")) {
 					ca = ca(inputKey);
 				} else if (cmd.equals("export")) {
-					export(System.out, inputCa, parseSerial(arg[1]));
+					if (inputKey != null)
+						export(System.out, inputKey);
+					else
+						export(System.out, inputCa, parseSerial(arg[1]));
 					return;
 				} else if (cmd.equals("print")) {
 					if (inputKey != null)
@@ -957,7 +842,9 @@ public class WebKeyCli {
 					.write(json);
 			System.out.println();
 
-		} catch (RuntimeException | Error e) {
+		} catch (RuntimeException |
+
+				Error e) {
 			System.err.print(USAGE);
 			throw e;
 		}

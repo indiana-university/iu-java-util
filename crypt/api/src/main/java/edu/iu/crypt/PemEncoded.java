@@ -33,6 +33,7 @@ package edu.iu.crypt;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.net.URI;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -276,6 +277,60 @@ public final class PemEncoded {
 	public static X509CRL asCRL(byte[] encoded) {
 		return IuException.unchecked(
 				() -> (X509CRL) CertificateFactory.getInstance("X.509").generateCRL(new ByteArrayInputStream(encoded)));
+	}
+
+	/**
+	 * Prints a {@link PrivateKey} in PEM format.
+	 * 
+	 * @param out {@link PrintStream}
+	 * @param key {@link PrivateKey}
+	 * @see #print(PrintStream, String, byte[])
+	 */
+	public static void print(PrintStream out, PrivateKey key) {
+		print(out, "PRIVATE KEY", key.getEncoded());
+	}
+
+	/**
+	 * Prints a {@link X509Certificate} in PEM format.
+	 * 
+	 * @param out         {@link PrintStream}
+	 * @param certificate {@link X509Certificate}
+	 * @see #print(PrintStream, String, byte[])
+	 */
+	public static void print(PrintStream out, X509Certificate certificate) {
+		print(out, "CERTIFICATE", IuException.unchecked(certificate::getEncoded));
+	}
+
+	/**
+	 * Prints a {@link X509CRL} in PEM format.
+	 * 
+	 * @param out {@link PrintStream}
+	 * @param crl {@link X509CRL}
+	 * @see #print(PrintStream, String, byte[])
+	 */
+	public static void print(PrintStream out, X509CRL crl) {
+		print(out, "X509 CRL", IuException.unchecked(crl::getEncoded));
+	}
+
+	/**
+	 * Prints encoded key data in PEM format, for interoperability with OpenSSL.
+	 * 
+	 * @param out     {@link PrintStream}, receives PEM data then flushes.
+	 * @param header  PEM header string
+	 * @param encoded encoded key data
+	 */
+	private static void print(PrintStream out, String header, byte[] encoded) {
+		out.println("-----BEGIN " + header + "-----");
+		final var sb = new StringBuilder(IuText.base64(encoded));
+		for (var pos = 0; pos < sb.length(); pos += 64) {
+			final var e = pos + 64;
+			if (e < sb.length())
+				out.println(sb.substring(pos, e));
+			else
+				out.println(sb.substring(pos));
+		}
+		out.println("-----END " + header + "-----");
+		out.flush();
 	}
 
 	private final KeyType keyType;

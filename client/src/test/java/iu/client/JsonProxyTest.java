@@ -70,10 +70,10 @@ public class JsonProxyTest {
 		default String getBar() {
 			return "baz";
 		}
-
-		default String addToBar(String s) {
-			return s + getBar();
-		}
+		
+		boolean equals(String foo);
+		
+		boolean equals(String foo, String bar);
 	}
 
 	interface JsonBackedInterfaceReference {
@@ -120,18 +120,28 @@ public class JsonProxyTest {
 	}
 
 	@Test
+	public void testEquals() {
+		final var data = IuJson.wrap(IuJson.object().build(), JsonBackedInterface.class);
+		assertNull(data.getFoo());
+		assertNull(data.getFoo());
+		assertThrows(UnsupportedOperationException.class, () -> data.equals("foo"));
+		assertThrows(UnsupportedOperationException.class, () -> data.equals("foo", "bar"));
+	}
+
+	@Test
 	public void testDefault() {
 		final var data = IuJson.wrap(IuJson.object().build(), JsonBackedInterface.class);
 		assertEquals("baz", data.getBar());
-		assertEquals("shabaz", data.addToBar("sha"));
+		assertEquals("baz", data.getBar());
 		final var data2 = IuJson.wrap(IuJson.object().add("bar", "foo").build(), JsonBackedInterface.class);
 		assertEquals("foo", data2.getBar());
-		assertEquals("snafoo", data2.addToBar("sna"));
+		assertEquals("foo", data2.getBar());
 	}
 
 	@Test
 	public void testOpaque() {
 		final var data = IuJson.wrap(IuJson.object().build(), JsonBackedInterface.class);
+		assertNull(data.getOpaque());
 		assertNull(data.getOpaque());
 		final var data2 = IuJson.wrap(IuJson.object().add("opaque", "foo").build(), JsonBackedInterface.class);
 		assertThrows(UnsupportedOperationException.class, data2::getOpaque);
