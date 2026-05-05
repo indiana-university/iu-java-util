@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.oidc.provider","l":"iu.oidc.provider.config"}];updateSearchResults();
