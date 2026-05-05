@@ -1,0 +1,550 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IuType.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IU Type Introspection API</a> &gt; <a href="index.source.html" class="el_package">edu.iu.type</a> &gt; <span class="el_source">IuType.java</span></div><h1>IuType.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package edu.iu.type;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
+import java.util.WeakHashMap;
+
+import edu.iu.IuIterable;
+import edu.iu.type.spi.TypeImplementation;
+
+/**
+ * Facade interface for a generic type.
+ * 
+ * &lt;p&gt;
+ * {@link IuType} is sterotyped as a &lt;strong&gt;hash key&lt;/strong&gt;, so may be used
+ * as the key value with {@link WeakHashMap} to build type-level extensions from
+ * specific generic type scenarios. For example IuType has a 1:1 relationship
+ * with Class, but a separate 1:1 with a Classes referred to via specific
+ * {@link TypeVariable}, {@link ParameterizedType}, {@link GenericArrayType}, or
+ * {@link WildcardType}.
+ * &lt;/p&gt;
+ * 
+ * &lt;p&gt;
+ * The &lt;strong&gt;hash key stereotype&lt;/strong&gt; is implemented by {@link #of(Class)}
+ * and {@link #of(Type)}, and is only implied by implementations provided by
+ * those methods.
+ * &lt;/p&gt;
+ *
+ * &lt;h2&gt;Private Erasure&lt;/h2&gt;
+ * &lt;p&gt;
+ * This interface exposes all declared field and method members from all types
+ * in decorated type's hierarchy in additional to those declared directly on its
+ * type erasure. That includes private members of superclasses. The purpose of
+ * this utility is to find fields and bean properties on well-formed application
+ * classes that may or may not be annotated as container-managed associations.
+ * The container therefore uses {@code IuType} to access privately scoped
+ * members and populate those associations.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * It is the application developer's responsibility to ensure that private
+ * members only shadow same-named private members in a super class when it is
+ * intended for the subclass to use its member instead of any inherited
+ * &lt;strong&gt;shadowed&lt;/strong&gt; member of the same name. For example, when
+ * using @AroundInvoke to define interceptor methods intended to be inherited
+ * from a superclass, use a name reasonably unique to the declaring class. This
+ * scenario mirrors method override behavior, but fields may be shadowed and
+ * continue to exist as separate private fields with the same name but
+ * potentially different type and value.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * Private erasure is relevant for deserialization, remote service discovery,
+ * and method invocation. Other scenarios, i.e., dependency injection,
+ * &lt;em&gt;should&lt;/em&gt; iterate all members unless a specific name is provided.
+ * &lt;/p&gt;
+ * 
+ * @param &lt;D&gt; declaring type, nullable
+ * @param &lt;T&gt; described generic type
+ */
+public interface IuType&lt;D, T&gt; extends IuNamedElement&lt;D&gt;, IuParameterizedElement {
+
+	/**
+	 * Resolves a type introspection facade for a generic type.
+	 * 
+	 * @param type generic type
+	 * @return type introspection facade
+	 */
+	static IuType&lt;?, ?&gt; of(Type type) {
+<span class="fc" id="L103">		return TypeImplementation.PROVIDER.resolveType(type);</span>
+	}
+
+	/**
+	 * Resolves a type introspection facade for a class.
+	 * 
+	 * &lt;p&gt;
+	 * An introspection facade returned by this method &lt;em&gt;must&lt;/em&gt;:
+	 * &lt;/p&gt;
+	 * &lt;ul&gt;
+	 * &lt;li&gt;Be {@link Modifier#FINAL final} and immutable.&lt;/li&gt;
+	 * &lt;li&gt;Have 1:1 parity with {@link Class} instances, such that
+	 * {@code IuType.of(MyClass.class) == IuType.of(MyClass.class)} returns for all
+	 * classes.&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 * 
+	 * &lt;p&gt;
+	 * All use of this method and subsequent type introspection lookups
+	 * &lt;em&gt;must&lt;/em&gt; thread-safe.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;T&gt;      type
+	 * @param rawClass type
+	 * @return type introspection facade
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	static &lt;T&gt; IuType&lt;?, T&gt; of(Class&lt;T&gt; rawClass) {
+<span class="fc" id="L130">		return (IuType&lt;?, T&gt;) of((Type) rawClass);</span>
+	}
+
+	/**
+	 * Gets the reference used to obtain this type.
+	 * 
+	 * @return type reference
+	 */
+	IuTypeReference&lt;T, ?&gt; reference();
+
+	/**
+	 * Gets the generic type.
+	 * 
+	 * @return generic type
+	 */
+	Type deref();
+
+	/**
+	 * Get the type erasure class.
+	 * 
+	 * &lt;p&gt;
+	 * Shorthand for {@link #erase()}.{@link #deref()}
+	 * &lt;/p&gt;
+	 * 
+	 * @return type erasure class
+	 * @see #erase()
+	 * @see &lt;a href=
+	 *      &quot;https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6&quot;&gt;JLS
+	 *      21 Section 4.4: Type Erasure&lt;/a&gt;
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default Class&lt;T&gt; erasedClass() {
+<span class="fc" id="L162">		return (Class&lt;T&gt;) erase().deref();</span>
+	}
+
+	/**
+	 * Returns the &lt;a href=
+	 * &quot;https://docs.oracle.com/javase/tutorial/java/data/autoboxing.html&quot;&gt;autobox&lt;/a&gt;
+	 * equivalent
+	 * 
+	 * @return the object version related to a primitive type, or the class passed
+	 *         in as-is if not primitive
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default Class&lt;T&gt; autoboxClass() {
+<span class="fc" id="L175">		var potentiallyPrimitive = erasedClass();</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">		if (Boolean.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L177">			return (Class&lt;T&gt;) Boolean.class;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">		else if (Character.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L179">			return (Class&lt;T&gt;) Character.class;</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">		else if (Byte.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L181">			return (Class&lt;T&gt;) Byte.class;</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">		else if (Short.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L183">			return (Class&lt;T&gt;) Short.class;</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">		else if (Integer.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L185">			return (Class&lt;T&gt;) Integer.class;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">		else if (Long.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L187">			return (Class&lt;T&gt;) Long.class;</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">		else if (Float.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L189">			return (Class&lt;T&gt;) Float.class;</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">		else if (Double.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L191">			return (Class&lt;T&gt;) Double.class;</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">		else if (Void.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L193">			return (Class&lt;T&gt;) Void.class;</span>
+		else
+<span class="fc" id="L195">			return potentiallyPrimitive;</span>
+	}
+
+	/**
+	 * Returns the default value for an object or primitive type.
+	 * 
+	 * @return The default value that would be assigned to a field of described
+	 *         primitive type if declared without an initializer; null if the
+	 *         described time is not primitive.
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default T autoboxDefault() {
+<span class="fc" id="L207">		var potentiallyPrimitive = erasedClass();</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">		if (Boolean.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L209">			return (T) Boolean.FALSE;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		else if (Character.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L211">			return (T) Character.valueOf('\0');</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">		else if (Byte.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L213">			return (T) Byte.valueOf((byte) 0);</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">		else if (Short.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L215">			return (T) Short.valueOf((short) 0);</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">		else if (Integer.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L217">			return (T) Integer.valueOf(0);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">		else if (Long.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L219">			return (T) Long.valueOf(0L);</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">		else if (Float.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L221">			return (T) Float.valueOf(0.0f);</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">		else if (Double.TYPE.equals(potentiallyPrimitive))</span>
+<span class="fc" id="L223">			return (T) Double.valueOf(0.0);</span>
+		else
+<span class="fc" id="L225">			return null;</span>
+	}
+
+	/**
+	 * Gets the {@link IuReferenceKind#ERASURE erased} facade, which describing the
+	 * {@link Class} representing the &lt;a href=
+	 * &quot;https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6&quot;&gt;erasure&lt;/a&gt;
+	 * of the generic type.
+	 * 
+	 * &lt;p&gt;
+	 * The {@link #deref()} of the erased facade &lt;em&gt;must&lt;/em&gt; return a
+	 * {@link Class}.
+	 * &lt;/p&gt;
+	 * 
+	 * @return erased type facade
+	 * @see &lt;a href=
+	 *      &quot;https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html#jls-4.6&quot;&gt;JLS
+	 *      21 Section 4.4: Type Erasure&lt;/a&gt;
+	 */
+	IuType&lt;D, T&gt; erase();
+
+	/**
+	 * Gets a type-enforced facade for a specific sub-type of the described type.
+	 * 
+	 * @param subclass subclass of the described type
+	 * @param &lt;S&gt;      sub-type
+	 * @return this
+	 * @throws ClassCastException If the type does not erase to a subclass
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default &lt;S&gt; IuType&lt;D, ? extends S&gt; sub(Class&lt;S&gt; subclass) throws ClassCastException {
+<span class="fc" id="L256">		erasedClass().asSubclass(subclass);</span>
+<span class="fc" id="L257">		return (IuType&lt;D, ? extends S&gt;) this;</span>
+	}
+
+	/**
+	 * Iterates the type hierarchy, from most specific to least specific.
+	 * 
+	 * &lt;ol&gt;
+	 * &lt;li&gt;All {@link Class#getGenericInterfaces()}&lt;/li&gt;
+	 * &lt;li&gt;{@link Class#getGenericSuperclass()}&lt;/li&gt;
+	 * &lt;li&gt;Iterate {@link IuType#hierarchy()} until {@link Object} is reached&lt;/li&gt;
+	 * &lt;/ol&gt;
+	 * 
+	 * &lt;p&gt;
+	 * This type described by this facade is not included. {@link Object} is always
+	 * the last element.
+	 * &lt;/p&gt;
+	 * 
+	 * @return inherited and extended types
+	 */
+	Iterable&lt;? extends IuType&lt;?, ? super T&gt;&gt; hierarchy();
+
+	/**
+	 * Refers to a type in the the described type's hierarchy.
+	 * 
+	 * &lt;p&gt;
+	 * When the referent type declares type parameters, the resolved generic types
+	 * associated with those parameters are described by the returned facade.
+	 * &lt;/p&gt;
+	 * 
+	 * @param referentType type to refer to
+	 * @return referent facade
+	 */
+	IuType&lt;?, ? super T&gt; referTo(Type referentType);
+
+	/**
+	 * Gets enclosed types.
+	 * 
+	 * @return enclosed types
+	 */
+	Iterable&lt;? extends IuType&lt;?, ?&gt;&gt; enclosedTypes();
+
+	/**
+	 * Gets all constructors defined by this type.
+	 * 
+	 * @return constructors
+	 */
+	Iterable&lt;? extends IuConstructor&lt;T&gt;&gt; constructors();
+
+	/**
+	 * Gets a constructor defined by this type.
+	 * 
+	 * @param parameterTypes parameter types
+	 * @return constructor
+	 */
+	default IuConstructor&lt;T&gt; constructor(Type... parameterTypes) {
+<span class="fc" id="L312">		var hash = IuExecutableKey.hashCode(null, parameterTypes);</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">		for (var constructor : constructors()) {</span>
+<span class="fc" id="L314">			var constructorKey = constructor.getKey();</span>
+<span class="fc bfc" id="L315" title="All 4 branches covered.">			if (hash == constructorKey.hashCode() &amp;&amp; constructorKey.equals(null, parameterTypes))</span>
+<span class="fc" id="L316">				return constructor;</span>
+<span class="fc" id="L317">		}</span>
+<span class="fc" id="L318">		throw new IllegalArgumentException(this + &quot; missing constructor &quot; + IuExecutableKey.of(null, parameterTypes));</span>
+	}
+
+	/**
+	 * Gets a constructor declared by this type.
+	 * 
+	 * @param parameterTypes parameter types
+	 * @return constructor
+	 */
+	default IuConstructor&lt;T&gt; constructor(Iterable&lt;IuType&lt;?, ?&gt;&gt; parameterTypes) {
+<span class="fc" id="L328">		var hash = IuExecutableKey.hashCode(null, parameterTypes);</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">		for (var constructor : constructors()) {</span>
+<span class="fc" id="L330">			var constructorKey = constructor.getKey();</span>
+<span class="fc bfc" id="L331" title="All 4 branches covered.">			if (hash == constructorKey.hashCode() &amp;&amp; constructorKey.equals(null, parameterTypes))</span>
+<span class="fc" id="L332">				return constructor;</span>
+<span class="fc" id="L333">		}</span>
+<span class="fc" id="L334">		throw new IllegalArgumentException(this + &quot; missing constructor &quot; + IuExecutableKey.of(null, parameterTypes));</span>
+	}
+
+	/**
+	 * Scans constructors for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #constructors()}, filtered by annotation type
+	 */
+	default Iterable&lt;? extends IuConstructor&lt;T&gt;&gt; annotatedConstructors(Class&lt;? extends Annotation&gt; annotationType) {
+<span class="fc" id="L344">		return IuIterable.filter(constructors(), c -&gt; c.hasAnnotation(annotationType));</span>
+	}
+
+	/**
+	 * Gets all fields defined by this type, followed by all fields defined by all
+	 * types in this type's hierarchy, in {@link #hierarchy()} order.
+	 * 
+	 * @return fields declared by this type and its hierarchy, in this followed by
+	 *         {@link #hierarchy()} order
+	 */
+	Iterable&lt;? extends IuField&lt;? super T, ?&gt;&gt; fields();
+
+	/**
+	 * Gets a field declared by this type.
+	 * 
+	 * &lt;p&gt;
+	 * When a private field has the same name as a different field declared by a
+	 * super class, the &quot;inherited&quot; field is shadowed by this method. To retrieve
+	 * all fields, including those shadowed by a superclass, use {@link #fields()}.
+	 * &lt;/p&gt;
+	 * 
+	 * @param &lt;F&gt;  field type
+	 * @param name field name
+	 * @return field
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default &lt;F&gt; IuField&lt;? super T, F&gt; field(String name) {
+<span class="fc bfc" id="L371" title="All 2 branches covered.">		for (var field : fields())</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">			if (name.equals(field.name()))</span>
+<span class="fc" id="L373">				return (IuField&lt;? super T, F&gt;) field;</span>
+<span class="fc" id="L374">		throw new IllegalArgumentException(this + &quot; missing field &quot; + name);</span>
+	}
+
+	/**
+	 * Scans fields for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #fields()}, filtered by annotation type
+	 */
+	default Iterable&lt;? extends IuField&lt;? super T, ?&gt;&gt; annotatedFields(Class&lt;? extends Annotation&gt; annotationType) {
+<span class="fc" id="L384">		return IuIterable.filter(fields(), f -&gt; f.hasAnnotation(annotationType));</span>
+	}
+
+	/**
+	 * Gets all methods defined by this type.
+	 * 
+	 * &lt;p&gt;
+	 * The result {@link Iterable iterates} all methods declared on all classes in
+	 * the type erasure's hierarchy with private erasure for duplicately defined
+	 * methods.
+	 * &lt;/p&gt;
+	 * 
+	 * @return methods
+	 */
+	Iterable&lt;? extends IuMethod&lt;? super T, ?&gt;&gt; methods();
+
+	/**
+	 * Gets a method defined by this type.
+	 * 
+	 * @param &lt;R&gt;            return type
+	 * @param name           method name
+	 * @param parameterTypes parameter types
+	 * @return method
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default &lt;R&gt; IuMethod&lt;? super T, R&gt; method(String name, Type... parameterTypes) {
+<span class="fc" id="L410">		final var hash = IuExecutableKey.hashCode(name, parameterTypes);</span>
+<span class="fc" id="L411">		final var methods = methods();</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">		for (var method : methods) {</span>
+<span class="fc" id="L413">			var methodKey = method.getKey();</span>
+<span class="fc bfc" id="L414" title="All 4 branches covered.">			if (hash == methodKey.hashCode() &amp;&amp; methodKey.equals(name, parameterTypes))</span>
+<span class="fc" id="L415">				return (IuMethod&lt;? super T, R&gt;) method;</span>
+<span class="fc" id="L416">		}</span>
+<span class="fc" id="L417">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L418">				this + &quot; missing method &quot; + IuExecutableKey.of(name, parameterTypes) + &quot;; &quot; + methods);</span>
+	}
+
+	/**
+	 * Gets a method declared by this type.
+	 * 
+	 * @param &lt;R&gt;            return type
+	 * @param name           method name
+	 * @param parameterTypes parameter types
+	 * @return method
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default &lt;R&gt; IuMethod&lt;? super T, R&gt; method(String name, Iterable&lt;IuType&lt;?, ?&gt;&gt; parameterTypes) {
+<span class="fc" id="L431">		final var hash = IuExecutableKey.hashCode(name, parameterTypes);</span>
+<span class="fc" id="L432">		final var methods = methods();</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">		for (var method : methods) {</span>
+<span class="fc" id="L434">			var methodKey = method.getKey();</span>
+<span class="fc bfc" id="L435" title="All 4 branches covered.">			if (hash == methodKey.hashCode() &amp;&amp; methodKey.equals(name, parameterTypes))</span>
+<span class="fc" id="L436">				return (IuMethod&lt;? super T, R&gt;) method;</span>
+<span class="fc" id="L437">		}</span>
+<span class="fc" id="L438">		throw new IllegalArgumentException(</span>
+<span class="fc" id="L439">				this + &quot; missing method &quot; + IuExecutableKey.of(name, parameterTypes) + &quot;; &quot; + methods);</span>
+	}
+
+	/**
+	 * Scans methods for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #methods()}, filtered by annotation type
+	 */
+	default Iterable&lt;? extends IuMethod&lt;? super T, ?&gt;&gt; annotatedMethods(Class&lt;? extends Annotation&gt; annotationType) {
+<span class="fc" id="L449">		return IuIterable.filter(methods(), f -&gt; f.hasAnnotation(annotationType));</span>
+	}
+
+	/**
+	 * Gets all properties defined by this type, followed by all properties defined
+	 * by all types in this type's hierarchy, in {@link #hierarchy()} order.
+	 * 
+	 * @return properties declared by this type and its hierarchy, in this followed
+	 *         by {@link #hierarchy()} order
+	 */
+	Iterable&lt;? extends IuProperty&lt;? super T, ?&gt;&gt; properties();
+
+	/**
+	 * Gets a property declared by this type.
+	 * 
+	 * @param &lt;P&gt;  property type
+	 * @param name property name
+	 * @return property
+	 */
+	@SuppressWarnings(&quot;unchecked&quot;)
+	default &lt;P&gt; IuProperty&lt;? super T, P&gt; property(String name) {
+<span class="fc bfc" id="L470" title="All 2 branches covered.">		for (var property : properties())</span>
+<span class="fc bfc" id="L471" title="All 2 branches covered.">			if (name.equals(property.name()))</span>
+<span class="fc" id="L472">				return (IuProperty&lt;? super T, P&gt;) property;</span>
+<span class="fc" id="L473">		throw new IllegalArgumentException(this + &quot; missing property &quot; + name);</span>
+	}
+
+	/**
+	 * Scans properties for those annotated with a specific annotation type.
+	 * 
+	 * @param annotationType annotation type to filter by
+	 * @return {@link #properties()}, filtered by annotation type
+	 */
+	default Iterable&lt;? extends IuProperty&lt;? super T, ?&gt;&gt; annotatedProperties(
+			Class&lt;? extends Annotation&gt; annotationType) {
+<span class="fc" id="L484">		return IuIterable.filter(properties(), f -&gt; f.hasAnnotation(annotationType));</span>
+	}
+
+	/**
+	 * Observes a new instance.
+	 * 
+	 * &lt;p&gt;
+	 * Observing an instance registers it with the implementation module as an
+	 * available target for type introspection, for example, for resource binding.
+	 * Implementors of {@link InstanceReference} may use
+	 * {@link #subscribe(InstanceReference)} to be notified when new instances are
+	 * observed.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Once all {@link InstanceReference}s have been notified, all methods annotated
+	 * by {@literal @}PostConstruct will be invoked on the instance.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Observing an instance that is already observed has no effect, nor does
+	 * observing an instance of a type that has no subscribers. All instances
+	 * provided via {@link IuConstructor#exec(Object...)} are observed
+	 * automatically. This method is a no-op for those instances, however it is up
+	 * to implementors to ensure {@literal @}PostConstruct methods do not result in
+	 * errors or repeat initialization steps when invoked repeatedly.
+	 * &lt;/p&gt;
+	 * 
+	 * @param instance to observe
+	 */
+	void observe(T instance);
+
+	/**
+	 * Destroys an instance.
+	 * 
+	 * &lt;p&gt;
+	 * Invokes all {@literal @}PreDestroy methods on an instance. If the instance
+	 * was {@link #observe(Object) observed}, its state will be reverted and no
+	 * futures actions will be taken on it.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * This method may be invoked to close the lifecycle of instances created via
+	 * {@link IuConstructor#exec(Object...)}.
+	 * &lt;/p&gt;
+	 * 
+	 * &lt;p&gt;
+	 * Destroying an instance that is already destroyed &lt;em&gt;should&lt;/em&gt; have no
+	 * effect, but it is up to implementors to ensure {@literal @}PreDestroy methods
+	 * do not result in errors or other side-effects when invoked repeatedly.
+	 * &lt;/p&gt;
+	 * 
+	 * @param instance to destroy
+	 */
+	void destroy(T instance);
+
+	/**
+	 * Subscribes a new instance reference.
+	 * 
+	 * @param instanceReference will accept all {@link #observe(Object) observed}
+	 *                          instances until unsubscribed.
+	 * @return thunk for unsubscribing the reference
+	 */
+	Runnable subscribe(InstanceReference&lt;T&gt; instanceReference);
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>OidcAuthorizationGrant.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">IU Java Utilities API Reference</a> &gt; <a href="../index.html" class="el_bundle">iu-java-auth-config</a> &gt; <a href="index.source.html" class="el_package">iu.auth.config</a> &gt; <span class="el_source">OidcAuthorizationGrant.java</span></div><h1>OidcAuthorizationGrant.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.auth.config;
+
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+import edu.iu.IuWebUtils;
+import edu.iu.auth.oauth.OAuthAuthorizationClient;
+import edu.iu.crypt.WebToken;
+
+/**
+ * Authenticates to an OAuth 2.0 Token endpoint, verifies and holds a JWT access
+ * token until expired.
+ */
+public class OidcAuthorizationGrant extends OAuthAccessTokenGrant {
+
+	/**
+	 * Constructor.
+	 * 
+	 * @param credentialSupplier Supplies client credentials
+	 */
+	public OidcAuthorizationGrant(Supplier&lt;OAuthAuthorizationClient&gt; credentialSupplier) {
+<span class="fc" id="L57">		super(credentialSupplier);</span>
+<span class="fc" id="L58">	}</span>
+
+	@Override
+	protected void verifyToken(WebToken jwt) {
+		// validity of non-null nbf and exp are handled by super -&gt; WebToken.verify
+<span class="fc" id="L63">		Objects.requireNonNull(jwt.getNotBefore(), &quot;nbf&quot;);</span>
+<span class="fc" id="L64">		Objects.requireNonNull(jwt.getExpires(), &quot;exp&quot;);</span>
+<span class="fc" id="L65">	}</span>
+
+	@Override
+	protected OAuthAuthorizationClient getClient() {
+<span class="fc" id="L69">		return (OAuthAuthorizationClient) super.getClient();</span>
+	}
+
+	@Override
+	protected void tokenAuth(HttpRequest.Builder requestBuilder) {
+<span class="fc" id="L74">		final var client = getClient();</span>
+<span class="fc" id="L75">		requestBuilder.header(&quot;Content-Type&quot;, &quot;application/x-www-form-urlencoded&quot;);</span>
+//		requestBuilder.header(&quot;Authorization&quot;, &quot;Basic &quot; + IuText
+//				.base64(IuText.utf8(client.getClientId() + &quot;:&quot; + client.getClientSecret())));
+<span class="fc" id="L78">		requestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(Map.of( //</span>
+<span class="fc" id="L79">				&quot;grant_type&quot;, List.of(&quot;authorization_code&quot;), //</span>
+<span class="fc" id="L80">				&quot;redirect_uri&quot;, List.of(client.getRedirectUri().toString())</span>
+		// , //
+//				&quot;code&quot;, List.of(code) //
+		))));
+<span class="fc" id="L84">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
