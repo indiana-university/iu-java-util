@@ -737,7 +737,6 @@ public class IuTransactionTest {
 		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
-	@Disabled
 	@Test
 	public void testHeuristicTimeout() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");

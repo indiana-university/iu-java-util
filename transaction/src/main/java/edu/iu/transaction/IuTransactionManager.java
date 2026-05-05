@@ -58,7 +58,8 @@ public final class IuTransactionManager
 
 	/**
 	 * Visits {@link IuTransaction} managed by this instance.
-	 * 
+	 *
+	 * @param <V> optional return type
 	 * @param transactionVisitor {@link IuVisitor#visit(Function) visitor function}
 	 * @return {@link IuVisitor#visit(Function) visitor result}
 	 */
