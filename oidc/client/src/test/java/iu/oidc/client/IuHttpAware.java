@@ -14,7 +14,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuException;
 import edu.iu.client.IuHttp;
 
-@SuppressWarnings({ "javadoc" })
+@SuppressWarnings({ "javadoc", "exports" })
 public class IuHttpAware implements BeforeEachCallback, AfterEachCallback {
 
 	static URI TEST_URI = URI.create("test://" + IdGenerator.generateId());
