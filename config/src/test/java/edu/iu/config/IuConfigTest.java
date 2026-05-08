@@ -217,10 +217,12 @@ public class IuConfigTest {
 
 		final var signedKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).key(privateKey).pem(pemCert).build();
 		final var keyAdapter = IuConfig.adaptJson(WebKey.class);
+		assertNull(keyAdapter.fromJson(keyAdapter.toJson(null)));
 		assertEquals(signedKey, keyAdapter.fromJson(keyAdapter.toJson(signedKey)));
 
 		final var cert = signedKey.getCertificateChain()[0];
 		final var certAdapter = IuConfig.adaptJson(X509Certificate.class);
+		assertNull(certAdapter.fromJson(certAdapter.toJson(null)));
 		assertEquals(cert, certAdapter.fromJson(certAdapter.toJson(cert)));
 
 		final var databaseFile = IuProcess.temp(PrintStream::print, "");
@@ -252,6 +254,7 @@ public class IuConfigTest {
 				"openssl", "ca", "-gencrl", "-config", caConfig.toString(), "-crldays", "1" //
 		)).next().asCRL();
 		final var crlAdapter = IuConfig.adaptJson(X509CRL.class);
+		assertNull(crlAdapter.fromJson(crlAdapter.toJson(null)));
 		assertEquals(crl, crlAdapter.fromJson(crlAdapter.toJson(crl)));
 
 		IuProcess.deleteTempFiles();
