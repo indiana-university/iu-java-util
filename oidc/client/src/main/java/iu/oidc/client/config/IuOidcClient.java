@@ -1,5 +1,6 @@
 package iu.oidc.client.config;
 
+import java.net.URI;
 import java.time.Duration;
 
 import edu.iu.crypt.WebKey;
@@ -8,6 +9,13 @@ import edu.iu.crypt.WebKey;
  * Client view of an OIDC registration.
  */
 public interface IuOidcClient {
+	
+	/**
+	 * Gets the resource URI.
+	 * 
+	 * @return resource URI
+	 */
+	URI getResourceUri();
 
 	/**
 	 * Gets the client ID.
@@ -22,6 +30,20 @@ public interface IuOidcClient {
 	 * @return client secret
 	 */
 	String getClientSecret();
+
+	/**
+	 * Gets the resource owner username.
+	 * 
+	 * @return resource owner username
+	 */
+	String getUsername();
+
+	/**
+	 * Gets the resource owner password.
+	 * 
+	 * @return resource owner password
+	 */
+	String getPassword();
 
 	/**
 	 * Determines if client secret should sent via the Authorization Basic header.
