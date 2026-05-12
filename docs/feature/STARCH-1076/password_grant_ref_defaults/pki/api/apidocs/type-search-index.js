@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"edu.iu.pki","l":"IuCertificateAuthority","k":"10"},{"p":"edu.iu.pki","l":"IuPkiPrincipal","k":"10"},{"p":"edu.iu.pki","l":"IuPkiVerifier","k":"10"},{"p":"edu.iu.pki","l":"KeyUsage"}];updateSearchResults();
