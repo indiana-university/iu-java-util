@@ -4,6 +4,7 @@ import java.lang.reflect.Type;
 import java.net.URI;
 
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.session.IuSessionHandler;
 
 /**
@@ -36,28 +37,36 @@ public interface IuOidcClientReference {
 	 * 
 	 * @return resource URI
 	 */
-	URI getResourceUri();
+	default URI getResourceUri() {
+		return getClient().getResourceUri();
+	}
 
 	/**
 	 * Gets the redirect URI for handling authorization code return requests.
 	 * 
 	 * @return redirect URI
 	 */
-	URI getRedirectUri();
+	default URI getRedirectUri() {
+		return null;
+	}
 
 	/**
 	 * Gets the scope parameter value to send to the token endpoint.
 	 * 
 	 * @return redirect URI
 	 */
-	String getScope();
+	default String getScope() {
+		return null;
+	}
 
 	/**
 	 * Gets root resource URIs for downstream APIs.
 	 * 
 	 * @return resource URIs
 	 */
-	Iterable<URI> getApiResources();
+	default Iterable<URI> getApiResources() {
+		return null;
+	}
 
 	/**
 	 * Provides the session handler for passing state between authorization code
@@ -65,7 +74,9 @@ public interface IuOidcClientReference {
 	 * 
 	 * @return {@link IuSessionHandler}
 	 */
-	IuSessionHandler getSessionHandler();
+	default IuSessionHandler getSessionHandler() {
+		return null;
+	}
 
 	/**
 	 * Gets an {@link IuJsonAdapter} for a generic type.
@@ -73,7 +84,9 @@ public interface IuOidcClientReference {
 	 * @param type type
 	 * @return {@link IuJsonAdapter}
 	 */
-	IuJsonAdapter<?> adaptJson(Type type);
+	default IuJsonAdapter<?> adaptJson(Type type) {
+		return IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
+	}
 
 	/**
 	 * Gets an {@link IuJsonAdapter} for a class.
@@ -82,6 +95,9 @@ public interface IuOidcClientReference {
 	 * @param type type class
 	 * @return {@link IuJsonAdapter}
 	 */
-	<T> IuJsonAdapter<T> adaptJson(Class<T> type);
+	@SuppressWarnings("unchecked")
+	default <T> IuJsonAdapter<T> adaptJson(Class<T> type) {
+		return (IuJsonAdapter<T>) adaptJson((Type) type);
+	}
 
 }
