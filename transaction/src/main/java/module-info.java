@@ -4,7 +4,7 @@
  * "https://jakarta.ee/specifications/transactions/2.0/jakarta-transactions-spec-2.0">Jakatra
  * Transactions</a> implementation.
  */
-module iu.util.transacation {
+module iu.util.transaction {
 	exports edu.iu.transaction;
 
 	requires iu.util;
