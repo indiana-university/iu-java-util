@@ -10,6 +10,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import javax.transaction.xa.Xid;
+
 import edu.iu.IuAsynchronousSubject;
 import edu.iu.IuAsynchronousSubscription;
 import edu.iu.IuVisitor;
@@ -19,6 +21,7 @@ import jakarta.transaction.InvalidTransactionException;
 import jakarta.transaction.RollbackException;
 import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
+import jakarta.transaction.SystemException;
 import jakarta.transaction.Transaction;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.TransactionSynchronizationRegistry;
@@ -144,15 +147,17 @@ public final class IuTransactionManager
 	}
 
 	@Override
-	public void setTransactionTimeout(int timeout) {
-		if (timeout < 1)
+	public void setTransactionTimeout(int timeout) throws SystemException {
+		if (timeout == 0)
 			setTimeout(Duration.ofMinutes(2L));
-		else
+		else if (timeout > 0)
 			setTimeout(Duration.ofSeconds(timeout));
+		else
+			throw new SystemException();
 	}
 
 	@Override
-	public IuXid getTransactionKey() {
+	public Object getTransactionKey() {
 		var transaction = getTransaction();
 		if (transaction == null)
 			return null;
@@ -202,10 +207,10 @@ public final class IuTransactionManager
 	}
 
 	@Override
-	public IuTransaction suspend() {
+	public IuTransaction suspend() throws SystemException {
 		final var active = activeTransactions.get();
 		if (active == null)
-			throw new IllegalStateException();
+			throw new SystemException();
 
 		final var transaction = active.pop();
 		if (active.isEmpty())
@@ -223,9 +228,9 @@ public final class IuTransactionManager
 		var active = activeTransactions.get();
 		if (active == null)
 			active = new ArrayDeque<>();
-		else if (!Arrays.equals(active.peek().getTransactionKey().getGlobalTransactionId(),
-				iuTransaction.getTransactionKey().getGlobalTransactionId()))
-			throw new IllegalStateException();
+		else if (!Arrays.equals(((Xid) active.peek().getTransactionKey()).getGlobalTransactionId(),
+				((Xid) iuTransaction.getTransactionKey()).getGlobalTransactionId()))
+			throw new InvalidTransactionException();
 
 		iuTransaction.resume();
 		active.push(iuTransaction);

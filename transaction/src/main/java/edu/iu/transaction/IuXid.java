@@ -9,9 +9,9 @@ import edu.iu.IuText;
 /**
  * Portable {@link Xid} implementation.
  */
-public class IuXid implements Xid {
+class IuXid implements Xid {
 
-	private static final int IU_FORMAT_ID = 01_733_7_1;
+	private static final int IU_FORMAT_ID = 63225;
 
 	private final byte[] gtrid;
 	private final byte[] bqual;
@@ -19,7 +19,7 @@ public class IuXid implements Xid {
 	/**
 	 * Creates a new root transaction identifier.
 	 */
-	public IuXid() {
+	IuXid() {
 		this(null);
 	}
 
@@ -32,7 +32,7 @@ public class IuXid implements Xid {
 		if (parent == null)
 			gtrid = IuText.base64Url(IdGenerator.generateId());
 		else
-			gtrid = parent.gtrid;
+			gtrid = parent.gtrid.clone();
 		bqual = IuText.base64Url(IdGenerator.generateId());
 	}
 
@@ -43,12 +43,12 @@ public class IuXid implements Xid {
 
 	@Override
 	public byte[] getGlobalTransactionId() {
-		return gtrid;
+		return gtrid.clone();
 	}
 
 	@Override
 	public byte[] getBranchQualifier() {
-		return bqual;
+		return bqual.clone();
 	}
 
 	@Override

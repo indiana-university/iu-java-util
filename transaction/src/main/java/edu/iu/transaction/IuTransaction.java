@@ -254,7 +254,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	}
 
 	@Override
-	public IuXid getTransactionKey() {
+	public Object getTransactionKey() {
 		return xid;
 	}
 

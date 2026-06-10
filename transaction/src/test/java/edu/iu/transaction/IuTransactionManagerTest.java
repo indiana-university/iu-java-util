@@ -1,5 +1,6 @@
 package edu.iu.transaction;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,10 +32,11 @@ import jakarta.transaction.InvalidTransactionException;
 import jakarta.transaction.RollbackException;
 import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
+import jakarta.transaction.SystemException;
 import jakarta.transaction.Transaction;
 
 @SuppressWarnings("javadoc")
-public class TransactionManagerTest {
+public class IuTransactionManagerTest {
 
 	private IuTransactionManager transactionManager;
 
@@ -106,7 +108,8 @@ public class TransactionManagerTest {
 		assertEquals(Status.STATUS_ACTIVE, tx.getStatus());
 		assertNotEquals(transactionManager.getTransactionKey(), tx.getTransactionKey());
 		assertEquals(transactionManager.getTransactionKey(), btx.getTransactionKey());
-		assertEquals(btx.getTransactionKey().getGlobalTransactionId(), tx.getTransactionKey().getGlobalTransactionId());
+		assertArrayEquals(((IuXid) btx.getTransactionKey()).getGlobalTransactionId(),
+				((IuXid) tx.getTransactionKey()).getGlobalTransactionId());
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* rollback");
 		transactionManager.rollback();
@@ -218,8 +221,8 @@ public class TransactionManagerTest {
 	}
 
 	@Test
-	public void testSuspendResume() {
-		assertThrows(IllegalStateException.class, () -> transactionManager.suspend());
+	public void testSuspendResume() throws SystemException {
+		assertThrows(SystemException.class, () -> transactionManager.suspend());
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		final var badTx = mock(Transaction.class);
 		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(badTx));
@@ -232,7 +235,7 @@ public class TransactionManagerTest {
 	}
 
 	@Test
-	public void testSuspendResumeNested() {
+	public void testSuspendResumeNested() throws SystemException {
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		transactionManager.begin();
 		final var tx1 = transactionManager.getTransaction();
@@ -248,15 +251,15 @@ public class TransactionManagerTest {
 	}
 
 	@Test
-	public void testSuspendResumeBranch() {
-		assertThrows(IllegalStateException.class, () -> transactionManager.suspend());
+	public void testSuspendResumeBranch() throws SystemException {
+		assertThrows(SystemException.class, () -> transactionManager.suspend());
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		final var badTx = mock(Transaction.class);
 		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(badTx));
 		transactionManager.begin();
 		final var tx = transactionManager.suspend();
 		transactionManager.begin();
-		assertThrows(IllegalStateException.class, () -> transactionManager.resume(tx));
+		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(tx));
 		assertDoesNotThrow(transactionManager::commit);
 	}
 

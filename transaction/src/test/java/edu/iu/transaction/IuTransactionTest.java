@@ -1,5 +1,6 @@
 package edu.iu.transaction;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -29,6 +30,7 @@ import java.util.logging.LogManager;
 
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -127,11 +129,12 @@ public class IuTransactionTest {
 		final var t = tx();
 		assertEquals(Status.STATUS_ACTIVE, t.getTransactionStatus());
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
-		final var gtid = IuText.base64Url(t.getTransactionKey().getGlobalTransactionId());
+		final var gtid = IuText.base64Url(((Xid) t.getTransactionKey()).getGlobalTransactionId());
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE,
 				"iuxid-63225\\+" + gtid + "\\+[\\w\\-]{32} branch " + escapedXid);
 		final var bt = new IuTransaction(t, rollbackScheduler);
-		assertEquals(bt.getTransactionKey().getGlobalTransactionId(), t.getTransactionKey().getGlobalTransactionId());
+		assertArrayEquals(((Xid) bt.getTransactionKey()).getGlobalTransactionId(),
+				((Xid) t.getTransactionKey()).getGlobalTransactionId());
 		assertNotEquals(bt.getTransactionKey(), t.getTransactionKey());
 	}
 
@@ -320,7 +323,7 @@ public class IuTransactionTest {
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.INFO,
 				escapedXid + " setTransactionTimeout\\(\\) failure", XAException.class);
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 	}
 
 	@Test
@@ -332,7 +335,7 @@ public class IuTransactionTest {
 		final var xt = new XAException();
 		when(resource.setTransactionTimeout(intThat(i -> i <= 5))).thenThrow(xt);
 		final var x = new XAException();
-		doThrow(x).when(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		doThrow(x).when(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		final var e = assertThrows(IllegalStateException.class, () -> t.enlistResource(resource));
 		assertSame(x, e.getCause());
 		assertSame(xt, x.getSuppressed()[0]);
@@ -346,19 +349,19 @@ public class IuTransactionTest {
 		final var resource2 = mock(XAResource.class);
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
-		t.enlistResource(resource2); // enforce no effect
+		t.enlistResource(resource2);
 		t.enlistResource(resource); // enforce no effect
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		verify(resource2).setTransactionTimeout(intThat(i -> i <= 5));
-		verify(resource2).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource2).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.commit();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).prepare(t.getTransactionKey());
-		verify(resource).commit(t.getTransactionKey(), false);
-		verify(resource2).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource2).prepare(t.getTransactionKey());
-		verify(resource2).commit(t.getTransactionKey(), false);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).prepare((Xid) t.getTransactionKey());
+		verify(resource).commit((Xid) t.getTransactionKey(), false);
+		verify(resource2).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource2).prepare((Xid) t.getTransactionKey());
+		verify(resource2).commit((Xid) t.getTransactionKey(), false);
 	}
 
 	@Test
@@ -371,10 +374,10 @@ public class IuTransactionTest {
 		t.enlistResource(resource);
 		t.enlistResource(resource2);
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.delistResource(resource, XAResource.TMSUCCESS);
 		t.delistResource(resource, XAResource.TMSUCCESS); // enforce no effect
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
 		verify(resource2, never()).end(any(), any(int.class));
 	}
 
@@ -395,18 +398,18 @@ public class IuTransactionTest {
 		t2.enlistResource(resource2);
 		t2.enlistResource(resource3);
 		t.suspend();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		t.join(t2);
-		verify(resource2).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource3).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource2).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource3).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
 		t.delistResource(resource, XAResource.TMSUCCESS);
 		t.delistResource(resource, XAResource.TMSUCCESS); // enforce no effect
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
 		t.resume();
-		verify(resource2).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource2).start(t2.getTransactionKey(), XAResource.TMJOIN);
-		verify(resource3).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource3).start(t2.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource2).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource2).start((Xid) t2.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource3).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource3).start((Xid) t2.getTransactionKey(), XAResource.TMJOIN);
 	}
 
 	@Test
@@ -416,10 +419,10 @@ public class IuTransactionTest {
 		when(resource.isSameRM(resource)).thenReturn(true);
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var x = new XAException();
-		doThrow(x).when(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
+		doThrow(x).when(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
 		t.enlistResource(resource);
 		verify(resource).setTransactionTimeout(ArgumentMatchers.intThat(i -> i <= 5));
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 
 		assertSame(x, assertThrows(IllegalStateException.class, () -> t.delistResource(resource, XAResource.TMSUCCESS))
 				.getCause());
@@ -432,7 +435,7 @@ public class IuTransactionTest {
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var resource = mock(XAResource.class);
 		final var x = new XAException();
-		doThrow(x).when(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		doThrow(x).when(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		assertSame(x, assertThrows(IllegalStateException.class, () -> t.enlistResource(resource)).getCause());
 	}
 
@@ -442,11 +445,11 @@ public class IuTransactionTest {
 		final var resource = mock(XAResource.class);
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.suspend();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		t.resume();
-		verify(resource).start(t.getTransactionKey(), XAResource.TMRESUME);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMRESUME);
 	}
 
 	@Test
@@ -455,9 +458,9 @@ public class IuTransactionTest {
 		final var resource = mock(XAResource.class);
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		final var x = new XAException();
-		doThrow(x).when(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		doThrow(x).when(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		assertSame(x, assertThrows(IllegalStateException.class, t::suspend).getCause());
 	}
 
@@ -467,11 +470,11 @@ public class IuTransactionTest {
 		final var resource = mock(XAResource.class);
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.suspend();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		final var x = new XAException();
-		doThrow(x).when(resource).start(t.getTransactionKey(), XAResource.TMRESUME);
+		doThrow(x).when(resource).start((Xid) t.getTransactionKey(), XAResource.TMRESUME);
 		assertSame(x, assertThrows(IllegalStateException.class, t::resume).getCause());
 	}
 
@@ -481,12 +484,12 @@ public class IuTransactionTest {
 		final var resource = mock(XAResource.class);
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		when(resource.prepare(t.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		when(resource.prepare((Xid) t.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
 		t.commit();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).prepare(t.getTransactionKey());
-		verify(resource, never()).commit(eq(t.getTransactionKey()), any(boolean.class));
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).prepare((Xid) t.getTransactionKey());
+		verify(resource, never()).commit(eq((Xid) t.getTransactionKey()), any(boolean.class));
 	}
 
 	@Test
@@ -499,11 +502,11 @@ public class IuTransactionTest {
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerSynchronization(s);
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		assertSame(r, assertThrows(RollbackException.class, t::commit).getCause());
-		verify(resource).end(t.getTransactionKey(), XAResource.TMFAIL);
-		verify(resource).rollback(t.getTransactionKey());
-		verify(resource, never()).commit(eq(t.getTransactionKey()), any(boolean.class));
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMFAIL);
+		verify(resource).rollback((Xid) t.getTransactionKey());
+		verify(resource, never()).commit(eq((Xid) t.getTransactionKey()), any(boolean.class));
 	}
 
 	@Test
@@ -531,7 +534,7 @@ public class IuTransactionTest {
 		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 		final var resource = mock(XAResource.class);
 		final var x = new XAException();
-		doThrow(x).when(resource).end(t.getTransactionKey(), XAResource.TMFAIL);
+		doThrow(x).when(resource).end((Xid) t.getTransactionKey(), XAResource.TMFAIL);
 		t.enlistResource(resource);
 		t.suspend();
 
@@ -576,13 +579,13 @@ public class IuTransactionTest {
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.suspend();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		t.commit();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).prepare(t.getTransactionKey());
-		verify(resource).commit(t.getTransactionKey(), false);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).prepare((Xid) t.getTransactionKey());
+		verify(resource).commit((Xid) t.getTransactionKey(), false);
 	}
 
 	@Test
@@ -592,12 +595,12 @@ public class IuTransactionTest {
 		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.suspend();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		t.rollback();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMFAIL);
-		verify(resource).rollback(t.getTransactionKey());
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMFAIL);
+		verify(resource).rollback((Xid) t.getTransactionKey());
 	}
 
 	@Test
@@ -875,43 +878,43 @@ public class IuTransactionTest {
 		t2.registerSynchronization(sync);
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
-		when(resource.prepare(t.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
+		when(resource.prepare((Xid) t.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
 		t2.enlistResource(resource);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMNOFLAGS);
 		t2.suspend();
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUSPEND);
 
 		final var t3 = new IuTransaction(t, rollbackScheduler);
 		final var sync2 = mock(Synchronization.class);
 		t3.registerInterposedSynchronization(sync2);
 		final var resource2 = mock(XAResource.class);
 		when(resource2.isSameRM(resource2)).thenReturn(true);
-		when(resource2.prepare(t.getTransactionKey())).thenReturn(XAResource.XA_OK);
+		when(resource2.prepare((Xid) t.getTransactionKey())).thenReturn(XAResource.XA_OK);
 		t3.enlistResource(resource2);
-		verify(resource2).start(t3.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource2).start((Xid) t3.getTransactionKey(), XAResource.TMNOFLAGS);
 		t3.suspend();
-		verify(resource2).end(t3.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource2).end((Xid) t3.getTransactionKey(), XAResource.TMSUSPEND);
 
 		t2.join(t3);
 		verify(sync2).afterCompletion(Status.STATUS_NO_TRANSACTION);
-		verify(resource2).end(t3.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource2).end((Xid) t3.getTransactionKey(), XAResource.TMSUCCESS);
 
 		t.join(t2);
 		verify(sync).afterCompletion(Status.STATUS_NO_TRANSACTION);
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMJOIN);
-		verify(resource2).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource2).start(t3.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource2).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource2).start((Xid) t3.getTransactionKey(), XAResource.TMJOIN);
 
 		t.commit();
 		verify(sync).beforeCompletion();
 		verify(sync2).beforeCompletion();
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource2).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).prepare(t.getTransactionKey());
-		verify(resource2).prepare(t.getTransactionKey());
-		verify(resource2).commit(t.getTransactionKey(), false);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource2).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).prepare((Xid) t.getTransactionKey());
+		verify(resource2).prepare((Xid) t.getTransactionKey());
+		verify(resource2).commit((Xid) t.getTransactionKey(), false);
 		verify(sync).afterCompletion(Status.STATUS_COMMITTED);
 		verify(sync2).afterCompletion(Status.STATUS_COMMITTED);
 	}
@@ -926,11 +929,11 @@ public class IuTransactionTest {
 		t2.registerSynchronization(sync);
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
-		when(resource.prepare(t2.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
+		when(resource.prepare((Xid) t2.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
 		t2.enlistResource(resource);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMNOFLAGS);
 		t2.suspend();
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUSPEND);
 
 		final var t3 = new IuTransaction(t, rollbackScheduler);
 		final var sync2 = mock(Synchronization.class);
@@ -939,22 +942,22 @@ public class IuTransactionTest {
 		t3.registerInterposedSynchronization(sync2);
 		final var resource2 = mock(XAResource.class);
 		when(resource2.isSameRM(resource2)).thenReturn(true);
-		when(resource2.prepare(t.getTransactionKey())).thenReturn(XAResource.XA_OK);
+		when(resource2.prepare((Xid) t.getTransactionKey())).thenReturn(XAResource.XA_OK);
 		t3.enlistResource(resource2);
-		verify(resource2).start(t3.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource2).start((Xid) t3.getTransactionKey(), XAResource.TMNOFLAGS);
 		t3.suspend();
-		verify(resource2).end(t3.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource2).end((Xid) t3.getTransactionKey(), XAResource.TMSUSPEND);
 
 		final var rb = assertThrows(RollbackException.class, t::commit);
 		assertSame(r, rb.getCause());
 		assertInstanceOf(HeuristicMixedException.class, rb.getSuppressed()[0]);
 		verify(sync).beforeCompletion();
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).prepare(t2.getTransactionKey());
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).prepare((Xid) t2.getTransactionKey());
 		verify(sync).afterCompletion(Status.STATUS_COMMITTED);
 		verify(sync2).beforeCompletion();
-		verify(resource2).end(t3.getTransactionKey(), XAResource.TMFAIL);
-		verify(resource2).rollback(t3.getTransactionKey());
+		verify(resource2).end((Xid) t3.getTransactionKey(), XAResource.TMFAIL);
+		verify(resource2).rollback((Xid) t3.getTransactionKey());
 		verify(sync2).afterCompletion(Status.STATUS_ROLLEDBACK);
 	}
 
@@ -993,16 +996,16 @@ public class IuTransactionTest {
 		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 		t.suspend();
 		t.enlistResource(resource);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUSPEND);
 		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.enlistResource(resource);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.join(t2);
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
 		t.resume();
-		verify(resource).start(t.getTransactionKey(), XAResource.TMRESUME);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMRESUME);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMJOIN);
 	}
 
 	@Test
@@ -1016,13 +1019,13 @@ public class IuTransactionTest {
 		t2.enlistResource(resource);
 		t.join(t2);
 		t.commit();
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMJOIN);
-		verify(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).prepare(t.getTransactionKey());
-		verify(resource).commit(t.getTransactionKey(), false);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).prepare((Xid) t.getTransactionKey());
+		verify(resource).commit((Xid) t.getTransactionKey(), false);
 	}
 
 	@Test
@@ -1036,12 +1039,12 @@ public class IuTransactionTest {
 		t2.enlistResource(resource);
 		t.join(t2);
 		t.rollback();
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUCCESS);
-		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
-		verify(resource).start(t2.getTransactionKey(), XAResource.TMJOIN);
-		verify(resource).end(t.getTransactionKey(), XAResource.TMFAIL);
-		verify(resource).rollback(t.getTransactionKey());
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).end((Xid) t2.getTransactionKey(), XAResource.TMSUCCESS);
+		verify(resource).start((Xid) t.getTransactionKey(), XAResource.TMNOFLAGS);
+		verify(resource).start((Xid) t2.getTransactionKey(), XAResource.TMJOIN);
+		verify(resource).end((Xid) t.getTransactionKey(), XAResource.TMFAIL);
+		verify(resource).rollback((Xid) t.getTransactionKey());
 	}
 
 	@Test
@@ -1051,9 +1054,9 @@ public class IuTransactionTest {
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURCOM);
-		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		doThrow(xe).when(x).commit((Xid) t.getTransactionKey(), false);
 		assertDoesNotThrow(t::commit);
-		verify(x).forget(t.getTransactionKey());
+		verify(x).forget((Xid) t.getTransactionKey());
 	}
 
 	@Test
@@ -1064,8 +1067,8 @@ public class IuTransactionTest {
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURCOM);
 		final var xe2 = new XAException(XAException.XAER_NOTA);
-		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
-		doThrow(xe2).when(x).forget(t.getTransactionKey());
+		doThrow(xe).when(x).commit((Xid) t.getTransactionKey(), false);
+		doThrow(xe2).when(x).forget((Xid) t.getTransactionKey());
 		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
 		assertSame(xe2, xe.getSuppressed()[0]);
 	}
@@ -1077,9 +1080,9 @@ public class IuTransactionTest {
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURHAZ);
-		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		doThrow(xe).when(x).commit((Xid) t.getTransactionKey(), false);
 		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
-		verify(x).forget(t.getTransactionKey());
+		verify(x).forget((Xid) t.getTransactionKey());
 	}
 
 	@Test
@@ -1089,9 +1092,9 @@ public class IuTransactionTest {
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURMIX);
-		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		doThrow(xe).when(x).commit((Xid) t.getTransactionKey(), false);
 		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
-		verify(x).forget(t.getTransactionKey());
+		verify(x).forget((Xid) t.getTransactionKey());
 	}
 
 	@Test
@@ -1101,9 +1104,9 @@ public class IuTransactionTest {
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURRB);
-		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		doThrow(xe).when(x).commit((Xid) t.getTransactionKey(), false);
 		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
-		verify(x).forget(t.getTransactionKey());
+		verify(x).forget((Xid) t.getTransactionKey());
 	}
 
 	@Test
@@ -1113,9 +1116,9 @@ public class IuTransactionTest {
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XAER_RMFAIL);
-		doThrow(xe).when(x).commit(t.getTransactionKey(), false);
+		doThrow(xe).when(x).commit((Xid) t.getTransactionKey(), false);
 		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
-		verify(x, never()).forget(t.getTransactionKey());
+		verify(x, never()).forget((Xid) t.getTransactionKey());
 	}
 
 	@SuppressWarnings("unchecked")

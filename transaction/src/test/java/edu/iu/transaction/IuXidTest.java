@@ -1,5 +1,6 @@
 package edu.iu.transaction;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
@@ -29,8 +30,8 @@ public class IuXidTest {
 	public void testBranchIds() {
 		final var xid = new IuXid();
 		final var bxid = new IuXid(xid);
-		assertEquals(01_733_7_1, bxid.getFormatId());
-		assertEquals(xid.getGlobalTransactionId(), bxid.getGlobalTransactionId());
+		assertEquals(63225, bxid.getFormatId());
+		assertArrayEquals(xid.getGlobalTransactionId(), bxid.getGlobalTransactionId());
 		assertNotEquals(xid.getBranchQualifier(), bxid.getBranchQualifier());
 		assertNotEquals(xid, bxid);
 		assertNotEquals(xid.hashCode(), bxid.hashCode());
