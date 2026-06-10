@@ -207,10 +207,10 @@ public final class IuTransactionManager
 	}
 
 	@Override
-	public IuTransaction suspend() throws SystemException {
+	public IuTransaction suspend() {
 		final var active = activeTransactions.get();
 		if (active == null)
-			throw new SystemException();
+			return null;
 
 		final var transaction = active.pop();
 		if (active.isEmpty())

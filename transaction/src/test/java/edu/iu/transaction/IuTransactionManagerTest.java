@@ -222,7 +222,7 @@ public class IuTransactionManagerTest {
 
 	@Test
 	public void testSuspendResume() throws SystemException {
-		assertThrows(SystemException.class, () -> transactionManager.suspend());
+		assertNull(transactionManager.suspend());
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		final var badTx = mock(Transaction.class);
 		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(badTx));
@@ -252,7 +252,7 @@ public class IuTransactionManagerTest {
 
 	@Test
 	public void testSuspendResumeBranch() throws SystemException {
-		assertThrows(SystemException.class, () -> transactionManager.suspend());
+		assertNull(transactionManager.suspend());
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		final var badTx = mock(Transaction.class);
 		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(badTx));
