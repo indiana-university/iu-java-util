@@ -19,6 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.logging.ConsoleHandler;
@@ -31,7 +32,6 @@ import javax.transaction.xa.XAResource;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 
@@ -56,6 +56,7 @@ import jakarta.transaction.Synchronization;
 public class IuTransactionTest {
 
 	private Handler consoleHandler;
+	private ScheduledThreadPoolExecutor rollbackScheduler;
 
 	@BeforeEach
 	public void setup() {
@@ -66,18 +67,20 @@ public class IuTransactionTest {
 			consoleHandler.setLevel(Level.ALL);
 			log.addHandler(consoleHandler);
 		}
+		rollbackScheduler = new ScheduledThreadPoolExecutor(1);
 	}
 
 	@AfterEach
 	public void teardown() {
 		if (consoleHandler != null)
 			LogManager.getLogManager().getLogger(IuTransaction.class.getName()).removeHandler(consoleHandler);
+		rollbackScheduler.shutdown();
 	}
 
 	private IuTransaction tx() {
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE,
 				"iuxid-63225\\+[\\w\\-]{32}\\+[\\w\\-]{32} begin");
-		return new IuTransaction(Duration.ofSeconds(5L));
+		return new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 	}
 
 	@Test
@@ -116,7 +119,7 @@ public class IuTransactionTest {
 
 	@Test
 	public void testPositiveDuration() {
-		assertThrows(IllegalArgumentException.class, () -> new IuTransaction(Duration.ZERO));
+		assertThrows(IllegalArgumentException.class, () -> new IuTransaction(Duration.ZERO, rollbackScheduler));
 	}
 
 	@Test
@@ -127,7 +130,7 @@ public class IuTransactionTest {
 		final var gtid = IuText.base64Url(t.getTransactionKey().getGlobalTransactionId());
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE,
 				"iuxid-63225\\+" + gtid + "\\+[\\w\\-]{32} branch " + escapedXid);
-		final var bt = new IuTransaction(t);
+		final var bt = new IuTransaction(t, rollbackScheduler);
 		assertEquals(bt.getTransactionKey().getGlobalTransactionId(), t.getTransactionKey().getGlobalTransactionId());
 		assertNotEquals(bt.getTransactionKey(), t.getTransactionKey());
 	}
@@ -254,7 +257,7 @@ public class IuTransactionTest {
 	public void testSynchronization() throws Exception {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var sync = mock(Synchronization.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerSynchronization(sync);
 		t.commit();
 		verify(sync).beforeCompletion();
@@ -265,7 +268,7 @@ public class IuTransactionTest {
 	public void testSynchronizationRollback() throws RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var sync = mock(Synchronization.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerSynchronization(sync);
 		t.rollback();
 		verify(sync, never()).beforeCompletion();
@@ -279,7 +282,7 @@ public class IuTransactionTest {
 		final var r = new RuntimeException();
 		doThrow(r).when(sync).afterCompletion(Status.STATUS_ROLLEDBACK);
 
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerSynchronization(sync);
 		assertSame(r, assertThrows(RuntimeException.class, t::rollback));
 	}
@@ -288,7 +291,7 @@ public class IuTransactionTest {
 	public void testInterposedSynchronization() throws Exception {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var sync = mock(Synchronization.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerInterposedSynchronization(sync);
 		t.commit();
 		verify(sync).beforeCompletion();
@@ -299,7 +302,7 @@ public class IuTransactionTest {
 	public void testInterposedSynchronizationRollback() throws RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var sync = mock(Synchronization.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerInterposedSynchronization(sync);
 		t.rollback();
 		verify(sync, never()).beforeCompletion();
@@ -310,7 +313,7 @@ public class IuTransactionTest {
 	public void testXAResourceSetTimeoutError() throws RollbackException, XAException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var x = new XAException();
 		when(resource.setTransactionTimeout(intThat(i -> i <= 5))).thenThrow(x);
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
@@ -325,7 +328,7 @@ public class IuTransactionTest {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var xt = new XAException();
 		when(resource.setTransactionTimeout(intThat(i -> i <= 5))).thenThrow(xt);
 		final var x = new XAException();
@@ -341,7 +344,7 @@ public class IuTransactionTest {
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
 		final var resource2 = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		t.enlistResource(resource2); // enforce no effect
 		t.enlistResource(resource); // enforce no effect
@@ -364,7 +367,7 @@ public class IuTransactionTest {
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
 		final var resource2 = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		t.enlistResource(resource2);
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
@@ -386,8 +389,8 @@ public class IuTransactionTest {
 		when(resource.isSameRM(resource3)).thenReturn(true);
 		when(resource3.isSameRM(resource)).thenReturn(true);
 		when(resource3.isSameRM(resource3)).thenReturn(true);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t.enlistResource(resource);
 		t2.enlistResource(resource2);
 		t2.enlistResource(resource3);
@@ -411,7 +414,7 @@ public class IuTransactionTest {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var x = new XAException();
 		doThrow(x).when(resource).end(t.getTransactionKey(), XAResource.TMSUCCESS);
 		t.enlistResource(resource);
@@ -426,7 +429,7 @@ public class IuTransactionTest {
 	@Test
 	public void testXAResourceThrowsXAException() throws RollbackException, XAException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var resource = mock(XAResource.class);
 		final var x = new XAException();
 		doThrow(x).when(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
@@ -437,7 +440,7 @@ public class IuTransactionTest {
 	public void testXAResourceSuspendAndResume() throws RollbackException, XAException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.suspend();
@@ -450,7 +453,7 @@ public class IuTransactionTest {
 	public void testXAResourceSuspendError() throws RollbackException, XAException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
 		final var x = new XAException();
@@ -462,7 +465,7 @@ public class IuTransactionTest {
 	public void testXAResourceSuspendThenResumeError() throws RollbackException, XAException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.suspend();
@@ -476,7 +479,7 @@ public class IuTransactionTest {
 	public void testXAResourceReadOnly() throws Exception {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
 		when(resource.prepare(t.getTransactionKey())).thenReturn(XAResource.XA_RDONLY);
@@ -493,7 +496,7 @@ public class IuTransactionTest {
 		final var r = new RuntimeException();
 		doThrow(r).when(s).beforeCompletion();
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.registerSynchronization(s);
 		t.enlistResource(resource);
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
@@ -506,7 +509,7 @@ public class IuTransactionTest {
 	@Test
 	public void testExpired() throws InterruptedException, TimeoutException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		IuObject.waitFor(t, () -> t.getStatus() == Status.STATUS_ROLLEDBACK, Duration.ofSeconds(2L));
 		assertThrows(IllegalStateException.class, () -> t.enlistResource(null));
 		assertThrows(IllegalStateException.class, () -> t.commit());
@@ -515,7 +518,7 @@ public class IuTransactionTest {
 	@Test
 	public void testResumeFromTimedRollback() throws InterruptedException, TimeoutException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		t.suspend();
 		IuObject.waitFor(t, () -> t.getStatus() == Status.STATUS_ROLLEDBACK, Duration.ofSeconds(2L));
 		assertThrows(IllegalStateException.class, () -> t.enlistResource(null));
@@ -525,7 +528,7 @@ public class IuTransactionTest {
 	@Test
 	public void testRollbackFailureFromTimedRollback() throws Exception {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 		final var resource = mock(XAResource.class);
 		final var x = new XAException();
 		doThrow(x).when(resource).end(t.getTransactionKey(), XAResource.TMFAIL);
@@ -541,7 +544,7 @@ public class IuTransactionTest {
 	@Test
 	public void testTimedRollbackRace() throws Exception {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		synchronized (t) {
 			t.registerSynchronization(new Synchronization() {
 				@Override
@@ -561,16 +564,16 @@ public class IuTransactionTest {
 	@Test
 	public void testExpiredParent() throws InterruptedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		Thread.sleep(1000L);
-		assertThrows(IllegalArgumentException.class, () -> new IuTransaction(t));
+		assertThrows(IllegalArgumentException.class, () -> new IuTransaction(t, rollbackScheduler));
 	}
 
 	@Test
 	public void testSuspendedCommit() throws Exception {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
@@ -586,7 +589,7 @@ public class IuTransactionTest {
 	public void testSuspendedRollback() throws RollbackException, XAException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		t.enlistResource(resource);
 		verify(resource).setTransactionTimeout(intThat(i -> i <= 5));
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
@@ -600,8 +603,8 @@ public class IuTransactionTest {
 	@Test
 	public void testBranchAndSuspend() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.suspend();
 		t.commit();
 		assertSame(Status.STATUS_COMMITTED, t2.getStatus());
@@ -611,8 +614,8 @@ public class IuTransactionTest {
 	@Test
 	public void testBranchAndCommit() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 
 		class Box {
 			boolean done;
@@ -646,8 +649,8 @@ public class IuTransactionTest {
 	@Test
 	public void testHeuristicRollback() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 
 		class Box {
 			boolean done;
@@ -681,10 +684,10 @@ public class IuTransactionTest {
 	@Test
 	public void testHeuristicMix() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
-		final var t2 = new IuTransaction(t);
-		final var t3 = new IuTransaction(t2);
-		final var t4 = new IuTransaction(t2);
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
+		final var t3 = new IuTransaction(t2, rollbackScheduler);
+		final var t4 = new IuTransaction(t2, rollbackScheduler);
 
 		class Box {
 			boolean done;
@@ -740,10 +743,10 @@ public class IuTransactionTest {
 	@Test
 	public void testHeuristicTimeout() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofMillis(1250L));
-		final var t2 = new IuTransaction(t);
-		final var t3 = new IuTransaction(t2);
-		final var t4 = new IuTransaction(t2);
+		final var t = new IuTransaction(Duration.ofMillis(1250L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
+		final var t3 = new IuTransaction(t2, rollbackScheduler);
+		final var t4 = new IuTransaction(t2, rollbackScheduler);
 
 		class Box {
 			boolean done;
@@ -801,10 +804,10 @@ public class IuTransactionTest {
 	@Test
 	public void testHeuristicMixedOnRollback() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofMillis(1250L));
-		final var t2 = new IuTransaction(t);
-		final var t3 = new IuTransaction(t2);
-		final var t4 = new IuTransaction(t2);
+		final var t = new IuTransaction(Duration.ofMillis(1250L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
+		final var t3 = new IuTransaction(t2, rollbackScheduler);
+		final var t4 = new IuTransaction(t2, rollbackScheduler);
 		t3.commit();
 		final var e = assertThrows(IllegalStateException.class, t::rollback);
 		assertInstanceOf(HeuristicMixedException.class, e.getCause());
@@ -817,10 +820,10 @@ public class IuTransactionTest {
 	@Test
 	public void testHeuristicCommitOnRollback() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofMillis(1250L));
-		final var t2 = new IuTransaction(t);
-		final var t3 = new IuTransaction(t2);
-		final var t4 = new IuTransaction(t2);
+		final var t = new IuTransaction(Duration.ofMillis(1250L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
+		final var t3 = new IuTransaction(t2, rollbackScheduler);
+		final var t4 = new IuTransaction(t2, rollbackScheduler);
 		t3.commit();
 		t4.commit();
 		final var e = assertThrows(IllegalStateException.class, t2::rollback);
@@ -836,10 +839,10 @@ public class IuTransactionTest {
 	@Test
 	public void testHeuristicMixedFromRollbackError() throws Throwable {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofMillis(1250L));
-		final var t2 = new IuTransaction(t);
-		final var t3 = new IuTransaction(t2);
-		final var t4 = new IuTransaction(t2);
+		final var t = new IuTransaction(Duration.ofMillis(1250L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
+		final var t3 = new IuTransaction(t2, rollbackScheduler);
+		final var t4 = new IuTransaction(t2, rollbackScheduler);
 		t3.commit();
 		t4.commit();
 		final var s = mock(Synchronization.class);
@@ -857,17 +860,17 @@ public class IuTransactionTest {
 	@Test
 	public void testJoinMustBeFromSameBranch() {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		assertThrows(IllegalArgumentException.class,
-				() -> new IuTransaction(Duration.ofSeconds(1L)).join(new IuTransaction(Duration.ofSeconds(1L))));
+		assertThrows(IllegalArgumentException.class, () -> new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler)
+				.join(new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler)));
 	}
 
 	@Test
 	public void testSuspendAndJoin()
 			throws XAException, RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 
-		final var t2 = new IuTransaction(t);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		final var sync = mock(Synchronization.class);
 		t2.registerSynchronization(sync);
 		final var resource = mock(XAResource.class);
@@ -878,7 +881,7 @@ public class IuTransactionTest {
 		t2.suspend();
 		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUSPEND);
 
-		final var t3 = new IuTransaction(t);
+		final var t3 = new IuTransaction(t, rollbackScheduler);
 		final var sync2 = mock(Synchronization.class);
 		t3.registerInterposedSynchronization(sync2);
 		final var resource2 = mock(XAResource.class);
@@ -918,8 +921,8 @@ public class IuTransactionTest {
 			throws XAException, RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var sync = mock(Synchronization.class);
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.registerSynchronization(sync);
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
@@ -929,7 +932,7 @@ public class IuTransactionTest {
 		t2.suspend();
 		verify(resource).end(t2.getTransactionKey(), XAResource.TMSUSPEND);
 
-		final var t3 = new IuTransaction(t);
+		final var t3 = new IuTransaction(t, rollbackScheduler);
 		final var sync2 = mock(Synchronization.class);
 		final var r = new RuntimeException();
 		doThrow(r).when(sync2).beforeCompletion();
@@ -959,8 +962,8 @@ public class IuTransactionTest {
 	public void testJoinAndRollback() throws RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var sync = mock(Synchronization.class);
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.registerSynchronization(sync);
 		t.join(t2);
 		verify(sync).afterCompletion(Status.STATUS_NO_TRANSACTION);
@@ -972,10 +975,10 @@ public class IuTransactionTest {
 	public void testRollbackOnlyOnFirstBranch()
 			throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
-		final var t2 = new IuTransaction(t);
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.setRollbackOnly();
-		final var t3 = new IuTransaction(t);
+		final var t3 = new IuTransaction(t, rollbackScheduler);
 		assertThrows(RollbackException.class, t::commit);
 		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
 		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
@@ -987,12 +990,12 @@ public class IuTransactionTest {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
 		when(resource.isSameRM(resource)).thenReturn(true);
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 		t.suspend();
 		t.enlistResource(resource);
 		verify(resource).start(t.getTransactionKey(), XAResource.TMNOFLAGS);
 		verify(resource).end(t.getTransactionKey(), XAResource.TMSUSPEND);
-		final var t2 = new IuTransaction(t);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.enlistResource(resource);
 		verify(resource).start(t2.getTransactionKey(), XAResource.TMNOFLAGS);
 		t.join(t2);
@@ -1007,9 +1010,9 @@ public class IuTransactionTest {
 			throws XAException, RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 		t.suspend();
-		final var t2 = new IuTransaction(t);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.enlistResource(resource);
 		t.join(t2);
 		t.commit();
@@ -1027,9 +1030,9 @@ public class IuTransactionTest {
 			throws XAException, RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE, ".*");
 		final var resource = mock(XAResource.class);
-		final var t = new IuTransaction(Duration.ofSeconds(2L));
+		final var t = new IuTransaction(Duration.ofSeconds(2L), rollbackScheduler);
 		t.suspend();
-		final var t2 = new IuTransaction(t);
+		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.enlistResource(resource);
 		t.join(t2);
 		t.rollback();
@@ -1044,7 +1047,7 @@ public class IuTransactionTest {
 	@Test
 	public void testXaHeuristicCommit() throws XAException, RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURCOM);
@@ -1052,11 +1055,11 @@ public class IuTransactionTest {
 		assertDoesNotThrow(t::commit);
 		verify(x).forget(t.getTransactionKey());
 	}
-	
+
 	@Test
 	public void testXaHeuristicCommitForgetFailure() throws XAException, RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURCOM);
@@ -1066,11 +1069,11 @@ public class IuTransactionTest {
 		assertSame(xe, assertThrows(RollbackException.class, t::commit).getCause());
 		assertSame(xe2, xe.getSuppressed()[0]);
 	}
-	
+
 	@Test
 	public void testXaHeurHazRollback() throws XAException, RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
-		final var t = new IuTransaction(Duration.ofSeconds(5L));
+		final var t = new IuTransaction(Duration.ofSeconds(5L), rollbackScheduler);
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURHAZ);
@@ -1082,7 +1085,7 @@ public class IuTransactionTest {
 	@Test
 	public void testXaHeurMixRollback() throws XAException, RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURMIX);
@@ -1094,7 +1097,7 @@ public class IuTransactionTest {
 	@Test
 	public void testXaHeuristicRollback() throws XAException, RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XA_HEURRB);
@@ -1106,7 +1109,7 @@ public class IuTransactionTest {
 	@Test
 	public void testXaErrorRollback() throws XAException, RollbackException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
-		final var t = new IuTransaction(Duration.ofSeconds(1L));
+		final var t = new IuTransaction(Duration.ofSeconds(1L), rollbackScheduler);
 		final var x = mock(XAResource.class);
 		t.enlistResource(x);
 		final var xe = new XAException(XAException.XAER_RMFAIL);
@@ -1120,7 +1123,7 @@ public class IuTransactionTest {
 	public void testStatusChange() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINE);
 		final var c = mock(Consumer.class);
-		final var t = new IuTransaction(Duration.ofSeconds(1L), c);
+		final var t = new IuTransaction(Duration.ofSeconds(1L), c, rollbackScheduler);
 		t.commit();
 		// STATUS_PREPARING
 		// STATUS_PREPARED

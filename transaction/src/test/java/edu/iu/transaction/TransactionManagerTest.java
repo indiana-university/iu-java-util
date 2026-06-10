@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuAsynchronousSubscription;
@@ -35,79 +36,85 @@ import jakarta.transaction.Transaction;
 @SuppressWarnings("javadoc")
 public class TransactionManagerTest {
 
-	private static IuTransactionManager TM = new IuTransactionManager();
+	private IuTransactionManager transactionManager;
+
+	@BeforeEach
+	public void setup() {
+		transactionManager = new IuTransactionManager();
+	}
 
 	@AfterEach
-	public void teardown() {
-		TM.clearThreadState();
+	public void teardown() throws Exception {
+		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINER);
+		transactionManager.close();
 	}
 
 	@Test
 	public void testTimeout() throws Exception {
 		Field f = IuTransactionManager.class.getDeclaredField("timeout");
 		f.setAccessible(true);
-		assertEquals(Duration.ofMinutes(2L), f.get(TM));
-		TM.setTimeout(Duration.ofMillis(10L));
-		assertEquals(Duration.ofMillis(10L), f.get(TM));
-		TM.setTransactionTimeout(5);
-		assertEquals(Duration.ofSeconds(5L), f.get(TM));
-		TM.setTransactionTimeout(0);
-		assertEquals(Duration.ofMinutes(2L), f.get(TM));
+		assertEquals(Duration.ofMinutes(2L), f.get(transactionManager));
+		transactionManager.setTimeout(Duration.ofMillis(10L));
+		assertEquals(Duration.ofMillis(10L), f.get(transactionManager));
+		transactionManager.setTransactionTimeout(5);
+		assertEquals(Duration.ofSeconds(5L), f.get(transactionManager));
+		transactionManager.setTransactionTimeout(0);
+		assertEquals(Duration.ofMinutes(2L), f.get(transactionManager));
 	}
 
 	@Test
 	public void testBeginAndCommit() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINER);
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* begin");
-		TM.begin();
+		transactionManager.begin();
 		IuTestLogger.assertExpectedMessages();
 
-		assertEquals(Status.STATUS_ACTIVE, TM.getTransactionStatus());
+		assertEquals(Status.STATUS_ACTIVE, transactionManager.getTransactionStatus());
 
-		final var tx = TM.getTransaction();
+		final var tx = transactionManager.getTransaction();
 		assertEquals(Status.STATUS_ACTIVE, tx.getStatus());
-		assertEquals(TM.getTransactionKey(), tx.getTransactionKey());
+		assertEquals(transactionManager.getTransactionKey(), tx.getTransactionKey());
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* commit");
-		TM.commit();
+		transactionManager.commit();
 
-		assertEquals(Status.STATUS_NO_TRANSACTION, TM.getTransactionStatus());
+		assertEquals(Status.STATUS_NO_TRANSACTION, transactionManager.getTransactionStatus());
 		assertEquals(Status.STATUS_COMMITTED, tx.getStatus());
-		assertNull(TM.getTransactionKey());
+		assertNull(transactionManager.getTransactionKey());
 	}
 
 	@Test
 	public void testHeuristicRollback() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINER);
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* begin");
-		TM.begin();
+		transactionManager.begin();
 		IuTestLogger.assertExpectedMessages();
 
-		assertEquals(Status.STATUS_ACTIVE, TM.getTransactionStatus());
+		assertEquals(Status.STATUS_ACTIVE, transactionManager.getTransactionStatus());
 
-		final var tx = TM.getTransaction();
+		final var tx = transactionManager.getTransaction();
 		assertEquals(Status.STATUS_ACTIVE, tx.getStatus());
-		assertEquals(TM.getTransactionKey(), tx.getTransactionKey());
+		assertEquals(transactionManager.getTransactionKey(), tx.getTransactionKey());
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* branch iuxid-63225\\+.*");
-		TM.begin();
+		transactionManager.begin();
 		IuTestLogger.assertExpectedMessages();
 
-		assertEquals(Status.STATUS_ACTIVE, TM.getTransactionStatus());
+		assertEquals(Status.STATUS_ACTIVE, transactionManager.getTransactionStatus());
 
-		final var btx = TM.getTransaction();
+		final var btx = transactionManager.getTransaction();
 		assertEquals(Status.STATUS_ACTIVE, tx.getStatus());
-		assertNotEquals(TM.getTransactionKey(), tx.getTransactionKey());
-		assertEquals(TM.getTransactionKey(), btx.getTransactionKey());
+		assertNotEquals(transactionManager.getTransactionKey(), tx.getTransactionKey());
+		assertEquals(transactionManager.getTransactionKey(), btx.getTransactionKey());
 		assertEquals(btx.getTransactionKey().getGlobalTransactionId(), tx.getTransactionKey().getGlobalTransactionId());
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* rollback");
-		TM.rollback();
+		transactionManager.rollback();
 
 		assertEquals(Status.STATUS_ROLLEDBACK, btx.getStatus());
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* rollback");
-		assertThrows(HeuristicRollbackException.class, TM::commit);
+		assertThrows(HeuristicRollbackException.class, transactionManager::commit);
 		assertEquals(Status.STATUS_ROLLEDBACK, tx.getStatus());
 	}
 
@@ -115,28 +122,28 @@ public class TransactionManagerTest {
 	public void testHeuristicCommit() throws RollbackException, HeuristicRollbackException, HeuristicMixedException {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINER);
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* begin");
-		TM.begin();
+		transactionManager.begin();
 		IuTestLogger.assertExpectedMessages();
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* branch iuxid-63225\\+.*");
-		TM.begin();
+		transactionManager.begin();
 		IuTestLogger.assertExpectedMessages();
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* commit");
-		TM.commit();
+		transactionManager.commit();
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* rollback");
 		assertInstanceOf(HeuristicCommitException.class,
-				assertThrows(IllegalStateException.class, TM::rollback).getCause());
+				assertThrows(IllegalStateException.class, transactionManager::rollback).getCause());
 	}
 
 	@Test
 	public void testBeginAndVisit() {
 		IuTestLogger.allow("edu.iu.transaction.IuTransaction", Level.FINER);
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* begin");
-		TM.begin();
+		transactionManager.begin();
 
-		final var t = TM.getTransaction();
+		final var t = transactionManager.getTransaction();
 		assertSame(Status.STATUS_ACTIVE, t.getStatus());
 		assertSame(Status.STATUS_ACTIVE, t.getTransactionStatus());
 		assertFalse(t.getRollbackOnly());
@@ -145,17 +152,19 @@ public class TransactionManagerTest {
 			boolean found;
 		}
 		final var box = new Box();
-		TM.visit(tx -> {
+		transactionManager.visit(tx -> {
 			if (tx == t)
 				box.found = true;
 			return null;
 		});
 		assertTrue(box.found);
+
+		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* rollback");
 	}
 
 	@Test
 	public void testSubscribe() throws Throwable {
-		IuAsynchronousSubscription<IuTransaction> sub = TM.subscribe();
+		IuAsynchronousSubscription<IuTransaction> sub = transactionManager.subscribe();
 		final var t = new IuUtilityTaskController<>(() -> {
 			final var i = sub.stream().iterator();
 			IuTransaction last = null;
@@ -165,88 +174,97 @@ public class TransactionManagerTest {
 		}, Instant.now().plusSeconds(5L));
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* begin");
 
-		TM.begin();
+		transactionManager.begin();
 		sub.close();
-		assertSame(TM.getTransaction(), t.get());
+		assertSame(transactionManager.getTransaction(), t.get());
+
+		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, "iuxid-63225\\+.* rollback");
 	}
 
 	@Test
 	public void testNoTransaction() {
-		assertThrows(IllegalStateException.class, TM::commit);
-		assertThrows(IllegalStateException.class, TM::rollback);
+		assertThrows(IllegalStateException.class, transactionManager::commit);
+		assertThrows(IllegalStateException.class, transactionManager::rollback);
 	}
 
 	@Test
 	public void testRollbackOnly() {
-		assertThrows(IllegalStateException.class, TM::setRollbackOnly);
-		assertThrows(IllegalStateException.class, TM::getRollbackOnly);
+		assertThrows(IllegalStateException.class, transactionManager::setRollbackOnly);
+		assertThrows(IllegalStateException.class, transactionManager::getRollbackOnly);
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
-		TM.begin();
-		assertFalse(TM.getRollbackOnly());
-		TM.setRollbackOnly();
-		assertTrue(TM.getRollbackOnly());
-		assertThrows(RollbackException.class, TM::commit);
+		transactionManager.begin();
+		assertFalse(transactionManager.getRollbackOnly());
+		transactionManager.setRollbackOnly();
+		assertTrue(transactionManager.getRollbackOnly());
+		assertThrows(RollbackException.class, transactionManager::commit);
 	}
-	
+
 	@Test
 	public void testResources() {
-		assertThrows(IllegalStateException.class, () -> TM.getResource(null));
-		assertThrows(IllegalStateException.class, () -> TM.putResource(null, null));
-		assertThrows(IllegalStateException.class, () -> TM.registerInterposedSynchronization(null));
+		assertThrows(IllegalStateException.class, () -> transactionManager.getResource(null));
+		assertThrows(IllegalStateException.class, () -> transactionManager.putResource(null, null));
+		assertThrows(IllegalStateException.class, () -> transactionManager.registerInterposedSynchronization(null));
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
-		TM.begin();
+		transactionManager.begin();
 		final var key = new Object();
 		final var value = new Object();
-		TM.putResource(key, value);
-		assertEquals(value, TM.getResource(key));
+		transactionManager.putResource(key, value);
+		assertEquals(value, transactionManager.getResource(key));
 		final var synch = mock(Synchronization.class);
-		TM.registerInterposedSynchronization(synch);
-		assertDoesNotThrow(TM::commit);
+		transactionManager.registerInterposedSynchronization(synch);
+		assertDoesNotThrow(transactionManager::commit);
 		verify(synch).beforeCompletion();
 		verify(synch).afterCompletion(Status.STATUS_COMMITTED);
 	}
 
 	@Test
 	public void testSuspendResume() {
-		assertThrows(IllegalStateException.class, () -> TM.suspend());
+		assertThrows(IllegalStateException.class, () -> transactionManager.suspend());
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		final var badTx = mock(Transaction.class);
-		assertThrows(InvalidTransactionException.class, () -> TM.resume(badTx));
-		TM.begin();
-		final var tx = TM.suspend();
-		assertEquals(Status.STATUS_NO_TRANSACTION, TM.getStatus());
-		assertDoesNotThrow(() -> TM.resume(tx));
-		assertEquals(tx, TM.getTransaction());
-		assertDoesNotThrow(TM::commit);
+		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(badTx));
+		transactionManager.begin();
+		final var tx = transactionManager.suspend();
+		assertEquals(Status.STATUS_NO_TRANSACTION, transactionManager.getStatus());
+		assertDoesNotThrow(() -> transactionManager.resume(tx));
+		assertEquals(tx, transactionManager.getTransaction());
+		assertDoesNotThrow(transactionManager::commit);
 	}
-	
+
 	@Test
 	public void testSuspendResumeNested() {
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
-		TM.begin();
-		final var tx1 = TM.getTransaction();
-		TM.begin();
-		final var tx = TM.suspend();
-		assertEquals(Status.STATUS_ACTIVE, TM.getStatus());
-		assertEquals(tx1, TM.getTransaction());
-		assertDoesNotThrow(() -> TM.resume(tx));
-		assertEquals(tx, TM.getTransaction());
-		assertEquals(tx, TM.suspend());
-		assertDoesNotThrow(TM::commit);
+		transactionManager.begin();
+		final var tx1 = transactionManager.getTransaction();
+		transactionManager.begin();
+		final var tx = transactionManager.suspend();
+		assertEquals(Status.STATUS_ACTIVE, transactionManager.getStatus());
+		assertEquals(tx1, transactionManager.getTransaction());
+		assertDoesNotThrow(() -> transactionManager.resume(tx));
+		assertEquals(tx, transactionManager.getTransaction());
+		assertEquals(tx, transactionManager.suspend());
+		assertDoesNotThrow(transactionManager::commit);
 		assertEquals(Status.STATUS_COMMITTED, tx.getStatus());
 	}
 
 	@Test
 	public void testSuspendResumeBranch() {
-		assertThrows(IllegalStateException.class, () -> TM.suspend());
+		assertThrows(IllegalStateException.class, () -> transactionManager.suspend());
 		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE, "iuxid-63225\\+.*");
 		final var badTx = mock(Transaction.class);
-		assertThrows(InvalidTransactionException.class, () -> TM.resume(badTx));
-		TM.begin();
-		final var tx = TM.suspend();
-		TM.begin();
-		assertThrows(IllegalStateException.class, () -> TM.resume(tx));
-		assertDoesNotThrow(TM::commit);
+		assertThrows(InvalidTransactionException.class, () -> transactionManager.resume(badTx));
+		transactionManager.begin();
+		final var tx = transactionManager.suspend();
+		transactionManager.begin();
+		assertThrows(IllegalStateException.class, () -> transactionManager.resume(tx));
+		assertDoesNotThrow(transactionManager::commit);
 	}
 
+	@Test
+	public void testClearThreadState() {
+		IuTestLogger.allow(IuTransaction.class.getName(), Level.FINE);
+		transactionManager.begin();
+		transactionManager.clearThreadState();
+		assertEquals(Status.STATUS_NO_TRANSACTION, transactionManager.getStatus());
+	}
 }

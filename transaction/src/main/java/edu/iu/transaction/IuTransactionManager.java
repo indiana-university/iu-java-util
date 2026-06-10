@@ -5,6 +5,9 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.Optional;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import edu.iu.IuAsynchronousSubject;
@@ -25,17 +28,29 @@ import jakarta.transaction.UserTransaction;
  * Portable virtual transaction manager implementation.
  */
 public final class IuTransactionManager
-		implements TransactionManager, UserTransaction, TransactionSynchronizationRegistry {
+		implements TransactionManager, UserTransaction, TransactionSynchronizationRegistry, AutoCloseable {
 
 	private final ThreadLocal<Deque<IuTransaction>> activeTransactions = new ThreadLocal<Deque<IuTransaction>>();
 	private final IuVisitor<IuTransaction> visitor = new IuVisitor<>();
 	private final IuAsynchronousSubject<IuTransaction> subject = visitor.subject();
+	private final ScheduledThreadPoolExecutor rollbackScheduler;
 	private Duration timeout = Duration.ofMinutes(2L);
 
 	/**
 	 * Default constructor.
 	 */
 	public IuTransactionManager() {
+		final var threadGroup = new ThreadGroup("iu-java-transaction");
+		final var threadFactory = new ThreadFactory() {
+			private volatile int num;
+
+			@Override
+			public synchronized Thread newThread(Runnable r) {
+				return new Thread(threadGroup, r, "iu-java-transaction/" + (++num));
+			}
+		};
+		rollbackScheduler = new ScheduledThreadPoolExecutor(8, threadFactory);
+		rollbackScheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 	}
 
 	/**
@@ -59,7 +74,7 @@ public final class IuTransactionManager
 	/**
 	 * Visits {@link IuTransaction} managed by this instance.
 	 *
-	 * @param <V> optional return type
+	 * @param <V>                optional return type
 	 * @param transactionVisitor {@link IuVisitor#visit(Function) visitor function}
 	 * @return {@link IuVisitor#visit(Function) visitor result}
 	 */
@@ -92,9 +107,9 @@ public final class IuTransactionManager
 		final IuTransaction transaction;
 		if (active == null) {
 			active = new ArrayDeque<>();
-			transaction = new IuTransaction(timeout, this::handleStatusChange);
+			transaction = new IuTransaction(timeout, this::handleStatusChange, rollbackScheduler);
 		} else
-			transaction = new IuTransaction(active.peek());
+			transaction = new IuTransaction(active.peek(), rollbackScheduler);
 
 		subject.accept(transaction);
 		visitor.accept(transaction);
@@ -248,4 +263,17 @@ public final class IuTransactionManager
 		if (transaction.isCompleted())
 			visitor.clear(transaction);
 	}
+
+	@Override
+	public void close() throws Exception {
+		rollbackScheduler.shutdown();
+		visitor.visit(t -> {
+			if (t != null)
+				t.rollback();
+			return null;
+		});
+		subject.close();
+		rollbackScheduler.awaitTermination(timeout.getSeconds(), TimeUnit.SECONDS);
+	}
+
 }

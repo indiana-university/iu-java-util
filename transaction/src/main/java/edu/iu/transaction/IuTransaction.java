@@ -12,7 +12,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
@@ -63,21 +62,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 		private final Queue<XAResource> delisted = new ArrayDeque<>();
 	}
 
-	private static final ScheduledThreadPoolExecutor ROLLBACK_SCHEDULER;
-	static {
-		final var threadGroup = new ThreadGroup("iu-java-transaction");
-		final var threadFactory = new ThreadFactory() {
-			private volatile int num;
-
-			@Override
-			public synchronized Thread newThread(Runnable r) {
-				return new Thread(threadGroup, r, "iu-java-transaction/" + (++num));
-			}
-		};
-		ROLLBACK_SCHEDULER = new ScheduledThreadPoolExecutor(8, threadFactory);
-	}
-
-	private static ScheduledFuture<?> scheduleRollback(IuTransaction t) {
+	private ScheduledFuture<?> scheduleRollback(IuTransaction t, ScheduledThreadPoolExecutor rollbackScheduler) {
 		final var loader = Thread.currentThread().getContextClassLoader();
 		final Runnable scheduledRollback = () -> {
 			final var current = Thread.currentThread();
@@ -89,7 +74,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 //					if (t.status != Status.STATUS_COMMITTED //
 //							&& t.status != Status.STATUS_ROLLEDBACK)
 					try {
-						t.continueRollback(new RollbackContinuation());
+						t.continueRollback(new IuTransaction.RollbackContinuation());
 					} catch (Throwable e) {
 						LOG.log(Level.WARNING, e, () -> t.xid + " timed rollback failure");
 					}
@@ -102,7 +87,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 			}
 		};
 
-		return ROLLBACK_SCHEDULER.schedule(scheduledRollback, Duration.between(Instant.now(), t.expires).toNanos(),
+		return rollbackScheduler.schedule(scheduledRollback, Duration.between(Instant.now(), t.expires).toNanos(),
 				TimeUnit.NANOSECONDS);
 	}
 
@@ -219,49 +204,53 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	/**
 	 * Creates a new root transaction.
 	 * 
-	 * @param timeout transaction timeout; unless completed beforehand, the
-	 *                transaction will automatically roll back when the timeout
-	 *                expires, using the same the context transaction was created
-	 *                in.
+	 * @param timeout           transaction timeout; unless completed beforehand,
+	 *                          the transaction will automatically roll back when
+	 *                          the timeout expires, using the same the context
+	 *                          transaction was created in.
+	 * @param rollbackScheduler scheduler for executing timed rollback
 	 */
-	public IuTransaction(Duration timeout) {
-		this(timeout, null);
+	public IuTransaction(Duration timeout, ScheduledThreadPoolExecutor rollbackScheduler) {
+		this(timeout, null, rollbackScheduler);
 	}
 
 	/**
 	 * Creates a new root transaction.
 	 * 
-	 * @param timeout        transaction timeout; unless completed beforehand, the
-	 *                       transaction will automatically roll back when the
-	 *                       timeout expires, using the same the context transaction
-	 *                       was created in.
-	 * @param onStatusChange {@link Consumer}, will be provided a reference to this
-	 *                       transaction each time its status changes
+	 * @param timeout           transaction timeout; unless completed beforehand,
+	 *                          the transaction will automatically roll back when
+	 *                          the timeout expires, using the same the context
+	 *                          transaction was created in.
+	 * @param onStatusChange    {@link Consumer}, will be provided a reference to
+	 *                          this transaction each time its status changes
+	 * @param rollbackScheduler scheduler for executing timed rollback
 	 */
-	public IuTransaction(Duration timeout, Consumer<IuTransaction> onStatusChange) {
+	public IuTransaction(Duration timeout, Consumer<IuTransaction> onStatusChange,
+			ScheduledThreadPoolExecutor rollbackScheduler) {
 		if (timeout.toSeconds() < 1)
 			throw new IllegalArgumentException();
 
 		xid = new IuXid();
 		expires = Instant.now().plus(timeout);
 		this.onStatusChange = onStatusChange;
-		timedRollback = scheduleRollback(this);
+		timedRollback = scheduleRollback(this, rollbackScheduler);
 		LOG.fine(() -> xid + " begin");
 	}
 
 	/**
 	 * Creates a new branch transaction.
 	 * 
-	 * @param parent parent transaction
+	 * @param parent            parent transaction
+	 * @param rollbackScheduler scheduler for executing timed rollback
 	 */
-	public IuTransaction(IuTransaction parent) {
+	public IuTransaction(IuTransaction parent, ScheduledThreadPoolExecutor rollbackScheduler) {
 		if (Duration.between(Instant.now(), parent.expires).toSeconds() < 1)
 			throw new IllegalArgumentException();
 
 		xid = new IuXid(parent.xid);
 		expires = parent.expires;
 		onStatusChange = parent.onStatusChange;
-		timedRollback = scheduleRollback(this);
+		timedRollback = scheduleRollback(this, rollbackScheduler);
 		parent.branches.offer(this);
 		LOG.fine(() -> xid + " branch " + parent.xid);
 	}
