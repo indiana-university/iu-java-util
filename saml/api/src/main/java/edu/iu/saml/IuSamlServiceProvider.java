@@ -64,8 +64,8 @@ public interface IuSamlServiceProvider {
 	 * Handles a SAML assertion consumer service POST request.
 	 * 
 	 * @param requestAttributes Incoming request attributes
-	 * @param samlResponse      SAML response that received back from identity
-	 *                          provider after user has been authenticate
+	 * @param samlResponse      SAML response received from identity provider
+	 *                          after user has been authenticated.
 	 * @param relayState        state value that received back from identity
 	 *                          provider after successful authentication.
 	 * 

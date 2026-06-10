@@ -98,16 +98,28 @@ public class IuConfig {
 						: a.asJsonObject(), //
 				a -> a));
 		registerAdapter(WebKey.class, IuJsonAdapter.from( //
-				v -> WebKey.parse(v.toString()), //
-				v -> IuJson.parse(v.toString()) //
+				v -> v == null //
+						? null //
+						: WebKey.parse(v.toString()), //
+				v -> v == null //
+						? null //
+						: IuJson.parse(v.toString()) //
 		));
 		registerAdapter(X509Certificate.class, IuJsonAdapter.from( //
-				v -> PemEncoded.asCertificate(IuText.base64(((JsonString) v).getString())), //
-				v -> IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
+				v -> v == null //
+						? null //
+						: PemEncoded.asCertificate(IuText.base64(((JsonString) v).getString())), //
+				v -> v == null //
+						? null //
+						: IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
 		));
 		registerAdapter(X509CRL.class, IuJsonAdapter.from( //
-				v -> PemEncoded.asCRL(IuText.base64(((JsonString) v).getString())), //
-				v -> IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
+				v -> v == null //
+						? null //
+						: PemEncoded.asCRL(IuText.base64(((JsonString) v).getString())), //
+				v -> v == null //
+						? null //
+						: IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
 		));
 	}
 
