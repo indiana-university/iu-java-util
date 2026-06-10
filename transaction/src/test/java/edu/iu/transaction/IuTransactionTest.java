@@ -125,7 +125,7 @@ public class IuTransactionTest {
 	@Test
 	public void testBranch() {
 		final var t = tx();
-		assertSame(Status.STATUS_ACTIVE, t.getTransactionStatus());
+		assertEquals(Status.STATUS_ACTIVE, t.getTransactionStatus());
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
 		final var gtid = IuText.base64Url(t.getTransactionKey().getGlobalTransactionId());
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE,
@@ -160,7 +160,7 @@ public class IuTransactionTest {
 	@Test
 	public void testBeginAndCommit() throws Exception {
 		final var t = tx();
-		assertSame(Status.STATUS_ACTIVE, t.getStatus());
+		assertEquals(Status.STATUS_ACTIVE, t.getStatus());
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINEST, escapedXid + ":COMMIT begin");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINEST, escapedXid + ":COMMIT before-synch");
@@ -181,14 +181,14 @@ public class IuTransactionTest {
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINEST, escapedXid + ":COMMIT complete");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, escapedXid + " commit");
 		t.commit();
-		assertSame(Status.STATUS_COMMITTED, t.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t.getStatus());
 		assertThrows(IllegalStateException.class, t::commit);
 	}
 
 	@Test
 	public void testBeginAndRollback() throws RollbackException {
 		final var t = tx();
-		assertSame(Status.STATUS_ACTIVE, t.getStatus());
+		assertEquals(Status.STATUS_ACTIVE, t.getStatus());
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINER, escapedXid + ":STATUS_MARKED_ROLLBACK");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINEST, escapedXid + ":ROLLBACK before-synch");
@@ -209,7 +209,7 @@ public class IuTransactionTest {
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINEST, escapedXid + ":ROLLBACK after-synch");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, escapedXid + " rollback");
 		t.rollback();
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 		assertThrows(RollbackException.class, () -> t.enlistResource(null));
 	}
 
@@ -217,7 +217,7 @@ public class IuTransactionTest {
 	public void testRollbackOnly() throws RollbackException {
 		final var t = tx();
 		final var escapedXid = t.getTransactionKey().toString().replace("+", "\\+");
-		assertSame(Status.STATUS_ACTIVE, t.getStatus());
+		assertEquals(Status.STATUS_ACTIVE, t.getStatus());
 
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINER, escapedXid + ":STATUS_MARKED_ROLLBACK");
 		IuTestLogger.expect("edu.iu.transaction.IuTransaction", Level.FINE, escapedXid + " rollback-only");
@@ -250,7 +250,7 @@ public class IuTransactionTest {
 		});
 		assertInstanceOf(RollbackException.class, rollback.getCause());
 		assertInstanceOf(RollbackException.class, rollback.getCause().getCause());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -558,7 +558,7 @@ public class IuTransactionTest {
 			});
 			t.commit();
 		}
-		assertSame(Status.STATUS_COMMITTED, t.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t.getStatus());
 	}
 
 	@Test
@@ -607,8 +607,8 @@ public class IuTransactionTest {
 		final var t2 = new IuTransaction(t, rollbackScheduler);
 		t2.suspend();
 		t.commit();
-		assertSame(Status.STATUS_COMMITTED, t2.getStatus());
-		assertSame(Status.STATUS_COMMITTED, t.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t2.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t.getStatus());
 	}
 
 	@Test
@@ -642,8 +642,8 @@ public class IuTransactionTest {
 			throw box.error;
 		assertTrue(box.done);
 
-		assertSame(Status.STATUS_COMMITTED, t2.getStatus());
-		assertSame(Status.STATUS_COMMITTED, t.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t2.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t.getStatus());
 	}
 
 	@Test
@@ -677,8 +677,8 @@ public class IuTransactionTest {
 			throw box.error;
 		assertTrue(box.done);
 
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -734,10 +734,10 @@ public class IuTransactionTest {
 		if (error != null)
 			throw error;
 
-		assertSame(Status.STATUS_ROLLEDBACK, t4.getStatus());
-		assertSame(Status.STATUS_COMMITTED, t3.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t4.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t3.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -797,8 +797,8 @@ public class IuTransactionTest {
 
 		assertTrue(b2.done);
 
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -811,10 +811,10 @@ public class IuTransactionTest {
 		t3.commit();
 		final var e = assertThrows(IllegalStateException.class, t::rollback);
 		assertInstanceOf(HeuristicMixedException.class, e.getCause());
-		assertSame(Status.STATUS_ROLLEDBACK, t4.getStatus());
-		assertSame(Status.STATUS_COMMITTED, t3.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t4.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t3.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -828,12 +828,12 @@ public class IuTransactionTest {
 		t4.commit();
 		final var e = assertThrows(IllegalStateException.class, t2::rollback);
 		assertInstanceOf(HeuristicCommitException.class, e.getCause());
-		assertSame(Status.STATUS_COMMITTED, t4.getStatus());
-		assertSame(Status.STATUS_COMMITTED, t3.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t4.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t3.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
 		final var e2 = assertThrows(IllegalStateException.class, t::rollback);
 		assertInstanceOf(HeuristicMixedException.class, e2.getCause());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -851,10 +851,10 @@ public class IuTransactionTest {
 		t2.registerSynchronization(s);
 		assertSame(r, assertThrows(RuntimeException.class, t::rollback));
 		assertInstanceOf(HeuristicMixedException.class, r.getSuppressed()[0]);
-		assertSame(Status.STATUS_COMMITTED, t4.getStatus());
-		assertSame(Status.STATUS_COMMITTED, t3.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t4.getStatus());
+		assertEquals(Status.STATUS_COMMITTED, t3.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
 	}
 
 	@Test
@@ -980,9 +980,9 @@ public class IuTransactionTest {
 		t2.setRollbackOnly();
 		final var t3 = new IuTransaction(t, rollbackScheduler);
 		assertThrows(RollbackException.class, t::commit);
-		assertSame(Status.STATUS_ROLLEDBACK, t.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t2.getStatus());
-		assertSame(Status.STATUS_ROLLEDBACK, t3.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t2.getStatus());
+		assertEquals(Status.STATUS_ROLLEDBACK, t3.getStatus());
 	}
 
 	@Test

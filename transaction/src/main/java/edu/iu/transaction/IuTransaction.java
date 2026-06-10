@@ -672,8 +672,8 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 	}
 
 	private synchronized void doEnlist(XAResource res) throws XAException {
-		final var error = IuException.suppress(null,
-				() -> res.setTransactionTimeout((int) Duration.between(Instant.now(), expires).toSeconds()));
+		final var error = IuException.suppress(null, () -> res
+				.setTransactionTimeout(Integer.max(1, (int) Duration.between(Instant.now(), expires).toSeconds())));
 		try {
 			res.start(xid, XAResource.TMNOFLAGS);
 			if (status == Status.STATUS_ACTIVE) {
@@ -731,7 +731,7 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 			}
 
 		if (sameRM == null) {
-			resource.setTransactionTimeout((int) Duration.between(Instant.now(), expires).toSeconds());
+			resource.setTransactionTimeout(Integer.max(1, (int) Duration.between(Instant.now(), expires).toSeconds()));
 			resource.start(this.xid, XAResource.TMNOFLAGS);
 			resources.offer(resource);
 			sameRM = resource;
