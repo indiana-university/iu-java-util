@@ -71,10 +71,8 @@ public class IuTransaction implements Transaction, TransactionSynchronizationReg
 				current.setContextClassLoader(loader);
 
 				synchronized (t) {
-//					if (t.status != Status.STATUS_COMMITTED //
-//							&& t.status != Status.STATUS_ROLLEDBACK)
 					try {
-						t.continueRollback(new IuTransaction.RollbackContinuation());
+						t.continueRollback(new RollbackContinuation());
 					} catch (Throwable e) {
 						LOG.log(Level.WARNING, e, () -> t.xid + " timed rollback failure");
 					}
