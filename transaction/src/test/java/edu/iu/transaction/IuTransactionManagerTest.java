@@ -62,6 +62,7 @@ public class IuTransactionManagerTest {
 		assertEquals(Duration.ofSeconds(5L), f.get(transactionManager));
 		transactionManager.setTransactionTimeout(0);
 		assertEquals(Duration.ofMinutes(2L), f.get(transactionManager));
+		assertThrows(SystemException.class, () -> transactionManager.setTransactionTimeout(-1));
 	}
 
 	@Test
