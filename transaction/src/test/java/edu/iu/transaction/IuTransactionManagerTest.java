@@ -56,8 +56,6 @@ public class IuTransactionManagerTest {
 		Field f = IuTransactionManager.class.getDeclaredField("timeout");
 		f.setAccessible(true);
 		assertEquals(Duration.ofMinutes(2L), f.get(transactionManager));
-		transactionManager.setTimeout(Duration.ofMillis(10L));
-		assertEquals(Duration.ofMillis(10L), f.get(transactionManager));
 		transactionManager.setTransactionTimeout(5);
 		assertEquals(Duration.ofSeconds(5L), f.get(transactionManager));
 		transactionManager.setTransactionTimeout(0);

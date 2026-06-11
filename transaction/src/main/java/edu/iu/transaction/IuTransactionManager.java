@@ -66,15 +66,6 @@ public final class IuTransactionManager
 	}
 
 	/**
-	 * Sets the transaction timeout.
-	 * 
-	 * @param timeout timeout
-	 */
-	public void setTimeout(Duration timeout) {
-		this.timeout = timeout;
-	}
-
-	/**
 	 * Visits {@link IuTransaction} managed by this instance.
 	 *
 	 * @param <V>                optional return type
@@ -149,9 +140,9 @@ public final class IuTransactionManager
 	@Override
 	public void setTransactionTimeout(int timeout) throws SystemException {
 		if (timeout == 0)
-			setTimeout(Duration.ofMinutes(2L));
+			this.timeout = Duration.ofMinutes(2L);
 		else if (timeout > 0)
-			setTimeout(Duration.ofSeconds(timeout));
+			this.timeout = Duration.ofSeconds(timeout);
 		else
 			throw new SystemException();
 	}
