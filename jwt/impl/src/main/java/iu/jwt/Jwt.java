@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 
+import edu.iu.IuDigest;
+import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
@@ -283,9 +285,19 @@ public class Jwt implements WebToken {
 	 * @return {@link WebSignedPayload#compact() JWS compact serialization}
 	 */
 	@Override
+	@SuppressWarnings("deprecation")
 	public String sign(String type, Algorithm algorithm, WebKey issuerKey) {
-		return WebSignature.builder(algorithm).compact().keyId(issuerKey.getKeyId()).key(issuerKey).type(type)
-				.sign(claims.toString()).compact();
+		final var builder = WebSignature.builder(algorithm).compact().key(issuerKey).type(type);
+
+		final var keyId = issuerKey.getKeyId();
+		if (keyId != null)
+			builder.keyId(keyId);
+
+		final var certChain = issuerKey.getCertificateChain();
+		if (certChain != null)
+			builder.x5t(IuDigest.sha1(IuException.unchecked(certChain[0]::getEncoded)));
+
+		return builder.sign(claims.toString()).compact();
 	}
 
 	/**

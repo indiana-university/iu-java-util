@@ -31,6 +31,7 @@
  */
 package iu.jwt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,6 +50,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.logging.Level;
 
 import javax.crypto.AEADBadTagException;
@@ -57,13 +59,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuDigest;
+import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuProcess;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.config.IuConfig;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.X500Utils;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.JsonNumber;
@@ -253,6 +261,72 @@ public class JwtTest {
 		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
 		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
 		assertEquals(jwt, Jwt.verify(signed, issuerKey));
+
+		final var jws = WebSignedPayload.parse(signed);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertNull(header.getKeyId());
+		assertNull(header.getCertificateThumbprint());
+
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> Jwt.verify(signed, WebKey.ephemeral(Algorithm.ES256)));
+		assertEquals("SHA256withECDSA verification failed", error.getMessage());
+	}
+
+	@SuppressWarnings("deprecation")
+	@Test
+	public void testSignAndVerifyCert() {
+		final var tokenId = IdGenerator.generateId();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var notBefore = issuedAt.minusSeconds(30L);
+		final var expires = issuedAt.plusSeconds(30L);
+		final var nonce = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("jti", tokenId) //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("nbf", notBefore.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("nonce", nonce).build());
+
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.ES256).keyId(id).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(key.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + id.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(key) //
+		);
+		IuProcess.deleteTempFiles();
+
+		final var certKey = WebKey.pem(pemCert);
+		final var issuerKey = WebKey.builder(key.getType()) //
+				.keyId(id) //
+				.key(privateKey) //
+				.key(key.getPublicKey()) // s
+				.algorithm(key.getAlgorithm()) //
+				.pem(pemCert) //
+				.build();
+
+		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
+		assertEquals(jwt, Jwt.verify(signed, certKey));
+
+		// verify JWS directly and inspect header values
+		final var jws = WebSignedPayload.parse(signed);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertEquals(id, header.getKeyId());
+		assertArrayEquals(IuDigest.sha1(IuException.unchecked(certKey.getCertificateChain()[0]::getEncoded)),
+				header.getCertificateThumbprint());
+		assertDoesNotThrow(() -> jws.verify(certKey));
 
 		final var error = assertThrows(IllegalArgumentException.class,
 				() -> Jwt.verify(signed, WebKey.ephemeral(Algorithm.ES256)));

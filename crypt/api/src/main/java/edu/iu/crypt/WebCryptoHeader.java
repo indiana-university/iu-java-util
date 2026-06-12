@@ -264,7 +264,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	 * 
 	 * @param <B> builder type
 	 */
-	interface Builder<B extends Builder<B>> {
+	interface Builder<B extends Builder<B>> extends WebKeyReference.Builder<B> {
 		/**
 		 * Sets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
 		 * key entry.
