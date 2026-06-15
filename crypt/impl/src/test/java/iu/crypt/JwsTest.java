@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,18 +43,25 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.util.ArrayDeque;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuDigest;
+import edu.iu.IuException;
 import edu.iu.IuIterable;
+import edu.iu.IuProcess;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -61,6 +69,8 @@ import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.X500Utils;
+import edu.iu.test.IuTestLogger;
 import iu.crypt.Jose.Extension;
 import jakarta.json.JsonString;
 
@@ -232,6 +242,121 @@ public class JwsTest {
 
 		assertDoesNotThrow(() -> WebSignedPayload.parse(jws.compact()).verify(key));
 		assertDoesNotThrow(() -> WebSignedPayload.parse(jws.toString()).verify(key));
+	}
+
+	@SuppressWarnings("deprecation")
+	@Test
+	public void testCertRef() {
+		final var x5u = URI.create(IdGenerator.generateId());
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.EDDSA).keyId(id).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(key.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + id.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(key) //
+		);
+		IuProcess.deleteTempFiles();
+
+		final var self = WebKey.builder(key.getType()) //
+				.keyId(id) //
+				.key(privateKey) //
+				.key(key.getPublicKey()) // s
+				.algorithm(key.getAlgorithm()) //
+				.pem(pemCert) //
+				.build();
+		final var cert = self.getCertificateChain()[0];
+
+		final var jwsBuilder = WebSignature.builder(Algorithm.EDDSA).compact();
+		jwsBuilder.key(self);
+		jwsBuilder.algorithm(key.getAlgorithm());
+		jwsBuilder.cert(cert);
+		jwsBuilder.cert(x5u);
+		jwsBuilder.x5t(IuDigest.sha1(IuException.unchecked(cert::getEncoded)));
+		jwsBuilder.x5t256(IuDigest.sha256(IuException.unchecked(cert::getEncoded)));
+
+		final var payload = IdGenerator.generateId();
+		final var jws = jwsBuilder.sign(payload);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertEquals(cert, header.getCertificateChain()[0]);
+		assertEquals(x5u, header.getCertificateUri());
+		assertArrayEquals(IuDigest.sha1(IuException.unchecked(cert::getEncoded)), header.getCertificateThumbprint());
+		assertArrayEquals(IuDigest.sha256(IuException.unchecked(cert::getEncoded)),
+				header.getCertificateSha256Thumbprint());
+	}
+
+	@Test
+	public void testPem() {
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.EDDSA).keyId(id).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(key.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + id.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(key) //
+		);
+		IuProcess.deleteTempFiles();
+
+		final var self = WebKey.builder(key.getType()) //
+				.keyId(id) //
+				.key(privateKey) //
+				.key(key.getPublicKey()) // s
+				.algorithm(key.getAlgorithm()) //
+				.pem(pemCert) //
+				.build();
+		final var cert = self.getCertificateChain()[0];
+
+		final var jwsBuilder = WebSignature.builder(Algorithm.EDDSA).compact();
+		jwsBuilder.key(self);
+		jwsBuilder.pem(pemCert);
+
+		final var payload = IdGenerator.generateId();
+		final var jws = jwsBuilder.sign(payload);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertEquals(cert, header.getCertificateChain()[0]);
+	}
+
+	@Test
+	public void testPemFromStream() {
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.EDDSA).keyId(id).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(key.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + id.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(key) //
+		);
+		IuProcess.deleteTempFiles();
+
+		final var self = WebKey.builder(key.getType()) //
+				.keyId(id) //
+				.key(privateKey) //
+				.key(key.getPublicKey()) // s
+				.algorithm(key.getAlgorithm()) //
+				.pem(pemCert) //
+				.build();
+		final var cert = self.getCertificateChain()[0];
+
+		final var jwsBuilder = WebSignature.builder(Algorithm.EDDSA).compact();
+		jwsBuilder.key(self);
+		jwsBuilder.pem(new ByteArrayInputStream(pemCert.getBytes()));
+
+		final var payload = IdGenerator.generateId();
+		final var jws = jwsBuilder.sign(payload);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertEquals(cert, header.getCertificateChain()[0]);
 	}
 
 	@Test
