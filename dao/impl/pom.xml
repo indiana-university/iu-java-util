@@ -62,7 +62,7 @@
 				<executions>
 					<execution>
 						<id>liquibase-update</id>
-						<phase>process-test-classes</phase>
+						<phase>generate-test-resources</phase>
 						<goals>
 							<goal>update</goal>
 						</goals>
