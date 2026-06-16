@@ -341,9 +341,12 @@ public class IuCommonDataSourceTest {
 
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINE, "jdbc-pool-open:PT.*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
 			final var p = ds.getPooledConnection();
 			IuTestLogger.assertExpectedMessages();
 
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
 			final var c = p.getConnection();
 			IuTestLogger.assertExpectedMessages();
 
@@ -707,6 +710,9 @@ public class IuCommonDataSourceTest {
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
 			var c = ds.getPooledConnection().getConnection();
 			verify(ds.factory.lastStatement).executeQuery("");
 			c.close();
@@ -721,6 +727,9 @@ public class IuCommonDataSourceTest {
 
 			ds.setValidationInterval(Duration.ZERO);
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reuse; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
+			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-open; .*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuPooledConnection", Level.FINER, "jdbc-pool-logical-close; .*");
 			IuTestLogger.expect("edu.iu.jdbc.pool.IuCommonDataSource", Level.FINER, "jdbc-pool-reusable; .*");

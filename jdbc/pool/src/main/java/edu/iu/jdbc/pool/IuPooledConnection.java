@@ -67,7 +67,8 @@ import edu.iu.IuObject;
 import edu.iu.UnsafeFunction;
 
 /**
- * Generic {@link PooledConnection} implementation.
+ * Generic {@link PooledConnection} implementation optimized for
+ * non-transactional database workloads.
  */
 public class IuPooledConnection implements PooledConnection, ConnectionEventListener, StatementEventListener {
 
@@ -217,7 +218,6 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	private final Duration abandonedConnectionTimeout;
 	private final Consumer<IuPooledConnection> onClose;
 
-	private volatile boolean validated;
 	private volatile Connection connection;
 	private volatile Instant logicalConnectionOpened;
 	private volatile ScheduledFuture<?> reaper;
@@ -254,9 +254,6 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		this.connectionInitializer = connectionInitializer;
 		this.abandonedConnectionTimeout = abandonedConnectionTimeout;
 		this.onClose = onClose;
-
-//		physicalConnection.addConnectionEventListener(this);
-//		physicalConnection.addStatementEventListener(this);
 	}
 
 	@Override
@@ -269,12 +266,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		}
 
 		if (logicalConnectionOpened != null)
-			if (validated) {
-				validated = false;
-				return (Connection) Proxy.newProxyInstance(JAVA_SQL_LOADER, CONNECTION_PROXY_INTERFACES,
-						new ConnectionHandler(connection));
-			} else
-				throw new IllegalStateException("already connected");
+			throw new IllegalStateException("already connected");
 
 		if (connection == null) {
 			final var newConnection = physicalConnection.getConnection();
@@ -319,7 +311,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		afterLogicalClose();
 		LOG.finer(() -> "jdbc-pool-logical-close; " + connection + " " + this);
 
-		connectionEventListeners.parallelStream().forEach(a -> a.connectionClosed(connectionClosedEvent));
+		connectionEventListeners.stream().forEach(a -> a.connectionClosed(connectionClosedEvent));
 	}
 
 	@Override
@@ -332,7 +324,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 		afterPhysicalClose(error);
 
 		final var decoratedEvent = new ConnectionEvent(this, error);
-		connectionEventListeners.parallelStream().forEach(a -> a.connectionErrorOccurred(decoratedEvent));
+		connectionEventListeners.stream().forEach(a -> a.connectionErrorOccurred(decoratedEvent));
 	}
 
 	@Override
@@ -546,9 +538,8 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	 *                      validation query fails
 	 */
 	synchronized void validate(String validationQuery) throws SQLException {
-		final var c = getConnection();
-
-		try (final var s = c.createStatement(); //
+		try (final var c = getConnection(); //
+				final var s = c.createStatement(); //
 				final var r = s.executeQuery(validationQuery)) {
 			if (!r.next() || r.getObject(1) == null) {
 				final var error = new SQLException(
@@ -557,8 +548,6 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 				throw error;
 			}
 		}
-
-		validated = true;
 	}
 
 	private void handleStatementOpened(PreparedStatement statement) {
@@ -570,10 +559,8 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	}
 
 	private synchronized void afterLogicalClose() {
-		if (reaper != null) {
-			reaper.cancel(false);
-			reaper = null;
-		}
+		reaper.cancel(false);
+		reaper = null;
 
 		lastTransactionSegmentStarted = Objects.requireNonNull(logicalConnectionOpened);
 		logicalConnectionOpened = null;

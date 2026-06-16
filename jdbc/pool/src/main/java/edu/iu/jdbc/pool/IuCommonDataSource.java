@@ -581,7 +581,7 @@ public abstract class IuCommonDataSource implements CommonDataSource, Connection
 
 	@Override
 	public String toString() {
-		// Not using JSON-P to avoid complex dependency issues with legacy apps
+		// Not using JSON-P to avoid complex dependency issues
 		final var sb = new StringBuilder("{");
 		final BiConsumer<String, Object> addValue = (n, v) -> {
 			if (sb.length() > 1)
