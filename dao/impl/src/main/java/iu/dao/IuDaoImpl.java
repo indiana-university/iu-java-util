@@ -7,4 +7,10 @@ import edu.iu.dao.IuDao;
  */
 public class IuDaoImpl implements IuDao {
 
+	/**
+	 * Default constructor.
+	 */
+	public IuDaoImpl() {
+	}
+
 }
