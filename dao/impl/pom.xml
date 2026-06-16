@@ -66,6 +66,9 @@
 						<goals>
 							<goal>update</goal>
 						</goals>
+						<configuration>
+							<skip>${skipTests}</skip>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
