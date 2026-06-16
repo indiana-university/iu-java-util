@@ -37,4 +37,5 @@ module iu.util.dao {
 
 	requires iu.util;
 	requires transitive java.sql;
+	requires transitive java.naming;
 }
