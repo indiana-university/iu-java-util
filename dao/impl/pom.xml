@@ -27,11 +27,49 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>${postgresql.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.liquibase</groupId>
+			<artifactId>liquibase-core</artifactId>
+			<version>${liquibase.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.liquibase</groupId>
+				<artifactId>liquibase-maven-plugin</artifactId>
+				<version>${liquibase.version}</version>
+				<configuration>
+					<searchPath>${project.build.testOutputDirectory}</searchPath>
+					<changeLogFile>db/changelog/db.changelog-master.sql</changeLogFile>
+					<url>jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/postgres</url>
+					<username>${env.POSTGRES_USER}</username>
+					<password>${env.POSTGRES_PASSWORD}</password>
+				</configuration>
+				<executions>
+					<execution>
+						<id>liquibase-update</id>
+						<phase>process-test-classes</phase>
+						<goals>
+							<goal>update</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 
 </project>

@@ -36,4 +36,5 @@ module iu.util.dao {
 	exports edu.iu.dao;
 
 	requires iu.util;
+	requires transitive java.sql;
 }
