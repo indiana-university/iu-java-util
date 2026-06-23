@@ -13,6 +13,11 @@
 	<artifactId>iu-java-jdbc-pool</artifactId>
 	<name>IU Database Connection Pools</name>
 
+	<properties>
+		<postgresql.version>42.7.8</postgresql.version>
+		<liquibase.version>5.0.1</liquibase.version>
+	</properties>
+
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -20,9 +25,27 @@
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>jakarta.transaction</groupId>
+			<artifactId>jakarta.transaction-api</artifactId>
+			<version>${jakarta.transaction-api.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.enterprise</groupId>
+			<artifactId>jakarta.enterprise.cdi-api</artifactId>
+			<version>${jakarta.enterprise.cdi-api.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-test</artifactId>
 			<version>${project.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>${postgresql.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -33,4 +56,34 @@
 		</dependency>
 	</dependencies>
 
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.liquibase</groupId>
+				<artifactId>liquibase-maven-plugin</artifactId>
+				<version>${liquibase.version}</version>
+				<configuration>
+					<searchPath>${project.basedir}/src/test/sql</searchPath>
+					<url>
+						jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/${env.POSTGRES_USER}</url>
+					<username>${env.POSTGRES_USER}</username>
+					<password>${env.POSTGRES_PASSWORD}</password>
+				</configuration>
+				<executions>
+					<execution>
+						<id>update-database</id>
+						<phase>generate-test-resources</phase>
+						<goals>
+							<goal>update</goal>
+						</goals>
+						<configuration>
+							<skip>${skipTests}</skip>
+							<changeLogFile>create_test_db.sql</changeLogFile>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+	
 </project>

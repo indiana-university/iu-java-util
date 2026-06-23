@@ -69,7 +69,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<parsson.version>1.1.7</parsson.version>
 		<jsoup.version>1.21.2</jsoup.version>
 		<commons-pool2.version>2.12.1</commons-pool2.version>
-		<lettuce.version>6.8.1.RELEASE</lettuce.version>
+		<lettuce.version>7.6.0.RELEASE</lettuce.version>
 
 		<junit-jupiter.version>6.0.3</junit-jupiter.version>
 		<junit-platform.version>6.0.3</junit-platform.version>
@@ -455,6 +455,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 										<versionRange>[0,)</versionRange>
 										<goals>
 											<goal>exploded</goal>
+										</goals>
+									</pluginExecutionFilter>
+									<action>
+										<ignore />
+									</action>
+								</pluginExecution>
+								<pluginExecution>
+									<pluginExecutionFilter>
+										<groupId>org.liquibase</groupId>
+										<artifactId>liquibase-maven-plugin</artifactId>
+										<versionRange>[0,)</versionRange>
+										<goals>
+											<goal>update</goal>
 										</goals>
 									</pluginExecutionFilter>
 									<action>
