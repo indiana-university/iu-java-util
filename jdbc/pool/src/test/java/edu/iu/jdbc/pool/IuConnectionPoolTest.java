@@ -251,6 +251,8 @@ public class IuConnectionPoolTest {
 		final var pc = connectionPool.checkOut();
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-abandoned:" + descr + ":" + pc);
 		Thread.sleep(2000L);
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":" + pc,
+				PSQLException.class);
 		assertThrows(SQLException.class, pc::getConnection);
 	}
 
@@ -318,6 +320,8 @@ public class IuConnectionPoolTest {
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
 		assertThrows(IllegalStateException.class, connectionPool::close);
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":" + pc,
+				PSQLException.class);
 		assertThrows(SQLException.class, pc::getConnection);
 	}
 

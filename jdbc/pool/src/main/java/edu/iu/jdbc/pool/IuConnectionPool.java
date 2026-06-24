@@ -44,6 +44,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.sql.ConnectionEvent;
+import javax.sql.ConnectionEventListener;
 import javax.sql.PooledConnection;
 
 import edu.iu.IuException;
@@ -53,7 +55,7 @@ import edu.iu.IuUtilityTaskController;
 /**
  * Basic database connection pool utility.
  */
-public class IuConnectionPool implements AutoCloseable {
+public class IuConnectionPool implements ConnectionEventListener, AutoCloseable {
 
 	private static final Logger LOG = Logger.getLogger(IuConnectionPool.class.getName());
 
@@ -197,6 +199,7 @@ public class IuConnectionPool implements AutoCloseable {
 						LOG.log(Level.INFO, error, () -> "jdbc-pool-recoverable; " + this);
 
 					holder.usageStarted(scheduleAbandonedConnectionReaper(holder));
+					holder.pooledConnection.addConnectionEventListener(this);
 					return holder.pooledConnection;
 
 				} finally {
@@ -229,6 +232,8 @@ public class IuConnectionPool implements AutoCloseable {
 	 *                      connection
 	 */
 	protected void reuseOrClose(PooledConnection pooledConnection) throws SQLException {
+		pooledConnection.removeConnectionEventListener(this);
+
 		final var holder = openConnections.stream().filter(h -> h.pooledConnection == pooledConnection).findAny()
 				.orElse(null);
 		if (holder == null) {
@@ -251,6 +256,18 @@ public class IuConnectionPool implements AutoCloseable {
 		synchronized (this) {
 			this.notifyAll();
 		}
+	}
+
+	@Override
+	public void connectionClosed(ConnectionEvent event) {
+		IuException.unchecked(() -> reuseOrClose((PooledConnection) event.getSource()));
+	}
+
+	@Override
+	public void connectionErrorOccurred(ConnectionEvent event) {
+		final var pooledConnection = (PooledConnection) event.getSource();
+		final var error = event.getSQLException();
+		LOG.log(Level.INFO, error, () -> "jdbc-pool-error:" + config.getDescription() + ':' + pooledConnection);
 	}
 
 	/**
