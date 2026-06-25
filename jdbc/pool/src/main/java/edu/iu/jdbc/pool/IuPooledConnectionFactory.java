@@ -4,10 +4,11 @@ import java.sql.SQLException;
 
 import javax.sql.ConnectionPoolDataSource;
 import javax.sql.PooledConnection;
+import javax.sql.XAConnection;
 import javax.sql.XADataSource;
 
 /**
- * Supplies {@link PooledConnetion} or {@link XAConnection} from an underlying
+ * Supplies {@link PooledConnection} or {@link XAConnection} from an underlying
  * JDBC driver.
  */
 public interface IuPooledConnectionFactory {

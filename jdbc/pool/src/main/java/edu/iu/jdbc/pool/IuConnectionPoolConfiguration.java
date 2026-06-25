@@ -5,7 +5,7 @@ import java.time.Duration;
 import javax.sql.CommonDataSource;
 
 /**
- * Provides application server-facing configuration to {@link IuCommonDataSoure}
+ * Provides application-facing configuration to {@link IuConnectionPool}
  */
 public interface IuConnectionPoolConfiguration {
 

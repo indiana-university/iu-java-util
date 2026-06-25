@@ -8,7 +8,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
-import javax.sql.ConnectionPoolDataSource;
 import javax.sql.DataSource;
 import javax.sql.XAConnection;
 
@@ -17,8 +16,43 @@ import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
 
 /**
- * Wraps a {@link ConnectionPoolDataSource} to provide managed
- * {@link Connection} instances.
+ * JTA-aware {@link DataSource} backed by an {@link IuConnectionPool}.
+ *
+ * <p>
+ * Accepts an {@link IuDataSourceIntegration} for hooking into the application's
+ * transaction manager and an {@link IuConnectionPoolConfiguration} for tuning
+ * pool behavior. The pool is created on construction and closed when
+ * {@link #close()} is called; callers are responsible for lifecycle management,
+ * typically via a try-with-resources block or a dependency-injection container.
+ * </p>
+ *
+ * <h2>Connection dispatch</h2>
+ * <ul>
+ * <li><strong>No active JTA transaction</strong> – {@link #getConnection()}
+ * checks a connection out of the pool and returns it directly. The caller is
+ * responsible for closing the connection, which returns it to the pool.</li>
+ * <li><strong>Active JTA transaction (non-XA)</strong> – the first call to
+ * {@link #getConnection()} within a transaction checks out a connection,
+ * disables auto-commit, sets isolation to
+ * {@link Connection#TRANSACTION_SERIALIZABLE}, and registers a JTA
+ * {@link Synchronization} that commits on {@code beforeCompletion} and rolls
+ * back on {@code afterCompletion} if the transaction did not commit. Subsequent
+ * calls within the same transaction return the same connection wrapped in a
+ * proxy that silently ignores {@link Connection#close()}, deferring the actual
+ * close to the synchronization callback.</li>
+ * <li><strong>Active JTA transaction (XA-capable)</strong> – when the pooled
+ * connection implements {@link XAConnection}, its
+ * {@link javax.transaction.xa.XAResource} is enlisted with the transaction
+ * manager. Commit and rollback are driven by the transaction manager; the
+ * connection is closed in {@code afterCompletion}.</li>
+ * </ul>
+ *
+ * <h2>Unsupported operations</h2>
+ * <p>
+ * {@link #getConnection(String, String)}, {@link #setLogWriter(PrintWriter)},
+ * {@link #setLoginTimeout(int)}, and {@link #unwrap(Class)} all throw
+ * {@link SQLFeatureNotSupportedException}.
+ * </p>
  */
 public class IuDataSource implements DataSource, AutoCloseable {
 
@@ -36,7 +70,7 @@ public class IuDataSource implements DataSource, AutoCloseable {
 	 * Constructor.
 	 * 
 	 * @param integration {@link IuDataSourceIntegration}
-	 * @param config      {@link IuConnecitonPoolConfiguration}
+	 * @param config      {@link IuConnectionPoolConfiguration}
 	 */
 	public IuDataSource(IuDataSourceIntegration integration, IuConnectionPoolConfiguration config) {
 		this.integration = integration;

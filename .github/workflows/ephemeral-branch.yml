@@ -30,6 +30,19 @@ jobs:
       volumes:
         - /opt/actions/cache/m2/repository:/root/.m2/repository
 
+    services:
+      postgres:
+        image: postgres
+        command: -c max_prepared_transactions=10
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PGTZ: America/Indiana/Indianapolis
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Create gitconfig
         run: echo -n '${{ secrets.GITCONFIG }}' > /tmp/.gitconfig
@@ -48,6 +61,12 @@ jobs:
           mvn clean verify -DskipTests -U --batch-mode
 
       - name: Verify Test Coverage
+        env:
+          POSTGRES_HOST: postgres
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          TZ: America/Indiana/Indianapolis
         run: |
           mvn verify -Dmaven.javadoc.skip --batch-mode
 

@@ -73,7 +73,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	 * Default constructor.
 	 * 
 	 * @param factory {@link IuPooledConnectionFactory}
-	 * @param config  {@link IuConnecitonPoolConfiguration}
+	 * @param config  {@link IuConnectionPoolConfiguration}
 	 */
 	public IuConnectionPool(IuPooledConnectionFactory factory, IuConnectionPoolConfiguration config) {
 		this.factory = factory;
