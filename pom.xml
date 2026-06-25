@@ -295,6 +295,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						<links>
 							<link>https://jakarta.ee/specifications/annotations/3.0/apidocs/</link>
 							<link>https://jakarta.ee/specifications/interceptors/2.2/apidocs/</link>
+							<link>https://jakarta.ee/specifications/transactions/2.0/apidocs/</link>
 						</links>
 						<failOnError>true</failOnError>
 						<failOnWarnings>true</failOnWarnings>
