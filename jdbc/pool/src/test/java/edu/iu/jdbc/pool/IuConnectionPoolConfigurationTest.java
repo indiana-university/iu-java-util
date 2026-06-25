@@ -1,6 +1,5 @@
 package edu.iu.jdbc.pool;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -26,7 +25,6 @@ public class IuConnectionPoolConfigurationTest {
 		assertEquals(Duration.ofSeconds(30L), config.getShutdownTimeout());
 		assertNull(config.getValidationQuery());
 		assertEquals(Duration.ofSeconds(15L), config.getValidationInterval());
-		assertDoesNotThrow(config::onShutdown);
 	}
 
 }

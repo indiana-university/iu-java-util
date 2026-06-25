@@ -66,6 +66,7 @@ import edu.iu.test.IuTestLogger;
 @ExtendWith(TestDatabase.class)
 public class IuConnectionPoolTest {
 
+	private IuPooledConnectionFactory factory;
 	private IuConnectionPoolConfiguration config;
 	private IuConnectionPool connectionPool;
 	private String descr;
@@ -75,7 +76,8 @@ public class IuConnectionPoolTest {
 		descr = IdGenerator.generateId();
 		config = mock(IuConnectionPoolConfiguration.class, CALLS_REAL_METHODS);
 		when(config.getDescription()).thenReturn(descr);
-		connectionPool = new IuConnectionPool(config);
+		factory = mock(IuPooledConnectionFactory.class, CALLS_REAL_METHODS);
+		connectionPool = new IuConnectionPool(factory, config);
 	}
 
 	@AfterEach
@@ -85,7 +87,7 @@ public class IuConnectionPoolTest {
 
 	@Test
 	public void testCheckoutAndReuse() throws SQLException {
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc1 = connectionPool.checkOut();
@@ -111,7 +113,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testCheckoutAndWait() throws SQLException, InterruptedException, TimeoutException {
 		when(config.getMaxSize()).thenReturn(2);
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 
 		IuTestLogger.allow(IuConnectionPool.class.getName(), Level.FINE);
 		final UnsafeRunnable use = () -> {
@@ -130,7 +132,7 @@ public class IuConnectionPoolTest {
 
 	@Test
 	public void testRecoverFromInvalidConnection() throws SQLException, InterruptedException, TimeoutException {
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		when(config.getValidationQuery()).thenReturn("this is bad sql", "select 1");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-valid:" + descr + ".*");
@@ -151,7 +153,7 @@ public class IuConnectionPoolTest {
 
 	@Test
 	public void testCheckoutError() throws SQLException {
-		when(config.createPooledConnection()).thenThrow(SQLException.class);
+		when(factory.createPooledConnection()).thenThrow(SQLException.class);
 		final var error = assertThrows(SQLException.class, connectionPool::checkOut);
 		assertTrue(error.getMessage().startsWith("jdbc-pool-fail: attempt=2, "), error::getMessage);
 		assertInstanceOf(SQLException.class, error.getCause());
@@ -160,7 +162,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testCheckoutTimeout() throws SQLException {
 		when(config.getLoginTimeout()).thenReturn(Duration.ofSeconds(1L));
-		when(config.createPooledConnection()).then(i -> {
+		when(factory.createPooledConnection()).then(i -> {
 			Thread.sleep(2000L);
 			return TestDatabase.dataSource.getPooledConnection();
 		});
@@ -179,7 +181,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testCheckoutClosedWait() throws SQLException, InterruptedException {
 		when(config.getMaxSize()).thenReturn(1);
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.allow(IuConnectionPool.class.getName(), Level.FINE);
 		final var pc = connectionPool.checkOut();
 		final var t = new Thread() {
@@ -209,7 +211,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testRetireTimeout() throws SQLException, InterruptedException {
 		when(config.getMaxConnectionReuseTime()).thenReturn(Duration.ofSeconds(1L));
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc1 = connectionPool.checkOut();
 		connectionPool.reuseOrClose(pc1);
@@ -226,7 +228,7 @@ public class IuConnectionPoolTest {
 	public void testRevalidateTimeout() throws SQLException, InterruptedException {
 		when(config.getValidationInterval()).thenReturn(Duration.ofSeconds(2L));
 		when(config.getValidationQuery()).thenReturn("select 1");
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-valid:" + descr + ".*");
 		final var pc1 = connectionPool.checkOut();
@@ -246,7 +248,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testAbandoned() throws SQLException, InterruptedException {
 		when(config.getAbandonedConnectionTimeout()).thenReturn(Duration.ofSeconds(1L));
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-abandoned:" + descr + ":" + pc);
@@ -266,7 +268,7 @@ public class IuConnectionPoolTest {
 
 	@Test
 	public void testCloseConnectionAfterPoolClose() throws SQLException, InterruptedException {
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
 
@@ -296,7 +298,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testRetireCount() throws SQLException, InterruptedException {
 		when(config.getMaxConnectionReuseCount()).thenReturn(2L);
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
 		connectionPool.reuseOrClose(pc);
@@ -316,7 +318,7 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testCloseAfterShutdown() throws SQLException, InterruptedException {
 		when(config.getShutdownTimeout()).thenReturn(Duration.ofMillis(1L));
-		when(config.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
 		assertThrows(IllegalStateException.class, connectionPool::close);
@@ -327,7 +329,7 @@ public class IuConnectionPoolTest {
 
 	@Test
 	public void testErrorOnClose() throws SQLException, InterruptedException {
-		doThrow(SQLException.class).when(config).onShutdown();
+		doThrow(SQLException.class).when(factory).onShutdown();
 		assertThrows(SQLException.class, connectionPool::close);
 	}
 

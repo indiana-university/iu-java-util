@@ -1,27 +1,13 @@
 package edu.iu.jdbc.pool;
 
-import java.sql.SQLException;
 import java.time.Duration;
 
 import javax.sql.CommonDataSource;
-import javax.sql.ConnectionPoolDataSource;
-import javax.sql.PooledConnection;
-import javax.sql.XADataSource;
 
 /**
  * Provides application server-facing configuration to {@link IuCommonDataSoure}
  */
 public interface IuConnectionPoolConfiguration {
-
-	/**
-	 * Creates a physical {@link PooledConnection} instance.
-	 * 
-	 * @return {@link PooledConnection}
-	 * @throws SQLException if an error occurs
-	 * @see ConnectionPoolDataSource#getPooledConnection
-	 * @see XADataSource#getXAConnection
-	 */
-	PooledConnection createPooledConnection() throws SQLException;
 
 	/**
 	 * Gets a human-readlable description of this database pool (i.e.
@@ -131,15 +117,6 @@ public interface IuConnectionPoolConfiguration {
 	 */
 	default Duration getValidationInterval() {
 		return Duration.ofSeconds(15L);
-	}
-
-	/**
-	 * Invoked after all physical connections managed by the pool have been closed.
-	 * No-op by default.
-	 * 
-	 * @throws SQLException if an error occurs
-	 */
-	default void onShutdown() throws SQLException {
 	}
 
 }

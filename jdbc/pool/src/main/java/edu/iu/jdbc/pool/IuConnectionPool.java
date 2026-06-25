@@ -59,6 +59,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 
 	private static final Logger LOG = Logger.getLogger(IuConnectionPool.class.getName());
 
+	private final IuPooledConnectionFactory factory;
 	private final IuConnectionPoolConfiguration config;
 
 	private final Queue<PooledConnectionHolder> openConnections = new ConcurrentLinkedQueue<>();
@@ -71,9 +72,11 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	/**
 	 * Default constructor.
 	 * 
-	 * @param config application server configuration
+	 * @param factory {@link IuPooledConnectionFactory}
+	 * @param config  {@link IuConnecitonPoolConfiguration}
 	 */
-	public IuConnectionPool(IuConnectionPoolConfiguration config) {
+	public IuConnectionPool(IuPooledConnectionFactory factory, IuConnectionPoolConfiguration config) {
+		this.factory = factory;
 		this.config = config;
 
 		final var descr = config.getDescription();
@@ -169,7 +172,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 						final var initTime = Instant.now();
 						final var pooledConnection = IuException.checked(SQLException.class, () -> {
 							try {
-								return IuUtilityTaskController.getBefore(config::createPooledConnection, connectBefore);
+								return IuUtilityTaskController.getBefore(factory::createPooledConnection,
+										connectBefore);
 							} catch (TimeoutException e) {
 								throw new SQLException(e);
 							}
@@ -303,7 +307,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 				closeStatus.error = IuException.suppress(closeStatus.error, () -> c.pooledConnection.close());
 			}
 
-			closeStatus.error = IuException.suppress(closeStatus.error, config::onShutdown);
+			closeStatus.error = IuException.suppress(closeStatus.error, factory::onShutdown);
 
 			if (closeStatus.error != null)
 				throw IuException.checked(closeStatus.error, SQLException.class);
