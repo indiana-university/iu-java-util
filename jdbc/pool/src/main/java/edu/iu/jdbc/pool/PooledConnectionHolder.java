@@ -35,7 +35,7 @@ class PooledConnectionHolder {
 	/**
 	 * Invoked when a connection is checked out from the pool.
 	 * 
-	 * @param reaperTask abandoned connection reaper task to canceled by
+	 * @param reaperTask abandoned connection reaper task to be canceled by
 	 *                   {@link #usageComplete()}
 	 */
 	void usageStarted(ScheduledFuture<?> reaperTask) {
