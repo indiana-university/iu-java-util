@@ -10,7 +10,7 @@ import javax.sql.CommonDataSource;
 public interface IuConnectionPoolConfiguration {
 
 	/**
-	 * Gets a human-readlable description of this database pool (i.e.
+	 * Gets a human-readable description of this database pool (i.e.
 	 * database/username).
 	 * 
 	 * @return description
@@ -78,7 +78,7 @@ public interface IuConnectionPoolConfiguration {
 	}
 
 	/**
-	 * Gets the number of threads to allocation for reaping abandoned connections.
+	 * Gets the number of threads to allocate for reaping abandoned connections.
 	 * 
 	 * @return number of threads; default: 4
 	 */

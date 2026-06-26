@@ -65,8 +65,7 @@
 				<version>${liquibase.version}</version>
 				<configuration>
 					<searchPath>${project.basedir}/src/test/sql</searchPath>
-					<url>
-						jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/${env.POSTGRES_USER}</url>
+					<url>jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/${env.POSTGRES_USER}</url>
 					<username>${env.POSTGRES_USER}</username>
 					<password>${env.POSTGRES_PASSWORD}</password>
 				</configuration>

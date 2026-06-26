@@ -14,7 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class DatabaseStabilityTest {
 
 	@Test
-	public void testValdationQuery() throws SQLException {
+	public void testValidationQuery() throws SQLException {
 		final var pc = TestDatabase.dataSource.getPooledConnection();
 		try (final var c = pc.getConnection(); //
 				final var s = c.prepareStatement("select 1"); //
