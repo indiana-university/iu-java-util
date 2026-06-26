@@ -41,5 +41,8 @@ public interface IuDataSourceIntegration extends IuPooledConnectionFactory {
 	 * @return {@link TransactionSynchronizationRegistry}; null (default) if XA transactions are not
 	 *         supported
 	 */
+	default TransactionSynchronizationRegistry getTransactionSynchronizationRegistry() {
+		return null;
+	}
 
 }
