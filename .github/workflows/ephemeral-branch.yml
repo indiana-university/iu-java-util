@@ -33,6 +33,7 @@ jobs:
     services:
       postgres:
         image: postgres
+        command: -c max_prepared_transactions=10
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           PGTZ: America/Indiana/Indianapolis

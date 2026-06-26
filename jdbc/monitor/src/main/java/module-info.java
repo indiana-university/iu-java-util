@@ -30,8 +30,20 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Database connection pooling utilities.
- * 
- * <img src="doc-files/iu.util.jdbc.pool.svg" alt="UML Class Diagram">
+ * JDBC statement monitoring proxies.
+ *
+ * <p>
+ * Provides {@link java.lang.reflect.InvocationHandler InvocationHandler}
+ * proxies for JDBC {@link java.sql.Connection}, {@link java.sql.Statement},
+ * {@link java.sql.PreparedStatement}, and {@link java.sql.ResultSet} that log
+ * execution metrics at {@link java.util.logging.Level#INFO INFO} level.
+ * </p>
+ *
+ * @see edu.iu.jdbc.monitor.IuJdbcMonitor
  */
-package edu.iu.jdbc.pool;
+module iu.util.jdbc.monitor {
+	exports edu.iu.jdbc.monitor;
+
+	requires transitive java.sql;
+	requires java.logging;
+}
