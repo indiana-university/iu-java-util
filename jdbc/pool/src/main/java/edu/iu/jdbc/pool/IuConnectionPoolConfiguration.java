@@ -78,7 +78,7 @@ public interface IuConnectionPoolConfiguration {
 	}
 
 	/**
-	 * Gets the number of threads to allocation for reaping abandoned connections.
+	 * Gets the number of threads to allocate for reaping abandoned connections.
 	 * 
 	 * @return number of threads; default: 4
 	 */
