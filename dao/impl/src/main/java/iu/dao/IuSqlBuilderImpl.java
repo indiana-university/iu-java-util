@@ -83,495 +83,495 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	private static final SimpleDateFormat TIMESTAMP_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS",
 			Locale.ROOT);
 
-	private static final class JoinCondition {
-		private final String primaryAlias;
-		private final String primaryColumn;
-		private final String secondaryAlias;
-		private final String secondaryColumn;
+//	private static final class JoinCondition {
+//		private final String primaryAlias;
+//		private final String primaryColumn;
+//		private final String secondaryAlias;
+//		private final String secondaryColumn;
+//
+//		private JoinCondition(String secondaryAlias, ColumnMetaData column) {
+//			this.primaryAlias = column.table.alias;
+//			this.primaryColumn = column.columnName;
+//			this.secondaryAlias = secondaryAlias;
+//			this.secondaryColumn = column.columnName;
+//		}
+//
+//		private JoinCondition(String secondaryAlias, PrimaryKeyJoinColumn pkJoinColumn, EntityMetaData entity) {
+//			final var primaryLookup = hasValue(pkJoinColumn.referencedColumnName())
+//					? pkJoinColumn.referencedColumnName()
+//					: entity.idColumns.size() == 1 ? entity.idColumns.get(0).columnName : pkJoinColumn.name();
+//			final var column = entity.columnsByNormalizedColumn.get(normalizeName(primaryLookup));
+//			if (column == null) {
+//				this.primaryAlias = entity.primaryTable.alias;
+//				this.primaryColumn = primaryLookup;
+//			} else {
+//				this.primaryAlias = column.table.alias;
+//				this.primaryColumn = column.columnName;
+//			}
+//			this.secondaryAlias = secondaryAlias;
+//			this.secondaryColumn = pkJoinColumn.name();
+//		}
+//
+//		private void appendTo(StringBuilder sb) {
+//			sb.append(primaryAlias).append('.').append(primaryColumn).append(" = ").append(secondaryAlias).append('.')
+//					.append(secondaryColumn);
+//		}
+//	}
 
-		private JoinCondition(String secondaryAlias, ColumnMetaData column) {
-			this.primaryAlias = column.table.alias;
-			this.primaryColumn = column.columnName;
-			this.secondaryAlias = secondaryAlias;
-			this.secondaryColumn = column.columnName;
-		}
+//	private static final class TableMetaData {
+//		private final String name;
+//		private final String fullName;
+//		private final String alias;
+//		private final boolean primary;
+//		private final SecondaryTable secondaryTable;
+//		private List<JoinCondition> joinConditions = List.of();
+//
+//		private TableMetaData(String name, String schema, String alias, boolean primary,
+//				SecondaryTable secondaryTable) {
+//			this.name = name;
+//			this.fullName = qualifyName(schema, name);
+//			this.alias = alias;
+//			this.primary = primary;
+//			this.secondaryTable = secondaryTable;
+//		}
+//
+//		private void initializeJoinConditions(EntityMetaData entity) {
+//			if (primary) {
+//				joinConditions = List.of();
+//				return;
+//			}
+//
+//			final var conditions = new ArrayList<JoinCondition>();
+//			if (secondaryTable.pkJoinColumns().length == 0) {
+//				for (final var column : entity.idColumns)
+//					conditions.add(new JoinCondition(alias, column));
+//			} else {
+//				for (final var pkJoinColumn : secondaryTable.pkJoinColumns())
+//					conditions.add(new JoinCondition(alias, pkJoinColumn, entity));
+//			}
+//			joinConditions = List.copyOf(conditions);
+//		}
+//	}
 
-		private JoinCondition(String secondaryAlias, PrimaryKeyJoinColumn pkJoinColumn, EntityMetaData entity) {
-			final var primaryLookup = hasValue(pkJoinColumn.referencedColumnName())
-					? pkJoinColumn.referencedColumnName()
-					: entity.idColumns.size() == 1 ? entity.idColumns.get(0).columnName : pkJoinColumn.name();
-			final var column = entity.columnsByNormalizedColumn.get(normalizeName(primaryLookup));
-			if (column == null) {
-				this.primaryAlias = entity.primaryTable.alias;
-				this.primaryColumn = primaryLookup;
-			} else {
-				this.primaryAlias = column.table.alias;
-				this.primaryColumn = column.columnName;
-			}
-			this.secondaryAlias = secondaryAlias;
-			this.secondaryColumn = pkJoinColumn.name();
-		}
+//	private static final class ColumnMetaData {
+//		private final PropertyDescriptor property;
+//		private final String propertyName;
+//		private final String columnName;
+//		private final String sql;
+//		private final String selectAlias;
+//		private final Id id;
+//		private final Column column;
+//		private final SqlColumn sqlColumn;
+//		private final boolean spaceForNull;
+//		private final TableMetaData table;
+//
+//		private ColumnMetaData(PropertyDescriptor property, EntityMetaData entity) {
+//			this.property = property;
+//			this.propertyName = property.getName();
+//			final var readMethod = property.getReadMethod();
+//			this.id = readMethod.getAnnotation(Id.class);
+//			this.column = readMethod.getAnnotation(Column.class);
+//			this.sqlColumn = readMethod.getAnnotation(SqlColumn.class);
+//			this.spaceForNull = entity.spaceForNull || readMethod.isAnnotationPresent(SpaceForNull.class);
+//			if (column == null) {
+//				this.table = null;
+//				this.columnName = null;
+//				this.sql = sqlColumn.value();
+//				this.selectAlias = camelToSnakeUpper(propertyName);
+//			} else {
+//				this.table = entity.resolveTable(column.table());
+//				this.columnName = hasValue(column.name()) ? column.name() : camelToSnakeUpper(propertyName);
+//				this.sql = this.columnName;
+//				this.selectAlias = null;
+//			}
+//		}
+//
+//		private String reference() {
+//			return reference(null);
+//		}
+//
+//		private String reference(String aliasOverride) {
+//			final var sb = new StringBuilder();
+//			if (table != null)
+//				sb.append(aliasOverride == null ? table.alias : aliasOverride).append('.');
+//			sb.append(sql);
+//			return sb.toString();
+//		}
+//
+//		private boolean isMappedColumn() {
+//			return column != null;
+//		}
+//
+//		private boolean isPrimaryColumn() {
+//			return isMappedColumn() && table.primary;
+//		}
+//	}
 
-		private void appendTo(StringBuilder sb) {
-			sb.append(primaryAlias).append('.').append(primaryColumn).append(" = ").append(secondaryAlias).append('.')
-					.append(secondaryColumn);
-		}
-	}
-
-	private static final class TableMetaData {
-		private final String name;
-		private final String fullName;
-		private final String alias;
-		private final boolean primary;
-		private final SecondaryTable secondaryTable;
-		private List<JoinCondition> joinConditions = List.of();
-
-		private TableMetaData(String name, String schema, String alias, boolean primary,
-				SecondaryTable secondaryTable) {
-			this.name = name;
-			this.fullName = qualifyName(schema, name);
-			this.alias = alias;
-			this.primary = primary;
-			this.secondaryTable = secondaryTable;
-		}
-
-		private void initializeJoinConditions(EntityMetaData entity) {
-			if (primary) {
-				joinConditions = List.of();
-				return;
-			}
-
-			final var conditions = new ArrayList<JoinCondition>();
-			if (secondaryTable.pkJoinColumns().length == 0) {
-				for (final var column : entity.idColumns)
-					conditions.add(new JoinCondition(alias, column));
-			} else {
-				for (final var pkJoinColumn : secondaryTable.pkJoinColumns())
-					conditions.add(new JoinCondition(alias, pkJoinColumn, entity));
-			}
-			joinConditions = List.copyOf(conditions);
-		}
-	}
-
-	private static final class ColumnMetaData {
-		private final PropertyDescriptor property;
-		private final String propertyName;
-		private final String columnName;
-		private final String sql;
-		private final String selectAlias;
-		private final Id id;
-		private final Column column;
-		private final SqlColumn sqlColumn;
-		private final boolean spaceForNull;
-		private final TableMetaData table;
-
-		private ColumnMetaData(PropertyDescriptor property, EntityMetaData entity) {
-			this.property = property;
-			this.propertyName = property.getName();
-			final var readMethod = property.getReadMethod();
-			this.id = readMethod.getAnnotation(Id.class);
-			this.column = readMethod.getAnnotation(Column.class);
-			this.sqlColumn = readMethod.getAnnotation(SqlColumn.class);
-			this.spaceForNull = entity.spaceForNull || readMethod.isAnnotationPresent(SpaceForNull.class);
-			if (column == null) {
-				this.table = null;
-				this.columnName = null;
-				this.sql = sqlColumn.value();
-				this.selectAlias = camelToSnakeUpper(propertyName);
-			} else {
-				this.table = entity.resolveTable(column.table());
-				this.columnName = hasValue(column.name()) ? column.name() : camelToSnakeUpper(propertyName);
-				this.sql = this.columnName;
-				this.selectAlias = null;
-			}
-		}
-
-		private String reference() {
-			return reference(null);
-		}
-
-		private String reference(String aliasOverride) {
-			final var sb = new StringBuilder();
-			if (table != null)
-				sb.append(aliasOverride == null ? table.alias : aliasOverride).append('.');
-			sb.append(sql);
-			return sb.toString();
-		}
-
-		private boolean isMappedColumn() {
-			return column != null;
-		}
-
-		private boolean isPrimaryColumn() {
-			return isMappedColumn() && table.primary;
-		}
-	}
-
-	private final class EntityMetaData {
-		private final Class<?> entityClass;
-		private final TableMetaData primaryTable;
-		private final List<TableMetaData> secondaryTables;
-		private final Map<String, TableMetaData> tablesByReference;
-		private final Map<String, ColumnMetaData> columns;
-		private final Map<String, ColumnMetaData> columnsByNormalizedColumn;
-		private final Map<String, String> columnToPropertyNames;
-		private final List<ColumnMetaData> idColumns;
-		private final List<ColumnMetaData> primaryColumns;
-		private final List<ColumnMetaData> primaryNonIdColumns;
-		private final SqlJoinType.Type joinType;
-		private final boolean distinct;
-		private final boolean spaceForNull;
-		private final Filtered filtered;
-		private final EffectiveDated effectiveDated;
-		private final Map<Long, String> selectAndFromCache = new HashMap<>();
-		private final Map<Long, String> selectStatementCache = new HashMap<>();
-		private final Map<Long, String> updateStatementCache = new HashMap<>();
-		private String insertStatement;
-		private String deleteStatement;
-
-		private EntityMetaData(Class<?> entityClass) {
-			this.entityClass = entityClass;
-			final var table = getAnnotationFromHierarchy(entityClass, Table.class);
-			final var entity = getAnnotationFromHierarchy(entityClass, Entity.class);
-			final var tableName = table != null && hasValue(table.name()) ? table.name()
-					: entity != null && hasValue(entity.name()) ? entity.name() : entityClass.getSimpleName();
-			this.primaryTable = new TableMetaData(tableName, table == null ? "" : table.schema(), "a", true, null);
-			final var joinTypeAnnotation = getAnnotationFromHierarchy(entityClass, SqlJoinType.class);
-			this.joinType = joinTypeAnnotation == null ? SqlJoinType.Type.INNER : joinTypeAnnotation.value();
-			this.distinct = getAnnotationFromHierarchy(entityClass, Distinct.class) != null;
-			this.spaceForNull = getAnnotationFromHierarchy(entityClass, SpaceForNull.class) != null;
-			this.filtered = getAnnotationFromHierarchy(entityClass, Filtered.class);
-			this.effectiveDated = getAnnotationFromHierarchy(entityClass, EffectiveDated.class);
-
-			final var tablesByReference = new LinkedHashMap<String, TableMetaData>();
-			final var secondaryTables = new ArrayList<TableMetaData>();
-			registerTable(tablesByReference, primaryTable);
-			final var secondary = getAnnotationFromHierarchy(entityClass, SecondaryTable.class);
-			if (secondary != null) {
-				final var secondaryMeta = new TableMetaData(secondary.name(), secondary.schema(), getAlias(1), false,
-						secondary);
-				secondaryTables.add(secondaryMeta);
-				registerTable(tablesByReference, secondaryMeta);
-			}
-			final var secondaries = getAnnotationFromHierarchy(entityClass, SecondaryTables.class);
-			if (secondaries != null) {
-				for (int i = 0; i < secondaries.value().length; i++) {
-					final var secondaryTable = secondaries.value()[i];
-					final var secondaryMeta = new TableMetaData(secondaryTable.name(), secondaryTable.schema(),
-							getAlias(secondaryTables.size() + 1), false, secondaryTable);
-					secondaryTables.add(secondaryMeta);
-					registerTable(tablesByReference, secondaryMeta);
-				}
-			}
-			this.secondaryTables = List.copyOf(secondaryTables);
-			this.tablesByReference = Collections.unmodifiableMap(tablesByReference);
-
-			final var columns = new LinkedHashMap<String, ColumnMetaData>();
-			final var columnsByNormalizedColumn = new LinkedHashMap<String, ColumnMetaData>();
-			final var columnToPropertyNames = new LinkedHashMap<String, String>();
-			final var idColumns = new ArrayList<ColumnMetaData>();
-			final var primaryColumns = new ArrayList<ColumnMetaData>();
-			final var primaryNonIdColumns = new ArrayList<ColumnMetaData>();
-
-			for (final var property : getAllBeanProperties(entityClass)) {
-				if (isTransient(property))
-					continue;
-				final var readMethod = property.getReadMethod();
-				if (!readMethod.isAnnotationPresent(Column.class) && !readMethod.isAnnotationPresent(SqlColumn.class))
-					continue;
-				final var columnMetaData = new ColumnMetaData(property, this);
-				columns.put(columnMetaData.propertyName, columnMetaData);
-				if (columnMetaData.columnName != null) {
-					columnsByNormalizedColumn.put(normalizeName(columnMetaData.columnName), columnMetaData);
-					columnToPropertyNames.put(normalizeName(columnMetaData.columnName), columnMetaData.propertyName);
-				}
-				if (columnMetaData.id != null)
-					idColumns.add(columnMetaData);
-				if (columnMetaData.isPrimaryColumn()) {
-					primaryColumns.add(columnMetaData);
-					if (columnMetaData.id == null)
-						primaryNonIdColumns.add(columnMetaData);
-				}
-			}
-
-			this.columns = Collections.unmodifiableMap(columns);
-			this.columnsByNormalizedColumn = Collections.unmodifiableMap(columnsByNormalizedColumn);
-			this.columnToPropertyNames = Collections.unmodifiableMap(columnToPropertyNames);
-			this.idColumns = List.copyOf(idColumns);
-			this.primaryColumns = List.copyOf(primaryColumns);
-			this.primaryNonIdColumns = List.copyOf(primaryNonIdColumns);
-
-			for (final var secondaryTable : secondaryTables)
-				secondaryTable.initializeJoinConditions(this);
-		}
-
-		private TableMetaData resolveTable(String tableName) {
-			if (!hasValue(tableName))
-				return primaryTable;
-			final var table = tablesByReference.get(normalizeName(tableName));
-			if (table == null)
-				throw new IllegalArgumentException("Unknown table reference " + tableName + " for " + entityClass);
-			return table;
-		}
-
-		private String resolveAlias(String tableOrAlias) {
-			if (!hasValue(tableOrAlias))
-				return primaryTable.alias;
-			final var table = tablesByReference.get(normalizeName(tableOrAlias));
-			return table == null ? tableOrAlias : table.alias;
-		}
-
-		private ColumnMetaData resolveColumn(String propertyOrColumn) {
-			final var byProperty = columns.get(propertyOrColumn);
-			if (byProperty != null)
-				return byProperty;
-			return columnsByNormalizedColumn.get(normalizeName(propertyOrColumn));
-		}
-
-		private Iterable<String> defaultPropertyNames() {
-			return columns.keySet();
-		}
-
-		private synchronized String getSelectAndFromClause(Iterable<String> props) {
-			final var effectiveProps = props == null ? defaultPropertyNames() : props;
-			final var fingerprint = getFingerprint(effectiveProps);
-			final var cached = selectAndFromCache.get(fingerprint);
-			if (cached != null)
-				return cached;
-
-			final var sb = new StringBuilder(distinct ? "SELECT DISTINCT" : "SELECT");
-			boolean found = false;
-			for (final var prop : effectiveProps) {
-				if (prop == null)
-					continue;
-				found = true;
-				sb.append("\n    ");
-				final var column = resolveColumn(prop);
-				if (column == null) {
-					sb.append(prop);
-				} else {
-					sb.append(column.reference());
-					if (column.selectAlias != null)
-						sb.append(" AS ").append(column.selectAlias);
-				}
-				sb.append(',');
-			}
-			if (!found)
-				throw new IllegalArgumentException("At least one property is required");
-			sb.setLength(sb.length() - 1);
-			sb.append("\nFROM ").append(primaryTable.fullName).append(' ').append(primaryTable.alias);
-			for (final var table : secondaryTables) {
-				sb.append("\n  ").append(joinKeyword(joinType)).append(' ').append(table.fullName).append(' ')
-						.append(table.alias).append("\n    ON ");
-				for (int i = 0; i < table.joinConditions.size(); i++) {
-					if (i > 0)
-						sb.append(" AND ");
-					table.joinConditions.get(i).appendTo(sb);
-				}
-			}
-
-			final var sql = sb.toString();
-			selectAndFromCache.put(fingerprint, sql);
-			return sql;
-		}
-
-		private synchronized String getSelectStatement(Iterable<String> props, Iterable<String> where,
-				Iterable<String> order, boolean forUpdate) {
-			final var criteria = new ArrayList<String>();
-			appendAll(criteria, where);
-			appendAll(criteria, resolveFilters());
-			appendAll(criteria, resolveEffectiveDatedCriteria());
-			final var effectiveProps = props == null ? defaultPropertyNames() : props;
-			final var fingerprint = getFingerprint(effectiveProps, criteria, order,
-					List.of(Boolean.valueOf(forUpdate)));
-			final var cached = selectStatementCache.get(fingerprint);
-			if (cached != null)
-				return cached;
-
-			final var sb = new StringBuilder(getSelectAndFromClause(effectiveProps));
-			sb.append(buildWhere(criteria));
-			appendOrderBy(sb, order);
-			if (forUpdate)
-				sb.append("\nFOR UPDATE");
-
-			final var sql = sb.toString();
-			selectStatementCache.put(fingerprint, sql);
-			return sql;
-		}
-
-		private synchronized String getUpdateStatement(Iterable<String> properties) {
-			final var propertyList = toList(properties);
-			if (propertyList.isEmpty())
-				throw new IuSqlUnchangedException();
-
-			final var fingerprint = getFingerprint(propertyList);
-			final var cached = updateStatementCache.get(fingerprint);
-			if (cached != null)
-				return cached;
-
-			final var sb = new StringBuilder("UPDATE ").append(primaryTable.fullName).append("\nSET");
-			for (final var property : propertyList) {
-				final var column = requirePrimaryColumn(property);
-				sb.append("\n    ").append(column.columnName).append(" = ?,");
-			}
-			sb.setLength(sb.length() - 1);
-			sb.append(buildWhere(idCriteria(idColumns, "?")));
-
-			final var sql = sb.toString();
-			updateStatementCache.put(fingerprint, sql);
-			return sql;
-		}
-
-		private synchronized String getInsertStatement() {
-			if (insertStatement != null)
-				return insertStatement;
-			final var sb = new StringBuilder("INSERT INTO ").append(primaryTable.fullName).append(" (\n");
-			for (int i = 0; i < primaryColumns.size(); i++) {
-				sb.append("    ").append(primaryColumns.get(i).columnName);
-				if (i + 1 < primaryColumns.size())
-					sb.append(',');
-				sb.append('\n');
-			}
-			sb.append(")\nVALUES (\n");
-			for (int i = 0; i < primaryColumns.size(); i++) {
-				sb.append("    ?");
-				if (i + 1 < primaryColumns.size())
-					sb.append(',');
-				sb.append('\n');
-			}
-			sb.append(')');
-			insertStatement = sb.toString();
-			return insertStatement;
-		}
-
-		private synchronized String getDeleteStatement() {
-			if (effectiveDated != null)
-				throw new UnsupportedOperationException("Delete is not supported for effective-dated entities");
-			if (deleteStatement == null)
-				deleteStatement = new StringBuilder("DELETE FROM ").append(primaryTable.fullName)
-						.append(buildWhere(idCriteria(idColumns, "?"))).toString();
-			return deleteStatement;
-		}
-
-		private ColumnMetaData requirePrimaryColumn(String property) {
-			final var column = resolveColumn(property);
-			if (column == null || !column.isPrimaryColumn())
-				throw new IllegalArgumentException(
-						"Unknown primary-table property " + property + " for " + entityClass);
-			return column;
-		}
-
-		private List<String> resolveFilters() {
-			if (filtered == null)
-				return List.of();
-			final var filters = new ArrayList<String>();
-			for (final var filter : filtered.filters())
-				filters.add(resolveFilter(filter));
-			return filters;
-		}
-
-		private String resolveFilter(SqlFilter filter) {
-			if (hasValue(filter.sql()))
-				return filter.sql();
-			final var params = filter.params();
-			return switch (filter.name()) {
-			case "effectiveDate" -> buildEffectiveDateCriteria(primaryTable.alias, params[0],
-					params.length > 1 ? params[1] : "CURRENT_DATE", false,
-					effectiveDateKeyColumns(params[0], new String[0], new String[0]));
-			case "maxDate" -> buildMaxDateCriteria(primaryTable.alias, params[0],
-					effectiveDateKeyColumns(params[0], new String[0], new String[0]));
-			case "columnMatch" -> IuSqlBuilderImpl.this.getColumnMatchCriteria(entityClass, params[0],
-					Arrays.asList(params).subList(1, params.length));
-			case "columnCompare" -> IuSqlBuilderImpl.this.getColumnCompareCriteria(entityClass, params[0], params[1],
-					Arrays.asList(params).subList(2, params.length));
-			default ->
-				throw new IllegalArgumentException("Unsupported filter name " + filter.name() + " for " + entityClass);
-			};
-		}
-
-		private List<String> resolveEffectiveDatedCriteria() {
-			if (effectiveDated == null || !effectiveDated.currentOnly())
-				return List.of();
-			final var criteria = new ArrayList<String>();
-			for (final var effectiveColumn : effectiveDated.effectiveDatedColumns())
-				criteria.add(buildEffectiveDateCriteria(primaryTable.alias, effectiveColumn, effectiveDated.asOfDate(),
-						false, effectiveDateKeyColumns(effectiveColumn, effectiveDated.additionalKeyColumns(),
-								effectiveDated.unmappedColumns())));
-			return criteria;
-		}
-
-		private List<String> effectiveDateKeyColumns(String effectiveColumn, String[] additional, String[] unmapped) {
-			final var keys = new LinkedHashSet<String>();
-			final var normalized = normalizeName(effectiveColumn);
-			for (final var idColumn : idColumns)
-				if (!normalizeName(idColumn.columnName).equals(normalized))
-					keys.add(idColumn.columnName);
-			keys.addAll(Arrays.asList(additional));
-			keys.addAll(Arrays.asList(unmapped));
-			return List.copyOf(keys);
-		}
-
-		private String buildEffectiveDateCriteria(String outerAlias, String effectiveColumn, String asOfDate,
-				boolean future, Iterable<String> idColumnNames) {
-			final var aggregate = future ? "MIN" : "MAX";
-			final var comparator = future ? " > " : " <= ";
-			final var subAlias = outerAlias + "_ed";
-			final var sb = new StringBuilder();
-			sb.append(outerAlias).append('.').append(effectiveColumn).append(" = (SELECT ").append(aggregate)
-					.append('(').append(subAlias).append('.').append(effectiveColumn).append(")\n        FROM ")
-					.append(primaryTable.fullName).append(' ').append(subAlias).append("\n       WHERE ");
-			appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
-			if (!sb.toString().endsWith("WHERE 1 = 1"))
-				sb.append("\n         AND ");
-			else
-				sb.setLength(sb.length() - "1 = 1".length());
-			sb.append(subAlias).append('.').append(effectiveColumn).append(comparator).append(asOfDate).append(')');
-			return sb.toString();
-		}
-
-		private String buildMaxDateCriteria(String outerAlias, String maxDateColumn, Iterable<String> idColumnNames) {
-			final var subAlias = outerAlias + "_md";
-			final var sb = new StringBuilder();
-			sb.append(outerAlias).append('.').append(maxDateColumn).append(" = (SELECT MAX(").append(subAlias)
-					.append('.').append(maxDateColumn).append(")\n        FROM ").append(primaryTable.fullName)
-					.append(' ').append(subAlias).append("\n       WHERE ");
-			appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
-			sb.append(')');
-			return sb.toString();
-		}
-
-		private String buildEffectiveDateSeqCriteria(String outerAlias, String effectiveColumn, String sequenceColumn,
-				String asOfDate, Iterable<String> idColumnNames) {
-			final var sb = new StringBuilder(
-					buildEffectiveDateCriteria(outerAlias, effectiveColumn, asOfDate, false, idColumnNames));
-			final var subAlias = outerAlias + "_seq";
-			sb.append("\n  AND ").append(outerAlias).append('.').append(sequenceColumn).append(" = (SELECT MAX(")
-					.append(subAlias).append('.').append(sequenceColumn).append(")\n        FROM ")
-					.append(primaryTable.fullName).append(' ').append(subAlias).append("\n       WHERE ");
-			appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
-			if (!sb.toString().endsWith("WHERE 1 = 1"))
-				sb.append("\n         AND ");
-			else
-				sb.setLength(sb.length() - "1 = 1".length());
-			sb.append(subAlias).append('.').append(effectiveColumn).append(" = ").append(outerAlias).append('.')
-					.append(effectiveColumn).append(')');
-			return sb.toString();
-		}
-
-		private void appendCorrelation(StringBuilder sb, String outerAlias, String subAlias,
-				Iterable<String> idColumnNames) {
-			boolean added = false;
-			for (final var idColumnName : idColumnNames) {
-				if (added)
-					sb.append("\n         AND ");
-				sb.append(subAlias).append('.').append(idColumnName).append(" = ").append(outerAlias).append('.')
-						.append(idColumnName);
-				added = true;
-			}
-			if (!added)
-				sb.append("1 = 1");
-		}
-	}
+//	private final class EntityMetaData {
+//		private final Class<?> entityClass;
+//		private final TableMetaData primaryTable;
+//		private final List<TableMetaData> secondaryTables;
+//		private final Map<String, TableMetaData> tablesByReference;
+//		private final Map<String, ColumnMetaData> columns;
+//		private final Map<String, ColumnMetaData> columnsByNormalizedColumn;
+//		private final Map<String, String> columnToPropertyNames;
+//		private final List<ColumnMetaData> idColumns;
+//		private final List<ColumnMetaData> primaryColumns;
+//		private final List<ColumnMetaData> primaryNonIdColumns;
+//		private final SqlJoinType.Type joinType;
+//		private final boolean distinct;
+//		private final boolean spaceForNull;
+//		private final Filtered filtered;
+//		private final EffectiveDated effectiveDated;
+//		private final Map<Long, String> selectAndFromCache = new HashMap<>();
+//		private final Map<Long, String> selectStatementCache = new HashMap<>();
+//		private final Map<Long, String> updateStatementCache = new HashMap<>();
+//		private String insertStatement;
+//		private String deleteStatement;
+//
+//		private EntityMetaData(Class<?> entityClass) {
+//			this.entityClass = entityClass;
+//			final var table = getAnnotationFromHierarchy(entityClass, Table.class);
+//			final var entity = getAnnotationFromHierarchy(entityClass, Entity.class);
+//			final var tableName = table != null && hasValue(table.name()) ? table.name()
+//					: entity != null && hasValue(entity.name()) ? entity.name() : entityClass.getSimpleName();
+//			this.primaryTable = new TableMetaData(tableName, table == null ? "" : table.schema(), "a", true, null);
+//			final var joinTypeAnnotation = getAnnotationFromHierarchy(entityClass, SqlJoinType.class);
+//			this.joinType = joinTypeAnnotation == null ? SqlJoinType.Type.INNER : joinTypeAnnotation.value();
+//			this.distinct = getAnnotationFromHierarchy(entityClass, Distinct.class) != null;
+//			this.spaceForNull = getAnnotationFromHierarchy(entityClass, SpaceForNull.class) != null;
+//			this.filtered = getAnnotationFromHierarchy(entityClass, Filtered.class);
+//			this.effectiveDated = getAnnotationFromHierarchy(entityClass, EffectiveDated.class);
+//
+//			final var tablesByReference = new LinkedHashMap<String, TableMetaData>();
+//			final var secondaryTables = new ArrayList<TableMetaData>();
+//			registerTable(tablesByReference, primaryTable);
+//			final var secondary = getAnnotationFromHierarchy(entityClass, SecondaryTable.class);
+//			if (secondary != null) {
+//				final var secondaryMeta = new TableMetaData(secondary.name(), secondary.schema(), getAlias(1), false,
+//						secondary);
+//				secondaryTables.add(secondaryMeta);
+//				registerTable(tablesByReference, secondaryMeta);
+//			}
+//			final var secondaries = getAnnotationFromHierarchy(entityClass, SecondaryTables.class);
+//			if (secondaries != null) {
+//				for (int i = 0; i < secondaries.value().length; i++) {
+//					final var secondaryTable = secondaries.value()[i];
+//					final var secondaryMeta = new TableMetaData(secondaryTable.name(), secondaryTable.schema(),
+//							getAlias(secondaryTables.size() + 1), false, secondaryTable);
+//					secondaryTables.add(secondaryMeta);
+//					registerTable(tablesByReference, secondaryMeta);
+//				}
+//			}
+//			this.secondaryTables = List.copyOf(secondaryTables);
+//			this.tablesByReference = Collections.unmodifiableMap(tablesByReference);
+//
+//			final var columns = new LinkedHashMap<String, ColumnMetaData>();
+//			final var columnsByNormalizedColumn = new LinkedHashMap<String, ColumnMetaData>();
+//			final var columnToPropertyNames = new LinkedHashMap<String, String>();
+//			final var idColumns = new ArrayList<ColumnMetaData>();
+//			final var primaryColumns = new ArrayList<ColumnMetaData>();
+//			final var primaryNonIdColumns = new ArrayList<ColumnMetaData>();
+//
+//			for (final var property : getAllBeanProperties(entityClass)) {
+//				if (isTransient(property))
+//					continue;
+//				final var readMethod = property.getReadMethod();
+//				if (!readMethod.isAnnotationPresent(Column.class) && !readMethod.isAnnotationPresent(SqlColumn.class))
+//					continue;
+//				final var columnMetaData = new ColumnMetaData(property, this);
+//				columns.put(columnMetaData.propertyName, columnMetaData);
+//				if (columnMetaData.columnName != null) {
+//					columnsByNormalizedColumn.put(normalizeName(columnMetaData.columnName), columnMetaData);
+//					columnToPropertyNames.put(normalizeName(columnMetaData.columnName), columnMetaData.propertyName);
+//				}
+//				if (columnMetaData.id != null)
+//					idColumns.add(columnMetaData);
+//				if (columnMetaData.isPrimaryColumn()) {
+//					primaryColumns.add(columnMetaData);
+//					if (columnMetaData.id == null)
+//						primaryNonIdColumns.add(columnMetaData);
+//				}
+//			}
+//
+//			this.columns = Collections.unmodifiableMap(columns);
+//			this.columnsByNormalizedColumn = Collections.unmodifiableMap(columnsByNormalizedColumn);
+//			this.columnToPropertyNames = Collections.unmodifiableMap(columnToPropertyNames);
+//			this.idColumns = List.copyOf(idColumns);
+//			this.primaryColumns = List.copyOf(primaryColumns);
+//			this.primaryNonIdColumns = List.copyOf(primaryNonIdColumns);
+//
+//			for (final var secondaryTable : secondaryTables)
+//				secondaryTable.initializeJoinConditions(this);
+//		}
+//
+//		private TableMetaData resolveTable(String tableName) {
+//			if (!hasValue(tableName))
+//				return primaryTable;
+//			final var table = tablesByReference.get(normalizeName(tableName));
+//			if (table == null)
+//				throw new IllegalArgumentException("Unknown table reference " + tableName + " for " + entityClass);
+//			return table;
+//		}
+//
+//		private String resolveAlias(String tableOrAlias) {
+//			if (!hasValue(tableOrAlias))
+//				return primaryTable.alias;
+//			final var table = tablesByReference.get(normalizeName(tableOrAlias));
+//			return table == null ? tableOrAlias : table.alias;
+//		}
+//
+//		private ColumnMetaData resolveColumn(String propertyOrColumn) {
+//			final var byProperty = columns.get(propertyOrColumn);
+//			if (byProperty != null)
+//				return byProperty;
+//			return columnsByNormalizedColumn.get(normalizeName(propertyOrColumn));
+//		}
+//
+//		private Iterable<String> defaultPropertyNames() {
+//			return columns.keySet();
+//		}
+//
+//		private synchronized String getSelectAndFromClause(Iterable<String> props) {
+//			final var effectiveProps = props == null ? defaultPropertyNames() : props;
+//			final var fingerprint = getFingerprint(effectiveProps);
+//			final var cached = selectAndFromCache.get(fingerprint);
+//			if (cached != null)
+//				return cached;
+//
+//			final var sb = new StringBuilder(distinct ? "SELECT DISTINCT" : "SELECT");
+//			boolean found = false;
+//			for (final var prop : effectiveProps) {
+//				if (prop == null)
+//					continue;
+//				found = true;
+//				sb.append("\n    ");
+//				final var column = resolveColumn(prop);
+//				if (column == null) {
+//					sb.append(prop);
+//				} else {
+//					sb.append(column.reference());
+//					if (column.selectAlias != null)
+//						sb.append(" AS ").append(column.selectAlias);
+//				}
+//				sb.append(',');
+//			}
+//			if (!found)
+//				throw new IllegalArgumentException("At least one property is required");
+//			sb.setLength(sb.length() - 1);
+//			sb.append("\nFROM ").append(primaryTable.fullName).append(' ').append(primaryTable.alias);
+//			for (final var table : secondaryTables) {
+//				sb.append("\n  ").append(joinKeyword(joinType)).append(' ').append(table.fullName).append(' ')
+//						.append(table.alias).append("\n    ON ");
+//				for (int i = 0; i < table.joinConditions.size(); i++) {
+//					if (i > 0)
+//						sb.append(" AND ");
+//					table.joinConditions.get(i).appendTo(sb);
+//				}
+//			}
+//
+//			final var sql = sb.toString();
+//			selectAndFromCache.put(fingerprint, sql);
+//			return sql;
+//		}
+//
+//		private synchronized String getSelectStatement(Iterable<String> props, Iterable<String> where,
+//				Iterable<String> order, boolean forUpdate) {
+//			final var criteria = new ArrayList<String>();
+//			appendAll(criteria, where);
+//			appendAll(criteria, resolveFilters());
+//			appendAll(criteria, resolveEffectiveDatedCriteria());
+//			final var effectiveProps = props == null ? defaultPropertyNames() : props;
+//			final var fingerprint = getFingerprint(effectiveProps, criteria, order,
+//					List.of(Boolean.valueOf(forUpdate)));
+//			final var cached = selectStatementCache.get(fingerprint);
+//			if (cached != null)
+//				return cached;
+//
+//			final var sb = new StringBuilder(getSelectAndFromClause(effectiveProps));
+//			sb.append(buildWhere(criteria));
+//			appendOrderBy(sb, order);
+//			if (forUpdate)
+//				sb.append("\nFOR UPDATE");
+//
+//			final var sql = sb.toString();
+//			selectStatementCache.put(fingerprint, sql);
+//			return sql;
+//		}
+//
+//		private synchronized String getUpdateStatement(Iterable<String> properties) {
+//			final var propertyList = toList(properties);
+//			if (propertyList.isEmpty())
+//				throw new IuSqlUnchangedException();
+//
+//			final var fingerprint = getFingerprint(propertyList);
+//			final var cached = updateStatementCache.get(fingerprint);
+//			if (cached != null)
+//				return cached;
+//
+//			final var sb = new StringBuilder("UPDATE ").append(primaryTable.fullName).append("\nSET");
+//			for (final var property : propertyList) {
+//				final var column = requirePrimaryColumn(property);
+//				sb.append("\n    ").append(column.columnName).append(" = ?,");
+//			}
+//			sb.setLength(sb.length() - 1);
+//			sb.append(buildWhere(idCriteria(idColumns, "?")));
+//
+//			final var sql = sb.toString();
+//			updateStatementCache.put(fingerprint, sql);
+//			return sql;
+//		}
+//
+//		private synchronized String getInsertStatement() {
+//			if (insertStatement != null)
+//				return insertStatement;
+//			final var sb = new StringBuilder("INSERT INTO ").append(primaryTable.fullName).append(" (\n");
+//			for (int i = 0; i < primaryColumns.size(); i++) {
+//				sb.append("    ").append(primaryColumns.get(i).columnName);
+//				if (i + 1 < primaryColumns.size())
+//					sb.append(',');
+//				sb.append('\n');
+//			}
+//			sb.append(")\nVALUES (\n");
+//			for (int i = 0; i < primaryColumns.size(); i++) {
+//				sb.append("    ?");
+//				if (i + 1 < primaryColumns.size())
+//					sb.append(',');
+//				sb.append('\n');
+//			}
+//			sb.append(')');
+//			insertStatement = sb.toString();
+//			return insertStatement;
+//		}
+//
+//		private synchronized String getDeleteStatement() {
+//			if (effectiveDated != null)
+//				throw new UnsupportedOperationException("Delete is not supported for effective-dated entities");
+//			if (deleteStatement == null)
+//				deleteStatement = new StringBuilder("DELETE FROM ").append(primaryTable.fullName)
+//						.append(buildWhere(idCriteria(idColumns, "?"))).toString();
+//			return deleteStatement;
+//		}
+//
+//		private ColumnMetaData requirePrimaryColumn(String property) {
+//			final var column = resolveColumn(property);
+//			if (column == null || !column.isPrimaryColumn())
+//				throw new IllegalArgumentException(
+//						"Unknown primary-table property " + property + " for " + entityClass);
+//			return column;
+//		}
+//
+//		private List<String> resolveFilters() {
+//			if (filtered == null)
+//				return List.of();
+//			final var filters = new ArrayList<String>();
+//			for (final var filter : filtered.filters())
+//				filters.add(resolveFilter(filter));
+//			return filters;
+//		}
+//
+//		private String resolveFilter(SqlFilter filter) {
+//			if (hasValue(filter.sql()))
+//				return filter.sql();
+//			final var params = filter.params();
+//			return switch (filter.name()) {
+//			case "effectiveDate" -> buildEffectiveDateCriteria(primaryTable.alias, params[0],
+//					params.length > 1 ? params[1] : "CURRENT_DATE", false,
+//					effectiveDateKeyColumns(params[0], new String[0], new String[0]));
+//			case "maxDate" -> buildMaxDateCriteria(primaryTable.alias, params[0],
+//					effectiveDateKeyColumns(params[0], new String[0], new String[0]));
+//			case "columnMatch" -> IuSqlBuilderImpl.this.getColumnMatchCriteria(entityClass, params[0],
+//					Arrays.asList(params).subList(1, params.length));
+//			case "columnCompare" -> IuSqlBuilderImpl.this.getColumnCompareCriteria(entityClass, params[0], params[1],
+//					Arrays.asList(params).subList(2, params.length));
+//			default ->
+//				throw new IllegalArgumentException("Unsupported filter name " + filter.name() + " for " + entityClass);
+//			};
+//		}
+//
+//		private List<String> resolveEffectiveDatedCriteria() {
+//			if (effectiveDated == null || !effectiveDated.currentOnly())
+//				return List.of();
+//			final var criteria = new ArrayList<String>();
+//			for (final var effectiveColumn : effectiveDated.effectiveDatedColumns())
+//				criteria.add(buildEffectiveDateCriteria(primaryTable.alias, effectiveColumn, effectiveDated.asOfDate(),
+//						false, effectiveDateKeyColumns(effectiveColumn, effectiveDated.additionalKeyColumns(),
+//								effectiveDated.unmappedColumns())));
+//			return criteria;
+//		}
+//
+//		private List<String> effectiveDateKeyColumns(String effectiveColumn, String[] additional, String[] unmapped) {
+//			final var keys = new LinkedHashSet<String>();
+//			final var normalized = normalizeName(effectiveColumn);
+//			for (final var idColumn : idColumns)
+//				if (!normalizeName(idColumn.columnName).equals(normalized))
+//					keys.add(idColumn.columnName);
+//			keys.addAll(Arrays.asList(additional));
+//			keys.addAll(Arrays.asList(unmapped));
+//			return List.copyOf(keys);
+//		}
+//
+//		private String buildEffectiveDateCriteria(String outerAlias, String effectiveColumn, String asOfDate,
+//				boolean future, Iterable<String> idColumnNames) {
+//			final var aggregate = future ? "MIN" : "MAX";
+//			final var comparator = future ? " > " : " <= ";
+//			final var subAlias = outerAlias + "_ed";
+//			final var sb = new StringBuilder();
+//			sb.append(outerAlias).append('.').append(effectiveColumn).append(" = (SELECT ").append(aggregate)
+//					.append('(').append(subAlias).append('.').append(effectiveColumn).append(")\n        FROM ")
+//					.append(primaryTable.fullName).append(' ').append(subAlias).append("\n       WHERE ");
+//			appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
+//			if (!sb.toString().endsWith("WHERE 1 = 1"))
+//				sb.append("\n         AND ");
+//			else
+//				sb.setLength(sb.length() - "1 = 1".length());
+//			sb.append(subAlias).append('.').append(effectiveColumn).append(comparator).append(asOfDate).append(')');
+//			return sb.toString();
+//		}
+//
+//		private String buildMaxDateCriteria(String outerAlias, String maxDateColumn, Iterable<String> idColumnNames) {
+//			final var subAlias = outerAlias + "_md";
+//			final var sb = new StringBuilder();
+//			sb.append(outerAlias).append('.').append(maxDateColumn).append(" = (SELECT MAX(").append(subAlias)
+//					.append('.').append(maxDateColumn).append(")\n        FROM ").append(primaryTable.fullName)
+//					.append(' ').append(subAlias).append("\n       WHERE ");
+//			appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
+//			sb.append(')');
+//			return sb.toString();
+//		}
+//
+//		private String buildEffectiveDateSeqCriteria(String outerAlias, String effectiveColumn, String sequenceColumn,
+//				String asOfDate, Iterable<String> idColumnNames) {
+//			final var sb = new StringBuilder(
+//					buildEffectiveDateCriteria(outerAlias, effectiveColumn, asOfDate, false, idColumnNames));
+//			final var subAlias = outerAlias + "_seq";
+//			sb.append("\n  AND ").append(outerAlias).append('.').append(sequenceColumn).append(" = (SELECT MAX(")
+//					.append(subAlias).append('.').append(sequenceColumn).append(")\n        FROM ")
+//					.append(primaryTable.fullName).append(' ').append(subAlias).append("\n       WHERE ");
+//			appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
+//			if (!sb.toString().endsWith("WHERE 1 = 1"))
+//				sb.append("\n         AND ");
+//			else
+//				sb.setLength(sb.length() - "1 = 1".length());
+//			sb.append(subAlias).append('.').append(effectiveColumn).append(" = ").append(outerAlias).append('.')
+//					.append(effectiveColumn).append(')');
+//			return sb.toString();
+//		}
+//
+//		private void appendCorrelation(StringBuilder sb, String outerAlias, String subAlias,
+//				Iterable<String> idColumnNames) {
+//			boolean added = false;
+//			for (final var idColumnName : idColumnNames) {
+//				if (added)
+//					sb.append("\n         AND ");
+//				sb.append(subAlias).append('.').append(idColumnName).append(" = ").append(outerAlias).append('.')
+//						.append(idColumnName);
+//				added = true;
+//			}
+//			if (!added)
+//				sb.append("1 = 1");
+//		}
+//	}
 
 	private static boolean isTransient(PropertyDescriptor property) {
 		final var readMethod = property.getReadMethod();
@@ -593,54 +593,6 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		};
 	}
 
-	private static String qualifyName(String schema, String name) {
-		return hasValue(schema) ? schema + "." + name : name;
-	}
-
-	private static String normalizeName(String value) {
-		return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
-	}
-
-	private static boolean hasValue(String value) {
-		return value != null && !value.isBlank();
-	}
-
-	private static long getFingerprint(Iterable<?>... values) {
-		long fingerprint = 0L;
-		if (values != null)
-			for (final var iterable : values) {
-				int count = 0;
-				if (iterable != null)
-					for (final var value : iterable) {
-						count++;
-						fingerprint = 43L * fingerprint + (value == null ? 0L : value.hashCode());
-					}
-				fingerprint = 23L * fingerprint + count;
-			}
-		return fingerprint;
-	}
-
-	private static String getAlias(int i) {
-		final var alias = new StringBuilder();
-		do {
-			alias.insert(0, (char) ('a' + i % 26));
-			i /= 26;
-		} while (i > 26);
-		return alias.toString();
-	}
-
-	/** "fooBarBaz" → "FOO_BAR_BAZ" */
-	private static String camelToSnakeUpper(String name) {
-		final var sb = new StringBuilder();
-		for (int i = 0; i < name.length(); i++) {
-			final char c = name.charAt(i);
-			if (Character.isUpperCase(c) && i > 0)
-				sb.append('_');
-			sb.append(Character.toUpperCase(c));
-		}
-		return sb.toString();
-	}
-
 //	/** Get all PropertyDescriptors from entityClass hierarchy annotated with given annotation */
 //	private static List<PropertyDescriptor> getAllAnnotatedProperties(Class<?> entityClass,
 //			Class<? extends Annotation> ann) {
@@ -650,113 +602,6 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 //				properties.put(property.getName(), property);
 //		return new ArrayList<>(properties.values());
 //	}
-
-	private static List<PropertyDescriptor> getAllBeanProperties(Class<?> entityClass) {
-		final var properties = new LinkedHashMap<String, PropertyDescriptor>();
-		final var hierarchy = new ArrayList<Class<?>>();
-		for (var current = entityClass; current != null && current != Object.class; current = current.getSuperclass())
-			hierarchy.add(0, current);
-		for (final var type : hierarchy)
-			try {
-				for (final var property : Introspector.getBeanInfo(type).getPropertyDescriptors()) {
-					if ("class".equals(property.getName()) || property.getReadMethod() == null)
-						continue;
-					properties.put(property.getName(), property);
-				}
-			} catch (IntrospectionException e) {
-				throw new IllegalStateException("Failed to introspect " + entityClass, e);
-			}
-		return new ArrayList<>(properties.values());
-	}
-
-	/** Get annotation from class hierarchy */
-	private static <A extends Annotation> A getAnnotationFromHierarchy(Class<?> c, Class<A> ann) {
-		for (var clazz = c; clazz != null; clazz = clazz.getSuperclass())
-			if (clazz.isAnnotationPresent(ann))
-				return clazz.getAnnotation(ann);
-		return null;
-	}
-
-	/** Invoke read method on bean */
-	private static Object getPropertyValue(Object bean, PropertyDescriptor prop) {
-		try {
-			return prop.getReadMethod().invoke(bean);
-		} catch (IllegalAccessException | InvocationTargetException e) {
-			throw new IllegalStateException("Failed to read property " + prop.getName() + " from " + bean.getClass(),
-					e);
-		}
-	}
-
-	/** Autobox primitive types */
-	private static Class<?> autobox(Class<?> c) {
-		if (!c.isPrimitive())
-			return c;
-		if (c == boolean.class)
-			return Boolean.class;
-		if (c == byte.class)
-			return Byte.class;
-		if (c == short.class)
-			return Short.class;
-		if (c == int.class)
-			return Integer.class;
-		if (c == long.class)
-			return Long.class;
-		if (c == float.class)
-			return Float.class;
-		if (c == double.class)
-			return Double.class;
-		if (c == char.class)
-			return Character.class;
-		return c;
-	}
-
-	private static PropertyDescriptor findProperty(Class<?> entityClass, String propertyName) {
-		for (final var property : getAllBeanProperties(entityClass))
-			if (property.getName().equals(propertyName))
-				return property;
-		throw new NoSuchElementException("Unknown property " + propertyName + " on " + entityClass);
-	}
-
-	private static Class<?> getSqlType(Class<?> entityClass, String prop) {
-		final var property = findProperty(entityClass, prop);
-		final var column = property.getReadMethod().getAnnotation(Column.class);
-		if (column != null && hasValue(column.columnDefinition())) {
-			final var sqlType = column.columnDefinition().toUpperCase(Locale.ROOT);
-			if (sqlType.contains("CHAR"))
-				return String.class;
-			if (sqlType.startsWith("INT"))
-				return Long.class;
-			if (sqlType.startsWith("NUMBER") || sqlType.startsWith("NUMERIC") || sqlType.startsWith("DECIMAL"))
-				return Number.class;
-			if (sqlType.equals("DATE"))
-				return Date.class;
-			if (sqlType.equals("TIME"))
-				return java.sql.Time.class;
-			if (sqlType.equals("DATETIME") || sqlType.equals("TIMESTAMP") || sqlType.contains("TIMESTAMP"))
-				return Timestamp.class;
-			if (sqlType.equals("CLOB") || sqlType.equals("TEXT"))
-				return char[].class;
-			return Object.class;
-		}
-		return autobox(property.getPropertyType());
-	}
-
-	private static <T> List<T> toList(Iterable<T> values) {
-		if (values == null)
-			return List.of();
-		final var list = new ArrayList<T>();
-		for (final var value : values)
-			list.add(value);
-		return list;
-	}
-
-	private static <T> void appendAll(List<T> target, Iterable<T> values) {
-		if (values == null)
-			return;
-		for (final var value : values)
-			if (value != null)
-				target.add(value);
-	}
 
 	private static String buildWhere(Iterable<String> criteria) {
 		final var list = toList(criteria);
