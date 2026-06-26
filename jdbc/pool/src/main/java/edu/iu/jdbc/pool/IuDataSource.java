@@ -122,8 +122,10 @@ public class IuDataSource implements DataSource, AutoCloseable {
 	public Connection getConnection() throws SQLException {
 		final var transactionSynchronizationRegistry = integration.getTransactionSynchronizationRegistry();
 		if (transactionSynchronizationRegistry == null //
-				|| transactionSynchronizationRegistry.getTransactionStatus() != Status.STATUS_ACTIVE)
-			return connectionPool.checkOut().getConnection();
+				|| transactionSynchronizationRegistry.getTransactionStatus() != Status.STATUS_ACTIVE) {
+			final var connection = connectionPool.checkOut().getConnection();
+			return integration.initializeConnection(connection);
+		}
 
 		final var activeConnection = (Connection) transactionSynchronizationRegistry.getResource(CONNECTION_KEY);
 		if (activeConnection != null)
