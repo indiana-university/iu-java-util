@@ -130,7 +130,7 @@ public class IuDataSource implements DataSource, AutoCloseable {
 			return activeConnection;
 
 		final var pooledConnection = connectionPool.checkOut();
-		final var managedConnection = pooledConnection.getConnection();
+		final var managedConnection = integration.initializeConnection(pooledConnection.getConnection());
 
 		if (pooledConnection instanceof XAConnection xaConnection)
 			IuException.unchecked(() -> {
