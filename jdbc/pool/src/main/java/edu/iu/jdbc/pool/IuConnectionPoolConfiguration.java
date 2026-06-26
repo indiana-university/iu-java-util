@@ -10,7 +10,7 @@ import javax.sql.CommonDataSource;
 public interface IuConnectionPoolConfiguration {
 
 	/**
-	 * Gets a human-readlable description of this database pool (i.e.
+	 * Gets a human-readable description of this database pool (i.e.
 	 * database/username).
 	 * 
 	 * @return description
