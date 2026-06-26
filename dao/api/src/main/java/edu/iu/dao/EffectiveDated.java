@@ -29,14 +29,61 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Data Access Object toolkit API.
- */
-module iu.util.dao {
-	exports edu.iu.dao;
+package edu.iu.dao;
 
-	requires iu.util;
-	requires transitive java.sql;
-	requires transitive java.naming;
-	requires transitive jakarta.persistence;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Declares effective-dated entity behavior for generated queries.
+ */
+@Documented
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface EffectiveDated {
+
+	/**
+	 * Additional correlated columns that are not discovered from mapped id properties.
+	 *
+	 * @return additional key columns
+	 */
+	String[] unmappedColumns() default {};
+
+	/**
+	 * Effective-dated column names.
+	 *
+	 * @return effective-dated columns
+	 */
+	String[] effectiveDatedColumns() default { "effdt" };
+
+	/**
+	 * Initial values used by legacy effective-dated update semantics.
+	 *
+	 * @return initial values
+	 */
+	String[] initialValues() default { "CURRENT_DATE" };
+
+	/**
+	 * Additional mapped key columns for correlated effective-date subqueries.
+	 *
+	 * @return additional key columns
+	 */
+	String[] additionalKeyColumns() default {};
+
+	/**
+	 * SQL expression used as the default as-of date.
+	 *
+	 * @return as-of date expression
+	 */
+	String asOfDate() default "CURRENT_DATE";
+
+	/**
+	 * Indicates that generated select statements should automatically constrain to the current row.
+	 *
+	 * @return {@code true} to apply current-row filtering automatically
+	 */
+	boolean currentOnly() default false;
 }

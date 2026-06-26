@@ -29,14 +29,27 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Data Access Object toolkit API.
- */
-module iu.util.dao {
-	exports edu.iu.dao;
+package edu.iu.dao;
 
-	requires iu.util;
-	requires transitive java.sql;
-	requires transitive java.naming;
-	requires transitive jakarta.persistence;
+/**
+ * Indicates that an update request did not contain any changed columns.
+ */
+public class IuSqlUnchangedException extends RuntimeException {
+
+	private static final long serialVersionUID = 1L;
+
+	/**
+	 * Creates an exception with the default message.
+	 */
+	public IuSqlUnchangedException() {
+	}
+
+	/**
+	 * Creates an exception with a custom message.
+	 *
+	 * @param message message
+	 */
+	public IuSqlUnchangedException(String message) {
+		super(message);
+	}
 }

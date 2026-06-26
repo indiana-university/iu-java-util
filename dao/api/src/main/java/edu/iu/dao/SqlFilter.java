@@ -29,14 +29,37 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Data Access Object toolkit API.
- */
-module iu.util.dao {
-	exports edu.iu.dao;
+package edu.iu.dao;
 
-	requires iu.util;
-	requires transitive java.sql;
-	requires transitive java.naming;
-	requires transitive jakarta.persistence;
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+/**
+ * Defines a SQL filter fragment or a named filter pattern.
+ */
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+public @interface SqlFilter {
+
+	/**
+	 * Explicit SQL fragment.
+	 *
+	 * @return SQL fragment
+	 */
+	String sql() default "";
+
+	/**
+	 * Named filter pattern.
+	 *
+	 * @return filter name
+	 */
+	String name() default "";
+
+	/**
+	 * Filter parameters.
+	 *
+	 * @return parameters
+	 */
+	String[] params() default {};
 }

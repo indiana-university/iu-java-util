@@ -29,14 +29,26 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Data Access Object toolkit API.
- */
-module iu.util.dao {
-	exports edu.iu.dao;
+package edu.iu.dao;
 
-	requires iu.util;
-	requires transitive java.sql;
-	requires transitive java.naming;
-	requires transitive jakarta.persistence;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Declares SQL filters that are automatically applied to generated select statements.
+ */
+@Documented
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Filtered {
+
+	/**
+	 * Configured filters.
+	 *
+	 * @return filters
+	 */
+	SqlFilter[] filters();
 }

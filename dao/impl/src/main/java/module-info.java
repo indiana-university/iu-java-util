@@ -38,4 +38,6 @@ module iu.util.dao.impl {
 	requires iu.util;
 	requires transitive iu.util.dao;
 	requires java.sql;
+	requires java.desktop;
+	requires jakarta.persistence;
 }
