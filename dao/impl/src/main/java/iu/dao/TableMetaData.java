@@ -1,41 +1,112 @@
 package iu.dao;
 
-import java.util.ArrayList;
-import java.util.List;
-
+import edu.iu.IuIterable;
 import jakarta.persistence.SecondaryTable;
 
-private static final class TableMetaData {
-	
-	private final String name;
-	private final String fullName;
-	private final String alias;
-	private final boolean primary;
-	private final SecondaryTable secondaryTable;
-	private List<JoinCondition> joinConditions = List.of();
+/**
+ * Holds table-level metadata for a primary or secondary table in a JPA entity
+ * mapping.
+ *
+ * <p>
+ * One instance is created for the primary table (alias {@code "a"}) and one for
+ * each {@link SecondaryTable} annotation found on the entity class. Secondary
+ * tables receive sequential aliases starting at {@code "b"}.
+ * </p>
+ *
+ * <p>
+ * After all column metadata for an entity has been resolved,
+ * {@link #initializeJoinConditions(EntityMetaData)} must be called on each
+ * secondary table to build the SQL equality conditions used in
+ * {@code JOIN … ON} clauses.
+ * </p>
+ */
+class TableMetaData {
 
-	private TableMetaData(String name, String schema, String alias, boolean primary, SecondaryTable secondaryTable) {
+	/** Unqualified table name as it appears in the database. */
+	final String name;
+
+	/**
+	 * Schema-qualified table name ({@code schema.name}), or the bare {@link #name}
+	 * when no schema is present.
+	 */
+	final String fullName;
+
+	/**
+	 * SQL alias assigned to this table in generated queries (e.g. {@code "a"},
+	 * {@code "b"}).
+	 */
+	final String alias;
+
+	/**
+	 * {@code true} for the entity's primary table; {@code false} for secondary
+	 * tables.
+	 */
+	final boolean primary;
+
+	/**
+	 * The {@link SecondaryTable} annotation that declared this table, or
+	 * {@code null} for the primary table.
+	 */
+	final SecondaryTable secondaryTable;
+
+	/**
+	 * Ordered sequence of SQL equality conditions used to join this secondary table
+	 * to the primary table. Empty for primary tables and for secondary tables whose
+	 * {@link #initializeJoinConditions(EntityMetaData)} has not yet been called.
+	 */
+	Iterable<JoinCondition> joinConditions = IuIterable.empty();
+
+	/**
+	 * Constructs table metadata.
+	 *
+	 * @param name           unqualified table name; must not be {@code null}
+	 * @param schema         schema name; {@code null} or blank produces an
+	 *                       unqualified {@link #fullName}
+	 * @param alias          SQL alias for this table in generated queries
+	 * @param primary        {@code true} for the entity's primary table
+	 * @param secondaryTable the declaring {@link SecondaryTable} annotation, or
+	 *                       {@code null} for the primary table
+	 */
+	TableMetaData(String name, String schema, String alias, boolean primary, SecondaryTable secondaryTable) {
 		this.name = name;
-		this.fullName = qualifyName(schema, name);
+		this.fullName = DaoUtils.qualifyName(schema, name);
 		this.alias = alias;
 		this.primary = primary;
 		this.secondaryTable = secondaryTable;
 	}
 
-	private void initializeJoinConditions(EntityMetaData entity) {
-		if (primary) {
-			joinConditions = List.of();
+	/**
+	 * Initializes the join conditions for this secondary table.
+	 *
+	 * <p>
+	 * This method is called once per secondary table during {@link EntityMetaData}
+	 * construction, after all column metadata has been resolved. It is a no-op for
+	 * primary tables.
+	 * </p>
+	 *
+	 * <p>
+	 * Condition derivation rules:
+	 * </p>
+	 * <ul>
+	 * <li>When {@link SecondaryTable#pkJoinColumns()} is empty, one condition is
+	 * created per {@link jakarta.persistence.Id}-mapped column in the entity, using
+	 * the same column name on both sides.</li>
+	 * <li>When {@link SecondaryTable#pkJoinColumns()} is non-empty, one condition
+	 * is created per entry using
+	 * {@link JoinCondition#JoinCondition(String, jakarta.persistence.PrimaryKeyJoinColumn, EntityMetaData)}.</li>
+	 * </ul>
+	 *
+	 * @param entity owning entity metadata used to resolve primary-key columns
+	 */
+	void initializeJoinConditions(EntityMetaData entity) {
+		if (primary)
 			return;
-		}
 
-		final var conditions = new ArrayList<JoinCondition>();
-		if (secondaryTable.pkJoinColumns().length == 0) {
-			for (final var column : entity.idColumns)
-				conditions.add(new JoinCondition(alias, column));
-		} else {
-			for (final var pkJoinColumn : secondaryTable.pkJoinColumns())
-				conditions.add(new JoinCondition(alias, pkJoinColumn, entity));
-		}
-		joinConditions = List.copyOf(conditions);
+		if (secondaryTable.pkJoinColumns().length == 0)
+			joinConditions = IuIterable.map(entity.idColumns, column -> new JoinCondition(alias, column));
+		else
+			joinConditions = IuIterable.map(IuIterable.iter(secondaryTable.pkJoinColumns()),
+					pkJoinColumn -> new JoinCondition(alias, pkJoinColumn, entity));
 	}
+
 }

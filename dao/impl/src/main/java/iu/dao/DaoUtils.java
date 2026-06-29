@@ -5,19 +5,59 @@ import java.beans.PropertyDescriptor;
 import java.lang.annotation.Annotation;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 
 import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.dao.SqlJoinType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Transient;
 
 /**
  * Internal utility methods used across the DAO implementation layer.
  */
 final class DaoUtils {
+
+	private static final SimpleDateFormat TIMESTAMP_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS",
+			Locale.ROOT);
+
+	/**
+	 * Wraps a string value in SQL single quotes, escaping any embedded single
+	 * quotes by doubling them.
+	 *
+	 * <p>
+	 * Example: {@code singleQuoted("it's")} → {@code "'it''s'"}.
+	 * </p>
+	 *
+	 * @param value string to quote; must not be {@code null}
+	 * @return SQL single-quoted string literal
+	 */
+	static String singleQuoted(String value) {
+		return "'" + value.replace("'", "''") + "'";
+	}
+
+	/**
+	 * Formats a {@link java.util.Date} value as a SQL {@code TIMESTAMP} literal.
+	 *
+	 * <p>
+	 * The returned string has the form {@code TIMESTAMP 'yyyy-MM-dd HH:mm:ss.SSS'}
+	 * using {@link Locale#ROOT} so that the output is locale-independent.
+	 * </p>
+	 *
+	 * @param date date/time value; must not be {@code null}
+	 * @return SQL {@code TIMESTAMP} literal string
+	 */
+	static String literalFromDate(java.util.Date date) {
+		synchronized (TIMESTAMP_FORMAT) {
+			return "TIMESTAMP '" + TIMESTAMP_FORMAT.format(date) + "'";
+		}
+	}
 
 	/**
 	 * Converts a camelCase identifier to UPPER_SNAKE_CASE.
@@ -141,14 +181,14 @@ final class DaoUtils {
 	 * @param entityClass entity class; must not be {@code null}
 	 * @return ordered list of readable property descriptors
 	 */
-	static List<PropertyDescriptor> getAllBeanProperties(Class<?> entityClass) {
+	static Iterable<PropertyDescriptor> getAllBeanProperties(Class<?> entityClass) {
 		final var properties = new LinkedHashMap<String, PropertyDescriptor>();
 
-		final var hierarchy = new ArrayList<Class<?>>();
+		final Deque<Class<?>> hierarchy = new ArrayDeque<>();
 		for (var current = entityClass; //
 				current != Object.class; //
 				current = current.getSuperclass())
-			hierarchy.add(0, current);
+			hierarchy.push(current);
 
 		IuException.unchecked(() -> {
 			for (final var type : hierarchy)
@@ -158,7 +198,7 @@ final class DaoUtils {
 						properties.put(property.getName(), property);
 		});
 
-		return new ArrayList<>(properties.values());
+		return Collections.unmodifiableCollection(properties.values());
 	}
 
 	/**
@@ -303,37 +343,151 @@ final class DaoUtils {
 	}
 
 	/**
-	 * Converts an {@link Iterable} to a {@link List}, returning an empty list for
-	 * {@code null} input.
-	 *
-	 * @param <T>    element type
-	 * @param values source iterable; may be {@code null}
-	 * @return mutable list containing all elements in iteration order; never
-	 *         {@code null}
+	 * Determines if {@link Transient} is present on a property's read method.
+	 * 
+	 * @param property {@link PropertyDescriptor}
+	 * @return true if property is non-null, has a non-null read method, and
+	 *         {@link Transient} is present on the read method
 	 */
-	static <T> List<T> toList(Iterable<T> values) {
-		if (values == null)
-			return List.of();
-		final var list = new ArrayList<T>();
-		for (final var value : values)
-			list.add(value);
-		return list;
+	static boolean isTransient(PropertyDescriptor property) {
+		final var readMethod = property.getReadMethod();
+		return readMethod == null //
+				|| readMethod.isAnnotationPresent(Transient.class);
 	}
 
 	/**
-	 * Appends all non-{@code null} elements from {@code values} to {@code target},
-	 * silently ignoring a {@code null} source iterable.
+	 * Returns the SQL {@code JOIN} keyword for the given join type.
 	 *
-	 * @param <T>    element type
-	 * @param target destination list; must not be {@code null}
-	 * @param values source iterable; may be {@code null}
+	 * @param joinType join type; must not be {@code null}
+	 * @return SQL join keyword string (e.g. {@code "JOIN"},
+	 *         {@code "LEFT OUTER JOIN"})
 	 */
-	static <T> void appendAll(List<T> target, Iterable<T> values) {
-		if (values == null)
-			return;
-		for (final var value : values)
-			if (value != null)
-				target.add(value);
+	static String joinKeyword(SqlJoinType.Type joinType) {
+		return switch (joinType) {
+		case LEFT -> "LEFT OUTER JOIN";
+		case RIGHT -> "RIGHT OUTER JOIN";
+		case FULL -> "FULL OUTER JOIN";
+		case INNER -> "JOIN";
+		};
+	}
+
+	/**
+	 * Builds a {@code WHERE} clause from an ordered sequence of SQL predicates.
+	 *
+	 * <p>
+	 * {@code null} elements in {@code criteria} are silently skipped. Returns an
+	 * empty string when all predicates are {@code null} or the iterable is empty.
+	 * </p>
+	 *
+	 * @param criteria SQL predicate strings; {@code null} elements are skipped
+	 * @return {@code "\nWHERE pred1\n  AND pred2 ..."}, or {@code ""} if empty
+	 */
+	static String buildWhere(Iterable<String> criteria) {
+		final var i = criteria.iterator();
+		if (!i.hasNext())
+			return "";
+		final var sb = new StringBuilder();
+		while (i.hasNext()) {
+			final var crit = i.next();
+			if (crit != null) {
+				if (sb.isEmpty())
+					sb.append("\nWHERE ");
+				else
+					sb.append("\n  AND ");
+				sb.append(crit);
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * Appends an {@code ORDER BY} clause to an existing SQL
+	 * {@link StringBuilder}.
+	 *
+	 * <p>
+	 * Does nothing when {@code order} is empty.
+	 * </p>
+	 *
+	 * @param sb    target {@link StringBuilder} containing the SQL built so far
+	 * @param order order expressions to append; no-op when empty
+	 */
+	static void appendOrderBy(StringBuilder sb, Iterable<String> order) {
+		boolean first = true;
+		for (final var item : order) {
+			if (first) {
+				sb.append("\nORDER BY ");
+				first = false;
+			} else {
+				sb.append(", ");
+			}
+			sb.append(item);
+		}
+	}
+
+	/**
+	 * Builds a lazy iterable of {@code alias.columnName = placeholder} predicates
+	 * for each ID column, for use in a {@code WHERE} clause with a table alias.
+	 *
+	 * @param alias       table alias prefix for the column reference
+	 * @param idColumns   ID column metadata
+	 * @param placeholder SQL parameter placeholder (e.g. {@code "?"})
+	 * @return lazy iterable of SQL equality predicates
+	 */
+	static Iterable<String> idCriteria(String alias, Iterable<ColumnMetaData> idColumns, String placeholder) {
+		return IuIterable.map(idColumns, idColumn -> alias + "." + idColumn.columnName + " = " + placeholder);
+	}
+
+	/**
+	 * Builds a lazy iterable of {@code columnName = placeholder} predicates for
+	 * each ID column (no alias prefix), for use in an {@code UPDATE … WHERE}
+	 * clause.
+	 *
+	 * @param idColumns   ID column metadata
+	 * @param placeholder SQL parameter placeholder (e.g. {@code "?"})
+	 * @return lazy iterable of SQL equality predicates
+	 */
+	static Iterable<String> idCriteria(Iterable<ColumnMetaData> idColumns, String placeholder) {
+		return IuIterable.map(idColumns, idColumn -> idColumn.columnName + " = " + placeholder);
+	}
+
+	/**
+	 * Builds a {@code leftHandSide IN (v1, v2, ...)} SQL expression.
+	 *
+	 * @param leftHandSide  left-hand side of the {@code IN} expression (e.g.
+	 *                      {@code "a.COLUMN_NAME"})
+	 * @param matchCriteria values to include in the {@code IN} list
+	 * @return the complete {@code IN} expression as a string
+	 */
+	static String getInCriteria(String leftHandSide, Iterable<String> matchCriteria) {
+		return leftHandSide + " IN (" + String.join(", ", matchCriteria) + ")";
+	}
+
+	/**
+	 * Appends correlated {@code subAlias.col = outerAlias.col} predicates for each
+	 * column name, joined by {@code AND}.
+	 *
+	 * <p>
+	 * When {@code idColumnNames} is empty the buffer is unchanged and {@code false}
+	 * is returned.
+	 * </p>
+	 *
+	 * @param sb            target {@link StringBuilder}
+	 * @param outerAlias    alias of the outer query's table reference
+	 * @param subAlias      alias of the correlated subquery's table reference
+	 * @param idColumnNames column names to correlate
+	 * @return {@code true} if at least one predicate was appended
+	 */
+	static boolean appendCorrelation(StringBuilder sb, String outerAlias, String subAlias,
+			Iterable<String> idColumnNames) {
+		boolean added = false;
+		for (final var idColumnName : idColumnNames) {
+			if (added)
+				sb.append("\n         AND ");
+			sb.append(subAlias).append('.').append(idColumnName).append(" = ").append(outerAlias).append('.')
+					.append(idColumnName);
+			added = true;
+		}
+		return added;
 	}
 
 	private DaoUtils() {

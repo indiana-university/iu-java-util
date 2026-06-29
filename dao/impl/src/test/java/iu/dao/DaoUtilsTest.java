@@ -44,12 +44,12 @@ import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuIterable;
 import jakarta.persistence.Column;
 
 @SuppressWarnings("javadoc")
@@ -285,7 +285,7 @@ public class DaoUtilsTest {
 	@Test
 	public void testGetAllBeanProperties_simpleBean() {
 		final var props = DaoUtils.getAllBeanProperties(SimpleBean.class);
-		final var names = props.stream().map(p -> p.getName()).toList();
+		final var names = IuIterable.stream(props).map(p -> p.getName()).toList();
 		assertTrue(names.contains("name"));
 		assertTrue(names.contains("value"));
 		assertFalse(names.contains("class"));
@@ -294,7 +294,7 @@ public class DaoUtilsTest {
 	@Test
 	public void testGetAllBeanProperties_subclassIncludesParentProps() {
 		final var props = DaoUtils.getAllBeanProperties(SubBean.class);
-		final var names = props.stream().map(p -> p.getName()).toList();
+		final var names = IuIterable.stream(props).map(p -> p.getName()).toList();
 		assertTrue(names.contains("name"));
 		assertTrue(names.contains("value"));
 		assertTrue(names.contains("active"));
@@ -303,7 +303,7 @@ public class DaoUtilsTest {
 	@Test
 	public void testGetAllBeanProperties_noClassProperty() {
 		final var props = DaoUtils.getAllBeanProperties(SimpleBean.class);
-		assertTrue(props.stream().noneMatch(p -> "class".equals(p.getName())));
+		assertTrue(IuIterable.stream(props).noneMatch(p -> "class".equals(p.getName())));
 	}
 
 	// -----------------------------------------------------------------------
@@ -572,54 +572,212 @@ public class DaoUtilsTest {
 	}
 
 	// -----------------------------------------------------------------------
-	// toList
+	// isTransient
 	// -----------------------------------------------------------------------
 
 	@Test
-	public void testToList_null() {
-		assertEquals(List.of(), DaoUtils.toList(null));
-	}
-
-	@Test
-	public void testToList_list() {
-		final var source = Arrays.asList("a", "b", "c");
-		assertEquals(source, DaoUtils.toList(source));
-	}
-
-	@Test
-	public void testToList_mutable() {
-		final var result = DaoUtils.toList(List.of("x"));
-		result.add("y"); // must not throw
-		assertEquals(2, result.size());
+	public void testIsTransient_nonTransientProperty() {
+		final var prop = DaoUtils.findProperty(SqlTypeBean.class, "noValueProp");
+		assertFalse(DaoUtils.isTransient(prop));
 	}
 
 	// -----------------------------------------------------------------------
-	// appendAll
+	// joinKeyword
 	// -----------------------------------------------------------------------
 
 	@Test
-	public void testAppendAll_nullSource() {
-		final var target = new ArrayList<String>();
-		DaoUtils.appendAll(target, null); // must not throw
-		assertTrue(target.isEmpty());
+	public void testJoinKeyword_inner() {
+		assertEquals("JOIN", DaoUtils.joinKeyword(edu.iu.dao.SqlJoinType.Type.INNER));
 	}
 
 	@Test
-	public void testAppendAll_skipsNulls() {
-		final var target = new ArrayList<String>();
-		final List<String> source = new ArrayList<>();
-		source.add("a");
-		source.add(null);
-		source.add("b");
-		DaoUtils.appendAll(target, source);
-		assertEquals(List.of("a", "b"), target);
+	public void testJoinKeyword_left() {
+		assertEquals("LEFT OUTER JOIN", DaoUtils.joinKeyword(edu.iu.dao.SqlJoinType.Type.LEFT));
 	}
 
 	@Test
-	public void testAppendAll_appendsToExisting() {
-		final var target = new ArrayList<>(List.of("x"));
-		DaoUtils.appendAll(target, List.of("y", "z"));
-		assertEquals(List.of("x", "y", "z"), target);
+	public void testJoinKeyword_right() {
+		assertEquals("RIGHT OUTER JOIN", DaoUtils.joinKeyword(edu.iu.dao.SqlJoinType.Type.RIGHT));
+	}
+
+	@Test
+	public void testJoinKeyword_full() {
+		assertEquals("FULL OUTER JOIN", DaoUtils.joinKeyword(edu.iu.dao.SqlJoinType.Type.FULL));
+	}
+
+	// -----------------------------------------------------------------------
+	// buildWhere
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testBuildWhere_empty() {
+		assertEquals("", DaoUtils.buildWhere(List.of()));
+	}
+
+	@Test
+	public void testBuildWhere_singleCriterion() {
+		assertEquals("\nWHERE a.ID = ?", DaoUtils.buildWhere(List.of("a.ID = ?")));
+	}
+
+	@Test
+	public void testBuildWhere_multipleCriteria() {
+		assertEquals("\nWHERE a.ID = ?\n  AND a.STATUS = 'A'",
+				DaoUtils.buildWhere(List.of("a.ID = ?", "a.STATUS = 'A'")));
+	}
+
+	@Test
+	public void testBuildWhere_nullElementsSkipped() {
+		final List<String> withNulls = new ArrayList<>();
+		withNulls.add(null);
+		withNulls.add("a.X = 1");
+		withNulls.add(null);
+		assertEquals("\nWHERE a.X = 1", DaoUtils.buildWhere(withNulls));
+	}
+
+	// -----------------------------------------------------------------------
+	// appendOrderBy
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testAppendOrderBy_empty() {
+		final var sb = new StringBuilder("SELECT 1");
+		DaoUtils.appendOrderBy(sb, List.of());
+		assertEquals("SELECT 1", sb.toString());
+	}
+
+	@Test
+	public void testAppendOrderBy_singleItem() {
+		final var sb = new StringBuilder("SELECT 1");
+		DaoUtils.appendOrderBy(sb, List.of("a.NAME"));
+		assertEquals("SELECT 1\nORDER BY a.NAME", sb.toString());
+	}
+
+	@Test
+	public void testAppendOrderBy_multipleItems() {
+		final var sb = new StringBuilder("SELECT 1");
+		DaoUtils.appendOrderBy(sb, List.of("a.NAME", "a.ID DESC"));
+		assertEquals("SELECT 1\nORDER BY a.NAME, a.ID DESC", sb.toString());
+	}
+
+	// -----------------------------------------------------------------------
+	// idCriteria
+	// -----------------------------------------------------------------------
+
+	@jakarta.persistence.Entity
+	@jakarta.persistence.Table(name = "id_crit_tbl")
+	static class IdCriteriaEntity {
+		private long id;
+
+		@jakarta.persistence.Id
+		@Column(name = "MY_ID")
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+	}
+
+	@Test
+	public void testIdCriteria_withAlias() {
+		final var meta = EntityMetaData.of(IdCriteriaEntity.class);
+		final var criteria = IuIterable.stream(DaoUtils.idCriteria("x", meta.idColumns, "?")).toList();
+		assertEquals(1, criteria.size());
+		assertEquals("x.MY_ID = ?", criteria.get(0));
+	}
+
+	@Test
+	public void testIdCriteria_noAlias() {
+		final var meta = EntityMetaData.of(IdCriteriaEntity.class);
+		final var criteria = IuIterable.stream(DaoUtils.idCriteria(meta.idColumns, "?")).toList();
+		assertEquals(1, criteria.size());
+		assertEquals("MY_ID = ?", criteria.get(0));
+	}
+
+	// -----------------------------------------------------------------------
+	// getInCriteria
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testGetInCriteria_basic() {
+		assertEquals("a.COL IN ('x', 'y')", DaoUtils.getInCriteria("a.COL", List.of("'x'", "'y'")));
+	}
+
+	// -----------------------------------------------------------------------
+	// appendCorrelation
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testAppendCorrelation_empty_returnsFalse() {
+		final var sb = new StringBuilder();
+		assertFalse(DaoUtils.appendCorrelation(sb, "a", "sub", List.of()));
+		assertEquals("", sb.toString());
+	}
+
+	@Test
+	public void testAppendCorrelation_singleColumn() {
+		final var sb = new StringBuilder();
+		assertTrue(DaoUtils.appendCorrelation(sb, "a", "sub", List.of("MY_ID")));
+		assertEquals("sub.MY_ID = a.MY_ID", sb.toString());
+	}
+
+	@Test
+	public void testAppendCorrelation_multipleColumns() {
+		final var sb = new StringBuilder();
+		DaoUtils.appendCorrelation(sb, "a", "sub", List.of("K1", "K2"));
+		assertEquals("sub.K1 = a.K1\n         AND sub.K2 = a.K2", sb.toString());
+	}
+
+	// -----------------------------------------------------------------------
+	// singleQuoted
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testSingleQuoted_plainString_wrapsInSingleQuotes() {
+		assertEquals("'foo'", DaoUtils.singleQuoted("foo"));
+	}
+
+	@Test
+	public void testSingleQuoted_embeddedSingleQuote_isDoubled() {
+		assertEquals("'it''s'", DaoUtils.singleQuoted("it's"));
+	}
+
+	@Test
+	public void testSingleQuoted_emptyString_producesEmptyLiteral() {
+		assertEquals("''", DaoUtils.singleQuoted(""));
+	}
+
+	@Test
+	public void testSingleQuoted_multipleEmbeddedQuotes_allDoubled() {
+		assertEquals("'a''b''c'", DaoUtils.singleQuoted("a'b'c"));
+	}
+
+	// -----------------------------------------------------------------------
+	// literalFromDate
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testLiteralFromDate_producesTimestampKeyword() {
+		final var result = DaoUtils.literalFromDate(new java.util.Date());
+		assertTrue(result.startsWith("TIMESTAMP '"), "Expected TIMESTAMP prefix, got: " + result);
+		assertTrue(result.endsWith("'"), "Expected trailing quote, got: " + result);
+	}
+
+	@Test
+	public void testLiteralFromDate_matchesTimestampFormat() {
+		// Format: TIMESTAMP 'yyyy-MM-dd HH:mm:ss.SSS'
+		final var result = DaoUtils.literalFromDate(new java.util.Date());
+		assertTrue(result.matches("TIMESTAMP '\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}'"),
+				"Unexpected format: " + result);
+	}
+
+	@Test
+	public void testLiteralFromDate_acceptsSqlTimestamp() {
+		final var ts = new Timestamp(0L);
+		final var result = DaoUtils.literalFromDate(ts);
+		assertTrue(result.matches("TIMESTAMP '\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}'"),
+				"Unexpected format: " + result);
 	}
 
 }
