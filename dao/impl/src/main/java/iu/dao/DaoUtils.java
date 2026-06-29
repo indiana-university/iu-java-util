@@ -401,8 +401,7 @@ final class DaoUtils {
 	}
 
 	/**
-	 * Appends an {@code ORDER BY} clause to an existing SQL
-	 * {@link StringBuilder}.
+	 * Appends an {@code ORDER BY} clause to an existing SQL {@link StringBuilder}.
 	 *
 	 * <p>
 	 * Does nothing when {@code order} is empty.
@@ -413,15 +412,16 @@ final class DaoUtils {
 	 */
 	static void appendOrderBy(StringBuilder sb, Iterable<String> order) {
 		boolean first = true;
-		for (final var item : order) {
-			if (first) {
-				sb.append("\nORDER BY ");
-				first = false;
-			} else {
-				sb.append(", ");
+		if (order != null)
+			for (final var item : order) {
+				if (first) {
+					sb.append("\nORDER BY ");
+					first = false;
+				} else {
+					sb.append(", ");
+				}
+				sb.append(item);
 			}
-			sb.append(item);
-		}
 	}
 
 	/**

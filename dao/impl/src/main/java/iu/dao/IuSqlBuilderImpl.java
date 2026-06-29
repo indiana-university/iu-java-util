@@ -31,51 +31,30 @@
  */
 package iu.dao;
 
-import java.beans.IntrospectionException;
-import java.beans.Introspector;
-import java.beans.PropertyDescriptor;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.ArrayDeque;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Queue;
 import java.util.function.Supplier;
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.dao.Distinct;
-import edu.iu.dao.EffectiveDated;
-import edu.iu.dao.Filtered;
 import edu.iu.dao.IuSqlBuilder;
-import edu.iu.dao.IuSqlUnchangedException;
-import edu.iu.dao.SpaceForNull;
-import edu.iu.dao.SqlColumn;
-import edu.iu.dao.SqlFilter;
-import edu.iu.dao.SqlJoinType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrimaryKeyJoinColumn;
-import jakarta.persistence.SecondaryTable;
-import jakarta.persistence.SecondaryTables;
-import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 
 /**
  * Default {@link IuSqlBuilder} implementation.
  */
 public class IuSqlBuilderImpl implements IuSqlBuilder {
+
+	/**
+	 * Default constructor.
+	 */
+	public IuSqlBuilderImpl() {
+	}
 
 	@Override
 	public String getTableAlias(Class<?> entityClass, String table) {
@@ -126,7 +105,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	@Override
 	public Iterable<String> getBeanKeyCriteria(Class<?> entityClass, Map<String, ?> idprops) {
 		final var entity = EntityMetaData.of(entityClass);
-		final var criteria = new ArrayList<String>();
+		final Queue<String> criteria = new ArrayDeque<>();
 		for (final var idColumn : entity.idColumns) {
 			final Object value;
 			if (idprops.containsKey(idColumn.propertyName))
@@ -135,15 +114,15 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 				value = idprops.get(idColumn.columnName);
 			else
 				continue;
-			criteria.add(value == null ? idColumn.reference() + " IS NULL" : idColumn.reference() + " = ?");
+			criteria.offer(value == null ? idColumn.reference() + " IS NULL" : idColumn.reference() + " = ?");
 		}
-		return criteria;
+		return criteria::iterator;
 	}
 
 	@Override
 	public Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> idprops) {
 		final var entity = EntityMetaData.of(entityClass);
-		final var args = new ArrayList<>();
+		final Queue<Object> args = new ArrayDeque<>();
 		for (final var idColumn : entity.idColumns) {
 			final Object value;
 			if (idprops.containsKey(idColumn.propertyName))
@@ -155,29 +134,30 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 			if (value != null)
 				args.add(value);
 		}
-		return args;
+		return args::iterator;
 	}
 
 	@Override
 	public Iterable<String> getUpdateProperties(Object entity) {
-		Objects.requireNonNull(entity, "entity");
-		return IuIterable.map(getEntityMetaData(entity.getClass()).primaryNonIdColumns, c -> c.propertyName);
+		return IuIterable.map(
+				EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass()).primaryNonIdColumns,
+				c -> c.propertyName);
 	}
 
 	@Override
 	public Iterable<String> getUpdateProperties(Object entity, Object original) {
-		Objects.requireNonNull(entity, "entity");
 		if (original == null)
 			return getUpdateProperties(entity);
-		final var meta = getEntityMetaData(entity.getClass());
-		final var properties = new ArrayList<String>();
+
+		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
+		final Queue<String> properties = new ArrayDeque<>();
 		for (final var column : meta.primaryNonIdColumns) {
-			final var currentValue = getPropertyValue(entity, column.property);
-			final var originalValue = getPropertyValue(original, column.property);
+			final var currentValue = DaoUtils.getPropertyValue(entity, column.property);
+			final var originalValue = DaoUtils.getPropertyValue(original, column.property);
 			if (!IuObject.equals(currentValue, originalValue))
-				properties.add(column.propertyName);
+				properties.offer(column.propertyName);
 		}
-		return properties;
+		return properties::iterator;
 	}
 
 	@Override
@@ -187,16 +167,18 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 	@Override
 	public Iterable<?> getUpdateArguments(Object entity, Iterable<String> properties) {
-		Objects.requireNonNull(entity, "entity");
-		final var meta = getEntityMetaData(entity.getClass());
-		final var args = new ArrayList<>();
+		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
+		final Queue<Object> args = new ArrayDeque<>();
+
 		for (final var property : properties) {
 			final var column = meta.requirePrimaryColumn(property);
-			args.add(column.normalizeArgument(getPropertyValue(entity, column.property)));
+			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column.property)));
 		}
+
 		for (final var idColumn : meta.idColumns)
-			args.add(idColumn.normalizeArgument(getPropertyValue(entity, idColumn.property)));
-		return args;
+			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn.property)));
+
+		return args::iterator;
 	}
 
 	@Override
@@ -206,12 +188,13 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 	@Override
 	public Iterable<?> getDeleteArguments(Object entity) {
-		Objects.requireNonNull(entity, "entity");
-		final var meta = getEntityMetaData(entity.getClass());
-		final var args = new ArrayList<>();
+		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
+		final Queue<Object> args = new ArrayDeque<>();
+
 		for (final var idColumn : meta.idColumns)
-			args.add(idColumn.normalizeArgument(getPropertyValue(entity, idColumn.property)));
-		return args;
+			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn.property)));
+
+		return args::iterator;
 	}
 
 	@Override
@@ -226,22 +209,22 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 	@Override
 	public Iterable<?> getInsertArguments(Object entity) {
-		Objects.requireNonNull(entity, "entity");
-		final var meta = getEntityMetaData(entity.getClass());
-		final var args = new ArrayList<>();
+		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
+		final Queue<Object> args = new ArrayDeque<>();
+
 		for (final var column : meta.primaryColumns)
-			args.add(column.normalizeArgument(getPropertyValue(entity, column.property)));
-		return args;
+			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column.property)));
+
+		return args::iterator;
 	}
 
 	@Override
 	public Object getForSql(Object entity, String propertyName) {
-		Objects.requireNonNull(entity, "entity");
-		final var meta = getEntityMetaData(entity.getClass());
+		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
 		final var column = meta.resolveColumn(propertyName);
 		if (column == null)
 			throw new IllegalArgumentException("Unknown property " + propertyName + " for " + entity.getClass());
-		return column.normalizeArgument(getPropertyValue(entity, column.property));
+		return column.normalizeArgument(DaoUtils.getPropertyValue(entity, column.property));
 	}
 
 	@Override
@@ -249,13 +232,13 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		if (o == null)
 			return "NULL";
 		if (o instanceof String s)
-			return singleQuoted(s);
+			return DaoUtils.singleQuoted(s);
 		if (o instanceof Date date)
 			return "DATE '" + date.toLocalDate() + "'";
 		if (o instanceof Timestamp timestamp)
-			return literalFromDate(timestamp);
+			return DaoUtils.literalFromDate(timestamp);
 		if (o instanceof java.util.Date date)
-			return literalFromDate(date);
+			return DaoUtils.literalFromDate(date);
 		if (o instanceof Boolean b)
 			return b.booleanValue() ? "'Y'" : "'N'";
 		if (o instanceof Number n)
@@ -270,57 +253,80 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 	@Override
 	public String getWhereClause(Iterable<String> whereClause) {
-		return buildWhere(whereClause);
+		return DaoUtils.buildWhere(whereClause);
 	}
 
 	@Override
 	public String getInCriteria(String leftHandSide, Iterable<String> matchCriteria) {
-		final var matches = toList(matchCriteria);
-		if (matches.isEmpty())
-			return "1 = 0";
-		return leftHandSide + " IN (" + String.join(", ", matches) + ")";
+		return leftHandSide + " IN (" + String.join(", ", matchCriteria) + ")";
 	}
 
 	@Override
-	public String getMultipartKeyListMatch(Iterable<String> leftHandSide, Iterable<Iterable<String>> matchCriteria) {
-		final var left = toList(leftHandSide);
-		final var matches = new ArrayList<String>();
-		for (final var match : matchCriteria)
-			matches.add("(" + String.join(", ", toList(match)) + ")");
-		if (left.isEmpty() || matches.isEmpty())
-			return "1 = 0";
-		return "(" + String.join(", ", left) + ") IN (" + String.join(", ", matches) + ")";
+	public String getMultipartKeyListMatch(Iterable<String> leftHandSides, Iterable<Iterable<String>> match) {
+		Queue<Iterator<String>> valueQueue = new ArrayDeque<>();
+		for (Iterable<String> m : match) {
+			Iterator<String> i = m.iterator();
+			if (!i.hasNext())
+				throw new IllegalArgumentException("No values to match against");
+			valueQueue.offer(i);
+		}
+
+		final var sb = new StringBuilder();
+		boolean firstValue = true;
+		boolean done = false;
+		while (!done) {
+			if (firstValue) {
+				sb.append('(');
+				firstValue = false;
+			} else
+				sb.append("\n    OR ");
+
+			boolean firstColumn = true;
+			Iterator<Iterator<String>> valueIterator = valueQueue.iterator();
+			for (String left : leftHandSides) {
+				Iterator<String> rightValues = valueIterator.next();
+
+				if (firstColumn) {
+					sb.append('(');
+					firstColumn = false;
+				} else
+					sb.append(" AND ");
+
+				sb.append(left);
+				String right = rightValues.next();
+				if (right == null)
+					sb.append(" IS NULL");
+				else
+					sb.append(" = ").append(right);
+
+				done = !rightValues.hasNext();
+			}
+			sb.append(')');
+		}
+		sb.append(')');
+		return sb.toString();
 	}
 
 	@Override
 	public String getColumnMatchCriteria(Class<?> entityClass, String col, Iterable<String> matchList) {
-		return getInCriteria(columnReference(EntityMetaData.of(entityClass), null, col), matchList);
+		return EntityMetaData.of(entityClass).getColumnMatchCriteria(col, matchList);
 	}
 
 	@Override
 	public String getJoinedColumnMatchCriteria(Class<?> entityClass, String tab, String col,
 			Iterable<String> matchList) {
-		return getInCriteria(columnReference(EntityMetaData.of(entityClass), tab, col), matchList);
+		return getInCriteria(EntityMetaData.of(entityClass).columnReference(tab, col), matchList);
 	}
 
 	@Override
 	public String getColumnCompareCriteria(Class<?> entityClass, String col, String comp, Iterable<String> matchList) {
-		return getJoinedColumnCompareCriteria(entityClass, null, col, comp, matchList);
+		return EntityMetaData.of(entityClass).getColumnCompareCriteria(col, comp, matchList);
 	}
 
 	@Override
 	public String getJoinedColumnCompareCriteria(Class<?> entityClass, String tab, String col, String comp,
 			Iterable<String> matchList) {
-		final var matches = toList(matchList);
-		if (matches.isEmpty())
-			return "1 = 0";
-		final var reference = columnReference(EntityMetaData.of(entityClass), tab, col);
-		if (matches.size() == 1)
-			return reference + " " + comp + " " + matches.get(0);
-		final var criteria = new ArrayList<String>();
-		for (final var match : matches)
-			criteria.add(reference + " " + comp + " " + match);
-		return "(" + String.join(" OR ", criteria) + ")";
+		return EntityMetaData.of(entityClass).getJoinedColumnCompareCriteria(tab, col, comp, matchList);
 	}
 
 	@Override
@@ -431,22 +437,34 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	@Override
 	public String buildWhereClause(Iterable<?> entities) {
 		if (entities == null)
-			return "1 = 0";
-		final var disjuncts = new ArrayList<String>();
+			return null;
+
+		final var i = IuIterable.filter(entities, Objects::nonNull).iterator();
+		if (!i.hasNext())
+			return null;
+
+		final var firstEntity = i.next();
+		final var entityClass = firstEntity.getClass();
+		final var meta = EntityMetaData.of(entityClass);
+		if (!meta.idColumns.iterator().hasNext())
+			return null;
+
+		final Queue<String> disjuncts = new ArrayDeque<>();
 		for (final var entity : entities) {
 			if (entity == null)
 				continue;
-			final var meta = EntityMetaData.of(entity.getClass());
-			final var criteria = new ArrayList<String>();
+
+			entityClass.cast(entity);
+
+			final Queue<String> criteria = new ArrayDeque<>();
 			for (final var idColumn : meta.idColumns) {
 				final var value = DaoUtils.getPropertyValue(entity, idColumn.property);
-				criteria.add(idColumn.reference() + (value == null ? " IS NULL" : " = " + getLiteral(value)));
+				criteria.offer(idColumn.reference() + (value == null ? " IS NULL" : " = " + getLiteral(value)));
 			}
-			if (!criteria.isEmpty())
-				disjuncts.add("(" + String.join(" AND ", criteria) + ")");
+
+			disjuncts.add("(" + String.join(" AND ", criteria) + ")");
 		}
-		if (disjuncts.isEmpty())
-			return "1 = 0";
+
 		return String.join(" OR ", disjuncts);
 	}
 

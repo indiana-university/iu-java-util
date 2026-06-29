@@ -59,8 +59,7 @@
 				<artifactId>liquibase-maven-plugin</artifactId>
 				<version>${liquibase.version}</version>
 				<configuration>
-					<searchPath>${project.build.testOutputDirectory}</searchPath>
-					<changeLogFile>db/changelog/db.changelog-master.sql</changeLogFile>
+					<searchPath>${project.basedir}/src/test/sql</searchPath>
 					<url>jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/postgres</url>
 					<username>${env.POSTGRES_USER}</username>
 					<password>${env.POSTGRES_PASSWORD}</password>
@@ -74,6 +73,7 @@
 						</goals>
 						<configuration>
 							<skip>${skipTests}</skip>
+							<changeLogFile>db.changelog-master.sql</changeLogFile>
 						</configuration>
 					</execution>
 				</executions>

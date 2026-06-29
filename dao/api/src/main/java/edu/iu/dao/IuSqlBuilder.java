@@ -264,11 +264,29 @@ public interface IuSqlBuilder {
 	String getInCriteria(String leftHandSide, Iterable<String> matchCriteria);
 
 	/**
-	 * Builds a multi-column list match criterion.
+	 * Builds a multi-column, multi-row equality criterion.
+	 *
+	 * <p>
+	 * {@code matchCriteria} is <em>column-major</em>: each entry corresponds to one
+	 * column in {@code leftHandSide} (in the same order) and provides that column's
+	 * literal or placeholder value for each matching row. All inner iterables must
+	 * be non-empty and the same length.
+	 * </p>
+	 *
+	 * <p>
+	 * Example — {@code leftHandSide=["COL1","COL2"]},
+	 * {@code matchCriteria=[["'A'","'B'"],["'X'","'Y'"]]} produces:
+	 * </p>
+	 * <pre>((COL1 = 'A' AND COL2 = 'X')
+	 *     OR (COL1 = 'B' AND COL2 = 'Y'))</pre>
 	 *
 	 * @param leftHandSide  left-hand column expressions
-	 * @param matchCriteria right-hand tuples
+	 * @param matchCriteria one iterable per column (column-major), each providing
+	 *                      that column's values for each matching row in order; each
+	 *                      inner iterable must be non-empty
 	 * @return criterion
+	 * @throws IllegalArgumentException if any inner iterable in
+	 *                                  {@code matchCriteria} is empty
 	 */
 	String getMultipartKeyListMatch(Iterable<String> leftHandSide, Iterable<Iterable<String>> matchCriteria);
 
@@ -474,8 +492,16 @@ public interface IuSqlBuilder {
 	/**
 	 * Builds an {@code OR}-combined key clause for a collection of entities.
 	 *
-	 * @param entities entities
-	 * @return criteria without the {@code WHERE} keyword
+	 * <p>
+	 * Null elements in {@code entities} are silently skipped. Returns {@code null}
+	 * when the effective entity list is empty or when the entity class has no
+	 * {@code @Id} columns.
+	 * </p>
+	 *
+	 * @param entities entities; may be {@code null} or contain {@code null} elements
+	 * @return criteria without the {@code WHERE} keyword; {@code null} if no
+	 *         criteria could be derived, indicating the query would return no
+	 *         results and should be skipped
 	 */
 	String buildWhereClause(Iterable<?> entities);
 
