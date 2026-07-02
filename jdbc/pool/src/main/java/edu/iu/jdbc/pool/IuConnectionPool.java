@@ -34,6 +34,8 @@ package edu.iu.jdbc.pool;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledFuture;
@@ -62,7 +64,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	private final IuPooledConnectionFactory factory;
 	private final IuConnectionPoolConfiguration config;
 
-	private final Queue<PooledConnectionHolder> openConnections = new ConcurrentLinkedQueue<>();
+	private final Map<PooledConnection, PooledConnectionHolder> openConnections = new IdentityHashMap<>();
 	private final Queue<PooledConnectionHolder> reusableConnections = new ConcurrentLinkedQueue<>();
 	private final ScheduledThreadPoolExecutor reaperScheduler;
 
@@ -93,10 +95,32 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		reaperScheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
 	}
 
-	private void closePooledConnection(PooledConnection pooledConnection) throws SQLException {
+	/**
+	 * Attempts to remove this as {@link ConnectionEventListener} then closes a
+	 * {@link PooledConnection}.
+	 * 
+	 * @param pooledConnection {@link PooledConnection}
+	 * @throws SQLException if an error occurs
+	 */
+	void closePooledConnection(PooledConnection pooledConnection) throws SQLException {
+		if (pooledConnection == null)
+			return;
+
+		final PooledConnectionHolder removed;
+		synchronized (openConnections) {
+			removed = openConnections.remove(pooledConnection);
+		}
+
+		if (removed != null) {
+			reusableConnections.remove(removed);
+			synchronized (this) {
+				this.notify();
+			}
+		}
+
 		Throwable error = null;
-		error = IuException.suppress(null, () -> pooledConnection.removeConnectionEventListener(this));
-		error = IuException.suppress(null, pooledConnection::close);
+		error = IuException.suppress(error, () -> pooledConnection.removeConnectionEventListener(this));
+		error = IuException.suppress(error, pooledConnection::close);
 		if (error != null)
 			throw IuException.checked(error, SQLException.class);
 	}
@@ -113,7 +137,6 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	 */
 	private ScheduledFuture<?> scheduleAbandonedConnectionReaper(PooledConnectionHolder holder) {
 		return reaperScheduler.schedule(() -> {
-			openConnections.remove(holder);
 			final var pooledConnection = holder.pooledConnection;
 			var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
 			LOG.log(Level.INFO, error, () -> "jdbc-pool-abandoned:" + config.getDescription() + ":" + pooledConnection);
@@ -163,7 +186,6 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 
 						final var timeSinceInit = Duration.between(reusableConnection.initiated, Instant.now());
 						if (timeSinceInit.compareTo(maxConnectionReuseTime) >= 0) {
-							openConnections.remove(reusableConnection);
 							error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
 							LOG.fine(() -> "jdbc-pool-retire-timeout:" + descr + ":" + timeSinceInit + ' '
 									+ pooledConnection + ' ' + this);
@@ -189,7 +211,9 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 
 						pooledConnection.addConnectionEventListener(this);
 						holder = new PooledConnectionHolder(pooledConnection, initTime);
-						openConnections.offer(holder);
+						synchronized (openConnections) {
+							openConnections.put(pooledConnection, holder);
+						}
 
 						final var connectComplete = Instant.now();
 						LOG.fine(() -> "jdbc-pool-open:" + descr + ":" + Duration.between(connectBegin, connectComplete)
@@ -217,14 +241,12 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 				} finally {
 					synchronized (this) {
 						pendingConnections--;
-						this.notifyAll();
+						this.notify();
 					}
 				}
 
 			} catch (Throwable e) {
 				if (holder != null) {
-					openConnections.remove(holder);
-					reusableConnections.remove(holder); // possible if validation query fails
 					final var pooledConnection = holder.pooledConnection;
 					IuException.suppress(e, () -> closePooledConnection(pooledConnection));
 					holder = null;
@@ -246,8 +268,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	 *                      connection
 	 */
 	protected void reuseOrClose(PooledConnection pooledConnection) throws SQLException {
-		final var holder = openConnections.stream().filter(h -> h.pooledConnection == pooledConnection).findAny()
-				.orElse(null);
+		final var holder = openConnections.get(pooledConnection);
 		if (holder == null) {
 			final var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
 			LOG.log(Level.INFO, error, () -> "jdbc-pool-orphan:" + config.getDescription() + ":" + pooledConnection);
@@ -262,12 +283,11 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 			final var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
 			LOG.log(Level.FINE, error,
 					() -> "jdbc-pool-retire:" + config.getDescription() + ":" + count + ' ' + pooledConnection);
-			openConnections.remove(holder);
 		} else
 			reusableConnections.offer(holder);
 
 		synchronized (this) {
-			this.notifyAll();
+			this.notify();
 		}
 	}
 
@@ -281,20 +301,6 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		final var pooledConnection = (PooledConnection) event.getSource();
 		final var error = IuException.suppress(event.getSQLException(), () -> closePooledConnection(pooledConnection));
 		LOG.log(Level.INFO, error, () -> "jdbc-pool-error:" + config.getDescription() + ':' + pooledConnection);
-
-		final var reusableConnectionIterator = reusableConnections.iterator();
-		while (reusableConnectionIterator.hasNext()) {
-			final var holder = reusableConnectionIterator.next();
-			if (holder.pooledConnection == pooledConnection)
-				reusableConnectionIterator.remove();
-		}
-
-		final var openConnectionIterator = openConnections.iterator();
-		while (openConnectionIterator.hasNext()) {
-			final var holder = openConnectionIterator.next();
-			if (holder.pooledConnection == pooledConnection)
-				openConnectionIterator.remove();
-		}
 	}
 
 	/**
@@ -311,31 +317,32 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 			}
 			final var closeStatus = new CloseStatus();
 
-			final var reusableConnectionIterator = reusableConnections.iterator();
-			while (reusableConnectionIterator.hasNext()) {
-				final var holder = reusableConnectionIterator.next();
-				reusableConnectionIterator.remove();
+			for (final var holder : reusableConnections)
 				closeStatus.error = IuException.suppress(closeStatus.error,
 						() -> closePooledConnection(holder.pooledConnection));
-				openConnections.remove(holder);
-			}
 
 			final var shutdownTimeout = config.getShutdownTimeout();
 			closeStatus.error = IuException.suppress(closeStatus.error,
 					() -> IuObject.waitFor(this, openConnections::isEmpty, shutdownTimeout));
 
-			final var openConnectionIterator = openConnections.iterator();
-			while (openConnectionIterator.hasNext()) {
-				final var holder = openConnectionIterator.next();
-				openConnectionIterator.remove();
-				closeStatus.error = IuException.suppress(closeStatus.error,
-						() -> closePooledConnection(holder.pooledConnection));
+			synchronized (openConnections) {
+				final var openConnectionIterator = openConnections.values().iterator();
+				while (openConnectionIterator.hasNext()) {
+					final var holder = openConnectionIterator.next();
+					openConnectionIterator.remove();
+					closeStatus.error = IuException.suppress(closeStatus.error,
+							() -> closePooledConnection(holder.pooledConnection));
+				}
 			}
 
 			closeStatus.error = IuException.suppress(closeStatus.error, factory::onShutdown);
 
 			if (closeStatus.error != null)
 				throw IuException.checked(closeStatus.error, SQLException.class);
+
+			synchronized (this) {
+				this.notifyAll();
+			}
 		}
 	}
 

@@ -50,6 +50,8 @@ import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
+import javax.sql.PooledConnection;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,6 +85,14 @@ public class IuConnectionPoolTest {
 	@AfterEach
 	public void teardown() throws SQLException {
 		connectionPool.close();
+	}
+
+	@Test
+	public void testCloseConnection() throws SQLException {
+		final var pc = mock(PooledConnection.class);
+		doThrow(SQLException.class).when(pc).close();
+		assertThrows(SQLException.class, () -> connectionPool.closePooledConnection(pc));
+		assertDoesNotThrow(() -> connectionPool.closePooledConnection(null));
 	}
 
 	@Test
