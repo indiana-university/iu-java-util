@@ -69,7 +69,7 @@ public class ClassLoaderContextTest {
 	}
 
 	@Test
-	public void testGetNullContextClassLoaderFallsBackToSystem() {
+	public void testGetNullContextClassLoaderFallsBackToBoot() {
 		Thread.currentThread().setContextClassLoader(null);
 		assertEquals("boot", ClassLoaderContext.get().getName());
 	}
