@@ -63,7 +63,7 @@ public class ClassLoaderContextTest {
 	}
 
 	@Test
-	public void testGetPlatformClassLoaderReturnsBoot() {
+	public void testGetPlatformClassLoaderReturnsPlatform() {
 		Thread.currentThread().setContextClassLoader(ClassLoader.getPlatformClassLoader());
 		assertEquals("platform", ClassLoaderContext.get().getName());
 	}
