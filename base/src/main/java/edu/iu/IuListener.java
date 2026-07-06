@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 
 	/**
-	 * Passes an {@link IuObservableEvent} instance from an an upstream resource to
+	 * Passes an {@link IuObservableEvent} instance from an upstream resource to
 	 * one or more container-specific event listeners.
 	 * 
 	 * @param event {@link IuObservableEvent}
