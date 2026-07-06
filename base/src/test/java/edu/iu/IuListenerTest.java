@@ -89,7 +89,7 @@ public class IuListenerTest {
 	void setup() {
 		logRecords.clear();
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
-		log.setLevel(Level.CONFIG);
+		log.setLevel(Level.WARNING);
 		log.setUseParentHandlers(false);
 		log.addHandler(logHandler);
 	}
@@ -119,7 +119,7 @@ public class IuListenerTest {
 		assertDoesNotThrow(() -> IuListener.observe(event));
 		
 		final var record = logRecords.poll();
-		assertEquals(Level.CONFIG, record.getLevel());
+		assertEquals(Level.WARNING, record.getLevel());
 		assertTrue(record.getMessage().startsWith("event listener failure; "));
 		assertInstanceOf(ServiceConfigurationError.class, record.getThrown());
 	}
@@ -141,7 +141,7 @@ public class IuListenerTest {
 
 		assertFalse(logRecords.isEmpty());
 		final var record = logRecords.poll();
-		assertEquals(Level.CONFIG, record.getLevel());
+		assertEquals(Level.WARNING, record.getLevel());
 		assertTrue(record.getMessage().startsWith("event listener failure; "));
 		assertSame(error, record.getThrown());
 	}

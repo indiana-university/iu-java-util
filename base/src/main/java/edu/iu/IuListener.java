@@ -27,8 +27,8 @@ public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 
 		if (error != null) {
 			final var logger = Logger.getLogger(IuListener.class.getName());
-			if (logger.isLoggable(Level.CONFIG))
-				logger.log(Level.CONFIG, "event listener failure; " + event, error);
+			if (logger.isLoggable(Level.WARNING))
+				logger.log(Level.WARNING, "event listener failure; " + event, error);
 		}
 	}
 
