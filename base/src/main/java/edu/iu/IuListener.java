@@ -18,8 +18,12 @@ public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 	static void observe(IuObservableEvent event) {
 		Throwable error = null;
 
-		for (final var listener : ServiceLoader.load(IuListener.class))
-			error = IuException.suppress(error, () -> listener.accept(event));
+		try {
+			for (final var listener : ServiceLoader.load(IuListener.class))
+				error = IuException.suppress(error, () -> listener.accept(event));
+		} catch (Throwable e) {
+			error = IuException.suppress(error, e);
+		}
 
 		if (error != null) {
 			final var logger = Logger.getLogger(IuListener.class.getName());

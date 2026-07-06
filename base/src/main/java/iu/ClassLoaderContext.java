@@ -51,7 +51,10 @@ public class ClassLoaderContext {
 		var loader = Thread.currentThread().getContextClassLoader();
 
 		while (loader != null) {
-			final var context = CONTEXT.get(loader);
+			final IuClassLoaderContext context;
+			synchronized (CONTEXT) {
+				context = CONTEXT.get(loader);
+			}
 			if (context != null)
 				return context;
 			loader = loader.getParent();
