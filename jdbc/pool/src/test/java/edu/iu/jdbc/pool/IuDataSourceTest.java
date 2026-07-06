@@ -5,20 +5,28 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.logging.Level;
 
+import javax.sql.ConnectionEvent;
+import javax.sql.ConnectionEventListener;
 import javax.sql.DataSource;
+import javax.sql.PooledConnection;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatcher;
 
 import edu.iu.IdGenerator;
 import edu.iu.test.IuTestLogger;
@@ -151,6 +159,43 @@ public class IuDataSourceTest {
 			s.setString(1, val);
 			final var rs = s.executeQuery();
 			assertFalse(rs.next());
+		}
+	}
+
+	@Test
+	public void testTransactionRollbackError() throws Exception {
+		final var l = new ArgumentMatcher<ConnectionEventListener>() {
+			ConnectionEventListener listener;
+
+			@Override
+			public boolean matches(ConnectionEventListener argument) {
+				listener = argument;
+				return true;
+			}
+		};
+		final var pc = mock(PooledConnection.class);
+		final var mc = mock(Connection.class);
+		when(pc.getConnection()).thenReturn(mc);
+		when(integration.createPooledConnection()).thenReturn(pc);
+
+		try (final var tm = new IuTransactionManager()) {
+			when(integration.getTransactionManager()).thenReturn(tm);
+			when(integration.getTransactionSynchronizationRegistry()).thenReturn(tm);
+
+			IuTestLogger.allow(IuTransactionManager.class.getPackageName(), Level.CONFIG);
+			tm.begin();
+			try (final var c = dataSource.getConnection()) {
+				verify(pc).addConnectionEventListener(argThat(l));
+			}
+			doThrow(SQLException.class).when(mc).rollback();
+			doThrow(SQLException.class).when(mc).close();
+			IuTestLogger.expect(IuDataSource.class.getName(), Level.WARNING, "rollback failed in afterCompletion",
+					SQLException.class);
+			IuTestLogger.expect(IuDataSource.class.getName(), Level.WARNING, "close failed in afterCompletion",
+					SQLException.class);
+			tm.rollback();
+		} finally {
+			l.listener.connectionClosed(new ConnectionEvent(pc));
 		}
 	}
 

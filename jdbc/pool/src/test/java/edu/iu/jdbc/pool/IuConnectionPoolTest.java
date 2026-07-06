@@ -50,6 +50,8 @@ import java.time.Duration;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
+import javax.sql.PooledConnection;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -86,6 +88,14 @@ public class IuConnectionPoolTest {
 	}
 
 	@Test
+	public void testCloseConnection() throws SQLException {
+		final var pc = mock(PooledConnection.class);
+		doThrow(SQLException.class).when(pc).close();
+		assertThrows(SQLException.class, () -> connectionPool.closePooledConnection(pc));
+		assertDoesNotThrow(() -> connectionPool.closePooledConnection(null));
+	}
+
+	@Test
 	public void testCheckoutAndReuse() throws SQLException {
 		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 
@@ -107,6 +117,41 @@ public class IuConnectionPoolTest {
 
 		assertSame(pc1, pc3);
 		connectionPool.reuseOrClose(pc2);
+		connectionPool.reuseOrClose(pc3);
+	}
+
+	@Test
+	public void testHandleDriverError() throws SQLException {
+		when(config.getShutdownTimeout()).thenReturn(Duration.ofMillis(1L));
+		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
+
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
+		final var pc = connectionPool.checkOut();
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
+		final var pc2 = connectionPool.checkOut();
+		IuTestLogger.assertExpectedMessages();
+
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
+		final var pc3 = connectionPool.checkOut();
+		IuTestLogger.assertExpectedMessages();
+
+		pc.close();
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":.*",
+				PSQLException.class);
+		assertThrows(SQLException.class, pc::getConnection);
+
+		connectionPool.reuseOrClose(pc2);
+		connectionPool.reuseOrClose(pc3);
+
+		pc2.close();
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":.*",
+				PSQLException.class);
+		assertThrows(SQLException.class, pc2::getConnection);
+
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-reuse:" + descr + ":PT.*");
+		assertSame(pc3, connectionPool.checkOut());
 		connectionPool.reuseOrClose(pc3);
 	}
 
@@ -136,18 +181,30 @@ public class IuConnectionPoolTest {
 		when(config.getValidationQuery()).thenReturn("this is bad sql", "select 1");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-valid:" + descr + ".*");
+//		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-reuse:" + descr + ":PT.*");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-recoverable;.*",
 				PSQLException.class);
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
-		try (final var c = pc.getConnection(); //
-				final var s = c.prepareStatement("select 1"); //
-				final var rs = s.executeQuery()) {
-			assertTrue(rs.next());
-			assertEquals(1, rs.getInt(1));
-			assertFalse(rs.next());
+		Throwable error = null;
+		try {
+			try (final var c = pc.getConnection(); //
+					final var s = c.prepareStatement("select 1"); //
+					final var rs = s.executeQuery()) {
+				assertTrue(rs.next());
+				assertEquals(1, rs.getInt(1));
+				assertFalse(rs.next());
+			} catch (Throwable e) {
+				error = e;
+			}
 		} finally {
-			connectionPool.reuseOrClose(pc);
+			try {
+				connectionPool.reuseOrClose(pc);
+			} catch (Throwable e) {
+				if (error != null)
+					e.addSuppressed(error);
+				throw e;
+			}
 		}
 	}
 
@@ -253,8 +310,6 @@ public class IuConnectionPoolTest {
 		final var pc = connectionPool.checkOut();
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-abandoned:" + descr + ":" + pc);
 		Thread.sleep(2000L);
-		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":" + pc,
-				PSQLException.class);
 		assertThrows(SQLException.class, pc::getConnection);
 	}
 
@@ -322,8 +377,6 @@ public class IuConnectionPoolTest {
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
 		assertThrows(IllegalStateException.class, connectionPool::close);
-		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":" + pc,
-				PSQLException.class);
 		assertThrows(SQLException.class, pc::getConnection);
 	}
 

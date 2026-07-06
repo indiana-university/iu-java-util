@@ -46,8 +46,12 @@ class PooledConnectionHolder {
 	 * Increments the number of times the connection has been used, and sets the
 	 * last usage time to the current time.
 	 */
-	void usageComplete() {
-		reaperTask.cancel(false);
+	synchronized void usageComplete() {
+		final var reaperTask = this.reaperTask;
+		this.reaperTask = null;
+		if (reaperTask != null)
+			reaperTask.cancel(false);
+
 		lastUse = Instant.now();
 		usageCount++;
 	}

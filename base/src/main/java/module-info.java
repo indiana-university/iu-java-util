@@ -30,10 +30,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * Provides basic Java utilities that simplify working with {@link java.base}.  
+ * Provides basic Java utilities that simplify working with {@link java.base}.
+ * 
+ * @uses edu.iu.IuListener For observing container-level events
  */
 module iu.util {
 	exports edu.iu;
-	
+
 	requires transitive java.logging;
+
+	uses edu.iu.IuListener;
 }

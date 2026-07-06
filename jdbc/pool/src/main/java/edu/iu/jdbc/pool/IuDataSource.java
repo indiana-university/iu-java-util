@@ -5,6 +5,7 @@ import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
@@ -59,6 +60,7 @@ public class IuDataSource implements DataSource, AutoCloseable {
 	static {
 		Logger.getLogger(IuDataSource.class.getPackageName());
 	}
+	private static final Logger LOG = Logger.getLogger(IuDataSource.class.getName());
 
 	private static final Object CONNECTION_KEY = new Object();
 
@@ -154,12 +156,19 @@ public class IuDataSource implements DataSource, AutoCloseable {
 
 			@Override
 			public void afterCompletion(int status) {
-				IuException.unchecked(() -> {
+				try {
 					if (!(pooledConnection instanceof XAConnection) //
 							&& status != Status.STATUS_COMMITTED)
 						managedConnection.rollback();
-					managedConnection.close();
-				});
+				} catch (SQLException e) {
+					LOG.log(Level.WARNING, e, () -> "rollback failed in afterCompletion");
+				} finally {
+					try {
+						managedConnection.close();
+					} catch (SQLException e) {
+						LOG.log(Level.WARNING, e, () -> "close failed in afterCompletion");
+					}
+				}
 			}
 		});
 
