@@ -46,12 +46,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import edu.iu.IuException;
+import edu.iu.IuListener;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.UnsafeConsumer;
+import iu.client.IuHttpClientEvent;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
@@ -80,7 +82,7 @@ public class IuHttp {
 			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
 
 	private static final HttpClient HTTP = HttpClient.newHttpClient();
-
+	
 	/**
 	 * Validates a 200 OK response.
 	 */
@@ -254,28 +256,34 @@ public class IuHttp {
 			final var requestHeaders = request.headers();
 			final var requestHeaderMap = requestHeaders.map();
 			if (!requestHeaderMap.isEmpty())
-				// TODO: apply security filter
 				sb.append(' ').append(requestHeaderMap.keySet());
 
+			final var event = new IuHttpClientEvent(uri);
+			IuListener.observe(event);
+			
 			final HttpResponse<InputStream> response;
 			try {
 				response = HTTP.send(request, BodyHandlers.ofInputStream());
 			} catch (Throwable e) {
 				final var m = "HTTP connection failed " + sb;
 				LOG.log(Level.INFO, e, () -> m);
+				
+				IuListener.observe(event.received(503));
+				
 				throw new IllegalStateException(m, e);
 			}
 
 			final var status = response.statusCode();
+			IuListener.observe(event.received(status));
+			
 			sb.append(" ").append(IuWebUtils.describeStatus(status));
 
 			final var responseHeaders = response.headers();
 			final var responseHeaderMap = responseHeaders.map();
 			if (!responseHeaderMap.isEmpty())
-				// TODO: apply security filter
 				sb.append(' ').append(responseHeaderMap.keySet());
 
-			if (response.statusCode() >= 400) {
+			if (status >= 400) {
 				final var m = sb.toString();
 				final var e = new HttpException(response, m);
 				LOG.log(Level.INFO, m, e);
