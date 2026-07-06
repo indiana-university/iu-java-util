@@ -64,6 +64,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuListener;
 import edu.iu.IuText;
 import edu.iu.UnsafeConsumer;
 
@@ -120,8 +121,7 @@ public class IuHttpTest extends IuHttpTestCase {
 		final var resp = mock(HttpResponse.class);
 		when(resp.statusCode()).thenReturn(200);
 		final var msg = IdGenerator.generateId();
-		when(resp.body())
-				.thenReturn(new ByteArrayInputStream(IuText.utf8(msg)));
+		when(resp.body()).thenReturn(new ByteArrayInputStream(IuText.utf8(msg)));
 		final var o = IuHttp.READ_UTF8.apply(resp);
 		assertEquals(msg, o);
 	}
@@ -134,7 +134,7 @@ public class IuHttpTest extends IuHttpTestCase {
 		assertDoesNotThrow(() -> IuHttp.checkHeaders((n, v) -> n.equals("foo")).accept(response));
 		assertThrows(HttpException.class, () -> IuHttp.checkHeaders((n, v) -> v.equals("bar")).accept(response));
 	}
-	
+
 	@Test
 	public void testAllowNull() {
 		assertFalse(IuHttp.isAllowed(null, TEST_URI));
@@ -225,15 +225,18 @@ public class IuHttpTest extends IuHttpTestCase {
 			final var handler = mock(HttpResponseHandler.class);
 			when(handler.apply(response)).thenReturn(body);
 			assertSame(body, IuHttp.get(TEST_INSECURE_URI, handler));
-			verify(logHandler).publish(argThat(r -> Level.INFO.equals(r.getLevel()) && r.getMessage().equals("Allowing insecure URI " + TEST_INSECURE_URI)));
-			verify(logHandler).publish(argThat(r -> Level.FINE.equals(r.getLevel()) && r.getMessage().equals("GET " + TEST_INSECURE_URI + " 200 OK")));
+			verify(logHandler).publish(argThat(r -> Level.INFO.equals(r.getLevel())
+					&& r.getMessage().equals("Allowing insecure URI " + TEST_INSECURE_URI)));
+			verify(logHandler).publish(argThat(r -> Level.FINE.equals(r.getLevel())
+					&& r.getMessage().equals("GET " + TEST_INSECURE_URI + " 200 OK")));
 		}
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testModifiedRequest() throws Throwable {
-		try (final var mockRequest = mockStatic(HttpRequest.class)) {
+		try (final var mockRequest = mockStatic(HttpRequest.class);
+				final var mockListener = mockStatic(IuListener.class)) {
 			final var request = mock(HttpRequest.class);
 			when(request.method()).thenReturn("POST");
 			final var requestHeaderName = IdGenerator.generateId();
@@ -262,6 +265,9 @@ public class IuHttpTest extends IuHttpTestCase {
 			when(handler.apply(response)).thenReturn(body);
 			assertSame(body, IuHttp.send(TEST_URI, mockConsumer, handler));
 
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "receive".equals(a.getAction()))));
+
 			verify(mockConsumer).accept(mockBuilder);
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.FINE, r.getLevel());
@@ -271,12 +277,14 @@ public class IuHttpTest extends IuHttpTestCase {
 				return true;
 			}));
 		}
+
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testConnectionError() throws Exception {
-		try (final var mockRequest = mockStatic(HttpRequest.class)) {
+		try (final var mockRequest = mockStatic(HttpRequest.class);
+				final var mockListener = mockStatic(IuListener.class)) {
 			final var request = mock(HttpRequest.class);
 			when(request.method()).thenReturn("GET");
 			when(request.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
@@ -292,6 +300,9 @@ public class IuHttpTest extends IuHttpTestCase {
 			final var t = assertThrows(IllegalStateException.class, () -> IuHttp.get(TEST_URI));
 			assertEquals("HTTP connection failed GET " + TEST_URI, t.getMessage());
 
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "error".equals(a.getAction()))));
+
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.INFO, r.getLevel());
 				assertEquals(t.getMessage(), r.getMessage());
@@ -304,7 +315,8 @@ public class IuHttpTest extends IuHttpTestCase {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testErrorResponse() throws Exception {
-		try (final var mockRequest = mockStatic(HttpRequest.class)) {
+		try (final var mockRequest = mockStatic(HttpRequest.class);
+				final var mockListener = mockStatic(IuListener.class)) {
 			final var request = mock(HttpRequest.class);
 			when(request.method()).thenReturn("GET");
 			when(request.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
@@ -322,6 +334,9 @@ public class IuHttpTest extends IuHttpTestCase {
 			final var t = assertThrows(HttpException.class, () -> IuHttp.get(TEST_URI));
 			assertEquals("GET " + TEST_URI + " 404 NOT FOUND", t.getMessage());
 			assertSame(response, t.getResponse());
+
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "error".equals(a.getAction()))));
 
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.INFO, r.getLevel());
