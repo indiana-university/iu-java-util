@@ -34,15 +34,19 @@ package edu.iu;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayDeque;
+import java.util.Iterator;
 import java.util.Queue;
+import java.util.ServiceConfigurationError;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -85,7 +89,7 @@ public class IuListenerTest {
 	void setup() {
 		logRecords.clear();
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
-		log.setLevel(Level.CONFIG);
+		log.setLevel(Level.WARNING);
 		log.setUseParentHandlers(false);
 		log.addHandler(logHandler);
 	}
@@ -98,11 +102,26 @@ public class IuListenerTest {
 		log.removeHandler(logHandler);
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Test
 	public void testObserveWithNoListeners() {
 		final var event = mock(IuObservableEvent.class);
+		when(IuTestListener.loader.iterator()).thenReturn((Iterator) IuIterable.empty().iterator());
 		assertDoesNotThrow(() -> IuListener.observe(event));
 		assertTrue(logRecords.isEmpty());
+	}
+
+
+	@Test
+	public void testObserveWithServiceConfigurationError() {
+		final var event = mock(IuObservableEvent.class);
+		when(IuTestListener.loader.iterator()).thenThrow(ServiceConfigurationError.class);
+		assertDoesNotThrow(() -> IuListener.observe(event));
+		
+		final var record = logRecords.poll();
+		assertEquals(Level.WARNING, record.getLevel());
+		assertTrue(record.getMessage().startsWith("event listener failure; "));
+		assertInstanceOf(ServiceConfigurationError.class, record.getThrown());
 	}
 
 	@Test
@@ -122,7 +141,7 @@ public class IuListenerTest {
 
 		assertFalse(logRecords.isEmpty());
 		final var record = logRecords.poll();
-		assertEquals(Level.CONFIG, record.getLevel());
+		assertEquals(Level.WARNING, record.getLevel());
 		assertTrue(record.getMessage().startsWith("event listener failure; "));
 		assertSame(error, record.getThrown());
 	}

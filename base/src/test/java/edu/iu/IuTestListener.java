@@ -15,9 +15,10 @@ import org.mockito.MockedStatic;
 public class IuTestListener implements IuListener, BeforeEachCallback, AfterEachCallback {
 
 	static UnsafeConsumer<IuObservableEvent> delegate;
-	private ServiceLoader<IuListener> loader;
+	static ServiceLoader<IuListener> loader;
+	
 	@SuppressWarnings("rawtypes")
-	private MockedStatic<ServiceLoader> mockSL;
+	MockedStatic<ServiceLoader> mockSL;
 
 	@Override
 	public void accept(IuObservableEvent argument) throws Throwable {
