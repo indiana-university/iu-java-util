@@ -60,10 +60,14 @@ public class IuHttpClientEventTest {
 
 	@Test
 	public void testGetContext() {
-		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
-		// getContext() reflects the classloader context at construction time;
-		// in test the system classloader is active, so the context name is "system"
-		assertEquals("system", event.getContext());
+		final var saved = Thread.currentThread().getContextClassLoader();
+		try {
+			Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+			final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
+			assertEquals("system", event.getContext());
+		} finally {
+			Thread.currentThread().setContextClassLoader(saved);
+		}
 	}
 
 	@Test

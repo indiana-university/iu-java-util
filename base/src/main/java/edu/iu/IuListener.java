@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 
 	/**
-	 * Passes an {@link IuObservableEvent} instance from an an upstream resource to
+	 * Passes an {@link IuObservableEvent} instance from an upstream resource to
 	 * one or more container-specific event listeners.
 	 * 
 	 * @param event {@link IuObservableEvent}
@@ -18,13 +18,17 @@ public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 	static void observe(IuObservableEvent event) {
 		Throwable error = null;
 
-		for (final var listener : ServiceLoader.load(IuListener.class))
-			error = IuException.suppress(error, () -> listener.accept(event));
+		try {
+			for (final var listener : ServiceLoader.load(IuListener.class))
+				error = IuException.suppress(error, () -> listener.accept(event));
+		} catch (Throwable e) {
+			error = IuException.suppress(error, e);
+		}
 
 		if (error != null) {
 			final var logger = Logger.getLogger(IuListener.class.getName());
-			if (logger.isLoggable(Level.CONFIG))
-				logger.log(Level.CONFIG, "event listener failure; " + event, error);
+			if (logger.isLoggable(Level.WARNING))
+				logger.log(Level.WARNING, "event listener failure; " + event, error);
 		}
 	}
 
