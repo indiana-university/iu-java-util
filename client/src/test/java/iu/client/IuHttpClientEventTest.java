@@ -117,29 +117,25 @@ public class IuHttpClientEventTest {
 	@Test
 	public void testGetActionReceiveSuccessBelow400() {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
-		event.received(200);
-		assertEquals("receive", event.getAction());
+		assertEquals("receive", event.received(200).getAction());
 	}
 
 	@Test
 	public void testGetActionReceiveSuccessAt399() {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
-		event.received(399);
-		assertEquals("receive", event.getAction());
+		assertEquals("receive", event.received(399).getAction());
 	}
 
 	@Test
 	public void testGetActionErrorAt400() {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
-		event.received(400);
-		assertEquals("error", event.getAction());
+		assertEquals("error", event.received(400).getAction());
 	}
 
 	@Test
 	public void testGetActionErrorAbove400() {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
-		event.received(500);
-		assertEquals("error", event.getAction());
+		assertEquals("error", event.received(500).getAction());
 	}
 
 	@Test
@@ -149,10 +145,10 @@ public class IuHttpClientEventTest {
 		assertEquals("send", event.getAction());
 		assertSame(startTime, event.getTime());
 
-		event.received(201);
-		assertEquals("receive", event.getAction());
-		assertNotNull(event.getTime());
-		assertTrue(!event.getTime().isBefore(startTime));
+		final var receivedEvent = event.received(201);
+		assertEquals("receive", receivedEvent.getAction());
+		assertNotNull(receivedEvent.getTime());
+		assertTrue(!receivedEvent.getTime().isBefore(startTime));
 	}
 
 }
