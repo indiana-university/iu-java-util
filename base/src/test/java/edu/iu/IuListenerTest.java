@@ -147,7 +147,7 @@ public class IuListenerTest {
 	}
 
 	@Test
-	public void testObserveListenerFailureSuppressedWhenConfigNotLoggable() throws Throwable {
+	public void testObserveListenerFailureSuppressedWhenWarningNotLoggable() throws Throwable {
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
 		log.setLevel(Level.OFF);
 
