@@ -258,7 +258,7 @@ public class IuHttp {
 			if (!requestHeaderMap.isEmpty())
 				sb.append(' ').append(requestHeaderMap.keySet());
 
-			final var event = new IuHttpClientEvent(uri);
+			final var event = new IuHttpClientEvent(request.uri());
 			IuListener.observe(event);
 			
 			final HttpResponse<InputStream> response;
