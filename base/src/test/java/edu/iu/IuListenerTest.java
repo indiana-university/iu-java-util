@@ -84,11 +84,16 @@ public class IuListenerTest {
 		public void close() throws SecurityException {
 		}
 	};
+	
+	private Level restoreLevel;
+	private boolean restoreUseParentHandlers;
 
 	@BeforeEach
 	void setup() {
 		logRecords.clear();
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
+		restoreLevel = log.getLevel();
+		restoreUseParentHandlers = log.getUseParentHandlers();
 		log.setLevel(Level.WARNING);
 		log.setUseParentHandlers(false);
 		log.addHandler(logHandler);
@@ -97,8 +102,8 @@ public class IuListenerTest {
 	@AfterEach
 	void tearDown() {
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
-		log.setLevel(Level.INFO);
-		log.setUseParentHandlers(true);
+		log.setLevel(restoreLevel);
+		log.setUseParentHandlers(restoreUseParentHandlers);
 		log.removeHandler(logHandler);
 	}
 
@@ -133,7 +138,7 @@ public class IuListenerTest {
 	}
 
 	@Test
-	public void testObserveListenerFailureLogsAtConfig() throws Throwable {
+	public void testObserveListenerFailureLogsAtWarning() throws Throwable {
 		final var error = new RuntimeException("listener failure");
 		doThrow(error).when(IuTestListener.delegate).accept(any());
 		final var event = mock(IuObservableEvent.class);
@@ -147,7 +152,7 @@ public class IuListenerTest {
 	}
 
 	@Test
-	public void testObserveListenerFailureSuppressedWhenConfigNotLoggable() throws Throwable {
+	public void testObserveListenerFailureSuppressedWhenWarningNotLoggable() throws Throwable {
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
 		log.setLevel(Level.OFF);
 
