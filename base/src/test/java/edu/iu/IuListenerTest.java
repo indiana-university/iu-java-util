@@ -138,7 +138,7 @@ public class IuListenerTest {
 	}
 
 	@Test
-	public void testObserveListenerFailureLogsAtConfig() throws Throwable {
+	public void testObserveListenerFailureLogsAtWarning() throws Throwable {
 		final var error = new RuntimeException("listener failure");
 		doThrow(error).when(IuTestListener.delegate).accept(any());
 		final var event = mock(IuObservableEvent.class);
@@ -152,7 +152,7 @@ public class IuListenerTest {
 	}
 
 	@Test
-	public void testObserveListenerFailureSuppressedWhenConfigNotLoggable() throws Throwable {
+	public void testObserveListenerFailureSuppressedWhenWarningNotLoggable() throws Throwable {
 		final var log = LogManager.getLogManager().getLogger(IuListener.class.getName());
 		log.setLevel(Level.OFF);
 
