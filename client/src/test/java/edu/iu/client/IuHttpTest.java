@@ -266,7 +266,7 @@ public class IuHttpTest extends IuHttpTestCase {
 			assertSame(body, IuHttp.send(TEST_URI, mockConsumer, handler));
 
 			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
-			mockListener.verify(() -> IuListener.observe(argThat(a -> "receive".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "receive 202".equals(a.getAction()))));
 
 			verify(mockConsumer).accept(mockBuilder);
 			verify(logHandler).publish(argThat(r -> {
@@ -301,7 +301,7 @@ public class IuHttpTest extends IuHttpTestCase {
 			assertEquals("HTTP connection failed GET " + TEST_URI, t.getMessage());
 
 			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
-			mockListener.verify(() -> IuListener.observe(argThat(a -> "error".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "error 503".equals(a.getAction()))));
 
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.INFO, r.getLevel());
@@ -336,7 +336,7 @@ public class IuHttpTest extends IuHttpTestCase {
 			assertSame(response, t.getResponse());
 
 			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
-			mockListener.verify(() -> IuListener.observe(argThat(a -> "error".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "error 404".equals(a.getAction()))));
 
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.INFO, r.getLevel());
