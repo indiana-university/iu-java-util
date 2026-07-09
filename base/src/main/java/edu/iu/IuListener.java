@@ -55,7 +55,7 @@ public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 
 		Iterator<IuListener> serviceIterator;
 		try {
-			serviceIterator = ServiceLoader.load(IuListener.class).iterator();
+			serviceIterator = ServiceLoader.load(IuListener.class, IuListener.class.getClassLoader()).iterator();
 		} catch (Throwable e) {
 			error = IuException.suppress(error, e);
 			serviceIterator = Collections.emptyIterator();
