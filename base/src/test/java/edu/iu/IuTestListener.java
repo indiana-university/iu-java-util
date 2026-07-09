@@ -31,6 +31,7 @@
  */
 package edu.iu;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -70,7 +71,7 @@ public class IuTestListener implements IuListener, BeforeEachCallback, AfterEach
 		loader = mock(ServiceLoader.class);
 		when(loader.iterator()).thenReturn(IuIterable.iter(listener).iterator());
 		mockSL = mockStatic(ServiceLoader.class);
-		mockSL.when(() -> ServiceLoader.load(IuListener.class)).thenReturn(loader);
+		mockSL.when(() -> ServiceLoader.load(IuListener.class, ClassLoader.getSystemClassLoader())).thenReturn(loader);
 		delegate = mock(UnsafeConsumer.class);
 	}
 
