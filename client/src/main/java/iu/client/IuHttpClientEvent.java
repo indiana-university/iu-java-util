@@ -120,7 +120,7 @@ public class IuHttpClientEvent implements IuObservableEvent {
 		if (responseTime == null)
 			return "send";
 		else
-			return statusCode < 400 ? "receive" : "error";
+			return (statusCode < 400 ? "receive " : "error ") + statusCode;
 	}
 
 }
