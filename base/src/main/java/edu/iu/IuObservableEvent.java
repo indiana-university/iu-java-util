@@ -47,18 +47,18 @@ public interface IuObservableEvent {
 	String getId();
 
 	/**
-	 * Gets the time the event occurred.
-	 * 
-	 * @return {@link Instant}
-	 */
-	Instant getTime();
-
-	/**
 	 * Gets the start time associated with the event, i.e., transaction begin time.
 	 * 
 	 * @return {@link Instant}
 	 */
 	Instant getStartTime();
+
+	/**
+	 * Gets the time the event occurred.
+	 * 
+	 * @return {@link Instant}; null to notify the start of an multi-part
+	 */
+	Instant getTime();
 
 	/**
 	 * Gets a name of the context-independent type of the event.

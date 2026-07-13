@@ -90,9 +90,7 @@ public class IuHttpClientEvent implements IuObservableEvent {
 
 	@Override
 	public Instant getTime() {
-		return responseTime == null //
-				? startTime
-				: responseTime;
+		return responseTime;
 	}
 
 	@Override

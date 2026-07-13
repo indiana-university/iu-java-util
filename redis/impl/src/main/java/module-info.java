@@ -44,7 +44,6 @@ module iu.util.redis.impl {
 	requires iu.util;
 
 	requires transitive iu.util.redis;
-	requires jakarta.annotation;
 
 	provides edu.iu.redis.spi.IuRedisSpi with iu.redis.spi.RedisSpi;
 }

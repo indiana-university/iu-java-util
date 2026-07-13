@@ -27,20 +27,15 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>jakarta.annotation</groupId>
-			<artifactId>jakarta.annotation-api</artifactId>
-			<version>${jakarta.annotation-api.version}</version>
-		</dependency>
-		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-pool2</artifactId>
 			<version>${commons-pool2.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-    		<groupId>io.lettuce</groupId>
-    		<artifactId>lettuce-core</artifactId>
-    		<version>${lettuce.version}</version>
+			<groupId>io.lettuce</groupId>
+			<artifactId>lettuce-core</artifactId>
+			<version>${lettuce.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -72,5 +67,5 @@
 			</plugin>
 		</plugins>
 	</build>
-	
+
 </project>
