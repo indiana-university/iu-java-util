@@ -34,6 +34,7 @@ package iu.client;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -96,9 +97,9 @@ public class IuHttpClientEventTest {
 	}
 
 	@Test
-	public void testGetTimeBeforeReceivedReturnsStartTime() {
+	public void testGetTimeBeforeReceivedReturnsNull() {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
-		assertSame(event.getStartTime(), event.getTime());
+		assertNull(event.getTime());
 	}
 
 	@Test
@@ -109,11 +110,8 @@ public class IuHttpClientEventTest {
 
 	@Test
 	public void testGetTimeAfterReceivedReturnsResponseTime() {
-		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
+		final var event = new IuHttpClientEvent(URI.create("https://example.com/")).received(200);
 		final var startTime = event.getStartTime();
-		event.received(200);
-		// responseTime is set by received(); getTime() must now differ from startTime
-		// (or be equal if called within the same nanosecond — at minimum not same ref)
 		assertNotNull(event.getTime());
 		assertTrue(!event.getTime().isBefore(startTime));
 	}
@@ -147,7 +145,7 @@ public class IuHttpClientEventTest {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
 		final var startTime = event.getStartTime();
 		assertEquals("send", event.getAction());
-		assertSame(startTime, event.getTime());
+		assertNull(event.getTime());
 
 		final var receivedEvent = event.received(201);
 		assertEquals("receive 201", receivedEvent.getAction());

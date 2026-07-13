@@ -31,32 +31,20 @@
  */
 package iu.redis.spi;
 
-import edu.iu.IuException;
 import edu.iu.redis.IuRedis;
 import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.redis.spi.IuRedisSpi;
 import iu.redis.lettuce.LettuceConnection;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.Priority;
-import jakarta.annotation.Resource;
 
 /**
  * Implementation of Redis service provider interface.
  */
-@Priority(100)
-@Resource
 public class RedisSpi implements IuRedisSpi {
 
 	/**
 	 * Default constructor
 	 */
 	public RedisSpi() {
-	}
-
-	@PostConstruct
-	private void init() {
-		// ensure IuRedis context is bound to this impl module
-		IuException.unchecked(() -> Class.forName("iu.redis.IuRedisSpiFactory"));
 	}
 
 	@Override
