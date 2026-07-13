@@ -258,6 +258,39 @@ public class WebKeyCliTest {
 	}
 
 	@Test
+	void testExportCaCert() {
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var kid = IdGenerator.generateId();
+		final var jwk = WebKey.builder(WebKey.Type.EC_P256).keyId(kid).ephemeral().build();
+		IuTestLogger.expect(WebKeyCli.class.getName(), Level.FINE, "OpenSSL CA config.*");
+		final var ca = WebKeyCli.ca(jwk);
+		final var certJwk = ca.getJwk();
+		final var cert = certJwk.getCertificateChain()[0];
+		assertEquals("CN=" + kid, cert.getSubjectX500Principal().getName());
+		assertEquals(0, cert.getBasicConstraints());
+		assertArrayEquals(new boolean[] { false, false, false, false, false, true, true, false, false },
+				cert.getKeyUsage());
+
+		final var database = ca.getDatabase();
+		assertEquals(0, database.length);
+		assertFalse(ca.getCertificates().iterator().hasNext());
+		assertNull(ca.getCrl().iterator().next().getRevokedCertificates());
+
+		CliTestSupport.input(CryptJsonAdapters.CA.toJson(ca).toString());
+		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "export" }));
+		assertEquals("", CliTestSupport.ERR.toString());
+
+		final var pem = PemEncoded.parse(CliTestSupport.OUT.toString());
+		final var pemKey = pem.next();
+		assertEquals(PemEncoded.KeyType.PRIVATE_KEY, pemKey.getKeyType());
+		assertEquals(jwk.getPrivateKey(), pemKey.asPrivate("EC"));
+		
+		final var pemCert = pem.next();
+		assertEquals(PemEncoded.KeyType.CERTIFICATE, pemCert.getKeyType());
+		assertEquals(cert, pemCert.asCertificate());
+	}
+
+	@Test
 	void testPrintHS256() {
 		CliTestSupport.input(WebKey.builder(Algorithm.HS256).ephemeral().build().toString());
 		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "print" }));
