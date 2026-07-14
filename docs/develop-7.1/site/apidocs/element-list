@@ -13,8 +13,6 @@ iu.crypt.spi
 module:iu.util.crypt.impl
 iu.crypt
 iu.crypt.init
-module:iu.util.jdbc.pool
-edu.iu.jdbc.pool
 module:iu.util.jwt.api
 edu.iu.jwt
 iu.jwt.spi
