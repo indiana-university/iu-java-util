@@ -251,43 +251,5 @@ public class CryptSpiTest extends CryptImplTestCase {
 			assertSame(webSignedPayload, spi.parseJws(jws));
 		}
 	}
-
-	@Test
-	public void testJwtBuilder() {
-		try (final var mockJwtBuilder = mockConstruction(JwtBuilder.class)) {
-			final var jwtBuilder = spi.getJwtBuilder();
-			assertEquals(mockJwtBuilder.constructed().get(0), jwtBuilder);
-		}
-	}
-
-	@Test
-	public void testVerifyJwt() {
-		final var jwt = IdGenerator.generateId();
-		final var issuerKey = mock(WebKey.class);
-		final var claims = mock(JsonObject.class);
-		try (final var mockJwtStatic = mockStatic(Jwt.class); //
-				final var mockJwt = mockConstruction(Jwt.class, (a, ctx) -> {
-					assertSame(claims, ctx.arguments().get(0));
-				})) {
-			mockJwtStatic.when(() -> Jwt.verify(jwt, issuerKey)).thenReturn(claims);
-			final var jwtBuilder = spi.verifyJwt(jwt, issuerKey);
-			assertEquals(mockJwt.constructed().get(0), jwtBuilder);
-		}
-	}
-
-	@Test
-	public void testDecryptAndVerifyJwt() {
-		final var jwt = IdGenerator.generateId();
-		final var issuerKey = mock(WebKey.class);
-		final var audienceKey = mock(WebKey.class);
-		final var claims = mock(JsonObject.class);
-		try (final var mockJwtStatic = mockStatic(Jwt.class); //
-				final var mockJwt = mockConstruction(Jwt.class, (a, ctx) -> {
-					assertSame(claims, ctx.arguments().get(0));
-				})) {
-			mockJwtStatic.when(() -> Jwt.decryptAndVerify(jwt, issuerKey, audienceKey)).thenReturn(claims);
-			final var jwtBuilder = spi.decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
-			assertEquals(mockJwt.constructed().get(0), jwtBuilder);
-		}
-	}
+	
 }

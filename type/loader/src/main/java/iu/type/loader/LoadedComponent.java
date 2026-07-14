@@ -56,18 +56,21 @@ public class LoadedComponent implements IuLoadedComponent {
 	 * @param parentLayer                      parent {@link ModuleLayer}
 	 * 
 	 * @param controllerCallback               receives a reference to an
-	 *                                         {@link IuComponentController} that
-	 *                                         may be used to set up access rules
-	 *                                         for the component. This reference
-	 *                                         <em>should not</em> be passed beyond
-	 *                                         the scope of the callback; see
+	 *                                         {@link Controller} that may be used
+	 *                                         to set up access rules for the
+	 *                                         component. This reference <em>should
+	 *                                         not</em> be passed beyond the scope
+	 *                                         of the callback; see
 	 *                                         {@link ModularClassLoader}
 	 * @param componentArchiveSource           {@link InputStream} for reading the
 	 *                                         <strong>component archive</strong>.
 	 * @param providedDependencyArchiveSources {@link InputStream}s for reading all
 	 *                                         <strong>provided dependency
 	 *                                         archives</strong>.
-	 * @throws IOException If an IO error occurs initializing the component
+	 * @throws IllegalStateException           if {@code throwable} is a {@link Exception
+	 *                                         checked exception} or {@link Throwable custom
+	 *                                         throwable}
+	 * @throws Error                           if {@code throwable} is an {@link Error}
 	 */
 	public LoadedComponent(ClassLoader parent, ModuleLayer parentLayer, Consumer<Controller> controllerCallback,
 			InputStream componentArchiveSource, InputStream... providedDependencyArchiveSources) {

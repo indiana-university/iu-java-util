@@ -37,7 +37,9 @@ import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.util.logging.Logger;
 
+import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.UnsafeConsumer;
@@ -47,6 +49,8 @@ import edu.iu.UnsafeConsumer;
  * interface via HTTP POST.
  */
 public abstract class RemoteInvocationHandler implements InvocationHandler {
+
+	private static final Logger LOG = Logger.getLogger(RemoteInvocationHandler.class.getName());
 
 	/**
 	 * Default constructor.
@@ -88,6 +92,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 			requestBody.add(adapt(parameters[i].getParameterizedType()).toJson(args[i]));
 
 		final var request = requestBody.build().toString();
+		LOG.finer(() -> method + " " + request);
+
 		requestBuilder.header("Content-Type", "application/json");
 		requestBuilder.POST(BodyPublishers.ofString(request));
 	}
@@ -95,22 +101,31 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	/**
 	 * Get a {@link IuJsonAdapter} for converting to a generic type.
 	 * 
-	 * @param <T> Java type
+	 * @param <T>  Java type
 	 * @param type Java type
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings("unchecked")
 	protected <T> IuJsonAdapter<T> adapt(Type type) {
-		if (type == RemoteInvocationFailure.class //
-				|| type == RemoteInvocationDetail.class)
-			return (IuJsonAdapter<T>) IuJsonAdapter.from((Class<?>) type,
-					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -> adapt(a));
-		else
-			return IuJsonAdapter.of(type, a -> adapt(a));
+		if (type instanceof Class) {
+			final var c = (Class<?>) type;
+			if (!IuObject.isPlatformName(c.getName()) && c.isInterface())
+				return (IuJsonAdapter<T>) IuJsonAdapter.from((Class<?>) type,
+						IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, a -> adapt(a));
+		}
+
+		return IuJsonAdapter.of(type, a -> adapt(a));
 	}
 
-	@Override
-	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+	/**
+	 * Handles object method invocation without remote call overhead.
+	 * 
+	 * @param proxy  proxy
+	 * @param method method
+	 * @param args   args
+	 * @return non-null if the method invoked was handled; null if not handled.
+	 */
+	protected final Object invokeObjectMethod(Object proxy, Method method, Object[] args) {
 		switch (method.getName()) {
 		case "hashCode":
 			return System.identityHashCode(proxy);
@@ -118,6 +133,17 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 			return proxy == args[0];
 		case "toString":
 			return toString();
+		}
+
+		return null;
+	}
+
+	@Override
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+		{
+			Object rv = invokeObjectMethod(proxy, method, args);
+			if (rv != null)
+				return rv;
 		}
 
 		final UnsafeConsumer<HttpRequest.Builder> request = builder -> {
@@ -129,8 +155,12 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 			final var type = method.getGenericReturnType();
 			if (type == void.class)
 				return IuHttp.send(uri(method), request, IuHttp.NO_CONTENT);
-			else
-				return adapt(type).fromJson(IuHttp.send(uri(method), request, IuHttp.READ_JSON));
+			else {
+				final var responseJson = IuHttp.send(uri(method), request, IuHttp.READ_JSON);
+				LOG.finer(() -> method + " " + responseJson);
+
+				return adapt(type).fromJson(responseJson);
+			}
 		} catch (HttpException e) {
 			Throwable remoteError;
 			String body = null;

@@ -37,7 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 	<groupId>edu.iu.util</groupId>
 	<artifactId>iu-java-parent</artifactId>
-	<version>7.0.8-SNAPSHOT</version>
+	<version>7.1.0-SNAPSHOT</version>
 
 	<packaging>pom</packaging>
 	<name>IU Java Utilities Parent POM</name>
@@ -57,21 +57,23 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<argLine>-ea --add-modules ALL-MODULE-PATH -XX:+EnableDynamicAgentLoading</argLine>
 
-		<iu-java-util.version>7.0.7</iu-java-util.version>
+		<iu-java-util.version>7.1.0-SNAPSHOT</iu-java-util.version>
 
 		<jakarta.annotation-api.version>3.0.0</jakarta.annotation-api.version>
 		<jakarta.interceptor-api.version>2.2.0</jakarta.interceptor-api.version>
 		<jakarta.json-api.version>2.1.3</jakarta.json-api.version>
 		<jakarta.json.bind-api.version>3.0.1</jakarta.json.bind-api.version>
+		<jakarta.transaction-api.version>2.0.1</jakarta.transaction-api.version>
+		<jakarta.enterprise.cdi-api.version>4.1.0</jakarta.enterprise.cdi-api.version>
 		
 		<parsson.version>1.1.7</parsson.version>
 		<jsoup.version>1.21.2</jsoup.version>
 		<commons-pool2.version>2.12.1</commons-pool2.version>
 		<lettuce.version>6.8.1.RELEASE</lettuce.version>
 
-		<junit-jupiter.version>5.13.4</junit-jupiter.version>
-		<junit-platform.version>1.13.4</junit-platform.version>
-		<mockito.version>5.20.0</mockito.version>
+		<junit-jupiter.version>6.0.3</junit-jupiter.version>
+		<junit-platform.version>6.0.3</junit-platform.version>
+		<mockito.version>5.23.0</mockito.version>
 	</properties>
 
 	<distributionManagement>
@@ -136,7 +138,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 						<configuration>
 							<rules>
 								<requireJavaVersion>
-									<version>21</version>
+									<version>25</version>
 								</requireJavaVersion>
 								<requireMavenVersion>
 									<version>3.9</version>
@@ -165,15 +167,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<plugins>
 				<plugin>
 					<artifactId>maven-resources-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.5.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>3.2.2</version>
+					<version>3.5.5</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-failsafe-plugin</artifactId>
-					<version>3.2.2</version>
+					<version>3.5.5</version>
 					<executions>
 						<execution>
 							<goals>
@@ -185,21 +187,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-assembly-plugin</artifactId>
-					<version>3.6.0</version>
+					<version>3.8.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-ear-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.4.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-jar-plugin</artifactId>
-					<version>3.3.0</version>
+					<version>3.4.2</version>
 					<configuration>
 						<archive>
-							<manifest>
-								<addExtensions>true</addExtensions>
-								<classpathPrefix>META-INF/lib</classpathPrefix>
-							</manifest>
 							<manifestEntries>
 								<Sealed>true</Sealed>
 							</manifestEntries>
@@ -208,22 +206,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-war-plugin</artifactId>
-					<version>3.3.2</version>
+					<version>3.5.1</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-dependency-plugin</artifactId>
-					<version>3.6.0</version>
+					<version>3.10.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-compiler-plugin</artifactId>
-					<version>3.11.0</version>
+					<version>3.15.0</version>
 					<configuration>
 						<release>17</release>
 					</configuration>
 				</plugin>
 				<plugin>
 					<artifactId>maven-source-plugin</artifactId>
-					<version>3.2.1</version>
+					<version>3.4.0</version>
 					<executions>
 						<execution>
 							<id>default-source-jar</id>
@@ -236,7 +234,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-javadoc-plugin</artifactId>
-					<version>3.5.0</version>
+					<version>3.12.0</version>
 					<configuration>
 						<windowtitle>${project.name} ${project.version}</windowtitle>
 						<doctitle>${project.name}</doctitle>
@@ -315,24 +313,24 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				</plugin>
 				<plugin>
 					<artifactId>maven-install-plugin</artifactId>
-					<version>3.1.0</version>
+					<version>3.1.4</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-plugin-plugin</artifactId>
-					<version>3.8.1</version>
+					<version>3.15.2</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-clean-plugin</artifactId>
-					<version>3.1.0</version>
+					<version>3.5.0</version>
 				</plugin>
 				<plugin>
 					<artifactId>maven-deploy-plugin</artifactId>
-					<version>3.1.0</version>
+					<version>3.1.4</version>
 				</plugin>
 				<plugin>
 					<groupId>org.jacoco</groupId>
 					<artifactId>jacoco-maven-plugin</artifactId>
-					<version>0.8.10</version>
+					<version>0.8.14</version>
 					<configuration>
 						<skip>${skipTests}</skip>
 					</configuration>
@@ -483,9 +481,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>client</module>
 				<module>test</module>
 				<module>crypt</module>
+				<module>config</module>
+				<module>jwt</module>
+				<module>pki</module>
+				<module>session</module>
+				<module>saml</module>
+				<module>oidc</module>
+				<module>transaction</module>
 				<module>jdbc</module>
 				<module>type</module>
-				<module>auth</module>
 				<module>logging</module>
 				<module>web</module>
 				<module>site</module>
@@ -498,7 +502,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<modules>
-				<module>scan</module>
+				<module>logging</module>
 			</modules>
 		</profile>
 	</profiles>

@@ -70,7 +70,7 @@ public class HttpException extends Exception {
 	 * @param response error response, status code >= 400
 	 * @param message  detailed error message
 	 */
-	HttpException(HttpResponse<InputStream> response, String message) {
+	public HttpException(HttpResponse<InputStream> response, String message) {
 		super(message);
 		this.response = response;
 	}

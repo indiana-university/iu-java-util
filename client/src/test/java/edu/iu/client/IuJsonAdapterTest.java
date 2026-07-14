@@ -173,6 +173,50 @@ public class IuJsonAdapterTest {
 		verify(to).apply(null);
 	}
 
+	public interface AdaptTest {
+		String getFoo();
+
+		Iterable<AdaptTest> getChildren();
+	}
+
+	@Test
+	public void testAdaptInterface() {
+		final var adapter = IuJsonAdapter.adapt(AdaptTest.class, IuJsonPropertyNameFormat.IDENTITY);
+		assertThrows(UnsupportedOperationException.class,
+				() -> IuJsonAdapter.adapt(getClass(), IuJsonPropertyNameFormat.IDENTITY));
+		assertThrows(UnsupportedOperationException.class,
+				() -> IuJsonAdapter.adapt(Class.class, IuJsonPropertyNameFormat.IDENTITY));
+		final var cfoo = IdGenerator.generateId();
+		final var child = new AdaptTest() {
+
+			@Override
+			public String getFoo() {
+				return cfoo;
+			}
+
+			@Override
+			public Iterable<AdaptTest> getChildren() {
+				return null;
+			}
+		};
+		final var foo = IdGenerator.generateId();
+		final var json = adapter.toJson(new AdaptTest() {
+			@Override
+			public String getFoo() {
+				return foo;
+			}
+
+			@Override
+			public Iterable<AdaptTest> getChildren() {
+				return List.of(child);
+			}
+		});
+		assertEquals(foo, json.asJsonObject().getString("foo"));
+		final var adapted = adapter.fromJson(json);
+		assertEquals(foo, adapted.getFoo());
+		assertEquals(cfoo, adapted.getChildren().iterator().next().getFoo());
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testText() {

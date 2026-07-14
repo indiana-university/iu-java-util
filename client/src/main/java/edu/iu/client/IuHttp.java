@@ -48,6 +48,8 @@ import java.util.stream.Stream;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
+import edu.iu.IuStream;
+import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.UnsafeConsumer;
 import jakarta.json.JsonObject;
@@ -99,6 +101,12 @@ public class IuHttp {
 	 */
 	public static final HttpResponseHandler<JsonObject> READ_JSON_OBJECT = validate(a -> IuJson.parse(a).asJsonObject(),
 			IuHttp.OK);
+
+	/**
+	 * Validates 200 OK then returns the response as UTF-8 text.
+	 */
+	public static final HttpResponseHandler<String> READ_UTF8 = validate(
+			a -> IuText.utf8(IuException.unchecked(() -> IuStream.read(a))), IuHttp.OK);
 
 	/**
 	 * Creates an HTTP response handler.

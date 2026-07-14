@@ -47,7 +47,6 @@ class IterableAdapter<E> extends JsonArrayAdapter<Iterable<E>, E> {
 	 * Constructor
 	 * 
 	 * @param itemAdapter item adapter
-	 * @param factory     creates a new collection
 	 */
 	protected IterableAdapter(IuJsonAdapter<E> itemAdapter) {
 		super(itemAdapter);

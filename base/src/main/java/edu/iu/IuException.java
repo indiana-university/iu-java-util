@@ -1349,6 +1349,21 @@ public final class IuException {
 	}
 
 	/**
+	 * Suppress an error if prior error occurred.
+	 * 
+	 * @param error      prior error if available; else null
+	 * @param toSuppress error to suppress
+	 * @return error, with toSuppress added; toSuppress if error is null
+	 */
+	public static Throwable suppress(Throwable error, Throwable toSuppress) {
+		if (error == null)
+			return toSuppress;
+
+		error.addSuppressed(toSuppress);
+		return error;
+	}
+
+	/**
 	 * Runs an {@link UnsafeRunnable} and adds any exception thrown as suppressed by
 	 * an another exception.
 	 * 
@@ -1369,10 +1384,7 @@ public final class IuException {
 		try {
 			runnable.run();
 		} catch (Throwable e) {
-			if (throwable == null)
-				throwable = e;
-			else
-				throwable.addSuppressed(e);
+			throwable = suppress(throwable, e);
 		}
 		return throwable;
 	}

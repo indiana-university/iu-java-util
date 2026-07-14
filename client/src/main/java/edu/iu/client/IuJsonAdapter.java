@@ -79,6 +79,7 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import edu.iu.IuObject;
 import edu.iu.IuText;
 import iu.client.JsonAdapters;
 import iu.client.JsonSerializer;
@@ -202,6 +203,39 @@ public interface IuJsonAdapter<T> {
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return from(v -> v == null ? null : IuJson.wrap(v.asJsonObject(), type, valueAdapter),
 				v -> JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} interface.
+	 * 
+	 * @param type               business object class
+	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat) {
+		if (type instanceof Class) {
+			final var c = (Class<?>) type;
+			if (!IuObject.isPlatformName(c.getName()) //
+					&& c.isInterface())
+				return from((Class<?>) type, propertyNameFormat, a -> adapt(a, propertyNameFormat));
+		}
+
+		return IuJsonAdapter.of(type, a -> adapt(a, propertyNameFormat));
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a
+	 * {@link IuObject#isPlatformName(String) non-platform} interface.
+	 * 
+	 * @param <T>                business object type
+	 * @param type               business object class
+	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @return {@link IuJsonAdapter}
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> IuJsonAdapter<T> adapt(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat) {
+		return (IuJsonAdapter<T>) adapt((Type) type, propertyNameFormat);
 	}
 
 	/**
