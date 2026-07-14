@@ -1,0 +1,1 @@
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"iu.logging","l":"Bootstrap"},{"p":"iu.logging","l":"LogContext"},{"p":"iu.logging","l":"LogEnvironment"}];updateSearchResults();
