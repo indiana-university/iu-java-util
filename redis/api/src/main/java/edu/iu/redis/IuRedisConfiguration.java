@@ -31,18 +31,13 @@
  */
 package edu.iu.redis;
 
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 
 /**
  * Redis configuration interface.
  */
 public interface IuRedisConfiguration {
-	/**
-	 * Returns the username to be used for HTTP Basic authentication.
-	 *
-	 * @return the username
-	 */
-	String getUsername();
 
 	/**
 	 * Returns the password to be used for HTTP Basic authentication.
@@ -66,6 +61,24 @@ public interface IuRedisConfiguration {
 	String getPort();
 
 	/**
+	 * Returns the username to be used for HTTP Basic authentication.
+	 *
+	 * @return the username
+	 */
+	default String getUsername() {
+		return null;
+	}
+
+	/**
+	 * Gets the root trusted signing certificate for verifying TLS connections.
+	 * 
+	 * @return {@link X509Certificate}
+	 */
+	default X509Certificate getTrustedCert() {
+		return null;
+	}
+
+	/**
 	 * Connecting to Redis Cluster with SSL enabled.
 	 * 
 	 * @return true if SSL is enabled otherwise
@@ -82,4 +95,5 @@ public interface IuRedisConfiguration {
 	default Duration getKeyExpiration() {
 		return Duration.ofMinutes(15);
 	}
+
 }
