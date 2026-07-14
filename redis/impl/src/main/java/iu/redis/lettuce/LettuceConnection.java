@@ -31,6 +31,8 @@
  */
 package iu.redis.lettuce;
 
+import java.io.PrintStream;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.logging.Logger;
@@ -39,11 +41,15 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 import edu.iu.IuException;
+import edu.iu.IuProcess;
 import edu.iu.IuText;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.redis.IuRedis;
 import edu.iu.redis.IuRedisConfiguration;
+import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.SslOptions;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
@@ -75,6 +81,20 @@ public class LettuceConnection implements IuRedis {
 				.build();
 		this.config = config;
 		this.redisClient = RedisClient.create(redisUri);
+
+		final var cert = config.getTrustedCert();
+		if (cert != null) {
+			final var caCertFile = IuProcess.createTempFile();
+			IuException.unchecked(() -> {
+				try (final var caCertOut = Files.newOutputStream(caCertFile); //
+						final var out = new PrintStream(caCertOut)) {
+					PemEncoded.print(out, cert);
+				}
+			});
+			redisClient.setOptions(ClientOptions.builder()
+					.sslOptions(SslOptions.builder().trustManager(caCertFile.toFile()).build()).build());
+		}
+
 		this.genericPool = ConnectionPoolSupport.createGenericObjectPool(() -> redisClient.connect(),
 				new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>());
 		closed = false;
