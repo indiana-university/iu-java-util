@@ -40,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,7 +61,7 @@ import edu.iu.UnsafeFunction;
 public class TemporaryFileTest {
 
 	@BeforeAll
-	private static void setupClass() throws ClassNotFoundException {
+	static void setupClass() throws ClassNotFoundException {
 		Class.forName(TemporaryFile.class.getName());
 	}
 
@@ -85,7 +84,7 @@ public class TemporaryFileTest {
 			mockFiles.when(() -> Files.deleteIfExists(temp)).thenReturn(true);
 			assertEquals(0,
 					assertThrows(IOException.class, () -> TemporaryFile.init(initializer)).getSuppressed().length);
-			mockFiles.verify(() -> Files.deleteIfExists(temp), times(2));
+			mockFiles.verify(() -> Files.deleteIfExists(temp));
 		}
 	}
 

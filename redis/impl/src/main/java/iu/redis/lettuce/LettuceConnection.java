@@ -33,6 +33,7 @@ package iu.redis.lettuce;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
@@ -44,13 +45,14 @@ import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.support.ConnectionPoolSupport;
 
 /**
  * Support Lettuce connection.
  */
 public class LettuceConnection implements IuRedis {
+
+	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
 
 	private final GenericObjectPool<StatefulRedisConnection<String, String>> genericPool;
 	private final RedisClient redisClient;
@@ -87,24 +89,40 @@ public class LettuceConnection implements IuRedis {
 	public byte[] get(byte[] key) {
 		Objects.requireNonNull(key, "key is required");
 		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
-			RedisCommands<String, String> commands = connection.sync();
-			String value = commands.get(IuText.utf8(key));
-			return value != null ? value.getBytes() : null;
+			final var textkey = IuText.utf8(key);
+			final var b64key = IuText.base64(key);
+			final var commands = connection.sync();
+			final var value = commands.get(textkey);
+
+			if (value == null) {
+				LOG.fine(() -> "redis:get:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " (empty)");
+				return null;
+			} else {
+				final var bytes = IuText.utf8(value);
+				LOG.fine(() -> "redis:get:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " "
+						+ bytes.length);
+				return bytes;
+			}
 		}
 	}
 
 	@Override
 	public void put(byte[] key, byte[] value, Duration ttl) {
 		Objects.requireNonNull(key, "key is required");
-		Objects.requireNonNull(value, "value is required");
 		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
-
-			RedisCommands<String, String> commands = connection.sync();
-			if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
-				commands.setex(key.toString(), ttl.toMillis(), value.toString());
+			final var textkey = IuText.utf8(key);
+			final var b64key = IuText.base64(key);
+			final var commands = connection.sync();
+			if (value == null) {
+				commands.del(IuText.utf8(key));
+				LOG.fine(() -> "redis:del:" + b64key + ":" + config.getHost() + ":" + config.getPort());
+			} else {
+				if (ttl != null && !ttl.isZero() && !ttl.isNegative())
+					commands.setex(key.toString(), ttl.toSeconds(), IuText.utf8(value));
+				commands.set(textkey, IuText.utf8(value));
+				LOG.fine(() -> "redis:put:" + b64key + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl + " "
+						+ value.length);
 			}
-
-			commands.set(IuText.utf8(key), IuText.utf8(value));
 		}
 	}
 

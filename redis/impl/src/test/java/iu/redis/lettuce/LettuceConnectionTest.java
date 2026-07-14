@@ -195,6 +195,7 @@ public class LettuceConnectionTest {
 			assertDoesNotThrow(() -> lettuceConnection.put("key".getBytes(), "value".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
 			assertDoesNotThrow(() -> lettuceConnection.get("key".getBytes()));
+			assertDoesNotThrow(() -> lettuceConnection.put("key".getBytes(), null));
 			assertThrows(UnsupportedOperationException.class, () -> lettuceConnection.list());
 			assertDoesNotThrow(() -> lettuceConnection.close());
 		}

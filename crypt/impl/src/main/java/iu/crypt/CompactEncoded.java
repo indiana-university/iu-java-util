@@ -42,7 +42,7 @@ import edu.iu.client.IuJson;
 import jakarta.json.JsonObject;
 
 /**
- * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
+ * Encodes {@code byte[]} values for inclusion in JWS and JWE serialized forms
  * as unpadded Base64 URL encoded strings.
  */
 public final class CompactEncoded {

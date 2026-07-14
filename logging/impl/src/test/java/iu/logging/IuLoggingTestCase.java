@@ -80,6 +80,7 @@ public class IuLoggingTestCase {
 
 	@BeforeAll
 	public static void setSystemProperties() {
+		System.setProperty("iu.development", "");
 		System.setProperty("iu.endpoint", DEFAULT_ENDPOINT);
 		System.setProperty("iu.application", DEFAULT_APPLICATION);
 		System.setProperty("iu.environment", DEFAULT_ENVIRONMENT);

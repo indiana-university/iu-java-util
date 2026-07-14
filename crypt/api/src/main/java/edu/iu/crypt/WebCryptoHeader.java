@@ -50,7 +50,7 @@ import edu.iu.crypt.WebKey.Use;
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc7517">JSON Web Key
  *      (JWK) RFC-7517</a>
  */
-public interface WebCryptoHeader extends WebCertificateReference {
+public interface WebCryptoHeader extends WebKeyReference {
 
 	/**
 	 * Enumerates standard header parameters.
@@ -264,15 +264,7 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	 * 
 	 * @param <B> builder type
 	 */
-	interface Builder<B extends Builder<B>> {
-		/**
-		 * Sets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
-		 * key entry.
-		 *
-		 * @param keyId key ID
-		 * @return this
-		 */
-		B keyId(String keyId);
+	interface Builder<B extends Builder<B>> extends WebKeyReference.Builder<B> {
 
 		/**
 		 * Sets the URI where JWKS well-known key data can be retrieved.
@@ -364,6 +356,19 @@ public interface WebCryptoHeader extends WebCertificateReference {
 	}
 
 	/**
+	 * Determines whether or not a compact-encoded string represents a serialized
+	 * JWE.
+	 * 
+	 * @param serialized JWE or JWS serialization
+	 * @return true if serialized message is a JWE; false if JWS
+	 * @throws IllegalArgumentException or similar if the serialization header is
+	 *                                  invalid
+	 */
+	static boolean isEncrypted(String serialized) {
+		return WebCryptoHeader.getProtectedHeader(serialized).getAlgorithm().use.equals(Use.ENCRYPT);
+	}
+
+	/**
 	 * Verifies all parameters in a {@link WebCryptoHeader}.
 	 * 
 	 * @param header {@link WebCryptoHeader}
@@ -413,21 +418,6 @@ public interface WebCryptoHeader extends WebCertificateReference {
 
 		return wellKnown;
 	}
-
-	/**
-	 * Gets the cryptographic algorithm.
-	 * 
-	 * @return {@link Algorithm}
-	 */
-	Algorithm getAlgorithm();
-
-	/**
-	 * Gets the key ID relative to {@link #getKeySetUri()} corresponding to a JWKS
-	 * key entry.
-	 * 
-	 * @return key ID
-	 */
-	String getKeyId();
 
 	/**
 	 * Gets the URI where JWKS well-known key data can be retrieved.
