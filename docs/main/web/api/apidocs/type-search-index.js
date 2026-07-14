@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"edu.iu.web","l":"IuWebAuthenticator"},{"p":"edu.iu.web","l":"IuWebContext"},{"p":"edu.iu.web","l":"IuWebErrorHandler"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"edu.iu.web","l":"IuWebAuthenticator","k":"10"},{"p":"edu.iu.web","l":"IuWebContext","k":"10"},{"p":"edu.iu.web","l":"IuWebErrorHandler","k":"10"}];updateSearchResults();
