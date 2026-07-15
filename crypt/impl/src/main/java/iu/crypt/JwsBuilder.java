@@ -230,43 +230,43 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	@Override
 	public JwsBuilder algorithm(Algorithm algorithm) {
 		pendingSignatures.peekLast().algorithm(algorithm);
-		return null;
+		return this;
 	}
 
 	@Override
 	public JwsBuilder cert(URI uri) {
 		pendingSignatures.peekLast().cert(uri);
-		return null;
+		return this;
 	}
 
 	@Override
 	public JwsBuilder cert(X509Certificate... chain) {
 		pendingSignatures.peekLast().cert(chain);
-		return null;
+		return this;
 	}
 
 	@Override
 	public JwsBuilder x5t(byte[] certificateThumbprint) {
 		pendingSignatures.peekLast().x5t(certificateThumbprint);
-		return null;
+		return this;
 	}
 
 	@Override
 	public JwsBuilder x5t256(byte[] certificateSha256Thumbprint) {
 		pendingSignatures.peekLast().x5t256(certificateSha256Thumbprint);
-		return null;
+		return this;
 	}
 
 	@Override
 	public JwsBuilder pem(InputStream pemEncoded) {
 		pendingSignatures.peekLast().pem(pemEncoded);
-		return null;
+		return this;
 	}
 
 	@Override
 	public JwsBuilder pem(String pemEncoded) {
 		pendingSignatures.peekLast().pem(pemEncoded);
-		return null;
+		return this;
 	}
 
 	@Override
