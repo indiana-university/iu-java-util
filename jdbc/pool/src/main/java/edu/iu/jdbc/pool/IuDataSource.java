@@ -58,6 +58,7 @@ import jakarta.transaction.Synchronization;
 public class IuDataSource implements DataSource, AutoCloseable {
 
 	static {
+		// ensures getParentLogger() has a Logger instance to manage
 		Logger.getLogger(IuDataSource.class.getPackageName());
 	}
 	private static final Logger LOG = Logger.getLogger(IuDataSource.class.getName());

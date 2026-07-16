@@ -308,7 +308,8 @@ public class IuConnectionPoolTest {
 		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		final var pc = connectionPool.checkOut();
-		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-abandoned:" + descr + ":" + pc);
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO,
+				"jdbc-pool-abandoned:" + descr + ":" + pc + " IuConnectionPool .*");
 		Thread.sleep(2000L);
 		assertThrows(SQLException.class, pc::getConnection);
 	}
@@ -316,7 +317,8 @@ public class IuConnectionPoolTest {
 	@Test
 	public void testCloseOrphanedConnection() throws SQLException, InterruptedException {
 		final var pc = TestDatabase.dataSource.getPooledConnection();
-		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-orphan:" + descr + ":" + pc);
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO,
+				"jdbc-pool-orphan:" + descr + ":" + pc + " " + connectionPool);
 		connectionPool.reuseOrClose(pc);
 		assertThrows(SQLException.class, pc::getConnection);
 	}

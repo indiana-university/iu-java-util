@@ -139,7 +139,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		return reaperScheduler.schedule(() -> {
 			final var pooledConnection = holder.pooledConnection;
 			var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
-			LOG.log(Level.INFO, error, () -> "jdbc-pool-abandoned:" + config.getDescription() + ":" + pooledConnection);
+			LOG.log(Level.INFO, error, () -> "jdbc-pool-abandoned:" + config.getDescription() + ":" + pooledConnection + ' ' + this);
 		}, config.getAbandonedConnectionTimeout().getSeconds(), TimeUnit.SECONDS);
 	}
 
@@ -228,7 +228,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 						if (validationQuery != null) {
 							holder.validate(validationQuery);
 							final var pooledConnection = holder.pooledConnection;
-							LOG.finer(() -> "jdbc-pool-valid:" + descr + ": " + pooledConnection);
+							LOG.finer(() -> "jdbc-pool-valid:" + descr + ": " + pooledConnection + ' ' + this);
 						}
 					}
 
@@ -271,7 +271,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		final var holder = openConnections.get(pooledConnection);
 		if (holder == null) {
 			final var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
-			LOG.log(Level.INFO, error, () -> "jdbc-pool-orphan:" + config.getDescription() + ":" + pooledConnection);
+			LOG.log(Level.INFO, error, () -> "jdbc-pool-orphan:" + config.getDescription() + ":" + pooledConnection + ' ' + this);
 			return;
 		}
 
@@ -282,7 +282,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 				count >= config.getMaxConnectionReuseCount()) {
 			final var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
 			LOG.log(Level.FINE, error,
-					() -> "jdbc-pool-retire:" + config.getDescription() + ":" + count + ' ' + pooledConnection);
+					() -> "jdbc-pool-retire:" + config.getDescription() + ":" + count + ' ' + pooledConnection + ' ' + this);
 		} else
 			reusableConnections.offer(holder);
 
@@ -300,7 +300,7 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	public void connectionErrorOccurred(ConnectionEvent event) {
 		final var pooledConnection = (PooledConnection) event.getSource();
 		final var error = IuException.suppress(event.getSQLException(), () -> closePooledConnection(pooledConnection));
-		LOG.log(Level.INFO, error, () -> "jdbc-pool-error:" + config.getDescription() + ':' + pooledConnection);
+		LOG.log(Level.INFO, error, () -> "jdbc-pool-error:" + config.getDescription() + ':' + pooledConnection + ' ' + this);
 	}
 
 	/**
@@ -344,6 +344,13 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 				this.notifyAll();
 			}
 		}
+	}
+
+	@Override
+	public String toString() {
+		return "IuConnectionPool [config=" + config + ", openConnections=" + openConnections.size()
+				+ ", reusableConnections=" + reusableConnections.size() + ", closed=" + closed + ", pendingConnections="
+				+ pendingConnections + "]";
 	}
 
 }
