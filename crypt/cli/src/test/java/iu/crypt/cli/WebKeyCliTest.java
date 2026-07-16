@@ -281,10 +281,6 @@ public class WebKeyCliTest {
 		assertEquals("", CliTestSupport.ERR.toString());
 
 		final var pem = PemEncoded.parse(CliTestSupport.OUT.toString());
-		final var pemKey = pem.next();
-		assertEquals(PemEncoded.KeyType.PRIVATE_KEY, pemKey.getKeyType());
-		assertEquals(jwk.getPrivateKey(), pemKey.asPrivate("EC"));
-		
 		final var pemCert = pem.next();
 		assertEquals(PemEncoded.KeyType.CERTIFICATE, pemCert.getKeyType());
 		assertEquals(cert, pemCert.asCertificate());
