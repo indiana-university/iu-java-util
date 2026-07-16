@@ -117,8 +117,17 @@ public class IuHttpClientEvent implements IuObservableEvent {
 	public String getAction() {
 		if (responseTime == null)
 			return "send";
-		else
-			return (statusCode < 400 ? "receive " : "error ") + statusCode;
+
+		if (statusCode == 0)
+			return "incomplete";
+
+		return (statusCode < 400 ? "receive " : "error ") + statusCode;
+	}
+
+	@Override
+	public String toString() {
+		return "IuHttpClientEvent [id=" + id + ", startTime=" + startTime + ", uri=" + uri + ", context=" + context
+				+ ", responseTime=" + responseTime + ", statusCode=" + statusCode + "]";
 	}
 
 }

@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
 import java.util.ServiceLoader;
 
 import org.junit.jupiter.api.extension.AfterEachCallback;
@@ -59,19 +60,30 @@ public class IuTestListener implements IuListener, BeforeEachCallback, AfterEach
 
 	@Override
 	public void afterEach(ExtensionContext context) throws Exception {
-		mockSL.close();
-		delegate = null;
+		try {
+			resetServiceLoader();
+		} finally {
+			mockSL.close();
+			delegate = null;
+		}
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	public void beforeEach(ExtensionContext context) throws Exception {
+		resetServiceLoader();
 		final IuListener listener = new IuTestListener();
 		loader = mock(ServiceLoader.class);
 		when(loader.iterator()).thenReturn(IuIterable.iter(listener).iterator());
 		mockSL = mockStatic(ServiceLoader.class);
-		mockSL.when(() -> ServiceLoader.load(IuListener.class, ClassLoader.getSystemClassLoader())).thenReturn(loader);
+		mockSL.when(() -> ServiceLoader.load(IuListener.class, IuListener.class.getClassLoader())).thenReturn(loader);
 		delegate = mock(UnsafeConsumer.class);
+	}
+
+	private static void resetServiceLoader() throws ReflectiveOperationException {
+		final Field serviceLoader = Class.forName("iu.ListenerSpi").getDeclaredField("serviceLoader");
+		serviceLoader.setAccessible(true);
+		serviceLoader.set(null, null);
 	}
 
 }

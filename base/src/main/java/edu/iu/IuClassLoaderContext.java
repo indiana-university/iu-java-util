@@ -42,7 +42,7 @@ public interface IuClassLoaderContext {
 	 * Registers a {@link IuClassLoaderContext} instance.
 	 * 
 	 * <p>
-	 * MAY be invoked exactly once per {@link ClassLoader}, at initialization time.
+	 * MAY be invoked exactly once per {@link ClassLoader}, at container initialization time.
 	 * </p>
 	 * 
 	 * @param context {@link IuClassLoaderContext}

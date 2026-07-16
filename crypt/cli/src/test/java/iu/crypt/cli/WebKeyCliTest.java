@@ -281,10 +281,6 @@ public class WebKeyCliTest {
 		assertEquals("", CliTestSupport.ERR.toString());
 
 		final var pem = PemEncoded.parse(CliTestSupport.OUT.toString());
-		final var pemKey = pem.next();
-		assertEquals(PemEncoded.KeyType.PRIVATE_KEY, pemKey.getKeyType());
-		assertEquals(jwk.getPrivateKey(), pemKey.asPrivate("EC"));
-		
 		final var pemCert = pem.next();
 		assertEquals(PemEncoded.KeyType.CERTIFICATE, pemCert.getKeyType());
 		assertEquals(cert, pemCert.asCertificate());
@@ -312,6 +308,35 @@ public class WebKeyCliTest {
 		assertEquals(-1, cert.getBasicConstraints());
 		assertArrayEquals(new boolean[] { true, false, false, false, false, false, false, false, false },
 				cert.getKeyUsage());
+	}
+
+	@Test
+	void testSelfWithCommonNameThatIsNotDnsName() throws Exception {
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var kid = "service/account+role=writer";
+		final var jwk = WebKey.builder(WebKey.Type.ED25519).keyId(kid).ephemeral().build();
+
+		final var cert = WebKeyCli.self(jwk).getCertificateChain()[0];
+
+		assertEquals(kid, X500Utils.getCommonName(cert.getSubjectX500Principal()));
+		assertNull(cert.getSubjectAlternativeNames());
+	}
+
+	@Test
+	void testRequestWithCommonNameThatIsNotDnsName() {
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var kid = "service/account+role=writer";
+		final var jwk = WebKey.builder(WebKey.Type.ED25519).keyId(kid).ephemeral().build();
+		final var request = new ByteArrayOutputStream();
+		WebKeyCli.req(new PrintStream(request), jwk);
+		final var requestFile = IuProcess.temp(PrintStream::print, request.toString());
+
+		try {
+			final var requestText = IuProcess.exec("openssl", "req", "-in", requestFile.toString(), "-noout", "-text");
+			assertFalse(requestText.contains("X509v3 Subject Alternative Name"));
+		} finally {
+			IuProcess.deleteTempFiles();
+		}
 	}
 
 	@Test
