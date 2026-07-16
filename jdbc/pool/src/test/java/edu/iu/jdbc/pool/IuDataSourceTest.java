@@ -3,18 +3,23 @@ package edu.iu.jdbc.pool;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 
 import javax.sql.ConnectionEvent;
@@ -31,6 +36,8 @@ import org.mockito.ArgumentMatcher;
 import edu.iu.IdGenerator;
 import edu.iu.test.IuTestLogger;
 import edu.iu.transaction.IuTransactionManager;
+import jakarta.transaction.Status;
+import jakarta.transaction.TransactionSynchronizationRegistry;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(TestDatabase.class)
@@ -78,6 +85,79 @@ public class IuDataSourceTest {
 			assertTrue(rs.next());
 			assertEquals(val, rs.getString(1));
 		}
+	}
+
+	@Test
+	public void testConnectionInitializationFailureReturnsConnectionToPool() throws SQLException {
+		final var listener = new AtomicReference<ConnectionEventListener>();
+		final var pooledConnection = mock(PooledConnection.class);
+		final var connection = mock(Connection.class);
+		final var error = new RuntimeException("initialize connection");
+		when(pooledConnection.getConnection()).thenReturn(connection);
+		when(integration.createPooledConnection()).thenReturn(pooledConnection);
+		when(integration.initializeConnection(connection)).thenThrow(error).thenReturn(connection);
+		doAnswer(i -> {
+			listener.set(i.getArgument(0));
+			return null;
+		}).when(pooledConnection).addConnectionEventListener(any());
+		doAnswer(i -> {
+			listener.get().connectionClosed(new ConnectionEvent(pooledConnection));
+			return null;
+		}).when(connection).close();
+
+		assertSame(error, assertThrows(RuntimeException.class, dataSource::getConnection));
+		verify(connection).close();
+
+		try (final var reused = dataSource.getConnection()) {
+			assertSame(connection, reused);
+		}
+		verify(integration).createPooledConnection();
+		verify(pooledConnection).addConnectionEventListener(listener.get());
+	}
+
+	@Test
+	public void testConnectionInitializationFailureSuppressesCloseFailure() throws SQLException {
+		final var listener = new AtomicReference<ConnectionEventListener>();
+		final var pooledConnection = mock(PooledConnection.class);
+		final var connection = mock(Connection.class);
+		final var error = new AssertionError("initialize connection");
+		final var closeError = new SQLException("close connection");
+		when(pooledConnection.getConnection()).thenReturn(connection);
+		when(integration.createPooledConnection()).thenReturn(pooledConnection);
+		when(integration.initializeConnection(connection)).thenThrow(error);
+		doAnswer(i -> {
+			listener.set(i.getArgument(0));
+			return null;
+		}).when(pooledConnection).addConnectionEventListener(any());
+		doThrow(closeError).when(connection).close();
+
+		assertSame(error, assertThrows(AssertionError.class, dataSource::getConnection));
+		assertEquals(1, error.getSuppressed().length);
+		assertSame(closeError, error.getSuppressed()[0]);
+		verify(pooledConnection).addConnectionEventListener(listener.get());
+
+		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-error:" + descr + ":.*",
+				SQLException.class);
+		listener.get().connectionErrorOccurred(new ConnectionEvent(pooledConnection, closeError));
+	}
+
+	@Test
+	public void testTransactionalInitializationFailureReturnsPooledConnection() throws SQLException {
+		final var registry = mock(TransactionSynchronizationRegistry.class);
+		final var pooledConnection = mock(PooledConnection.class);
+		final var connection = mock(Connection.class);
+		final var error = new RuntimeException("initialize connection");
+		when(registry.getTransactionStatus()).thenReturn(Status.STATUS_ACTIVE);
+		when(integration.getTransactionSynchronizationRegistry()).thenReturn(registry);
+		when(integration.createPooledConnection()).thenReturn(pooledConnection);
+		when(pooledConnection.getConnection()).thenReturn(connection);
+		when(integration.initializeConnection(connection)).thenThrow(error);
+
+		assertSame(error, assertThrows(RuntimeException.class, dataSource::getConnection));
+		assertSame(error, assertThrows(RuntimeException.class, dataSource::getConnection));
+
+		verify(integration).createPooledConnection();
+		verify(pooledConnection, times(2)).getConnection();
 	}
 
 	@Test
