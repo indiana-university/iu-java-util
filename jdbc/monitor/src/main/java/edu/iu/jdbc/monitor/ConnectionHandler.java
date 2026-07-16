@@ -35,10 +35,13 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.net.URI;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+
+import edu.iu.IuListener;
 
 /**
  * {@link InvocationHandler} proxy for {@link Connection} that wraps
@@ -48,28 +51,36 @@ import java.sql.Statement;
 class ConnectionHandler implements InvocationHandler {
 
 	private final Connection delegate;
+	private final IuJdbcObservableEvent openEvent;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param delegate the underlying {@link Connection} to delegate to
+	 * @param uri      JDBC connection URL
 	 */
-	ConnectionHandler(Connection delegate) {
+	ConnectionHandler(Connection delegate, URI uri) {
 		this.delegate = delegate;
+		openEvent = new IuJdbcObservableEvent(uri, "jdbc.connection", "open");
+		IuListener.observe(openEvent);
 	}
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		try {
 			return switch (method.getName()) {
-				case "createStatement" -> wrapStatement((Statement) method.invoke(delegate, args));
-				case "prepareStatement" -> wrapProxy( //
-						(PreparedStatement) method.invoke(delegate, args), //
-						(String) args[0], PreparedStatement.class);
-				case "prepareCall" -> wrapProxy( //
-						(PreparedStatement) method.invoke(delegate, args), //
-						(String) args[0], CallableStatement.class);
-				default -> method.invoke(delegate, args);
+			case "createStatement" -> wrapStatement((Statement) method.invoke(delegate, args));
+			case "prepareStatement" -> wrapProxy( //
+					(PreparedStatement) method.invoke(delegate, args), //
+					(String) args[0], PreparedStatement.class);
+			case "prepareCall" -> wrapProxy( //
+					(PreparedStatement) method.invoke(delegate, args), //
+					(String) args[0], CallableStatement.class);
+			case "close" -> {
+				IuListener.observe(openEvent.end("close"));
+				yield method.invoke(delegate, args);
+			}
+			default -> method.invoke(delegate, args);
 			};
 		} catch (InvocationTargetException e) {
 			throw e.getCause();
@@ -80,14 +91,14 @@ class ConnectionHandler implements InvocationHandler {
 		return (Statement) Proxy.newProxyInstance( //
 				Statement.class.getClassLoader(), //
 				new Class<?>[] { Statement.class }, //
-				new StatementHandler(statement));
+				new StatementHandler(statement, openEvent.getUri()));
 	}
 
 	private Object wrapProxy(PreparedStatement ps, String sql, Class<?> iface) {
 		return Proxy.newProxyInstance( //
 				iface.getClassLoader(), //
 				new Class<?>[] { iface }, //
-				new PreparedStatementHandler(ps, sql));
+				new PreparedStatementHandler(ps, sql, openEvent.getUri()));
 	}
 
 }
