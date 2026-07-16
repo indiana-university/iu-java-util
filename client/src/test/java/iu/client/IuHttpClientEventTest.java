@@ -31,6 +31,7 @@
  */
 package iu.client;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -50,6 +51,7 @@ public class IuHttpClientEventTest {
 	public void testGetType() {
 		final var event = new IuHttpClientEvent(URI.create("https://example.com/"));
 		assertEquals("http.client", event.getType());
+		assertDoesNotThrow(event::toString);
 	}
 
 	@Test

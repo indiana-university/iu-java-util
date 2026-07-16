@@ -301,7 +301,7 @@ public class IuHttpTest extends IuHttpTestCase {
 			assertEquals("HTTP connection failed GET " + TEST_URI, t.getMessage());
 
 			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
-			mockListener.verify(() -> IuListener.observe(argThat(a -> "error 503".equals(a.getAction()))));
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "incomplete".equals(a.getAction()))));
 
 			verify(logHandler).publish(argThat(r -> {
 				assertEquals(Level.INFO, r.getLevel());
