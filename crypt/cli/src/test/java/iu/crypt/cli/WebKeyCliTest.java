@@ -315,6 +315,35 @@ public class WebKeyCliTest {
 	}
 
 	@Test
+	void testSelfWithCommonNameThatIsNotDnsName() throws Exception {
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var kid = "service/account+role=writer";
+		final var jwk = WebKey.builder(WebKey.Type.ED25519).keyId(kid).ephemeral().build();
+
+		final var cert = WebKeyCli.self(jwk).getCertificateChain()[0];
+
+		assertEquals(kid, X500Utils.getCommonName(cert.getSubjectX500Principal()));
+		assertNull(cert.getSubjectAlternativeNames());
+	}
+
+	@Test
+	void testRequestWithCommonNameThatIsNotDnsName() {
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var kid = "service/account+role=writer";
+		final var jwk = WebKey.builder(WebKey.Type.ED25519).keyId(kid).ephemeral().build();
+		final var request = new ByteArrayOutputStream();
+		WebKeyCli.req(new PrintStream(request), jwk);
+		final var requestFile = IuProcess.temp(PrintStream::print, request.toString());
+
+		try {
+			final var requestText = IuProcess.exec("openssl", "req", "-in", requestFile.toString(), "-noout", "-text");
+			assertFalse(requestText.contains("X509v3 Subject Alternative Name"));
+		} finally {
+			IuProcess.deleteTempFiles();
+		}
+	}
+
+	@Test
 	void testNewCA() {
 		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
 		final var kid = IdGenerator.generateId();

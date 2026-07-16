@@ -268,7 +268,7 @@ public class IuHttp {
 				final var m = "HTTP connection failed " + sb;
 				LOG.log(Level.INFO, e, () -> m);
 				
-				IuListener.observe(event.received(503));
+				IuListener.observe(event.received(0));
 				
 				throw new IllegalStateException(m, e);
 			}

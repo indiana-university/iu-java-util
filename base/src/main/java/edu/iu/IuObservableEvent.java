@@ -56,7 +56,7 @@ public interface IuObservableEvent {
 	/**
 	 * Gets the time the event occurred.
 	 * 
-	 * @return {@link Instant}; null to notify the start of an multi-part
+	 * @return {@link Instant}; null to indicate the start of a multi-part event sequence
 	 */
 	Instant getTime();
 

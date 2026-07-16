@@ -121,4 +121,10 @@ public class IuHttpClientEvent implements IuObservableEvent {
 			return (statusCode < 400 ? "receive " : "error ") + statusCode;
 	}
 
+	@Override
+	public String toString() {
+		return "IuHttpClientEvent [id=" + id + ", startTime=" + startTime + ", uri=" + uri + ", context=" + context
+				+ ", responseTime=" + responseTime + ", statusCode=" + statusCode + "]";
+	}
+
 }

@@ -76,7 +76,7 @@ public class IuTestListener implements IuListener, BeforeEachCallback, AfterEach
 		loader = mock(ServiceLoader.class);
 		when(loader.iterator()).thenReturn(IuIterable.iter(listener).iterator());
 		mockSL = mockStatic(ServiceLoader.class);
-		mockSL.when(() -> ServiceLoader.load(IuListener.class, ClassLoader.getSystemClassLoader())).thenReturn(loader);
+		mockSL.when(() -> ServiceLoader.load(IuListener.class, IuListener.class.getClassLoader())).thenReturn(loader);
 		delegate = mock(UnsafeConsumer.class);
 	}
 

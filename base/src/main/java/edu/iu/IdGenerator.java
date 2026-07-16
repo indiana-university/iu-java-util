@@ -63,6 +63,8 @@ import java.time.Instant;
  */
 public class IdGenerator {
 
+	private static final SecureRandom RANDOM = new SecureRandom();
+	
 	/**
 	 * Generates a new unique identifier.
 	 * 
@@ -70,7 +72,7 @@ public class IdGenerator {
 	 */
 	public static String generateId() {
 		byte[] rawId = new byte[24];
-		new SecureRandom().nextBytes(rawId);
+		RANDOM.nextBytes(rawId);
 
 		final var now = Instant.now().getEpochSecond();
 		rawId[3] = (byte) now;

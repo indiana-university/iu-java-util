@@ -50,6 +50,9 @@ import edu.iu.IuObservableEvent;
  * iterator or invoking a listener do not interrupt event publication; they are
  * collected and logged at {@link Level#WARNING} after all available listeners
  * have been invoked.
+ * <p>
+ * Only container-provisioned, fully-trusted listener implementations should
+ * appear on the base module's classpath.
  */
 public final class ListenerSpi {
 
