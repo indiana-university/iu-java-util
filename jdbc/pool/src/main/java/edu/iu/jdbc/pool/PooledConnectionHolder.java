@@ -17,9 +17,9 @@ class PooledConnectionHolder {
 	/** {@link Instant} the connection was initiated. */
 	final Instant initiated;
 
-	private Instant lastUse;
-	private int usageCount;
-	private ScheduledFuture<?> reaperTask;
+	private volatile Instant lastUse;
+	private volatile int usageCount;
+	private volatile ScheduledFuture<?> reaperTask;
 
 	/**
 	 * Constructor

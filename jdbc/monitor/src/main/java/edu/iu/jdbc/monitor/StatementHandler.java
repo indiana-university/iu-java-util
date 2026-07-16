@@ -34,6 +34,7 @@ package edu.iu.jdbc.monitor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Duration;
@@ -42,6 +43,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
+
+import edu.iu.IuListener;
 
 /**
  * {@link InvocationHandler} proxy for {@link Statement} that intercepts execute
@@ -52,14 +55,17 @@ class StatementHandler implements InvocationHandler {
 
 	private final Statement delegate;
 	private final List<String> batchSqls = new ArrayList<>();
+	private final IuJdbcObservableEvent openEvent;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param delegate the underlying {@link Statement} to delegate to
+	 * @param uri      JDBC connection URL
 	 */
-	StatementHandler(Statement delegate) {
+	StatementHandler(Statement delegate, URI uri) {
 		this.delegate = delegate;
+		openEvent = new IuJdbcObservableEvent(uri, "jdbc.statement", "open");
 	}
 
 	@Override
@@ -73,6 +79,10 @@ class StatementHandler implements InvocationHandler {
 			case "executeLargeBatch" -> handleLargeExecuteBatch(method, args);
 			case "addBatch" -> handleAddBatch(method, args);
 			case "clearBatch" -> handleClearBatch(method, args);
+			case "close" -> {
+				IuListener.observe(openEvent.end("close"));
+				yield method.invoke(delegate, args);
+			}
 			default -> method.invoke(delegate, args);
 			};
 		} catch (InvocationTargetException e) {
@@ -85,7 +95,8 @@ class StatementHandler implements InvocationHandler {
 		final var start = Instant.now();
 		final var rs = (ResultSet) method.invoke(delegate, args);
 		final var executeDuration = Duration.between(start, Instant.now());
-		return ResultSetHandler.wrap(rs, sql, executeDuration);
+		IuListener.observe(openEvent.end("exec"));
+		return ResultSetHandler.wrap(rs, sql, executeDuration, openEvent.getUri());
 	}
 
 	private Object handleExecuteUpdate(Method method, Object[] args) throws ReflectiveOperationException {
@@ -93,8 +104,9 @@ class StatementHandler implements InvocationHandler {
 		final var start = Instant.now();
 		final var result = method.invoke(delegate, args);
 		final var executeDuration = Duration.between(start, Instant.now());
-		IuJdbcMonitor.LOG.log(Level.INFO, () -> "jdbc-monitor: execute; sql=" + sql //
+		IuJdbcMonitor.LOG.log(Level.FINE, () -> "jdbc-monitor: execute; sql=" + sql //
 				+ "; execute=" + executeDuration + "; affected=" + result);
+		IuListener.observe(openEvent.end("exec"));
 		return result;
 	}
 
@@ -103,8 +115,8 @@ class StatementHandler implements InvocationHandler {
 		final var start = Instant.now();
 		final var result = method.invoke(delegate, args);
 		final var executeDuration = Duration.between(start, Instant.now());
-		IuJdbcMonitor.LOG.log(Level.INFO,
-				() -> "jdbc-monitor: execute; sql=" + sql + "; execute=" + executeDuration);
+		IuJdbcMonitor.LOG.log(Level.FINE, () -> "jdbc-monitor: execute; sql=" + sql + "; execute=" + executeDuration);
+		IuListener.observe(openEvent.end("exec"));
 		return result;
 	}
 
@@ -115,8 +127,9 @@ class StatementHandler implements InvocationHandler {
 		final var result = (int[]) method.invoke(delegate, args);
 		final var executeDuration = Duration.between(start, Instant.now());
 		final var affected = Arrays.stream(result).filter(c -> c >= 0).sum();
-		IuJdbcMonitor.LOG.log(Level.INFO, () -> "jdbc-monitor: batch; sql=" + sqls //
+		IuJdbcMonitor.LOG.log(Level.FINE, () -> "jdbc-monitor: batch; sql=" + sqls //
 				+ "; execute=" + executeDuration + "; affected=" + affected);
+		IuListener.observe(openEvent.end("exec"));
 		return result;
 	}
 
@@ -127,8 +140,9 @@ class StatementHandler implements InvocationHandler {
 		final var result = (long[]) method.invoke(delegate, args);
 		final var executeDuration = Duration.between(start, Instant.now());
 		final var affected = Arrays.stream(result).filter(c -> c >= 0).sum();
-		IuJdbcMonitor.LOG.log(Level.INFO, () -> "jdbc-monitor: batch; sql=" + sqls //
+		IuJdbcMonitor.LOG.log(Level.FINE, () -> "jdbc-monitor: batch; sql=" + sqls //
 				+ "; execute=" + executeDuration + "; affected=" + affected);
+		IuListener.observe(openEvent.end("exec"));
 		return result;
 	}
 

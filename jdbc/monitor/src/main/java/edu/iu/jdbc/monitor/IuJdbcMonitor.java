@@ -32,6 +32,7 @@
 package edu.iu.jdbc.monitor;
 
 import java.lang.reflect.Proxy;
+import java.net.URI;
 import java.sql.Connection;
 import java.util.logging.Logger;
 
@@ -42,7 +43,9 @@ import java.util.logging.Logger;
  * Wraps a {@link Connection} with transparent
  * {@link java.lang.reflect.InvocationHandler InvocationHandler} proxies that
  * intercept statement execution and result set scanning to log performance
- * metrics at {@link java.util.logging.Level#INFO INFO} level.
+ * metrics at {@link java.util.logging.Level#FINE FINE} level and publish
+ * {@link IuJdbcObservableEvent} instances via
+ * {@link edu.iu.IuListener#observe(edu.iu.IuObservableEvent) IuListener.observe}.
  * </p>
  *
  * <p>
@@ -55,7 +58,7 @@ import java.util.logging.Logger;
  * or a batch execution completes; includes SQL text, wall-clock execution time,
  * and affected row count where available.</li>
  * <li><strong>scan</strong> &mdash; logged each time a
- * {@link java.sql.ResultSet} advances past a multiple of 1000 rows; includes
+ * {@link java.sql.ResultSet} advances past a multiple of 10000 rows; includes
  * SQL text, cumulative row count, and elapsed scan time.</li>
  * <li><strong>complete</strong> &mdash; logged when a
  * {@link java.sql.ResultSet} is exhausted (i.e.
@@ -83,14 +86,15 @@ public class IuJdbcMonitor {
 	 * </p>
 	 *
 	 * @param connection the connection to monitor; must not be {@code null}
+	 * @param uri        JDBC connection URL
 	 * @return a {@link Connection} proxy that transparently monitors JDBC
 	 *         operations
 	 */
-	public static Connection monitor(Connection connection) {
+	public static Connection monitor(Connection connection, URI uri) {
 		return (Connection) Proxy.newProxyInstance( //
 				Connection.class.getClassLoader(), //
 				new Class<?>[] { Connection.class }, //
-				new ConnectionHandler(connection));
+				new ConnectionHandler(connection, uri));
 	}
 
 	private IuJdbcMonitor() {

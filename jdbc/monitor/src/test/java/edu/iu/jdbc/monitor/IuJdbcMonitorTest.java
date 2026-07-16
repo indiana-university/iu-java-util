@@ -36,10 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -50,12 +53,14 @@ import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuListener;
 import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class IuJdbcMonitorTest {
 
 	private static final String LOG = IuJdbcMonitor.class.getPackageName();
+	private static final URI TEST_URI = URI.create("jdbc:mock://localhost/test");
 
 	// -------------------------------------------------------------------------
 	// IuJdbcMonitor public API
@@ -64,7 +69,7 @@ public class IuJdbcMonitorTest {
 	@Test
 	public void testMonitorReturnsConnectionProxy() throws SQLException {
 		final var conn = mock(Connection.class);
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		assertInstanceOf(Connection.class, proxy);
 	}
 
@@ -72,7 +77,7 @@ public class IuJdbcMonitorTest {
 	public void testMonitorDelegatesToUnderlying() throws SQLException {
 		final var conn = mock(Connection.class);
 		when(conn.isClosed()).thenReturn(true);
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		assertTrue(proxy.isClosed());
 	}
 
@@ -86,7 +91,7 @@ public class IuJdbcMonitorTest {
 		final var stmt = mock(Statement.class);
 		when(conn.createStatement()).thenReturn(stmt);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		assertInstanceOf(Statement.class, s);
 	}
@@ -97,7 +102,7 @@ public class IuJdbcMonitorTest {
 		final var stmt = mock(Statement.class);
 		when(conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)).thenReturn(stmt);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 		assertInstanceOf(Statement.class, s);
 	}
@@ -109,7 +114,7 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,
 				ResultSet.CLOSE_CURSORS_AT_COMMIT)).thenReturn(stmt);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY,
 				ResultSet.CLOSE_CURSORS_AT_COMMIT);
 		assertInstanceOf(Statement.class, s);
@@ -125,7 +130,7 @@ public class IuJdbcMonitorTest {
 		final var ps = mock(PreparedStatement.class);
 		when(conn.prepareStatement("SELECT 1")).thenReturn(ps);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("SELECT 1");
 		assertInstanceOf(PreparedStatement.class, p);
 	}
@@ -136,7 +141,7 @@ public class IuJdbcMonitorTest {
 		final var ps = mock(PreparedStatement.class);
 		when(conn.prepareStatement("INSERT INTO t VALUES (?)", Statement.RETURN_GENERATED_KEYS)).thenReturn(ps);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("INSERT INTO t VALUES (?)", Statement.RETURN_GENERATED_KEYS);
 		assertInstanceOf(PreparedStatement.class, p);
 	}
@@ -151,7 +156,7 @@ public class IuJdbcMonitorTest {
 		final var cs = mock(CallableStatement.class);
 		when(conn.prepareCall("{call my_proc(?)}")).thenReturn(cs);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var c = proxy.prepareCall("{call my_proc(?)}");
 		assertInstanceOf(CallableStatement.class, c);
 	}
@@ -162,7 +167,7 @@ public class IuJdbcMonitorTest {
 		final var cs = mock(CallableStatement.class);
 		when(conn.prepareCall("{call p()}", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)).thenReturn(cs);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var c = proxy.prepareCall("{call p()}", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 		assertInstanceOf(CallableStatement.class, c);
 	}
@@ -176,7 +181,7 @@ public class IuJdbcMonitorTest {
 		final var conn = mock(Connection.class);
 		when(conn.createStatement()).thenThrow(new SQLException("db error"));
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		assertThrows(SQLException.class, proxy::createStatement);
 	}
 
@@ -193,9 +198,9 @@ public class IuJdbcMonitorTest {
 		when(stmt.executeQuery("SELECT 1")).thenReturn(rs);
 		when(rs.next()).thenReturn(false);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: complete; sql=SELECT 1; execute=PT.*; rows=0; scan=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: complete; sql=SELECT 1; execute=PT.*; rows=0; scan=PT.*");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		final var result = s.executeQuery("SELECT 1");
 		assertFalse(result.next()); // exhaust → logs complete
@@ -212,9 +217,9 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeUpdate("UPDATE t SET a=1")).thenReturn(3);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: execute; sql=UPDATE t SET a=1; execute=PT.*; affected=3");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: execute; sql=UPDATE t SET a=1; execute=PT.*; affected=3");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		proxy.createStatement().executeUpdate("UPDATE t SET a=1");
 	}
 
@@ -225,9 +230,9 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeLargeUpdate("DELETE FROM t")).thenReturn(100L);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: execute; sql=DELETE FROM t; execute=PT.*; affected=100");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: execute; sql=DELETE FROM t; execute=PT.*; affected=100");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		proxy.createStatement().executeLargeUpdate("DELETE FROM t");
 	}
 
@@ -242,9 +247,9 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.execute("CALL proc()")).thenReturn(false);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: execute; sql=CALL proc\\(\\); execute=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: execute; sql=CALL proc\\(\\); execute=PT.*");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		proxy.createStatement().execute("CALL proc()");
 	}
 
@@ -259,10 +264,10 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeBatch()).thenReturn(new int[] { 1, 2, Statement.EXECUTE_FAILED, Statement.SUCCESS_NO_INFO });
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: batch; sql=\\[INSERT INTO t VALUES \\(1\\), INSERT INTO t VALUES \\(2\\), BAD INSERT \\(3\\)\\]; execute=PT.*; affected=3");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		s.addBatch("INSERT INTO t VALUES (1)");
 		s.addBatch("INSERT INTO t VALUES (2)");
@@ -277,9 +282,9 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeLargeBatch()).thenReturn(new long[] { 5L, Statement.SUCCESS_NO_INFO });
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: batch; sql=\\[DELETE FROM t\\]; execute=PT.*; affected=5");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: batch; sql=\\[DELETE FROM t\\]; execute=PT.*; affected=5");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		s.addBatch("DELETE FROM t");
 		s.executeLargeBatch();
@@ -292,9 +297,9 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeBatch()).thenReturn(new int[] {});
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: batch; sql=\\[\\]; execute=PT.*; affected=0");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: batch; sql=\\[\\]; execute=PT.*; affected=0");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		s.addBatch("INSERT INTO t VALUES (99)");
 		s.clearBatch(); // clears tracked SQL, so executeBatch logs empty list
@@ -313,7 +318,7 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeQuery("BAD SQL")).thenThrow(new SQLException("syntax error"));
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		assertThrows(SQLException.class, () -> s.executeQuery("BAD SQL"));
 	}
@@ -329,7 +334,7 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.getMaxRows()).thenReturn(42);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var s = proxy.createStatement();
 		// getMaxRows is not intercepted – should delegate directly
 		assertDoesNotThrow(() -> s.getMaxRows());
@@ -349,10 +354,10 @@ public class IuJdbcMonitorTest {
 		when(stmt.executeQuery("SELECT 1")).thenReturn(rs);
 		when(rs.next()).thenReturn(true, true, false);
 
-		// No scan log because < 1000 rows. Only complete log.
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: complete; sql=SELECT 1; execute=PT.*; rows=2; scan=PT.*");
+		// No scan log because < 10000 rows. Only complete log.
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: complete; sql=SELECT 1; execute=PT.*; rows=2; scan=PT.*");
 
-		final var s = IuJdbcMonitor.monitor(conn).createStatement();
+		final var s = IuJdbcMonitor.monitor(conn, TEST_URI).createStatement();
 		final var result = s.executeQuery("SELECT 1");
 		assertTrue(result.next());
 		assertTrue(result.next());
@@ -360,24 +365,24 @@ public class IuJdbcMonitorTest {
 	}
 
 	@Test
-	public void testResultSetScanLogEvery1000Rows() throws SQLException {
+	public void testResultSetScanLogEvery10000Rows() throws SQLException {
 		final var conn = mock(Connection.class);
 		final var stmt = mock(Statement.class);
 		final var rs = mock(ResultSet.class);
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeQuery("SELECT *")).thenReturn(rs);
 
-		// 1000 true answers then false
-		final var trueAnswers = new Boolean[999];
+		// 10000 true answers then false
+		final var trueAnswers = new Boolean[9999];
 		java.util.Arrays.fill(trueAnswers, Boolean.TRUE);
 		when(rs.next()).thenReturn(Boolean.TRUE, trueAnswers).thenReturn(Boolean.FALSE);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: scan; sql=SELECT \\*; rows=1000; elapsed=PT.*");
-		IuTestLogger.expect(LOG, Level.INFO,
-				"jdbc-monitor: complete; sql=SELECT \\*; execute=PT.*; rows=1000; scan=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: scan; sql=SELECT \\*; rows=10000; elapsed=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE,
+				"jdbc-monitor: complete; sql=SELECT \\*; execute=PT.*; rows=10000; scan=PT.*");
 
-		final var result = IuJdbcMonitor.monitor(conn).createStatement().executeQuery("SELECT *");
-		for (int i = 0; i < 1000; i++)
+		final var result = IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().executeQuery("SELECT *");
+		for (int i = 0; i < 10000; i++)
 			assertTrue(result.next());
 		assertFalse(result.next());
 	}
@@ -390,18 +395,18 @@ public class IuJdbcMonitorTest {
 		when(conn.createStatement()).thenReturn(stmt);
 		when(stmt.executeQuery("SELECT *")).thenReturn(rs);
 
-		// 2000 true answers then false
-		final var trueAnswers = new Boolean[1999];
+		// 20000 true answers then false
+		final var trueAnswers = new Boolean[19999];
 		java.util.Arrays.fill(trueAnswers, Boolean.TRUE);
 		when(rs.next()).thenReturn(Boolean.TRUE, trueAnswers).thenReturn(Boolean.FALSE);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: scan; sql=SELECT \\*; rows=1000; elapsed=PT.*");
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: scan; sql=SELECT \\*; rows=2000; elapsed=PT.*");
-		IuTestLogger.expect(LOG, Level.INFO,
-				"jdbc-monitor: complete; sql=SELECT \\*; execute=PT.*; rows=2000; scan=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: scan; sql=SELECT \\*; rows=10000; elapsed=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: scan; sql=SELECT \\*; rows=20000; elapsed=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE,
+				"jdbc-monitor: complete; sql=SELECT \\*; execute=PT.*; rows=20000; scan=PT.*");
 
-		final var result = IuJdbcMonitor.monitor(conn).createStatement().executeQuery("SELECT *");
-		for (int i = 0; i < 2000; i++)
+		final var result = IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().executeQuery("SELECT *");
+		for (int i = 0; i < 20000; i++)
 			assertTrue(result.next());
 		assertFalse(result.next());
 	}
@@ -419,14 +424,14 @@ public class IuJdbcMonitorTest {
 		when(stmt.executeQuery("SELECT 1")).thenReturn(rs);
 		when(rs.getString(1)).thenReturn("hello");
 
-		final var result = IuJdbcMonitor.monitor(conn).createStatement().executeQuery("SELECT 1");
+		final var result = IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().executeQuery("SELECT 1");
 		// getString(1) is not intercepted – passes through to delegate
 		assertDoesNotThrow(() -> result.getString(1));
 		verify(rs).getString(1);
 
 		// Exhaust the result set to satisfy the complete log expectation
 		when(rs.next()).thenReturn(false);
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: complete; sql=SELECT 1; execute=PT.*; rows=0; scan=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: complete; sql=SELECT 1; execute=PT.*; rows=0; scan=PT.*");
 		result.next();
 	}
 
@@ -443,7 +448,7 @@ public class IuJdbcMonitorTest {
 		when(stmt.executeQuery("SELECT 1")).thenReturn(rs);
 		when(rs.next()).thenThrow(new SQLException("stream closed"));
 
-		final var result = IuJdbcMonitor.monitor(conn).createStatement().executeQuery("SELECT 1");
+		final var result = IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().executeQuery("SELECT 1");
 		assertThrows(SQLException.class, result::next);
 	}
 
@@ -458,10 +463,10 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("SELECT * FROM t WHERE id = ?")).thenReturn(ps);
 		when(ps.executeUpdate()).thenReturn(0);
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: execute; sql=SELECT \\* FROM t WHERE id = \\?; execute=PT.*; affected=0");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("SELECT * FROM t WHERE id = ?");
 		p.setInt(1, 42);
 		p.executeUpdate();
@@ -474,10 +479,10 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("INSERT INTO t(a) VALUES(?)")).thenReturn(ps);
 		when(ps.executeUpdate()).thenReturn(1);
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: execute; sql=INSERT INTO t\\(a\\) VALUES\\(\\?\\); execute=PT.*; affected=1");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("INSERT INTO t(a) VALUES(?)");
 		p.setNull(1, java.sql.Types.VARCHAR);
 		p.executeUpdate();
@@ -490,10 +495,10 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("SELECT * FROM t WHERE a=? AND b=?")).thenReturn(ps);
 		when(ps.executeUpdate()).thenReturn(5);
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: execute; sql=SELECT \\* FROM t WHERE a=\\? AND b=\\?; execute=PT.*; affected=5");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("SELECT * FROM t WHERE a=? AND b=?");
 		p.setString(1, "hello");
 		p.setInt(2, 99);
@@ -507,9 +512,9 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("SELECT ?")).thenReturn(ps);
 		when(ps.executeUpdate()).thenReturn(0);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: execute; sql=SELECT \\?; execute=PT.*; affected=0");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: execute; sql=SELECT \\?; execute=PT.*; affected=0");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("SELECT ?");
 		p.setString(1, "old-value");
 		p.clearParameters(); // clears tracked params
@@ -530,10 +535,10 @@ public class IuJdbcMonitorTest {
 		when(ps.executeQuery()).thenReturn(rs);
 		when(rs.next()).thenReturn(false);
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: complete; sql=SELECT name FROM t WHERE id=\\?; execute=PT.*; rows=0; scan=PT.*");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("SELECT name FROM t WHERE id=?");
 		p.setInt(1, 7);
 		final var result = ((PreparedStatement) p).executeQuery();
@@ -551,9 +556,9 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("CALL proc(?)")).thenReturn(ps);
 		when(ps.execute()).thenReturn(false);
 
-		IuTestLogger.expect(LOG, Level.INFO, "jdbc-monitor: execute; sql=CALL proc\\(\\?\\); execute=PT.*");
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: execute; sql=CALL proc\\(\\?\\); execute=PT.*");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("CALL proc(?)");
 		p.setString(1, "x");
 		((PreparedStatement) p).execute();
@@ -570,10 +575,10 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("DELETE FROM t WHERE id=?")).thenReturn(ps);
 		when(ps.executeLargeUpdate()).thenReturn(1L);
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: execute; sql=DELETE FROM t WHERE id=\\?; execute=PT.*; affected=1");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("DELETE FROM t WHERE id=?");
 		p.setInt(1, 5);
 		((PreparedStatement) p).executeLargeUpdate();
@@ -590,10 +595,10 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("INSERT INTO t VALUES(?)")).thenReturn(ps);
 		when(ps.executeBatch()).thenReturn(new int[] { 1, 2, Statement.EXECUTE_FAILED });
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: batch; sql=INSERT INTO t VALUES\\(\\?\\); execute=PT.*; affected=3");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = (PreparedStatement) proxy.prepareStatement("INSERT INTO t VALUES(?)");
 		p.executeBatch();
 	}
@@ -605,10 +610,10 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("INSERT INTO t VALUES(?)")).thenReturn(ps);
 		when(ps.executeLargeBatch()).thenReturn(new long[] { 2L, Statement.SUCCESS_NO_INFO });
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: batch; sql=INSERT INTO t VALUES\\(\\?\\); execute=PT.*; affected=2");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = (PreparedStatement) proxy.prepareStatement("INSERT INTO t VALUES(?)");
 		p.executeLargeBatch();
 	}
@@ -623,7 +628,7 @@ public class IuJdbcMonitorTest {
 		final var ps = mock(PreparedStatement.class);
 		when(conn.prepareStatement("SELECT 1")).thenReturn(ps);
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("SELECT 1");
 		// setFetchSize(int) is not a parameter setter (only 1 arg) – passes through
 		assertDoesNotThrow(() -> p.setFetchSize(100));
@@ -641,7 +646,7 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareStatement("BAD")).thenReturn(ps);
 		when(ps.executeUpdate()).thenThrow(new SQLException("constraint violation"));
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var p = proxy.prepareStatement("BAD");
 		assertThrows(SQLException.class, () -> ((PreparedStatement) p).executeUpdate());
 	}
@@ -657,13 +662,138 @@ public class IuJdbcMonitorTest {
 		when(conn.prepareCall("{call p(?)}")).thenReturn(cs);
 		when(cs.executeUpdate()).thenReturn(0);
 
-		IuTestLogger.expect(LOG, Level.INFO,
+		IuTestLogger.expect(LOG, Level.FINE,
 				"jdbc-monitor: execute; sql=\\{call p\\(\\?\\)\\}; execute=PT.*; affected=0");
 
-		final var proxy = IuJdbcMonitor.monitor(conn);
+		final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
 		final var c = (CallableStatement) proxy.prepareCall("{call p(?)}");
 		c.setString(1, "val");
 		c.executeUpdate();
+	}
+
+	// -------------------------------------------------------------------------
+	// IuJdbcObservableEvent – connection lifecycle
+	// -------------------------------------------------------------------------
+
+	@Test
+	public void testConnectionOpenEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			IuJdbcMonitor.monitor(conn, TEST_URI);
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.connection".equals(e.getType()) //
+					&& "open".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() == null)));
+		}
+	}
+
+	@Test
+	public void testConnectionCloseEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			final var proxy = IuJdbcMonitor.monitor(conn, TEST_URI);
+			proxy.close();
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.connection".equals(e.getType()) //
+					&& "close".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() != null)));
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// IuJdbcObservableEvent – statement lifecycle
+	// -------------------------------------------------------------------------
+
+	@Test
+	public void testStatementExecEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		final var stmt = mock(Statement.class);
+		when(conn.createStatement()).thenReturn(stmt);
+		when(stmt.executeUpdate("UPDATE t SET a=1")).thenReturn(1);
+		IuTestLogger.expect(LOG, Level.FINE, "jdbc-monitor: execute; sql=UPDATE t SET a=1; execute=PT.*; affected=1");
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().executeUpdate("UPDATE t SET a=1");
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.statement".equals(e.getType()) //
+					&& "exec".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() != null)));
+		}
+	}
+
+	@Test
+	public void testStatementCloseEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		final var stmt = mock(Statement.class);
+		when(conn.createStatement()).thenReturn(stmt);
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().close();
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.statement".equals(e.getType()) //
+					&& "close".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() != null)));
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// IuJdbcObservableEvent – prepared statement lifecycle
+	// -------------------------------------------------------------------------
+
+	@Test
+	public void testPreparedStatementExecEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		final var ps = mock(PreparedStatement.class);
+		when(conn.prepareStatement("SELECT 1")).thenReturn(ps);
+		when(ps.executeUpdate()).thenReturn(0);
+		IuTestLogger.expect(LOG, Level.FINE,
+				"jdbc-monitor: execute; sql=SELECT 1; execute=PT.*; affected=0");
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			((PreparedStatement) IuJdbcMonitor.monitor(conn, TEST_URI).prepareStatement("SELECT 1")).executeUpdate();
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.preparedstatement".equals(e.getType()) //
+					&& "exec".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() != null)));
+		}
+	}
+
+	@Test
+	public void testPreparedStatementCloseEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		final var ps = mock(PreparedStatement.class);
+		when(conn.prepareStatement("SELECT 1")).thenReturn(ps);
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			IuJdbcMonitor.monitor(conn, TEST_URI).prepareStatement("SELECT 1").close();
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.preparedstatement".equals(e.getType()) //
+					&& "close".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() != null)));
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// IuJdbcObservableEvent – result set lifecycle
+	// -------------------------------------------------------------------------
+
+	@Test
+	public void testResultSetCloseEventObserved() throws SQLException {
+		final var conn = mock(Connection.class);
+		final var stmt = mock(Statement.class);
+		final var rs = mock(ResultSet.class);
+		when(conn.createStatement()).thenReturn(stmt);
+		when(stmt.executeQuery("SELECT 1")).thenReturn(rs);
+		try (final var mockListener = mockStatic(IuListener.class)) {
+			IuJdbcMonitor.monitor(conn, TEST_URI).createStatement().executeQuery("SELECT 1").close();
+			mockListener.verify(() -> IuListener.observe(argThat(e -> //
+			"jdbc.resultset".equals(e.getType()) //
+					&& "close".equals(e.getAction()) //
+					&& TEST_URI.equals(e.getUri()) //
+					&& e.getTime() != null)));
+		}
 	}
 
 }

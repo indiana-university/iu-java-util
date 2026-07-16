@@ -32,6 +32,7 @@
 package edu.iu.redis;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -48,5 +49,7 @@ public class IuRedisConfigurationTest {
 		final var config = mock(IuRedisConfiguration.class, CALLS_REAL_METHODS);
 		assertTrue(config.getSsl());
 		assertEquals(Duration.ofMinutes(15), config.getKeyExpiration());
+		assertNull(config.getUsername());
+		assertNull(config.getTrustedCert());
 	}
 }

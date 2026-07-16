@@ -36,7 +36,9 @@
  * Provides {@link java.lang.reflect.InvocationHandler InvocationHandler}
  * proxies for JDBC {@link java.sql.Connection}, {@link java.sql.Statement},
  * {@link java.sql.PreparedStatement}, and {@link java.sql.ResultSet} that log
- * execution metrics at {@link java.util.logging.Level#INFO INFO} level.
+ * execution metrics at {@link java.util.logging.Level#FINE FINE} level and
+ * publish {@link edu.iu.jdbc.monitor.IuJdbcObservableEvent} via
+ * {@link edu.iu.IuListener}.
  * </p>
  *
  * @see edu.iu.jdbc.monitor.IuJdbcMonitor
@@ -44,6 +46,7 @@
 module iu.util.jdbc.monitor {
 	exports edu.iu.jdbc.monitor;
 
+	requires iu.util;
 	requires transitive java.sql;
 	requires java.logging;
 }

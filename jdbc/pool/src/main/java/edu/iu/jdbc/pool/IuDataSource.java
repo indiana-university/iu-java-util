@@ -58,11 +58,15 @@ import jakarta.transaction.Synchronization;
 public class IuDataSource implements DataSource, AutoCloseable {
 
 	static {
+		// ensures getParentLogger() has a Logger instance to manage
 		Logger.getLogger(IuDataSource.class.getPackageName());
 	}
 	private static final Logger LOG = Logger.getLogger(IuDataSource.class.getName());
 
-	private static final Object CONNECTION_KEY = new Object();
+	private static final ClassLoader CONNECTION_LOADER = Connection.class.getClassLoader();
+	private static final Class<?>[] CONNECTION_INTERFACES = new Class<?>[] { Connection.class };
+
+	private final Object connectionKey = new Object();
 
 	private final IuDataSourceIntegration integration;
 	private final IuConnectionPoolConfiguration config;
@@ -126,64 +130,74 @@ public class IuDataSource implements DataSource, AutoCloseable {
 		if (transactionSynchronizationRegistry == null //
 				|| transactionSynchronizationRegistry.getTransactionStatus() != Status.STATUS_ACTIVE) {
 			final var connection = connectionPool.checkOut().getConnection();
-			return integration.initializeConnection(connection);
+			try {
+				return integration.initializeConnection(connection);
+			} catch (RuntimeException | Error e) {
+				IuException.suppress(e, connection::close);
+				throw e;
+			}
 		}
 
-		final var activeConnection = (Connection) transactionSynchronizationRegistry.getResource(CONNECTION_KEY);
+		final var activeConnection = (Connection) transactionSynchronizationRegistry.getResource(connectionKey);
 		if (activeConnection != null)
 			return activeConnection;
 
 		final var pooledConnection = connectionPool.checkOut();
-		final var managedConnection = integration.initializeConnection(pooledConnection.getConnection());
+		try {
+			final var managedConnection = integration.initializeConnection(pooledConnection.getConnection());
 
-		if (pooledConnection instanceof XAConnection xaConnection)
-			IuException.unchecked(() -> {
-				final var xaResource = xaConnection.getXAResource();
-				xaResource.setTransactionTimeout((int) config.getAbandonedConnectionTimeout().getSeconds());
-				integration.getTransactionManager().getTransaction().enlistResource(xaResource);
-			});
-		else {
-			managedConnection.setAutoCommit(false);
-			managedConnection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-		}
-
-		transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
-			@Override
-			public void beforeCompletion() {
-				if (!(pooledConnection instanceof XAConnection))
-					IuException.unchecked(managedConnection::commit);
+			if (pooledConnection instanceof XAConnection xaConnection)
+				IuException.unchecked(() -> {
+					final var xaResource = xaConnection.getXAResource();
+					xaResource.setTransactionTimeout((int) config.getAbandonedConnectionTimeout().getSeconds());
+					integration.getTransactionManager().getTransaction().enlistResource(xaResource);
+				});
+			else {
+				managedConnection.setAutoCommit(false);
+				managedConnection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
 			}
 
-			@Override
-			public void afterCompletion(int status) {
-				try {
-					if (!(pooledConnection instanceof XAConnection) //
-							&& status != Status.STATUS_COMMITTED)
-						managedConnection.rollback();
-				} catch (SQLException e) {
-					LOG.log(Level.WARNING, e, () -> "rollback failed in afterCompletion");
-				} finally {
+			transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
+				@Override
+				public void beforeCompletion() {
+					if (!(pooledConnection instanceof XAConnection))
+						IuException.unchecked(managedConnection::commit);
+				}
+
+				@Override
+				public void afterCompletion(int status) {
 					try {
-						managedConnection.close();
+						if (!(pooledConnection instanceof XAConnection) //
+								&& status != Status.STATUS_COMMITTED)
+							managedConnection.rollback();
 					} catch (SQLException e) {
-						LOG.log(Level.WARNING, e, () -> "close failed in afterCompletion");
+						LOG.log(Level.WARNING, e, () -> "rollback failed in afterCompletion");
+					} finally {
+						try {
+							managedConnection.close();
+						} catch (SQLException e) {
+							LOG.log(Level.WARNING, e, () -> "close failed in afterCompletion");
+						}
 					}
 				}
-			}
-		});
+			});
 
-		final var protectedConnection = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
-				new Class<?>[] { Connection.class }, (proxy, method, args) -> {
-					switch (method.getName()) {
-					case "close":
-						return null;
-					default:
-						return IuException.checkedInvocation(() -> method.invoke(managedConnection, args));
-					}
-				});
-		transactionSynchronizationRegistry.putResource(CONNECTION_KEY, protectedConnection);
+			final var protectedConnection = (Connection) Proxy.newProxyInstance(CONNECTION_LOADER,
+					CONNECTION_INTERFACES, (proxy, method, args) -> {
+						switch (method.getName()) {
+						case "close":
+							return null;
+						default:
+							return IuException.checkedInvocation(() -> method.invoke(managedConnection, args));
+						}
+					});
+			transactionSynchronizationRegistry.putResource(connectionKey, protectedConnection);
 
-		return protectedConnection;
+			return protectedConnection;
+		} catch (SQLException | RuntimeException | Error e) {
+			IuException.suppress(e, () -> connectionPool.reuseOrClose(pooledConnection));
+			throw e;
+		}
 	}
 
 	@Override

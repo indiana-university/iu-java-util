@@ -31,12 +31,7 @@
  */
 package edu.iu;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import iu.ListenerSpi;
 
 /**
  * SPI listener interface for receiving {@link IuObservableEvent} notifications.
@@ -50,29 +45,7 @@ public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 	 * @param event {@link IuObservableEvent}
 	 */
 	static void observe(IuObservableEvent event) {
-		Objects.requireNonNull(event, "event");
-		Throwable error = null;
-
-		Iterator<IuListener> serviceIterator;
-		try {
-			serviceIterator = ServiceLoader.load(IuListener.class, IuListener.class.getClassLoader()).iterator();
-		} catch (Throwable e) {
-			error = IuException.suppress(error, e);
-			serviceIterator = Collections.emptyIterator();
-		}
-
-		while (serviceIterator.hasNext())
-			try {
-				serviceIterator.next().accept(event);
-			} catch (Throwable e) {
-				error = IuException.suppress(error, e);
-			}
-
-		if (error != null) {
-			final var logger = Logger.getLogger(IuListener.class.getName());
-			if (logger.isLoggable(Level.WARNING))
-				logger.log(Level.WARNING, "event listener failure; " + event, error);
-		}
+		ListenerSpi.observe(event);
 	}
 
 }

@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu.jdbc.monitor;
 
 import java.net.URI;
 import java.time.Instant;
@@ -39,48 +39,74 @@ import edu.iu.IuClassLoaderContext;
 import edu.iu.IuObservableEvent;
 
 /**
- * Observable HTTP client event.
+ * {@link IuObservableEvent} implementation published by JDBC monitoring
+ * proxies.
+ *
+ * <p>
+ * Each monitored JDBC resource ({@link java.sql.Connection Connection},
+ * {@link java.sql.Statement Statement}, {@link java.sql.PreparedStatement
+ * PreparedStatement}, {@link java.sql.ResultSet ResultSet}) emits events via
+ * {@link edu.iu.IuListener#observe(IuObservableEvent) IuListener.observe}.
+ * </p>
+ *
+ * <p>
+ * The lifecycle of a multi-part event sequence is modelled with two
+ * {@link IuObservableEvent} instances that share the same {@link #getId() id}
+ * and {@link #getStartTime() startTime}:
+ * </p>
+ * <ul>
+ * <li>An <em>open</em> event (created by the constructor) with
+ * {@link #getTime() time} {@code null}, signalling the start of the
+ * sequence.</li>
+ * <li>A <em>close</em> or <em>exec</em> event produced by {@link #end(String)}
+ * with a non-{@code null} {@link #getTime() time}.</li>
+ * </ul>
  */
-public class IuHttpClientEvent implements IuObservableEvent {
+public class IuJdbcObservableEvent implements IuObservableEvent {
 
 	private final String id;
 	private final Instant startTime;
 	private final URI uri;
 	private final String context;
-	private final Instant responseTime;
-	private final int statusCode;
+	private final Instant closeTime;
+	private final String type;
+	private final String action;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param uri outbound request URI
+	 * @param uri    outbound request URI
+	 * @param type   event type
+	 * @param action action
 	 */
-	public IuHttpClientEvent(URI uri) {
+	public IuJdbcObservableEvent(URI uri, String type, String action) {
 		this.id = IdGenerator.generateId();
 		this.startTime = Instant.now();
 		this.uri = uri;
 		this.context = IuClassLoaderContext.getContext().getName();
-		this.responseTime = null;
-		this.statusCode = 0;
+		this.type = type;
+		this.action = action;
+		this.closeTime = null;
 	}
 
-	private IuHttpClientEvent(IuHttpClientEvent startEvent, int statusCode) {
+	private IuJdbcObservableEvent(IuJdbcObservableEvent startEvent, String action) {
 		this.id = startEvent.id;
 		this.startTime = startEvent.startTime;
 		this.uri = startEvent.uri;
 		this.context = startEvent.context;
-		this.responseTime = Instant.now();
-		this.statusCode = statusCode;
+		this.type = startEvent.type;
+		this.action = action;
+		this.closeTime = Instant.now();
 	}
 
 	/**
-	 * Updates the event to indicate a response was received
+	 * Creates a end-event associated with this open event.
 	 * 
-	 * @param statusCode HTTP status code
-	 * @return updated event
+	 * @param action action
+	 * @return end-event
 	 */
-	public IuHttpClientEvent received(int statusCode) {
-		return new IuHttpClientEvent(this, statusCode);
+	IuJdbcObservableEvent end(String action) {
+		return new IuJdbcObservableEvent(this, action);
 	}
 
 	@Override
@@ -89,18 +115,18 @@ public class IuHttpClientEvent implements IuObservableEvent {
 	}
 
 	@Override
-	public Instant getTime() {
-		return responseTime;
-	}
-
-	@Override
 	public Instant getStartTime() {
 		return startTime;
 	}
 
 	@Override
+	public Instant getTime() {
+		return closeTime;
+	}
+
+	@Override
 	public String getType() {
-		return "http.client";
+		return type;
 	}
 
 	@Override
@@ -115,19 +141,7 @@ public class IuHttpClientEvent implements IuObservableEvent {
 
 	@Override
 	public String getAction() {
-		if (responseTime == null)
-			return "send";
-
-		if (statusCode == 0)
-			return "incomplete";
-
-		return (statusCode < 400 ? "receive " : "error ") + statusCode;
-	}
-
-	@Override
-	public String toString() {
-		return "IuHttpClientEvent [id=" + id + ", startTime=" + startTime + ", uri=" + uri + ", context=" + context
-				+ ", responseTime=" + responseTime + ", statusCode=" + statusCode + "]";
+		return action;
 	}
 
 }

@@ -34,10 +34,13 @@ package edu.iu.jdbc.monitor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.sql.ResultSet;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.logging.Level;
+
+import edu.iu.IuListener;
 
 /**
  * {@link InvocationHandler} proxy for {@link ResultSet} that counts rows, logs
@@ -50,6 +53,7 @@ class ResultSetHandler implements InvocationHandler {
 	private final String sql;
 	private final Duration executeDuration;
 	private final Instant scanStart;
+	private final IuJdbcObservableEvent openEvent;
 	private int rowCount;
 
 	/**
@@ -58,12 +62,14 @@ class ResultSetHandler implements InvocationHandler {
 	 * @param delegate        the underlying {@link ResultSet} to delegate to
 	 * @param sql             the SQL statement that produced this result set
 	 * @param executeDuration wall-clock time the statement took to execute
+	 * @param uri             JDBC connection URL
 	 */
-	ResultSetHandler(ResultSet delegate, String sql, Duration executeDuration) {
+	ResultSetHandler(ResultSet delegate, String sql, Duration executeDuration, URI uri) {
 		this.delegate = delegate;
 		this.sql = sql;
 		this.executeDuration = executeDuration;
 		this.scanStart = Instant.now();
+		this.openEvent = new IuJdbcObservableEvent(uri, "jdbc.resultset", "open");
 	}
 
 	@Override
@@ -73,21 +79,23 @@ class ResultSetHandler implements InvocationHandler {
 				boolean hasNext = (boolean) method.invoke(delegate, args);
 				if (hasNext) {
 					rowCount++;
-					if (rowCount % 1000 == 0) {
+					if (rowCount % 10000 == 0) {
 						final var rows = rowCount;
 						final var elapsed = Duration.between(scanStart, Instant.now());
-						IuJdbcMonitor.LOG.log(Level.INFO,
+						IuJdbcMonitor.LOG.log(Level.FINE,
 								() -> "jdbc-monitor: scan; sql=" + sql + "; rows=" + rows + "; elapsed=" + elapsed);
 					}
 				} else {
 					final var rows = rowCount;
 					final var scanDuration = Duration.between(scanStart, Instant.now());
-					IuJdbcMonitor.LOG.log(Level.INFO, () -> "jdbc-monitor: complete; sql=" + sql //
+					IuJdbcMonitor.LOG.log(Level.FINE, () -> "jdbc-monitor: complete; sql=" + sql //
 							+ "; execute=" + executeDuration //
 							+ "; rows=" + rows + "; scan=" + scanDuration);
 				}
 				return hasNext;
 			}
+			if ("close".equals(method.getName()))
+				IuListener.observe(openEvent.end("close"));
 			return method.invoke(delegate, args);
 		} catch (InvocationTargetException e) {
 			throw e.getCause();
@@ -100,13 +108,14 @@ class ResultSetHandler implements InvocationHandler {
 	 * @param rs              the result set to wrap
 	 * @param sql             the SQL statement that produced the result set
 	 * @param executeDuration wall-clock time the statement took to execute
+	 * @param uri             JDBC connection URL
 	 * @return a {@link ResultSet} proxy
 	 */
-	static ResultSet wrap(ResultSet rs, String sql, Duration executeDuration) {
+	static ResultSet wrap(ResultSet rs, String sql, Duration executeDuration, URI uri) {
 		return (ResultSet) java.lang.reflect.Proxy.newProxyInstance( //
 				ResultSet.class.getClassLoader(), //
 				new Class<?>[] { ResultSet.class }, //
-				new ResultSetHandler(rs, sql, executeDuration));
+				new ResultSetHandler(rs, sql, executeDuration, uri));
 	}
 
 }
