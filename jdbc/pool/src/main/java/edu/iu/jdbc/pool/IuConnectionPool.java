@@ -139,7 +139,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		return reaperScheduler.schedule(() -> {
 			final var pooledConnection = holder.pooledConnection;
 			var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
-			LOG.log(Level.INFO, error, () -> "jdbc-pool-abandoned:" + config.getDescription() + ":" + pooledConnection + ' ' + this);
+			LOG.log(Level.INFO, error,
+					() -> "jdbc-pool-abandoned:" + config.getDescription() + ":" + pooledConnection + ' ' + this);
 		}, config.getAbandonedConnectionTimeout().getSeconds(), TimeUnit.SECONDS);
 	}
 
@@ -178,13 +179,14 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 					else
 						pendingConnections++;
 				}
+				final var now = Instant.now();
 
 				try {
 					PooledConnectionHolder reusableConnection;
 					while ((reusableConnection = reusableConnections.poll()) != null) {
 						final var pooledConnection = reusableConnection.pooledConnection;
 
-						final var timeSinceInit = Duration.between(reusableConnection.initiated, Instant.now());
+						final var timeSinceInit = Duration.between(reusableConnection.initiated, now);
 						if (timeSinceInit.compareTo(maxConnectionReuseTime) >= 0) {
 							error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
 							LOG.fine(() -> "jdbc-pool-retire-timeout:" + descr + ":" + timeSinceInit + ' '
@@ -193,8 +195,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 						}
 
 						holder = reusableConnection;
-						LOG.finer(() -> "jdbc-pool-reuse:" + descr + ":" + Duration.between(connectBegin, Instant.now())
-								+ ":" + timeSinceInit + ' ' + pooledConnection + ' ' + this);
+						LOG.finer(() -> "jdbc-pool-reuse:" + descr + ":" + Duration.between(connectBegin, now) + ":"
+								+ timeSinceInit + ' ' + pooledConnection + ' ' + this);
 						break;
 					}
 
@@ -215,10 +217,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 							openConnections.put(pooledConnection, holder);
 						}
 
-						final var connectComplete = Instant.now();
-						LOG.fine(() -> "jdbc-pool-open:" + descr + ":" + Duration.between(connectBegin, connectComplete)
-								+ ":" + Duration.between(initTime, Instant.now()) + ' ' + pooledConnection + ' '
-								+ this);
+						LOG.fine(() -> "jdbc-pool-open:" + descr + ":" + Duration.between(connectBegin, now) + ":"
+								+ Duration.between(initTime, now) + ' ' + pooledConnection + ' ' + this);
 					}
 
 					final var lastUse = holder.getLastUse();
@@ -271,7 +271,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		final var holder = openConnections.get(pooledConnection);
 		if (holder == null) {
 			final var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
-			LOG.log(Level.INFO, error, () -> "jdbc-pool-orphan:" + config.getDescription() + ":" + pooledConnection + ' ' + this);
+			LOG.log(Level.INFO, error,
+					() -> "jdbc-pool-orphan:" + config.getDescription() + ":" + pooledConnection + ' ' + this);
 			return;
 		}
 
@@ -281,8 +282,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 		if (closed || //
 				count >= config.getMaxConnectionReuseCount()) {
 			final var error = IuException.suppress(null, () -> closePooledConnection(pooledConnection));
-			LOG.log(Level.FINE, error,
-					() -> "jdbc-pool-retire:" + config.getDescription() + ":" + count + ' ' + pooledConnection + ' ' + this);
+			LOG.log(Level.FINE, error, () -> "jdbc-pool-retire:" + config.getDescription() + ":" + count + ' '
+					+ pooledConnection + ' ' + this);
 		} else
 			reusableConnections.offer(holder);
 
@@ -300,7 +301,8 @@ public class IuConnectionPool implements ConnectionEventListener, AutoCloseable 
 	public void connectionErrorOccurred(ConnectionEvent event) {
 		final var pooledConnection = (PooledConnection) event.getSource();
 		final var error = IuException.suppress(event.getSQLException(), () -> closePooledConnection(pooledConnection));
-		LOG.log(Level.INFO, error, () -> "jdbc-pool-error:" + config.getDescription() + ':' + pooledConnection + ' ' + this);
+		LOG.log(Level.INFO, error,
+				() -> "jdbc-pool-error:" + config.getDescription() + ':' + pooledConnection + ' ' + this);
 	}
 
 	/**

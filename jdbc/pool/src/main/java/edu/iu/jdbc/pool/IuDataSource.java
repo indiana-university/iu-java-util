@@ -63,7 +63,10 @@ public class IuDataSource implements DataSource, AutoCloseable {
 	}
 	private static final Logger LOG = Logger.getLogger(IuDataSource.class.getName());
 
-	private static final Object CONNECTION_KEY = new Object();
+	private static final ClassLoader CONNECTION_LOADER = Connection.class.getClassLoader();
+	private static final Class<?>[] CONNECTION_INTERFACES = new Class<?>[] { Connection.class };
+
+	private final Object connectionKey = new Object();
 
 	private final IuDataSourceIntegration integration;
 	private final IuConnectionPoolConfiguration config;
@@ -135,7 +138,7 @@ public class IuDataSource implements DataSource, AutoCloseable {
 			}
 		}
 
-		final var activeConnection = (Connection) transactionSynchronizationRegistry.getResource(CONNECTION_KEY);
+		final var activeConnection = (Connection) transactionSynchronizationRegistry.getResource(connectionKey);
 		if (activeConnection != null)
 			return activeConnection;
 
@@ -179,8 +182,8 @@ public class IuDataSource implements DataSource, AutoCloseable {
 				}
 			});
 
-			final var protectedConnection = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
-					new Class<?>[] { Connection.class }, (proxy, method, args) -> {
+			final var protectedConnection = (Connection) Proxy.newProxyInstance(CONNECTION_LOADER,
+					CONNECTION_INTERFACES, (proxy, method, args) -> {
 						switch (method.getName()) {
 						case "close":
 							return null;
@@ -188,7 +191,7 @@ public class IuDataSource implements DataSource, AutoCloseable {
 							return IuException.checkedInvocation(() -> method.invoke(managedConnection, args));
 						}
 					});
-			transactionSynchronizationRegistry.putResource(CONNECTION_KEY, protectedConnection);
+			transactionSynchronizationRegistry.putResource(connectionKey, protectedConnection);
 
 			return protectedConnection;
 		} catch (SQLException | RuntimeException | Error e) {
