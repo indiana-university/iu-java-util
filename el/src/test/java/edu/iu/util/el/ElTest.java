@@ -1,6 +1,5 @@
 package edu.iu.util.el;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,6 +26,76 @@ import jakarta.json.JsonValue;
 public class ElTest {
 
 //	private static final Logger LOG = Logger.getLogger(ElTest.class.getName());
+
+	@Test
+	public void testGetIndexFromFindsChar() {
+		assertEquals(3, El.getIndexFrom("abc*def", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromStartsFromOffset() {
+		assertEquals(7, El.getIndexFrom("abc*def*ghi", '*', 4));
+	}
+
+	@Test
+	public void testGetIndexFromReturnsMinusOneWhenNotFound() {
+		assertEquals(-1, El.getIndexFrom("abcdef", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromReturnsMinusOneWhenBeyondEnd() {
+		assertEquals(-1, El.getIndexFrom("abc*def", '*', 4));
+	}
+
+	@Test
+	public void testGetIndexFromAnyFindsFirstControlChar() {
+		// 'a' at 0, '@' at 3 is first control char
+		assertEquals(3, El.getIndexFrom("abc@def", El.ANY, 0));
+	}
+
+	@Test
+	public void testGetIndexFromSkipsInsideInlineTemplate() {
+		// "<`*`}" — the '*' at index 2 is inside an inline template block; no match at
+		// depth 0
+		assertEquals(-1, El.getIndexFrom("<`*`}", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromSkipsEolComment() {
+		// "<`*`foo" — the '*' at index 2 is inside an inline template block; no match
+		// at depth 0
+		assertEquals(-1, El.getIndexFrom("<`*`foo", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromLeadingTick() {
+		assertEquals(1, El.getIndexFrom("`*", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromLazyTick() {
+		assertEquals(2, El.getIndexFrom("a`*", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromFindsCharAfterInlineTemplate() {
+		// "<`inner`}*" — '*' at index 9 is outside the inline template block
+		assertEquals(9, El.getIndexFrom("<`inner`}*", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromHandlesNestedInlineTemplates() {
+		// "<`<`inner`}`}*rest" — nested templates both close properly; '*' at index 13
+		// is found
+		assertEquals(13, El.getIndexFrom("<`<`inner`}`}*rest", '*', 0));
+	}
+
+	@Test
+	public void testGetIndexFromTerminalBacktickClosesDepth() {
+		// "<`*`" — '`' at end of string is terminal and closes the block; '*' inside is
+		// skipped
+		assertEquals(-1, El.getIndexFrom("<`*`", '*', 0));
+	}
 
 	@Test
 	public void testEmptyExpression() {
@@ -69,143 +138,6 @@ public class ElTest {
 		assertEquals("Hello World", IuJsonAdapter.of(String.class).fromJson(El.eval("<'/el/hello.txt")));
 	}
 
-//	public static class BazBean {
-//
-//		private boolean success;
-//		private String message;
-//
-//		public boolean isSuccess() {
-//			return success;
-//		}
-//
-//		public void setSuccess(boolean success) {
-//			this.success = success;
-//		}
-//
-//		public String getMessage() {
-//			return message;
-//		}
-//
-//		public void setMessage(String message) {
-//			this.message = message;
-//		}
-//	}
-//
-//	public static class ExprTestBean {
-//
-//		private String foo;
-//		private boolean foot;
-//		private boolean foof;
-//		private boolean foob;
-//		private List<String> fooList;
-//		private Map<String, String> fooMap;
-//		private String fool;
-//		private float num;
-//		private Date now;
-//		private BazBean baz;
-//
-//		public String getFoo() {
-//			return foo;
-//		}
-//
-//		public void setFoo(String foo) {
-//			this.foo = foo;
-//		}
-//
-//		public boolean isFoot() {
-//			return foot;
-//		}
-//
-//		public void setFoot(boolean foot) {
-//			this.foot = foot;
-//		}
-//
-//		public boolean isFoof() {
-//			return foof;
-//		}
-//
-//		public void setFoof(boolean foof) {
-//			this.foof = foof;
-//		}
-//
-//		public boolean isFoob() {
-//			return foob;
-//		}
-//
-//		public void setFoob(boolean foob) {
-//			this.foob = foob;
-//		}
-//
-//		public List<String> getFooList() {
-//			return fooList;
-//		}
-//
-//		public void setFooList(List<String> fooList) {
-//			this.fooList = fooList;
-//		}
-//
-//		public Map<String, String> getFooMap() {
-//			return fooMap;
-//		}
-//
-//		public void setFooMap(Map<String, String> fooMap) {
-//			this.fooMap = fooMap;
-//		}
-//
-//		public String getFool() {
-//			return fool;
-//		}
-//
-//		public void setFool(String fool) {
-//			this.fool = fool;
-//		}
-//
-//		public float getNum() {
-//			return num;
-//		}
-//
-//		public void setNum(float num) {
-//			this.num = num;
-//		}
-//
-//		public Date getNow() {
-//			return now;
-//		}
-//
-//		public void setNow(Date now) {
-//			this.now = now;
-//		}
-//
-//		public BazBean getBaz() {
-//			return baz;
-//		}
-//
-//		public void setBaz(BazBean baz) {
-//			this.baz = baz;
-//		}
-//	}
-
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testBean() {
-//		ExprTestBean tb = new ExprTestBean();
-//
-//		tb.setFoo("bar");
-//		assertEquals("bar", El.eval(tb, "$.foo"));
-//
-//		tb.setFooList(Arrays.asList("foo", "bar", "baz"));
-//		assertEquals("bar", El.eval(tb, "$.fooList[1]"));
-//
-//		Map<String, String> fooMap = new LinkedHashMap<>();
-//		fooMap.put("foo", "bar");
-//		fooMap.put("bar", "bam");
-//		fooMap.put("bam", "foo");
-//		tb.setFooMap(fooMap);
-//		assertEquals("bar", El.eval(tb, "$.fooMap[\"foo\"]"));
-//		assertEquals("bam", El.eval(tb, "$.fooMap[$.foo]"));
-//		assertEquals("bar", El.eval(tb, "$.fooMap[$.fooMap[bam]]"));
-//	}
-
 	// Try this test with a JsonObject instead of ExprTestBean
 	@Test
 	public void testBean() {
@@ -230,162 +162,23 @@ public class ElTest {
 //		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooMap[$.fooMap[bam]]")));
 	}
 
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testIntrospect() {
-//		ExprTestBean tb = new ExprTestBean();
-//		tb.setFoo("bar");
-//
-//		Map<String, Object> im = El.eval(tb, "@$&");
-//		LOG.info("im: " + im);
-//		assertEquals("bar", im.get("foo"));
-//		assertEquals(10, im.size());
-//		assertFalse(im.keySet().contains("class"));
-//		assertTrue(im.keySet().contains("fool"));
-//
-//		im = El.eval("@e&");
-//		LOG.info("im: " + im);
-//		assertEquals(2, im.size());
-//		assertFalse(im.keySet().contains("class"));
-//		assertTrue(im.keySet().contains("applicationUrl"));
-//		assertEquals("sisjee", im.get("applicationName"));
-//	}
+	@Test
+	public void testJsonPointer() {
+		final var context = Json.createObjectBuilder() //
+				.add("foo", Json.createObjectBuilder() //
+						.add("bar", Json.createArrayBuilder().add("baz").add("bim"))) //
+				.add("array", Json.createArrayBuilder().add("first").add("second")) //
+				.add("a/b", "slash") //
+				.add("m~n", "tilde") //
+				.build();
 
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testConditional() {
-//		ExprTestBean tb = new ExprTestBean();
-//		tb.setFoof(true);
-//		assertEquals("bar", El.eval(tb, "$.foof?'bar!'foo"));
-//		assertEquals("bar", El.eval(tb, "$.foob?'baz!$.foof?'bar!'foo"));
-//	}
-//
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testTemplate() {
-//		ExprTestBean tb = new ExprTestBean();
-//		assertEquals("Here it is ", El.eval(tb, "<'el/testTemplate"));
-//
-//		BazBean baz = new BazBean();
-//		tb.setBaz(baz);
-//		assertEquals("Here it is a failure !", El.eval(tb, "<'el/testTemplate"));
-//
-//		baz.setMessage("to communicate");
-//		assertEquals("Here it is a failure to communicate!", El.eval(tb, "<'el/testTemplate"));
-//
-//		baz.setSuccess(true);
-//		baz.setMessage("- hooray");
-//		assertEquals("Here it is a success - hooray!", El.eval(tb, "<'el/testTemplate"));
-//	}
-//	
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testInlineTemplate() {
-//		String expr = "<`Here it is {$.baz?_<`a {$.success?'success!'`failure} {$.message}!`}`";
-//		ExprTestBean tb = new ExprTestBean();
-//		assertEquals("Here it is ", El.eval(tb, expr));
-//
-//		BazBean baz = new BazBean();
-//		tb.setBaz(baz);
-//		assertEquals("Here it is a `failure !", El.eval(tb, expr));
-//
-//		baz.setMessage("to communicate");
-//		assertEquals("Here it is a `failure to communicate!", El.eval(tb, expr));
-//
-//		baz.setSuccess(true);
-//		baz.setMessage("- hooray");
-//		assertEquals("Here it is a success - hooray!", El.eval(tb, expr));
-//	}
-//
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testFormat() {
-//		ExprTestBean tb = new ExprTestBean();
-//		tb.setNum(3.45f);
-//		assertEquals("3.450", El.eval(tb, "$.num##.000"));
-//		assertEquals("3.45", El.eval(tb, "$.num##.###"));
-//		tb.setNum(3.456f);
-//		assertEquals("3.456", El.eval(tb, "$.num##.###"));
-//		tb.setNum(3.456f);
-//		assertEquals("003.46", El.eval(tb, "$.num#000.00"));
-//
-//		Date now = new Date();
-//		tb.setNow(now);
-//		assertEquals(new SimpleDateFormat("MM/dd/yyyy HH:mm").format(now), El.eval(tb, "$.now#MM/dd/yyyy HH:mm"));
-//	}
-//
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testMatch() {
-//		ExprTestBean tb = new ExprTestBean();
-//
-//		tb.setFoo("bar");
-//		assertEquals(true, El.eval(tb, "$.foo='bar"));
-//
-//		tb.setNum(12.34f);
-//		assertEquals(true, El.eval(tb, "$.num='12.34"));
-//	}
-//
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testList() {
-//		ExprTestBean tb = new ExprTestBean();
-//
-//		tb.setFooList(Arrays.asList("foo", "bar", "baz"));
-//		assertEquals(tb.getFooList(), El.eval(tb, "@$.fooList"));
-//		assertEquals("[foo, bar, baz]", El.eval(tb, "$.fooList"));
-//		assertEquals("foo,bar,baz", El.eval(tb, "$.fooList<'el/-list"));
-//		assertEquals(" 0: foo\r\n 1: bar\r\n 2: baz", El.eval(tb, "$.fooList<'el/-hash"));
-//	}
-//
-//	@Ignore // TODO: REMOVE
-//	@Test
-//	public void testMap() {
-//		ExprTestBean tb = new ExprTestBean();
-//		Map<String, String> fooMap = new LinkedHashMap<>();
-//		fooMap.put("foo", "bar");
-//		fooMap.put("baz", "bif");
-//		fooMap.put("bim", "bam");
-//		tb.setFooMap(fooMap);
-//		assertEquals(" foo: bar\r\n baz: bif\r\n bim: bam", El.eval(tb, "$.fooMap<'el/-hash"));
-//	}
-//
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testTemplateExpr() {
-//		ExprTestBean tb = new ExprTestBean();
-//		tb.setFool("el/-list");
-//		tb.setFooList(Arrays.asList("foo", "bar", "baz"));
-//		assertEquals("foo,bar,baz", El.eval(tb, "$.fooList<p.$.fool"));
-//	}
+		assertEquals("bim", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$./foo/bar/1")));
+		assertEquals("second", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.array./1")));
+		assertEquals("second", IuJsonAdapter.of(String.class).fromJson(El.eval(context.getJsonArray("array"), "$./1")));
+		assertEquals("slash", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$./a~1b")));
+		assertEquals("tilde", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$./m~0n")));
+	}
 
-// TODO: try using these tests with a JsonObject instead of ExprTestBean if it makes sense
-	// Otherwise, keep working on covering everything either in the Json test or
-	// create separate tests for each case
-//	@Ignore // TODO: REMOVE or allow beans in El.eval
-//	@Test
-//	public void testList() {
-//		ExprTestBean tb = new ExprTestBean();
-//
-//		tb.setFooList(Arrays.asList("foo", "bar", "baz"));
-//		assertEquals(tb.getFooList(), El.eval(tb, "@$.fooList"));
-//		assertEquals("[foo, bar, baz]", El.eval(tb, "$.fooList"));
-//		assertEquals("foo,bar,baz", El.eval(tb, "$.fooList<'el/-list"));
-//		assertEquals(" 0: foo\r\n 1: bar\r\n 2: baz", El.eval(tb, "$.fooList<'el/-hash"));
-//	}
-//
-//	@Ignore // TODO: REMOVE
-//	@Test
-//	public void testMap() {
-//		ExprTestBean tb = new ExprTestBean();
-//		Map<String, String> fooMap = new LinkedHashMap<>();
-//		fooMap.put("foo", "bar");
-//		fooMap.put("baz", "bif");
-//		fooMap.put("bim", "bam");
-//		tb.setFooMap(fooMap);
-//		assertEquals(" foo: bar\r\n baz: bif\r\n bim: bam", El.eval(tb, "$.fooMap<'el/-hash"));
-//	}
-//
 	@Test
 	public void testTemplateExpr() {
 		JsonObjectBuilder b = Json.createObjectBuilder();
@@ -527,6 +320,14 @@ public class ElTest {
 	}
 
 	@Test
+	public void testTemplateExprExpectedObjectOrArrayPointer() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("fool", "el/-list");
+		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "_./fool"));
+		assertEquals("expected object or array for null", err.getMessage());
+	}
+
+	@Test
 	public void testJson() {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("foo", "bar");
@@ -596,27 +397,20 @@ public class ElTest {
 	}
 
 	@Test
-	public void testElDefault() {
-		assertDoesNotThrow(() -> new El());
-	}
-
-	@Test
 	public void testIfConditional() {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("foo", true);
 		b.add("baz", false);
 		b.add("bim", "bam");
-		b.add("bum", JsonValue.NULL);
+		b.add("zero", 0);
 		final var context = b.build();
 		assertEquals("foo is true", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo?'foo is true")));
 		assertEquals("foo is true",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo?'foo is true!'foo is false")));
-		// TODO: if we decide JsonValue.NULL is false, this should move to
-		// testUnlessConditional
-		assertEquals("bum is true",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
 		assertEquals("bim exists",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bim?'bim exists!'bim does not exist")));
+		assertEquals("zero is false",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero?'zero is true!'zero is false")));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.baz?'baz is true"));
 		assertEquals(JsonValue.TRUE, El.eval(context, "$.foo!'foo is false"));
 		assertNull(El.eval("$?'no context"));
@@ -629,10 +423,15 @@ public class ElTest {
 		b.add("baz", false);
 		b.add("bim", "bam");
 		b.add("bum", JsonValue.NULL);
+		b.add("zero", 0);
 		final var context = b.build();
 		assertEquals("baz is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz?'baz is true!'baz is false")));
 		assertEquals("baz is false", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz!'baz is false")));
+		assertEquals("bum is false",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
+		assertEquals("zero is false",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero!'zero is false")));
 		assertEquals("bif is null",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bif?'bif is not null!'bif is null")));
 		assertEquals("bif is null", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bif!'bif is null")));

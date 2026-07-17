@@ -260,7 +260,8 @@ public class JsonPointerTest {
 	public void testReplacesubLevelObjectEmptyStringValueWithStringValue() {
 		final var pointer = Json.createPointer("/foo/");
 		final var json = Json.createObjectBuilder().add("foo", Json.createObjectBuilder().add("", "bar")).build();
-		final var expectedJson = Json.createObjectBuilder().add("foo", Json.createObjectBuilder().add("", "qux")).build();
+		final var expectedJson = Json.createObjectBuilder().add("foo", Json.createObjectBuilder().add("", "qux"))
+				.build();
 		final var value = Json.createValue("qux");
 		assertEquals(expectedJson, pointer.replace(json, value));
 	}
@@ -399,8 +400,8 @@ public class JsonPointerTest {
 	public void testAddReplaceTopLevelArrayValueNoIndex() {
 		final var pointer = Json.createPointer("/foo/");
 		final var json = Json.createObjectBuilder().add("foo", Json.createArrayBuilder().add("bar").add("baz")).build();
-		final var expectedJson = Json.createObjectBuilder()
-				.add("foo", Json.createArrayBuilder().add("bar").add("baz").add("qux")).build();
+//		final var expectedJson = Json.createObjectBuilder()
+//				.add("foo", Json.createArrayBuilder().add("bar").add("baz").add("qux")).build();
 		final var value = Json.createValue("qux");
 		assertEquals("Array index format error, was ''",
 				assertThrows(JsonException.class, () -> pointer.add(json, value)).getMessage());

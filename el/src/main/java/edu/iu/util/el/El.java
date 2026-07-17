@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.LinkedList;
 
+import edu.iu.client.IuJson;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
@@ -18,20 +19,49 @@ import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 /**
- * Tiny expression/template language for building thin view templates based on
- * module resources.
- * 
- * @author Mark Fyffe
- * @version 6.0
- * @since 5.4
+ * Evaluates a compact expression and template language over Jakarta JSON
+ * values. It is intended for thin views whose templates are stored as module or
+ * class-path resources.
+ *
+ * <p>
+ * Expressions start with a context symbol and may be followed by path elements
+ * and postfix operations. Supported expression features include:
+ * </p>
+ * <ul>
+ * <li>{@code $} selects the current JSON context, {@code root} selects the
+ * original context, {@code _} selects the previous expression result, and
+ * {@code p.} evaluates a path against the parent template context.</li>
+ * <li>{@code i}, {@code head}, and {@code tail} expose an array item's index,
+ * whether it is the first item, and whether it is not the first item while a
+ * template is iterating an array.</li>
+ * <li>Dot-separated path elements select object members or array indexes. A
+ * path element beginning with {@code /} is evaluated as a JSON Pointer; for
+ * example, {@code $./items/0/name}.</li>
+ * <li>{@code '} quotes the rest of an expression as text, {@code *} starts a
+ * comment, and {@code @} returns raw text. Atomic results are HTML-escaped by
+ * default.</li>
+ * <li>{@code ?} evaluates its following expression when the current value is
+ * truthy, and {@code !} evaluates its following expression when the value is
+ * falsey. The two may be combined as {@code condition?ifTrue!ifFalse}. Missing
+ * values, JSON null, false, and numbers whose integer value is zero are
+ * falsey.</li>
+ * <li>{@code =} compares the current value with the following expression.</li>
+ * <li>{@code #} formats numbers with a {@link DecimalFormat} pattern and ISO
+ * instant strings with a {@link SimpleDateFormat} pattern.</li>
+ * </ul>
+ *
+ * <p>
+ * {@code <} applies a template whose resource path is produced by the following
+ * expression. Resource paths may be absolute or relative to the containing
+ * template. A template contains expressions in braces, such as
+ * {@code {$.name}}; prefixing an opening brace with {@code \} leaves it as
+ * literal text. Applying a template to an array renders it once per item and
+ * makes the iteration symbols above available. An inline template is delimited
+ * by backticks after {@code <}, for example {@code <`Hello {$.name}`}. Nested
+ * resource and inline templates are supported.
+ * </p>
  */
-public class El {
-
-	/**
-	 * Default constructor
-	 */
-	El() {
-	}
+public final class El {
 
 	private static final ThreadLocal<DecimalFormat> DECIMAL_FMT = new ThreadLocal<DecimalFormat>() {
 		@Override
@@ -75,7 +105,28 @@ public class El {
 		Arrays.sort(CONTROL_CHARS);
 	}
 
-	private static int elIndiceDe(String s, char c, int from) {
+	private El() {
+	}
+
+	/**
+	 * Finds the index of a character in a string, starting from a given position,
+	 * while skipping over inline template blocks ({@code <`...`}}).
+	 *
+	 * <p>
+	 * Inline template blocks delimited by {@code <`} and {@code `}} (or a terminal
+	 * {@code `}) are skipped; nesting is tracked so that only characters at depth 0
+	 * are considered when searching.
+	 * </p>
+	 *
+	 * @param s    the string to search
+	 * @param c    the character to search for, or {@link #ANY} ({@code '\0'}) to
+	 *             match the first occurrence of any {@link #CONTROL_CHARS control
+	 *             character}
+	 * @param from the index to start searching from (inclusive)
+	 * @return the index of the first matching character at depth 0, or {@code -1}
+	 *         if not found
+	 */
+	static int getIndexFrom(String s, char c, int from) {
 		boolean any = c == ANY;
 		int l = s.length();
 		int depth = 0;
@@ -95,7 +146,9 @@ public class El {
 					return i;
 			} else if (n == c)
 				return i;
-			else if (n == '`' && i > 0 && s.charAt(i - 1) == '<')
+			else if (n == '`' //
+					&& i > 0 //
+					&& s.charAt(i - 1) == '<')
 				depth++;
 		}
 		return -1;
@@ -141,7 +194,7 @@ public class El {
 				break;
 
 			case '\'': // quote
-				int commentPos = elIndiceDe(etail, '*', 1);
+				int commentPos = getIndexFrom(etail, '*', 1);
 				if (commentPos == -1)
 					evalContext.setResult(Json.createValue(etail.substring(1)));
 				else if (etail.charAt(commentPos - 1) == ESC_TOKEN)
@@ -180,12 +233,14 @@ public class El {
 				evalContext.setPositionAtEnd();
 				break;
 
-			case '?': // if conditional
-				JsonValue cval = evalContext.getResult();
-				int unlessPos = elIndiceDe(etail, '!', 1);
-				// TODO: should JsonValue.NULL be considered as false?
-				boolean cond = cval != null //
-						&& !JsonValue.FALSE.equals(cval);
+			case '?': { // if conditional
+				final var cval = evalContext.getResult();
+				final var unlessPos = getIndexFrom(etail, '!', 1);
+				final var cond = cval != null //
+						&& !((cval instanceof JsonNumber n) //
+								&& n.intValue() == 0) //
+						&& !JsonValue.FALSE.equals(cval) //
+						&& !JsonValue.NULL.equals(cval);
 				if (cond) {
 					final var trueCondExprToEval = unlessPos == -1 ? etail.substring(1) : etail.substring(1, unlessPos);
 					evalStack.push(new ElContext(evalContext, trueCondExprToEval));
@@ -196,24 +251,30 @@ public class El {
 				}
 				evalContext.advancePosition(unlessPos);
 				break;
+			}
 
-			case '!': // unless conditional
-				cval = evalContext.getResult();
+			case '!': { // unless conditional
+				final var cval = evalContext.getResult();
 				if (cval == null //
-						|| JsonValue.FALSE.equals(cval))
+						|| ((cval instanceof JsonNumber n) //
+								&& n.intValue() == 0) //
+						|| JsonValue.FALSE.equals(cval) //
+						|| JsonValue.NULL.equals(cval))
 					evalStack.push(new ElContext(evalContext, etail.substring(1)));
 				evalContext.setPositionAtEnd();
 				continue;
+			}
 
-			case '=': // equals match
+			case '=': { // equals match
 				ElContext melc = new ElContext(evalContext, etail.substring(1));
 				melc.setMatchResult(evalContext.getResult());
 				evalStack.push(melc);
 				evalContext.setPositionAtEnd();
 				continue;
+			}
 
-			case '#': // format
-				cval = evalContext.getResult();
+			case '#': { // format
+				final var cval = evalContext.getResult();
 				if (cval instanceof JsonNumber) {
 					DecimalFormat df = DECIMAL_FMT.get();
 					df.applyPattern(etail.substring(1));
@@ -235,8 +296,9 @@ public class El {
 				}
 				evalContext.setPositionAtEnd();
 				break;
+			}
 
-			case 'p':
+			case 'p': {
 				if (etail.length() < 2 //
 						|| etail.charAt(1) != '.') {
 					throw new IllegalArgumentException("expected '.' after 'p'");
@@ -254,8 +316,10 @@ public class El {
 				evalStack.push(evalContext);
 				evalStack.push(parentPathContext);
 				continue;
+			}
+
 			default:
-				int npos = elIndiceDe(etail, ANY, pos);
+				int npos = getIndexFrom(etail, ANY, pos);
 				if (npos == -1)
 					npos = etail.length();
 
@@ -305,12 +369,22 @@ public class El {
 					else
 						pathElement = path.substring(dot + 1, nextDot);
 
-					if (selected instanceof JsonArray)
-						selected = selected.asJsonArray().get(Integer.parseInt(pathElement));
-					else if (selected instanceof JsonObject)
-						selected = selected.asJsonObject().get(pathElement);
-					else
-						throw new IllegalArgumentException("expected object or array for " + selected);
+					if (pathElement.startsWith("/")) {
+						final var pointer = IuJson.PROVIDER.createPointer(pathElement);
+						if (selected instanceof JsonObject)
+							selected = pointer.getValue(selected.asJsonObject());
+						else if (selected instanceof JsonArray)
+							selected = pointer.getValue(selected.asJsonArray());
+						else
+							throw new IllegalArgumentException("expected object or array for " + selected);
+					} else {
+						if (selected instanceof JsonArray)
+							selected = selected.asJsonArray().get(Integer.parseInt(pathElement));
+						else if (selected instanceof JsonObject)
+							selected = selected.asJsonObject().get(pathElement);
+						else
+							throw new IllegalArgumentException("expected object or array for " + selected);
+					}
 
 					dot = nextDot;
 				}
