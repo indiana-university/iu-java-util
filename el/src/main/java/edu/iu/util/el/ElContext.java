@@ -1,21 +1,16 @@
 package edu.iu.util.el;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import java.util.Objects;
+import java.util.function.Function;
 
 import org.apache.commons.text.StringEscapeUtils;
 
-import edu.iu.IuStream;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
@@ -26,8 +21,6 @@ import jakarta.json.JsonValue;
  * Evaluation context for EL expressions.
  */
 public class ElContext {
-
-	private static final Logger LOG = Logger.getLogger(ElContext.class.getName());
 
 	private static char START_TOKEN = '{';
 	private static char TEMPLATE_TOKEN = '<';
@@ -292,10 +285,11 @@ public class ElContext {
 	/**
 	 * Process the current context to either get a result or setup a template.
 	 * 
-	 * @param evalStack the current evaluation stack. If a template is found, a new
-	 *                  context(s) is/are pushed onto the stack.
+	 * @param evalStack    the current evaluation stack. If a template is found, a
+	 *                     new context(s) is/are pushed onto the stack.
+	 * @param readResource template resource evaluation function
 	 */
-	void postProcessResult(Deque<ElContext> evalStack) {
+	void postProcessResult(Deque<ElContext> evalStack, Function<String, String> readResource) {
 		if (template)
 			result = Json.createValue(templateBuffer.toString());
 
@@ -322,7 +316,7 @@ public class ElContext {
 		if (parent != null //
 				&& parent.template)
 			if (insertPoint == -1) // template name expression
-				parent.setupTemplate(resultText, evalStack);
+				parent.setupTemplate(resultText, evalStack, readResource);
 			else
 				parent.templateBuffer.insert(insertPoint, resultText);
 	}
@@ -344,13 +338,7 @@ public class ElContext {
 		this.raw = true;
 	}
 
-	/**
-	 * Prepares the template for evaluation.
-	 * 
-	 * @param path
-	 * @param evalStack
-	 */
-	private void setupTemplate(String path, Deque<ElContext> evalStack) {
+	private void setupTemplate(String path, Deque<ElContext> evalStack, Function<String, String> readResource) {
 		String resourcePath = path;
 		boolean inline = resourcePath.length() > 1 //
 				&& resourcePath.charAt(0) == '`' //
@@ -390,17 +378,10 @@ public class ElContext {
 			if (inline)
 				template = new Template(resourcePath.substring(1, resourcePath.length() - 1));
 			else {
-				URL rurl = Thread.currentThread().getContextClassLoader().getResource(resourcePath);
-				if (rurl == null) {
-					LOG.fine(() -> "Resource " + templatePath + " (" + path + ") not found");
-					throw new IllegalArgumentException(resourcePath);
-				}
-
-				try (InputStream is = rurl.openStream(); Reader r = new InputStreamReader(is)) {
-					templateCache.put(templatePath, template = new Template(IuStream.read(r)));
-				} catch (IOException e) {
-					throw new IllegalStateException(e);
-				}
+				final var resourceContent = Objects.requireNonNull(
+						Objects.requireNonNull(readResource, "missing readResource function").apply(resourcePath),
+						"missing resource content " + resourcePath);
+				templateCache.put(templatePath, template = new Template(resourceContent));
 			}
 
 		templateBuffer = new StringBuilder();

@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.function.Function;
 
 import edu.iu.client.IuJson;
 import jakarta.json.Json;
@@ -173,6 +174,24 @@ public final class El {
 	 *         given context
 	 */
 	public static JsonValue eval(JsonValue context, String expr) {
+		return eval(context, expr, null);
+	}
+
+	/**
+	 * Evaluate an expression within a given context.
+	 * 
+	 * @param context      context within which to evaluate the expression
+	 * @param expr         the expression to evaluate
+	 * @param readResource resource evaluation function; SHOULD map strictly to a
+	 *                     least-privilege set of preloaded template resources. Note
+	 *                     that this utility performs no verification of resource
+	 *                     names, e.g., to prevent path traversal. The caller is
+	 *                     responsible for sanitizing template names before using to
+	 *                     locate a file or hosted resource.
+	 * @return {@link JsonValue} representation of the input expression within the
+	 *         given context
+	 */
+	public static JsonValue eval(JsonValue context, String expr, Function<String, String> readResource) {
 		ElContext evalContext = new ElContext(null, false, null, context, expr);
 		Deque<ElContext> evalStack = new LinkedList<>();
 		evalStack.push(evalContext);
@@ -180,7 +199,7 @@ public final class El {
 		while (!evalStack.isEmpty()) {
 			evalContext = evalStack.pop();
 			if (evalContext.isEmpty()) {
-				evalContext.postProcessResult(evalStack);
+				evalContext.postProcessResult(evalStack, readResource);
 				continue;
 			}
 

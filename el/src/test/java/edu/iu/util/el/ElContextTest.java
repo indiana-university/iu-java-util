@@ -4,11 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayDeque;
-import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
-import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
 
@@ -55,7 +53,7 @@ public class ElContextTest {
 		evalStack.push(parentContext2);
 		templateContext.setResult(Json.createValue("`{_} {_}`"));
 		templateContext.setPositionAtEnd();
-		templateContext.postProcessResult(evalStack);
+		templateContext.postProcessResult(evalStack, null);
 		assertEquals("EL expression \"`{_} {_}`\" at 9: \" {_}`[]\"\n" + //
 				"Parent EL expression \"$.foo<`{_} {_}`\" at 15: \" {_}`[]\"\n   in `{_} {_}` = \" \"",
 				templateContext.toString());
@@ -79,7 +77,7 @@ public class ElContextTest {
 		evalStack2.push(parentContext3);
 		templateContext3.setResult(Json.createValue("``"));
 		templateContext3.setPositionAtEnd();
-		templateContext3.postProcessResult(evalStack2);
+		templateContext3.postProcessResult(evalStack2, null);
 		assertEquals(
 				"EL expression \"``\" at 2: \"``[]\"\nParent EL expression \"$.foo<``\" at 8: \"oo<``[]\"\n   in `` = \"\"",
 				templateContext3.toString());
@@ -105,7 +103,7 @@ public class ElContextTest {
 		evalStack.push(parentContext);
 		templateContext.setResult(Json.createValue("`\\{{_}\\}`"));
 		templateContext.setPositionAtEnd();
-		templateContext.postProcessResult(evalStack);
+		templateContext.postProcessResult(evalStack, null);
 		assertEquals("EL expression \"`\\{{_}\\}`\" at 9: \"_}\\}`[]\"\n" + //
 				"Parent EL expression \"$.foo<`\\{{_}\\}`\" at 15: \"_}\\}`[]\"\n   in `\\{{_}\\}` = \"{\\}\"",
 				templateContext.toString());
@@ -130,7 +128,7 @@ public class ElContextTest {
 		evalStack2.push(parentContext2);
 		templateContext2.setResult(Json.createValue("`${baz}`"));
 		templateContext2.setPositionAtEnd();
-		templateContext2.postProcessResult(evalStack2);
+		templateContext2.postProcessResult(evalStack2, null);
 		assertEquals("EL expression \"`${baz}`\" at 8: \"baz}`[]\"\n" + //
 				"Parent EL expression \"$.foo<`${baz}`\" at 14: \"baz}`[]\"\n   in `${baz}` = \"${baz}\"",
 				templateContext2.toString());
@@ -157,7 +155,7 @@ public class ElContextTest {
 		templateContext.setResult(Json.createValue("`{_`"));
 		templateContext.setPositionAtEnd();
 		assertEquals("Missing end token '`}': {_",
-				assertThrows(IllegalStateException.class, () -> templateContext.postProcessResult(evalStack))
+				assertThrows(IllegalStateException.class, () -> templateContext.postProcessResult(evalStack, null))
 						.getMessage());
 	}
 
@@ -185,7 +183,6 @@ public class ElContextTest {
 
 	@Test
 	public void testUnclosedInlineTemplate() {
-		IuTestLogger.expect("edu.iu.util.el.ElContext", Level.FINE, "Resource `{_} (`{_}) not found");
 		JsonObjectBuilder p = Json.createObjectBuilder();
 		p.add("foo", "bar");
 		p.add("baz", "bif");
@@ -202,7 +199,10 @@ public class ElContextTest {
 		templateContext.setResult(Json.createValue("`{_}"));
 		templateContext.setPositionAtEnd();
 		assertEquals("`{_}",
-				assertThrows(IllegalArgumentException.class, () -> templateContext.postProcessResult(evalStack))
+				assertThrows(IllegalArgumentException.class,
+						() -> templateContext.postProcessResult(evalStack, resource -> {
+							throw new IllegalArgumentException(resource);
+						}))
 						.getMessage());
 	}
 
