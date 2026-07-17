@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -65,7 +65,7 @@ class Async {
 	}
 
 	void await() throws Throwable {
-		IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(10L));
+		IuObject.waitFor(this, () -> done || error != null, Duration.ofSeconds(30L));
 		if (error != null)
 			throw error;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
@@ -362,6 +363,28 @@ public class WebCryptoHeaderTest extends IuCryptApiTestCase {
 					.thenReturn(new X509Certificate[] { cert });
 			assertDoesNotThrow(() -> WebCryptoHeader.verify(header));
 			verify(keyBuilder).cert(cert);
+		}
+	}
+
+	@Test
+	public void testIsEncrypted() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ECDH_ES);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class, CALLS_REAL_METHODS)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			assertTrue(WebCryptoHeader.isEncrypted(token));
+		}
+	}
+
+	@Test
+	public void testIsNotEncrypted() {
+		final var token = IdGenerator.generateId();
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ES256);
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class, CALLS_REAL_METHODS)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(token)).thenReturn(header);
+			assertFalse(WebCryptoHeader.isEncrypted(token));
 		}
 	}
 

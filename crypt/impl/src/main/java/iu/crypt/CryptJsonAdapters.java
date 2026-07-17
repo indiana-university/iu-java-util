@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -48,6 +48,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
+import edu.iu.crypt.X509CertificateAuthority;
 import jakarta.json.JsonString;
 
 /**
@@ -67,7 +68,9 @@ public class CryptJsonAdapters {
 	/**
 	 * JSON type adapter for {@link BigInteger}, as unsigned big-endian binary data
 	 * encoded as {@link #B64URL}.
-	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc7518#section-2">RFC 7518 Section 2: Base64urlUInt</a>
+	 * 
+	 * @see <a href="https://datatracker.ietf.org/doc/html/rfc7518#section-2">RFC
+	 *      7518 Section 2: Base64urlUInt</a>
 	 */
 	public static final IuJsonAdapter<BigInteger> BIGINT = IuJsonAdapter.text(
 			v -> UnsignedBigInteger.bigInt(IuText.base64Url(v)), v -> IuText.base64Url(UnsignedBigInteger.bigInt(v)));
@@ -114,6 +117,48 @@ public class CryptJsonAdapters {
 		final var o = IuJson.object();
 		((Jwk) v).serializeTo(o);
 		return o.build();
+	});
+
+	/**
+	 * JSON type adapter for {@link X509CertificateAuthority}.
+	 */
+	public static final IuJsonAdapter<X509CertificateAuthority> CA = IuJsonAdapter.from(v -> {
+		if (v == null)
+			return null;
+
+		final var x509Json = v.asJsonObject();
+		return new X509CertificateAuthority() {
+
+			@Override
+			public WebKey getJwk() {
+				return IuJson.get(x509Json, "jwk", WEBKEY);
+			}
+
+			@Override
+			public byte[] getDatabase() {
+				return IuJson.get(x509Json, "database", B64URL);
+			}
+
+			@Override
+			public Iterable<X509Certificate> getCertificates() {
+				return IuJson.get(x509Json, "certificates", IuJsonAdapter.of(Iterable.class, CERT));
+			}
+
+			@Override
+			public Iterable<X509CRL> getCrl() {
+				return IuJson.get(x509Json, "crl", IuJsonAdapter.of(Iterable.class, CRL));
+			}
+		};
+	}, v -> {
+		if (v == null)
+			return null;
+
+		final var x509Json = IuJson.object();
+		IuJson.add(x509Json, "jwk", v::getJwk, WEBKEY);
+		IuJson.add(x509Json, "database", v::getDatabase, B64URL);
+		IuJson.add(x509Json, "certificates", v::getCertificates, IuJsonAdapter.of(Iterable.class, CERT));
+		IuJson.add(x509Json, "crl", v::getCrl, IuJsonAdapter.of(Iterable.class, CRL));
+		return x509Json.build();
 	});
 
 	/**

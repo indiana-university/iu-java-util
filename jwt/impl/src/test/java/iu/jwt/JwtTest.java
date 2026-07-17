@@ -1,0 +1,550 @@
+/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * 
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * 
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package iu.jwt;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+
+import java.lang.reflect.Type;
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.logging.Level;
+
+import javax.crypto.AEADBadTagException;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import edu.iu.IdGenerator;
+import edu.iu.IuDigest;
+import edu.iu.IuException;
+import edu.iu.IuIterable;
+import edu.iu.IuProcess;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.config.IuConfig;
+import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.WebSignedPayload;
+import edu.iu.crypt.X500Utils;
+import edu.iu.jwt.IuAuthorizationDetails;
+import edu.iu.test.IuTestLogger;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+
+@SuppressWarnings("javadoc")
+public class JwtTest {
+
+	interface Details extends IuAuthorizationDetails {
+	}
+
+	static {
+		IuConfig.registerInterface(Details.class);
+	}
+
+	@BeforeEach
+	void setup() {
+		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
+	}
+
+	@Test
+	public void testAdaptNonClass() {
+		final var type = mock(Type.class);
+		final var adapter = mock(IuJsonAdapter.class);
+		try (final var mockConfig = mockStatic(IuConfig.class)) {
+			mockConfig.when(() -> IuConfig.adaptJson(type)).thenReturn(adapter);
+			assertEquals(adapter, Jwt.adapt(type));
+		}
+	}
+
+	@Test
+	public void testNumericDate() {
+		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		final var jnow = Jwt.NUMERIC_DATE.toJson(now);
+		assertEquals(now.getEpochSecond(), assertInstanceOf(JsonNumber.class, jnow).longValue());
+		assertEquals(now, Jwt.NUMERIC_DATE.fromJson(IuJson.number(now.getEpochSecond())));
+	}
+
+	@Test
+	public void testNullProperties() {
+		final var jwt = new Jwt(IuJson.object().build());
+		assertNull(jwt.getTokenId());
+		assertNull(jwt.getIssuer());
+		assertNull(jwt.getSubject());
+		assertNull(jwt.getAudience());
+		assertNull(jwt.getIssuedAt());
+		assertNull(jwt.getNotBefore());
+		assertNull(jwt.getExpires());
+		assertNull(jwt.getNonce());
+		assertNull(jwt.getScope());
+
+		final var type = IdGenerator.generateId();
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertFalse(details.iterator().hasNext());
+
+		assertFalse(jwt.isExpired());
+	}
+
+	@Test
+	public void testNonNullProperties() {
+		final var tokenId = IdGenerator.generateId();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var notBefore = issuedAt.minusSeconds(30L);
+		final var expires = issuedAt.plusSeconds(30L);
+		final var nonce = IdGenerator.generateId();
+		final var scope = IdGenerator.generateId();
+		final var type = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("jti", tokenId) //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("nbf", notBefore.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("nonce", nonce) //
+				.add("scope", scope) //
+				.add("authorization_details", IuJson.array().add(IuJson.object().add("type", type))) //
+				.build());
+
+		assertEquals(tokenId, jwt.getTokenId());
+		assertEquals(issuer, jwt.getIssuer());
+		assertEquals(subject, jwt.getSubject());
+		assertTrue(IuIterable.remaindersAreEqual(IuIterable.iter(audience).iterator(), jwt.getAudience().iterator()));
+		assertEquals(issuedAt.truncatedTo(ChronoUnit.SECONDS), jwt.getIssuedAt());
+		assertEquals(notBefore.truncatedTo(ChronoUnit.SECONDS), jwt.getNotBefore());
+		assertEquals(expires.truncatedTo(ChronoUnit.SECONDS), jwt.getExpires());
+		assertEquals(nonce, jwt.getNonce());
+		assertEquals(scope, jwt.getScope());
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertInstanceOf(Details.class, details.iterator().next());
+
+		assertFalse(jwt.isExpired());
+	}
+
+	@Test
+	public void testIssueAt() {
+		final var issuedAt = Instant.now().plusSeconds(30L);
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> new Jwt(IuJson.object().add("iat", issuedAt.getEpochSecond()).build()));
+		assertEquals("Token iat claim must be no more than PT15S in the future", error.getMessage());
+	}
+
+	@Test
+	public void testExpired() {
+		final var expires = Instant.now().minusSeconds(30L);
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> new Jwt(IuJson.object().add("exp", expires.getEpochSecond()).build()));
+		assertEquals("Token is expired", error.getMessage());
+	}
+
+	@Test
+	public void testNotBefore() {
+		final var notBefore = Instant.now().plusSeconds(30L);
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> new Jwt(IuJson.object().add("nbf", notBefore.getEpochSecond()).build()));
+		assertEquals("Token nbf claim must be no more than PT15S in the future", error.getMessage());
+	}
+
+	@Test
+	public void testHashCodeEquals() {
+		final var claims1 = mock(JsonObject.class);
+		final var jwt1 = new Jwt(claims1);
+		assertEquals(jwt1.hashCode(), claims1.hashCode());
+		assertEquals(jwt1, jwt1);
+		assertNotEquals(jwt1, new Object());
+
+		final var claims2 = mock(JsonObject.class);
+		final var jwt2 = new Jwt(claims2);
+		assertNotEquals(jwt1, jwt2);
+		assertNotEquals(jwt2, jwt1);
+	}
+
+	@Test
+	public void testToString() {
+		final var tokenId = IdGenerator.generateId();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var notBefore = issuedAt.minusSeconds(30L);
+		final var expires = issuedAt.plusSeconds(30L);
+		final var nonce = IdGenerator.generateId();
+
+		final var claims = IuJson.object() //
+				.add("jti", tokenId) //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("nbf", notBefore.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("nonce", nonce).build();
+
+		final var jwt = new Jwt(claims);
+		assertNotEquals(jwt.toString(), claims.toString()); // pretty-printed
+		assertEquals(claims, IuJson.parse(jwt.toString()));
+	}
+
+	@Test
+	public void testSignAndVerify() {
+		final var tokenId = IdGenerator.generateId();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var notBefore = issuedAt.minusSeconds(30L);
+		final var expires = issuedAt.plusSeconds(30L);
+		final var nonce = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("jti", tokenId) //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("nbf", notBefore.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("nonce", nonce).build());
+		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
+		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
+		assertEquals(jwt, Jwt.verify(signed, issuerKey));
+
+		final var jws = WebSignedPayload.parse(signed);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertNull(header.getKeyId());
+		assertNull(header.getCertificateThumbprint());
+
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> Jwt.verify(signed, WebKey.ephemeral(Algorithm.ES256)));
+		assertEquals("SHA256withECDSA verification failed", error.getMessage());
+	}
+
+	@SuppressWarnings("deprecation")
+	@Test
+	public void testSignAndVerifyCert() {
+		final var tokenId = IdGenerator.generateId();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var notBefore = issuedAt.minusSeconds(30L);
+		final var expires = issuedAt.plusSeconds(30L);
+		final var nonce = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("jti", tokenId) //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("nbf", notBefore.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("nonce", nonce).build());
+
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.ES256).keyId(id).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(key.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var pemCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + id.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(key) //
+		);
+		IuProcess.deleteTempFiles();
+
+		final var certKey = WebKey.pem(pemCert);
+		final var issuerKey = WebKey.builder(key.getType()) //
+				.keyId(id) //
+				.key(privateKey) //
+				.key(key.getPublicKey()) // s
+				.algorithm(key.getAlgorithm()) //
+				.pem(pemCert) //
+				.build();
+
+		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
+		assertEquals(jwt, Jwt.verify(signed, certKey));
+
+		// verify JWS directly and inspect header values
+		final var jws = WebSignedPayload.parse(signed);
+		final var header = jws.getSignatures().iterator().next().getHeader();
+		assertEquals(id, header.getKeyId());
+		assertArrayEquals(IuDigest.sha1(IuException.unchecked(certKey.getCertificateChain()[0]::getEncoded)),
+				header.getCertificateThumbprint());
+		assertDoesNotThrow(() -> jws.verify(certKey));
+
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> Jwt.verify(signed, WebKey.ephemeral(Algorithm.ES256)));
+		assertEquals("SHA256withECDSA verification failed", error.getMessage());
+	}
+
+	@Test
+	public void testSignEncryptDecryptAndVerify() {
+		final var tokenId = IdGenerator.generateId();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var notBefore = issuedAt.minusSeconds(30L);
+		final var expires = issuedAt.plusSeconds(30L);
+		final var nonce = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("jti", tokenId) //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("nbf", notBefore.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("nonce", nonce).build());
+		final var issuerKey = WebKey.ephemeral(Algorithm.ES256);
+		final var audienceKey = WebKey.builder(WebKey.Type.X25519).ephemeral(Algorithm.ECDH_ES).build();
+		final var signed = jwt.signAndEncrypt("JWT", Algorithm.ES256, issuerKey, Algorithm.ECDH_ES, Encryption.A128GCM,
+				audienceKey);
+
+		IuTestLogger.allow("iu.crypt", Level.FINE);
+		assertEquals(jwt, Jwt.decryptAndVerify(signed, issuerKey, audienceKey));
+
+		final var decryptError = assertThrows(IllegalStateException.class,
+				() -> Jwt.decryptAndVerify(signed, WebKey.ephemeral(Algorithm.ES256),
+						WebKey.builder(WebKey.Type.X25519).ephemeral(Algorithm.ECDH_ES).build()));
+		assertInstanceOf(AEADBadTagException.class, decryptError.getCause());
+
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> Jwt.decryptAndVerify(signed, WebKey.ephemeral(Algorithm.ES256), audienceKey));
+		assertEquals("SHA256withECDSA verification failed", error.getMessage());
+	}
+
+	@Test
+	public void testValidateMissingExpectedIssuer() {
+		final var jwt = new Jwt(IuJson.object().build());
+		final var error = assertThrows(NullPointerException.class, () -> jwt.validateClaims(null, null, null));
+		assertEquals("Missing expectedIssuer", error.getMessage());
+	}
+
+	@Test
+	public void testValidateMissingIssuer() {
+		final var jwt = new Jwt(IuJson.object().build());
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, null, null));
+		assertEquals("Missing iss claim", error.getMessage());
+	}
+
+	@Test
+	public void testValidateMissingSubject() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.build());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, null, null));
+		assertEquals("Missing sub claim", error.getMessage());
+	}
+
+	@Test
+	public void testValidateMissingExpectedAudience() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.build());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, null, null));
+		assertEquals("Missing expectedAudience", error.getMessage());
+	}
+
+	@Test
+	public void testValidateMissingAudience() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var expectedAudience = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.build());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, expectedAudience, null));
+		assertEquals("Missing aud claim", error.getMessage());
+	}
+
+	@Test
+	public void testValidateClaimsAudMismatch() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.add("aud", IdGenerator.generateId()) //
+				.build());
+		final var expectedAudience = URI.create(IdGenerator.generateId());
+		final var error = assertThrows(NoSuchElementException.class,
+				() -> jwt.validateClaims(expectedIssuer, expectedAudience, Duration.ofMinutes(2L)));
+		assertEquals("Token aud claim " + jwt.getAudience() + " doesn't include " + expectedAudience,
+				error.getMessage());
+	}
+
+	@Test
+	public void testValidateClaimsMissingIssuedAt() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var audience = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.add("aud", audience.toString()) //
+				.build());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
+		assertEquals("Missing iat claim", error.getMessage());
+	}
+
+	@Test
+	public void testValidateClaimsMissingExpires() {
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var audience = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.add("aud", audience.toString()) //
+				.add("iat", Instant.now().getEpochSecond()) //
+				.build());
+		final var error = assertThrows(NullPointerException.class,
+				() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
+		assertEquals("Missing exp claim", error.getMessage());
+	}
+
+	@Test
+	public void testValidateClaimsInvalidExpires() {
+		final var iat = Instant.now();
+		final var exp = iat.plusSeconds(300L);
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var audience = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.add("aud", audience.toString()) //
+				.add("iat", iat.getEpochSecond()) //
+				.add("exp", exp.getEpochSecond()) //
+				.build());
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
+		assertEquals("Token exp claim must be no more than PT2M in the future", error.getMessage());
+	}
+
+	@Test
+	public void testValidateClaimsSuccess() {
+		final var iat = Instant.now();
+		final var exp = iat.plusSeconds(30L);
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var audience = URI.create(IdGenerator.generateId());
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", expectedIssuer.toString()) //
+				.add("sub", IdGenerator.generateId()) //
+				.add("aud", audience.toString()) //
+				.add("iat", iat.getEpochSecond()) //
+				.add("exp", exp.getEpochSecond()) //
+				.build());
+		assertDoesNotThrow(() -> jwt.validateClaims(expectedIssuer, audience, Duration.ofMinutes(2L)));
+	}
+
+	@Test
+	public void testIgnoresInvalidAuthorizationDetails() {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var expires = issuedAt.plusSeconds(30L);
+		final var type = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("authorization_details", IuJson.array().add(type)) //
+				.build());
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertFalse(details.iterator().hasNext());
+	}
+
+	@Test
+	public void testIgnoresNonMatcingAuthorizationDetails() {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var subject = IdGenerator.generateId();
+		final var audience = URI.create(IdGenerator.generateId());
+		final var issuedAt = Instant.now();
+		final var expires = issuedAt.plusSeconds(30L);
+		final var type = IdGenerator.generateId();
+
+		final var jwt = new Jwt(IuJson.object() //
+				.add("iss", issuer.toString()) //
+				.add("sub", subject) //
+				.add("aud", IuJson.array().add(audience.toString()).build()) //
+				.add("iat", issuedAt.getEpochSecond()) //
+				.add("exp", expires.getEpochSecond()) //
+				.add("authorization_details", IuJson.array().add(IuJson.object().add("type", IdGenerator.generateId()))) //
+				.build());
+
+		final var details = jwt.getAuthorizationDetails(Details.class, type);
+		assertNotNull(details);
+		assertFalse(details.iterator().hasNext());
+	}
+
+}

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -34,6 +34,7 @@ package iu.crypt;
 import java.io.InputStream;
 import java.net.URI;
 import java.security.Signature;
+import java.security.cert.X509Certificate;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.util.ArrayDeque;
@@ -223,6 +224,48 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	@Override
 	public JwsBuilder type(String type) {
 		pendingSignatures.peekLast().type(type);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder algorithm(Algorithm algorithm) {
+		pendingSignatures.peekLast().algorithm(algorithm);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder cert(URI uri) {
+		pendingSignatures.peekLast().cert(uri);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder cert(X509Certificate... chain) {
+		pendingSignatures.peekLast().cert(chain);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder x5t(byte[] certificateThumbprint) {
+		pendingSignatures.peekLast().x5t(certificateThumbprint);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder x5t256(byte[] certificateSha256Thumbprint) {
+		pendingSignatures.peekLast().x5t256(certificateSha256Thumbprint);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder pem(InputStream pemEncoded) {
+		pendingSignatures.peekLast().pem(pemEncoded);
+		return this;
+	}
+
+	@Override
+	public JwsBuilder pem(String pemEncoded) {
+		pendingSignatures.peekLast().pem(pemEncoded);
 		return this;
 	}
 

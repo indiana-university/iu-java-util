@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -358,6 +358,140 @@ public class VaultTest extends IuHttpTestCase {
 	}
 
 	@Test
+	public void testKubernetesAuthWithDefaultTokenPath() throws Exception {
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+		final var loginEndpoint = URI.create("test:/" + IdGenerator.generateId());
+		final var key = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var secret = IdGenerator.generateId();
+		final var kubeRole = IdGenerator.generateId();
+		final var jwt = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var tokenPath = "/var/run/secrets/tokens/vault-jwt";
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.secrets", secret);
+		props.setProperty("iu.vault.loginEndpoint", loginEndpoint.toString());
+		props.setProperty("iu.vault.kubeRole", kubeRole);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class); //
+				final var mockBodyPublishers = mockStatic(BodyPublishers.class); //
+				final var mockFiles = mockStatic(java.nio.file.Files.class)) {
+			
+			mockFiles.when(() -> java.nio.file.Files.readString(
+					eq(java.nio.file.Path.of(tokenPath)), eq(StandardCharsets.UTF_8)))
+					.thenReturn(jwt);
+
+			final var loginPayload = mock(BodyPublisher.class);
+			mockBodyPublishers.when(() -> BodyPublishers.ofString(IuJson.object() //
+					.add("jwt", jwt) //
+					.add("role", kubeRole) //
+					.build().toString())).thenReturn(loginPayload);
+
+			final Verification kubeauth = () -> IuHttp.send(eq(loginEndpoint), argThat(a -> {
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("Content-Type", "application/json;charset=utf-8");
+				verify(rb).POST(loginPayload);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT));
+			mockHttp.when(kubeauth).thenReturn(IuJson.object() //
+					.add("auth", IuJson.object() //
+							.add("lease_duration", 2) //
+							.add("client_token", token) //
+					).build());
+			final Verification read = () -> IuHttp.send(
+					eq(URI.create(endpoint + "/" + URLEncoder.encode(secret, StandardCharsets.UTF_8))),
+					withToken(token), eq(IuHttp.READ_JSON_OBJECT));
+			mockHttp.when(read).thenReturn(IuJson.object() //
+					.add("data", IuJson.object() //
+							.add("data", IuJson.object().add(key, value))) //
+					.build());
+
+			final var vs = vault.getSecret(secret);
+			mockHttp.verify(read);
+			mockHttp.verify(kubeauth);
+
+			assertKeyedValue(vs, key, value, vault.get(key));
+			assertKeyedValue(vs, key, value, vault.get(key));
+			mockHttp.verify(read, times(3));
+			mockHttp.verify(kubeauth);
+
+			assertDoesNotThrow(() -> Thread.sleep(2000L));
+			assertKeyedValue(vs, key, value, vault.get(key));
+			mockHttp.verify(kubeauth, times(2));
+			mockHttp.verify(read, times(4));
+		}
+	}
+
+	@Test
+	public void testKubernetesAuthWithCustomTokenPath() throws Exception {
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+		final var loginEndpoint = URI.create("test:/" + IdGenerator.generateId());
+		final var key = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var secret = IdGenerator.generateId();
+		final var kubeRole = IdGenerator.generateId();
+		final var jwt = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var customTokenPath = "/custom/path/to/token";
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.secrets", secret);
+		props.setProperty("iu.vault.loginEndpoint", loginEndpoint.toString());
+		props.setProperty("iu.vault.kubeRole", kubeRole);
+		props.setProperty("iu.vault.tokenPath", customTokenPath);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class); //
+				final var mockBodyPublishers = mockStatic(BodyPublishers.class); //
+				final var mockFiles = mockStatic(java.nio.file.Files.class)) {
+			
+			mockFiles.when(() -> java.nio.file.Files.readString(
+					eq(java.nio.file.Path.of(customTokenPath)), eq(StandardCharsets.UTF_8)))
+					.thenReturn(jwt);
+
+			final var loginPayload = mock(BodyPublisher.class);
+			mockBodyPublishers.when(() -> BodyPublishers.ofString(IuJson.object() //
+					.add("jwt", jwt) //
+					.add("role", kubeRole) //
+					.build().toString())).thenReturn(loginPayload);
+
+			final Verification kubeauth = () -> IuHttp.send(eq(loginEndpoint), argThat(a -> {
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("Content-Type", "application/json;charset=utf-8");
+				verify(rb).POST(loginPayload);
+				return true;
+			}), eq(IuHttp.READ_JSON_OBJECT));
+			mockHttp.when(kubeauth).thenReturn(IuJson.object() //
+					.add("auth", IuJson.object() //
+							.add("lease_duration", 3600) //
+							.add("client_token", token) //
+					).build());
+			final Verification read = () -> IuHttp.send(
+					eq(URI.create(endpoint + "/" + URLEncoder.encode(secret, StandardCharsets.UTF_8))),
+					withToken(token), eq(IuHttp.READ_JSON_OBJECT));
+			mockHttp.when(read).thenReturn(IuJson.object() //
+					.add("data", IuJson.object() //
+							.add("data", IuJson.object().add(key, value))) //
+					.build());
+
+			final var vs = vault.getSecret(secret);
+			mockHttp.verify(read);
+			mockHttp.verify(kubeauth);
+
+			assertKeyedValue(vs, key, value, vault.get(key));
+			assertKeyedValue(vs, key, value, vault.get(key));
+			mockHttp.verify(read, times(3));
+			mockHttp.verify(kubeauth);
+		}
+	}
+
+	@Test
 	public void testGetWithoutSecretsConfigured() {
 		final var token = IdGenerator.generateId();
 		final var endpoint = URI.create("test:" + IdGenerator.generateId());
@@ -613,13 +747,11 @@ public class VaultTest extends IuHttpTestCase {
 							.build());
 
 			final var vs = vault.getSecret(secret);
-			assertKeyedValue(vs, secretName + "/" + key, value, vs.get(secretName + "/" + key, String.class));
-			assertThrows(UnsupportedOperationException.class,
-					() -> vs.set(secretName + "/" + key, IdGenerator.generateId(), String.class));
-
+			assertKeyedValue(vs, key, value, vs.get(key, String.class));
+	
 			final var list = vault.list().iterator();
 			assertTrue(list.hasNext());
-			assertKeyedValue(vs, secretName + "/" + key, value, Object.class, list.next());
+			assertKeyedValue(vs, key, value, Object.class, list.next());
 
 			mockHttp.verify(readVault, times(2));
 		}

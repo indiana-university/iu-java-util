@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -48,6 +48,13 @@ class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 	 * Singleton instance.
 	 */
 	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
+	
+	/**
+	 * Default Constructor
+	 */
+	private TextJsonAdapter() {
+		// singleton
+	}
 
 	@Override
 	public String fromJson(JsonValue value) {

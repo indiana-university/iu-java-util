@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -57,6 +57,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateKeySpec;
 import java.util.Optional;
@@ -315,6 +316,26 @@ public class JwkTest extends CryptImplTestCase {
 						assertEphemeral((Jwk) WebKey.builder(type).keyId(IdGenerator.generateId()).ephemeral(algorithm)
 								.build());
 			}
+	}
+
+	@Test
+	public void testEphemeralED() {
+		final var jwk = (Jwk) WebKey.builder(Type.ED25519).keyId(IdGenerator.generateId()).ephemeral().build();
+		assertEphemeral(jwk);
+	}
+
+	@Test
+	public void testEphemeralRSA() {
+		final var jwk = (Jwk) WebKey.builder(Type.RSA).keyId(IdGenerator.generateId()).ephemeral(3072).build();
+		assertEphemeral(jwk);
+		assertEquals(3072, ((RSAPublicKey) jwk.getPublicKey()).getModulus().bitLength());
+	}
+
+	@Test
+	public void testEphemeralIgnoreSize() {
+		final var jwk = (Jwk) WebKey.builder(Type.X448).keyId(IdGenerator.generateId()).algorithm(Algorithm.ECDH_ES)
+				.ephemeral(0).build();
+		assertEphemeral(jwk);
 	}
 
 	@SuppressWarnings("unchecked")

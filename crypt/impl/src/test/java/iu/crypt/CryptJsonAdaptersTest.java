@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -34,9 +34,11 @@ package iu.crypt;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
@@ -47,18 +49,21 @@ import java.math.BigInteger;
 import java.net.URI;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
@@ -226,6 +231,59 @@ public class CryptJsonAdaptersTest {
 		final var adapter = CryptJsonAdapters.of(Param.CRITICAL_PARAMS);
 		final var crit = Set.of(IdGenerator.generateId());
 		assertEquals(crit, adapter.fromJson(adapter.toJson(crit)));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testCa() {
+		assertNull(CryptJsonAdapters.CA.toJson(null));
+		assertNull(CryptJsonAdapters.CA.fromJson(null));
+
+		final var jwk = mock(WebKey.class);
+		final var database = new byte[128];
+		ThreadLocalRandom.current().nextBytes(database);
+		final var cert = mock(X509Certificate.class);
+		final var crl = mock(X509CRL.class);
+
+		final var json = mock(JsonObject.class);
+		when(json.asJsonObject()).thenReturn(json);
+		try (final var mockIuJson = mockStatic(IuJson.class);
+				final var mockIuJsonAdapter = mockStatic(IuJsonAdapter.class)) {
+			final IuJsonAdapter<Iterable<X509Certificate>> certsAdapter = mock(IuJsonAdapter.class);
+			mockIuJsonAdapter.when(() -> IuJsonAdapter.of(Iterable.class, CryptJsonAdapters.CERT))
+					.thenReturn(certsAdapter);
+
+			final IuJsonAdapter<Iterable<X509CRL>> crlAdapter = mock(IuJsonAdapter.class);
+			mockIuJsonAdapter.when(() -> IuJsonAdapter.of(Iterable.class, CryptJsonAdapters.CRL))
+					.thenReturn(crlAdapter);
+
+			mockIuJson.when(() -> IuJson.get(json, "jwk", CryptJsonAdapters.WEBKEY)).thenReturn(jwk);
+			mockIuJson.when(() -> IuJson.get(json, "database", CryptJsonAdapters.B64URL)).thenReturn(database);
+			mockIuJson.when(() -> IuJson.get(json, "certificates", certsAdapter)).thenReturn(IuIterable.iter(cert));
+			mockIuJson.when(() -> IuJson.get(json, "crl", crlAdapter)).thenReturn(IuIterable.iter(crl));
+
+			final var ca = CryptJsonAdapters.CA.fromJson(json);
+			assertEquals(jwk, ca.getJwk());
+			assertArrayEquals(database, ca.getDatabase());
+			assertEquals(cert, ca.getCertificates().iterator().next());
+			assertEquals(crl, ca.getCrl().iterator().next());
+
+			final var convertedJson = mock(JsonObject.class);
+			when(convertedJson.asJsonObject()).thenReturn(convertedJson);
+			final var builder = mock(JsonObjectBuilder.class);
+			when(builder.build()).thenReturn(convertedJson);
+			mockIuJson.when(() -> IuJson.object()).thenReturn(builder);
+			assertEquals(convertedJson, CryptJsonAdapters.CA.toJson(ca));
+
+			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("jwk"), argThat(a -> jwk.equals(a.get())),
+					eq(CryptJsonAdapters.WEBKEY)));
+			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("database"),
+					argThat(a -> Arrays.equals(database, a.get())), eq(CryptJsonAdapters.B64URL)));
+			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("certificates"),
+					argThat(a -> cert.equals(a.get().iterator().next())), eq(certsAdapter)));
+			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("crl"),
+					argThat(a -> crl.equals(a.get().iterator().next())), eq(crlAdapter)));
+		}
 	}
 
 }

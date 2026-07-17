@@ -23,5 +23,5 @@ Contact
 
 ---
 [License Info](LICENSE.md)  
-[Copyright](https://www.iu.edu/copyright/) &copy; 2024 The Trustees of [Indiana University](https://iu.edu/)  
+[Copyright](https://www.iu.edu/copyright/) &copy; 2025 The Trustees of [Indiana University](https://iu.edu/)  
 

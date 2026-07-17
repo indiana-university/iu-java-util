@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -44,8 +44,6 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
-import edu.iu.crypt.WebToken;
-import edu.iu.crypt.WebTokenBuilder;
 
 /**
  * Defines methods to be provided by the implementation module.
@@ -148,32 +146,6 @@ public interface IuCryptSpi {
 	 * @return {@link WebEncryption}
 	 */
 	WebEncryption parseJwe(String jwe);
-
-	/**
-	 * Implements {@link WebToken#builder()}
-	 * 
-	 * @return {@link WebTokenBuilder}
-	 */
-	WebTokenBuilder getJwtBuilder();
-
-	/**
-	 * Implements {@link WebToken#verify(String, WebKey)}
-	 * 
-	 * @param jwt       Signed JWT
-	 * @param issuerKey Public key of the token issuer
-	 * @return {@link WebToken}
-	 */
-	WebToken verifyJwt(String jwt, WebKey issuerKey);
-
-	/**
-	 * Implements {@link WebToken#decryptAndVerify(String, WebKey, WebKey)}
-	 * 
-	 * @param jwt         Signed JWT
-	 * @param issuerKey   Public key of the token issuer
-	 * @param audienceKey Public key of the token audience
-	 * @return {@link WebToken}
-	 */
-	WebToken decryptAndVerifyJwt(String jwt, WebKey issuerKey, WebKey audienceKey);
 
 	/**
 	 * Implements {@link WebCryptoHeader#getProtectedHeader(String)}

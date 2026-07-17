@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -47,7 +47,6 @@ class EnumerationAdapter<E> extends JsonArrayAdapter<Enumeration<E>, E> {
 	 * Constructor
 	 * 
 	 * @param itemAdapter item adapter
-	 * @param factory     creates a new collection
 	 */
 	protected EnumerationAdapter(IuJsonAdapter<E> itemAdapter) {
 		super(itemAdapter);

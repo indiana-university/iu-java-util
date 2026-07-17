@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -38,7 +38,7 @@ import java.util.Arrays;
  * Encodes {@link BigInteger} values from JCE crypto objects in the formats
  * specified by RFC-7518 JWA.
  */
-class UnsignedBigInteger {
+public class UnsignedBigInteger {
 
 	/**
 	 * Converts an unsigned big-endian {@link BigInteger} to binary, omitting the
@@ -47,7 +47,7 @@ class UnsignedBigInteger {
 	 * @param bigInteger unsigned big-endian {@link BigInteger}
 	 * @return binary
 	 */
-	static byte[] bigInt(BigInteger bigInteger) {
+	public static byte[] bigInt(BigInteger bigInteger) {
 		final var bytes = bigInteger.toByteArray();
 
 		final var bitlen = // ceil(bigInteger.bitLength()/8)
@@ -65,7 +65,7 @@ class UnsignedBigInteger {
 	 * @param binary binary
 	 * @return unsigned big-endian {@link BigInteger}
 	 */
-	static BigInteger bigInt(byte[] binary) {
+	public static BigInteger bigInt(byte[] binary) {
 		return new BigInteger(1, binary);
 	}
 

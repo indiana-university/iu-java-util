@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -511,7 +511,7 @@ public class IuPooledConnection implements PooledConnection, ConnectionEventList
 	/**
 	 * Gets the number of times this connection has been used.
 	 * 
-	 * @return {@link long}
+	 * @return {@code long}
 	 */
 	public long getTransactionSegmentCount() {
 		return transactionSegmentCount;

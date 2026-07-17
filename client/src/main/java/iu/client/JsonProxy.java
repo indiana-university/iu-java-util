@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -37,6 +37,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -55,6 +56,8 @@ public final class JsonProxy implements InvocationHandler {
 	static {
 		IuObject.assertNotOpen(JsonProxy.class);
 	}
+
+	private static final Object NULL = new Object();
 
 	/**
 	 * Wraps a JSON object in a java interface.
@@ -87,19 +90,29 @@ public final class JsonProxy implements InvocationHandler {
 
 	private final JsonObject value;
 	private final Function<Type, IuJsonAdapter<?>> valueAdapter;
+	private final Map<String, Object> resolved;
 
 	private JsonProxy(JsonObject value, Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		this.value = value;
 		this.valueAdapter = valueAdapter;
+		this.resolved = new HashMap<>();
 	}
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		final var methodName = method.getName();
-		if (methodName.equals("hashCode"))
-			return value.hashCode();
+		if (resolved.containsKey(methodName)) {
+			final var resolved = this.resolved.get(methodName);
+			return resolved == NULL //
+					? null //
+					: resolved;
+		}
 
-		if (methodName.equals("equals")) {
+		final var paramTypes = method.getParameterTypes();
+
+		if (methodName.equals("equals") //
+				&& paramTypes.length == 1 //
+				&& paramTypes[0] == Object.class) {
 			if (args[0] == null)
 				return false;
 			if (!Proxy.isProxyClass(args[0].getClass()))
@@ -111,11 +124,17 @@ public final class JsonProxy implements InvocationHandler {
 			return ((JsonProxy) other).value.equals(value);
 		}
 
+		if (paramTypes.length > 0)
+			throw new UnsupportedOperationException();
+
+		if (methodName.equals("hashCode"))
+			return value.hashCode();
+
 		if (methodName.equals("toString")) {
 			final var writer = new StringWriter();
 			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(writer)
 					.write(value);
-			return writer.toString();
+			return checkResolvedValue(methodName, writer.toString());
 		}
 
 		final String propertyName;
@@ -123,25 +142,22 @@ public final class JsonProxy implements InvocationHandler {
 			propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
 		else if (methodName.startsWith("is"))
 			propertyName = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
-		else if (method.isDefault()) {
-			propertyName = null;
-		} else
+		else
 			throw new UnsupportedOperationException();
 
-		final JsonValue rv = returnValueWithCaseConversion(propertyName);
-
-		if (rv == null && method.isDefault()) {
+		final var jsonValue = returnValueWithCaseConversion(propertyName);
+		if (jsonValue == null && method.isDefault()) {
 			final var type = proxy.getClass().getInterfaces()[0];
-			return MethodHandles.privateLookupIn(type, MethodHandles.lookup()).unreflectSpecial(method, type)
-					.bindTo(proxy).invokeWithArguments(args);
+			return checkResolvedValue(methodName, MethodHandles.privateLookupIn(type, MethodHandles.lookup())
+					.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args));
 		}
 
 		final var genericReturnType = method.getGenericReturnType();
 		try {
-			return valueAdapter.apply(genericReturnType).fromJson(rv);
+			return checkResolvedValue(methodName, valueAdapter.apply(genericReturnType).fromJson(jsonValue));
 		} catch (UnsupportedOperationException e) {
-			if (rv == null)
-				return null;
+			if (jsonValue == null)
+				return checkResolvedValue(methodName, null);
 			else
 				throw e;
 		} catch (Throwable e) {
@@ -150,10 +166,14 @@ public final class JsonProxy implements InvocationHandler {
 		}
 	}
 
-	private JsonValue returnValueWithCaseConversion(String propertyName) {
-		if (propertyName == null)
-			return null;
+	private <T> T checkResolvedValue(String methodName, T value) {
+		synchronized (resolved) {
+			resolved.put(methodName, value == null ? NULL : value);
+		}
+		return value;
+	}
 
+	private JsonValue returnValueWithCaseConversion(String propertyName) {
 		if (value.containsKey(propertyName))
 			return value.get(propertyName);
 

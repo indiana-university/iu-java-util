@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -70,7 +70,7 @@ public class HttpException extends Exception {
 	 * @param response error response, status code >= 400
 	 * @param message  detailed error message
 	 */
-	HttpException(HttpResponse<InputStream> response, String message) {
+	public HttpException(HttpResponse<InputStream> response, String message) {
 		super(message);
 		this.response = response;
 	}

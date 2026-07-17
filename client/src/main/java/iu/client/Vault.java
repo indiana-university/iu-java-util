@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -37,6 +37,8 @@ import java.net.URLEncoder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -52,8 +54,8 @@ import java.util.logging.Logger;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
-import edu.iu.IuObject;
 import edu.iu.IuRuntimeEnvironment;
+import edu.iu.UnsafeConsumer;
 import edu.iu.client.HttpException;
 import edu.iu.client.HttpResponseHandler;
 import edu.iu.client.IuHttp;
@@ -70,17 +72,24 @@ import jakarta.json.JsonValue;
  * 
  */
 public final class Vault implements IuVault {
-	static {
-		IuObject.assertNotOpen(Vault.class);
-	}
 
 	private static final Logger LOG = Logger.getLogger(Vault.class.getName());
+
+	/**
+	 * Authentication method types.
+	 */
+	private enum AuthType {
+		/** AppRole authentication using role_id and secret_id */
+		APPROLE,
+		/** Kubernetes authentication using JWT and role */
+		KUBERNETES
+	}
 
 	/**
 	 * Implements {@link IuVault#of(Properties, Function)}.
 	 * 
 	 * @param properties   optional property overrides
-	 * @param valueAdapter
+	 * @param valueAdapter value adapter function
 	 * @return {@link Vault} instance
 	 */
 	public static Vault of(Properties properties, Function<Type, IuJsonAdapter<?>> valueAdapter) {
@@ -109,13 +118,26 @@ public final class Vault implements IuVault {
 					prop(properties, "iu.vault.loginEndpoint", URI::create),
 					"Missing iu.vault.loginEndpoint or iu.vault.token");
 
-			final var roleId = Objects.requireNonNull( //
-					prop(properties, "iu.vault.roleId", a -> a), "Missing iu.vault.roleId");
-			final var secretId = Objects.requireNonNull( //
-					prop(properties, "iu.vault.secretId", a -> a), "Missing iu.vault.secretId");
+			// Check for Kubernetes auth properties
+			final var kubeRole = prop(properties, "iu.vault.kubeRole", a -> a);
+			final var tokenPath = prop(properties, "iu.vault.tokenPath", a -> a);
 
-			return new Vault(endpoint, secretNames, loginEndpoint, roleId, secretId, cubbyhole, valueAdapter,
-					secretCache);
+			if (kubeRole != null) {
+				// Use Kubernetes authentication
+				final var effectiveTokenPath = tokenPath != null ? tokenPath
+						: "/var/run/secrets/tokens/vault-jwt";
+				return new Vault(endpoint, secretNames, loginEndpoint, AuthType.KUBERNETES, kubeRole,
+						effectiveTokenPath, cubbyhole, valueAdapter, secretCache);
+			} else {
+				// Use AppRole authentication
+				final var roleId = Objects.requireNonNull( //
+						prop(properties, "iu.vault.roleId", a -> a), "Missing iu.vault.roleId");
+				final var secretId = Objects.requireNonNull( //
+						prop(properties, "iu.vault.secretId", a -> a), "Missing iu.vault.secretId");
+
+				return new Vault(endpoint, secretNames, loginEndpoint, AuthType.APPROLE, roleId, secretId, cubbyhole,
+						valueAdapter, secretCache);
+			}
 		}
 	}
 
@@ -150,8 +172,9 @@ public final class Vault implements IuVault {
 	private final URI endpoint;
 	private final String[] secretNames;
 	private final URI loginEndpoint;
-	private final String roleId;
-	private final String secretId;
+	private final AuthType authType;
+	private final String roleInfo;
+	private final String tokenInfo;
 	private final boolean cubbyhole;
 	private final Function<Type, IuJsonAdapter<?>> valueAdapter;
 	private final Map<String, JsonObject> secretCache;
@@ -165,21 +188,24 @@ public final class Vault implements IuVault {
 		this.secretNames = secretNames;
 		this.token = token;
 		this.loginEndpoint = null;
-		this.roleId = null;
-		this.secretId = null;
+		this.authType = null;
+		this.roleInfo = null;
+		this.tokenInfo = null;
 		this.cubbyhole = cubbyhole;
 		this.valueAdapter = valueAdapter;
 		this.secretCache = secretCache;
 	}
 
-	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, String roleId, String secretId,
-			boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter, Map<String, JsonObject> secretCache) {
+	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, AuthType authType, String roleInfo,
+			String tokenInfo, boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter,
+			Map<String, JsonObject> secretCache) {
 		this.endpoint = endpoint;
 		this.secretNames = secretNames;
 		this.token = null;
 		this.loginEndpoint = loginEndpoint;
-		this.roleId = roleId;
-		this.secretId = secretId;
+		this.authType = authType;
+		this.roleInfo = roleInfo;
+		this.tokenInfo = tokenInfo;
 		this.cubbyhole = cubbyhole;
 		this.valueAdapter = valueAdapter;
 		this.secretCache = secretCache;
@@ -239,18 +265,7 @@ public final class Vault implements IuVault {
 			convertData = a -> a;
 			convertMetadata = a -> null;
 		} else {
-			// TODO: support launchpad through configuration
-			if (secret.startsWith("managed/")) {
-				final var lastSlash = secret.lastIndexOf('/');
-				final var prefix = secret.substring(lastSlash + 1) + '/';
-				convertData = a -> {
-					final var b = IuJson.object();
-					for (final var e : a.getJsonObject("data").entrySet())
-						b.add(prefix + e.getKey(), e.getValue());
-					return b.build();
-				};
-			} else
-				convertData = a -> a.getJsonObject("data");
+			convertData = a -> a.getJsonObject("data");
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
 
@@ -266,54 +281,49 @@ public final class Vault implements IuVault {
 		}
 
 		final Consumer<JsonObject> mergePatchConsumer;
-		if (secret.startsWith("managed/"))
-			mergePatchConsumer = a -> {
-				// TODO: support launchpad through configuration
-				throw new UnsupportedOperationException();
-			};
-		else
-			mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-				final var data = dataSupplier.get();
-				final var metadata = metadataSupplier.get();
 
-				final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
+		mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
+			final var data = dataSupplier.get();
+			final var metadata = metadataSupplier.get();
 
-				final String dataRequestPayload;
-				if (cubbyhole)
-					dataRequestPayload = updatedData.toString();
-				else {
-					final var dataRequestPayloadBuilder = IuJson.object();
-					dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
-					dataRequestPayloadBuilder.add("data", updatedData);
-					dataRequestPayload = dataRequestPayloadBuilder.build().toString();
-				}
+			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 
-				final HttpResponseHandler<?> responseHandler;
-				if (cubbyhole)
-					responseHandler = IuHttp.NO_CONTENT;
-				else
-					responseHandler = IuHttp.READ_JSON_OBJECT;
+			final String dataRequestPayload;
+			if (cubbyhole)
+				dataRequestPayload = updatedData.toString();
+			else {
+				final var dataRequestPayloadBuilder = IuJson.object();
+				dataRequestPayloadBuilder.add("options", IuJson.object().add("cas", metadata.getInt("version")));
+				dataRequestPayloadBuilder.add("data", updatedData);
+				dataRequestPayload = dataRequestPayloadBuilder.build().toString();
+			}
 
-				if (cubbyhole && updatedData.isEmpty())
-					IuHttp.send(dataUri, rb -> {
-						rb.DELETE();
-						this.authorize(rb);
-					}, responseHandler);
-				else
-					IuHttp.send(dataUri, rb -> {
-						rb.POST(BodyPublishers.ofString(dataRequestPayload));
-						this.authorize(rb);
-					}, responseHandler);
+			final HttpResponseHandler<?> responseHandler;
+			if (cubbyhole)
+				responseHandler = IuHttp.NO_CONTENT;
+			else
+				responseHandler = IuHttp.READ_JSON_OBJECT;
 
-				final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
-				LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
+			if (cubbyhole && updatedData.isEmpty())
+				IuHttp.send(dataUri, rb -> {
+					rb.DELETE();
+					this.authorize(rb);
+				}, responseHandler);
+			else
+				IuHttp.send(dataUri, rb -> {
+					rb.POST(BodyPublishers.ofString(dataRequestPayload));
+					this.authorize(rb);
+				}, responseHandler);
 
-				final var updated = readSecret(secret);
-				if (secretCache == null)
-					ref.data = updated;
-				else
-					secretCache.put(secret, updated);
-			});
+			final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
+			LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
+
+			final var updated = readSecret(secret);
+			if (secretCache == null)
+				ref.data = updated;
+			else
+				secretCache.put(secret, updated);
+		});
 
 		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
 	}
@@ -369,8 +379,17 @@ public final class Vault implements IuVault {
 
 	private void approle(HttpRequest.Builder requestBuilder) {
 		final var payload = IuJson.object();
-		payload.add("role_id", roleId);
-		payload.add("secret_id", secretId);
+		payload.add("role_id", roleInfo);
+		payload.add("secret_id", tokenInfo);
+		requestBuilder.header("Content-Type", "application/json;charset=utf-8");
+		requestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
+	}
+
+	private void kubeauth(HttpRequest.Builder requestBuilder) {
+		final String jwt = IuException.unchecked(() -> Files.readString(Path.of(tokenInfo), StandardCharsets.UTF_8));
+		final var payload = IuJson.object();
+		payload.add("jwt", jwt);
+		payload.add("role", roleInfo);
 		requestBuilder.header("Content-Type", "application/json;charset=utf-8");
 		requestBuilder.POST(BodyPublishers.ofString(payload.build().toString()));
 	}
@@ -381,8 +400,15 @@ public final class Vault implements IuVault {
 			token = null;
 
 		if (token == null) {
+			// Determine which authentication method to use
+			final UnsafeConsumer<HttpRequest.Builder> authMethod;
+			if (authType == AuthType.KUBERNETES)
+				authMethod = this::kubeauth;
+			else
+				authMethod = this::approle;
+
 			final var authResponse = IuException.unchecked( //
-					() -> IuHttp.send(loginEndpoint, this::approle, IuHttp.READ_JSON_OBJECT) //
+					() -> IuHttp.send(loginEndpoint, authMethod, IuHttp.READ_JSON_OBJECT) //
 							.getJsonObject("auth"));
 
 			tokenExpires = Instant.now().truncatedTo(ChronoUnit.SECONDS)

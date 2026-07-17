@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -45,13 +45,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.PrintStream;
 import java.math.BigInteger;
 import java.net.URI;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.cert.CRLException;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
@@ -479,6 +483,54 @@ public class PemEncodedTest extends IuCryptApiTestCase {
 						() -> verify(certificateFactory).generateCRL(mockByteArrayInput.constructed().get(0)));
 			}
 		}
+	}
+
+	@Test
+	public void testPrintPrivateKey() {
+		final var encoded = new byte[128];
+		ThreadLocalRandom.current().nextBytes(encoded);
+		final var privateKey = mock(PrivateKey.class);
+		when(privateKey.getEncoded()).thenReturn(encoded);
+		final var out = new ByteArrayOutputStream();
+		final var ps = new PrintStream(out);
+		PemEncoded.print(ps, privateKey);
+
+		final var b64 = IuText.base64(encoded);
+		assertEquals("-----BEGIN PRIVATE KEY-----" + System.lineSeparator() + b64.substring(0, 64)
+				+ System.lineSeparator() + b64.substring(64, 128) + System.lineSeparator() + b64.substring(128)
+				+ System.lineSeparator() + "-----END PRIVATE KEY-----" + System.lineSeparator(), out.toString());
+	}
+
+	@Test
+	public void testPrintCertificate() throws CertificateEncodingException {
+		final var encoded = new byte[128];
+		ThreadLocalRandom.current().nextBytes(encoded);
+		final var cert = mock(X509Certificate.class);
+		when(cert.getEncoded()).thenReturn(encoded);
+		final var out = new ByteArrayOutputStream();
+		final var ps = new PrintStream(out);
+		PemEncoded.print(ps, cert);
+
+		final var b64 = IuText.base64(encoded);
+		assertEquals("-----BEGIN CERTIFICATE-----" + System.lineSeparator() + b64.substring(0, 64)
+				+ System.lineSeparator() + b64.substring(64, 128) + System.lineSeparator() + b64.substring(128)
+				+ System.lineSeparator() + "-----END CERTIFICATE-----" + System.lineSeparator(), out.toString());
+	}
+
+	@Test
+	public void testPrintCRL() throws CRLException {
+		final var encoded = new byte[128];
+		ThreadLocalRandom.current().nextBytes(encoded);
+		final var crl = mock(X509CRL.class);
+		when(crl.getEncoded()).thenReturn(encoded);
+		final var out = new ByteArrayOutputStream();
+		final var ps = new PrintStream(out);
+		PemEncoded.print(ps, crl);
+
+		final var b64 = IuText.base64(encoded);
+		assertEquals("-----BEGIN X509 CRL-----" + System.lineSeparator() + b64.substring(0, 64) + System.lineSeparator()
+				+ b64.substring(64, 128) + System.lineSeparator() + b64.substring(128) + System.lineSeparator()
+				+ "-----END X509 CRL-----" + System.lineSeparator(), out.toString());
 	}
 
 }

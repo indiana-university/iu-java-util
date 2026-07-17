@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -114,7 +114,35 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 
 	@Override
 	public JwkBuilder ephemeral() {
-		return ephemeral(alg());
+		final var type = type();
+		switch (type) {
+		case EC_P256:
+		case EC_P384:
+		case EC_P521:
+		case ED25519:
+		case ED448:
+		case X25519:
+		case X448:
+			key(EphemeralKeys.ec(WebKey.algorithmParams(type.algorithmParams)));
+			return this;
+
+		default:
+			return ephemeral(alg());
+		}
+	}
+
+	@Override
+	public JwkBuilder ephemeral(int size) {
+		final var type = type();
+		switch (type) {
+		case RSA:
+		case RSASSA_PSS:
+			key(EphemeralKeys.rsa(type.kty, size));
+			return this;
+
+		default:
+			return ephemeral(alg());
+		}
 	}
 
 	@SuppressWarnings("deprecation")
@@ -157,7 +185,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		case RSA1_5:
 		case RSA_OAEP:
 		case RSA_OAEP_256:
-			key(EphemeralKeys.rsa(algorithm.type[0].kty, 2048));
+			key(EphemeralKeys.rsa(type().kty, 2048));
 			break;
 
 		case PBES2_HS256_A128KW:

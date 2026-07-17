@@ -1,5 +1,5 @@
 /*
- * Copyright © 2024 Indiana University
+ * Copyright © 2026 Indiana University
  * All rights reserved.
  *
  * BSD 3-Clause License
@@ -42,7 +42,7 @@ import edu.iu.client.IuJson;
 import jakarta.json.JsonObject;
 
 /**
- * Encodes {@link byte[]} values for inclusion in JWS and JWE serialized forms
+ * Encodes {@code byte[]} values for inclusion in JWS and JWE serialized forms
  * as unpadded Base64 URL encoded strings.
  */
 public final class CompactEncoded {
