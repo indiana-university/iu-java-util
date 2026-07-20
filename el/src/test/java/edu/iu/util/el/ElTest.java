@@ -1,12 +1,45 @@
+/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.util.el;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.logging.Level;
 
 //import java.util.logging.Logger;
@@ -119,6 +152,16 @@ public class ElTest {
 	}
 
 	@Test
+	public void testInvalidAmpersandDoesNotHang() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", "bar");
+		final var c = b.build();
+		assertEquals("unexpected & EL expression \"foo&bar\" at 3: \"foo[&]bar\"",
+				assertTimeoutPreemptively(Duration.ofSeconds(5),
+						() -> assertThrows(IllegalArgumentException.class, () -> El.eval(c, "foo&bar"))).getMessage());
+	}
+
+	@Test
 	public void testBadTemplates() {
 		assertEquals("inline template doesn't end with '`'",
 				assertThrows(IllegalArgumentException.class, () -> El.eval("<`")).getMessage());
@@ -174,6 +217,42 @@ public class ElTest {
 		b.add("fool", "el/-list-head");
 		assertEquals("0: foo, 1: bar, 2: baz",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.fool", ElTest::readResource)));
+	}
+
+	@Test
+	public void testTemplateIntrospectWithHead() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		JsonObjectBuilder arr = Json.createObjectBuilder();
+		arr.add("foo", "bar");
+		arr.add("bar", "baz");
+		arr.add("baz", "foo");
+		b.add("fooList", arr);
+		b.add("fool", "el/-list-head");
+		final var c = b.build();
+		assertEquals("foo: bar, bar: baz, baz: foo",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList&<p.fool", ElTest::readResource)));
+	}
+
+	@Test
+	public void testInlineTemplateAppliedToArray() {
+		JsonArrayBuilder arr = Json.createArrayBuilder();
+		arr.add("foo");
+		arr.add("bar");
+		arr.add("baz");
+		assertEquals("0: foo, 1: bar, 2: baz",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(arr.build(), "$<`{head?'!', }{i}{': }{$}`")));
+	}
+
+	@Test
+	public void testNestedInlineTemplateReusedAcrossArrayItems() {
+		// the nested inline template "<`{$}`" is identical text evaluated once per
+		// array item; this also exercises reuse of its parsed representation instead
+		// of re-parsing it for every item
+		JsonArrayBuilder arr = Json.createArrayBuilder();
+		arr.add("foo");
+		arr.add("bar");
+		assertEquals("0:foo1:bar",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(arr.build(), "$<`{i}:{<`{$}`}`")));
 	}
 
 	@Test

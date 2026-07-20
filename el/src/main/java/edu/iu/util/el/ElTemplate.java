@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.util.el;
 
 import java.util.ArrayList;
@@ -8,6 +39,7 @@ import java.util.List;
 import edu.iu.client.IuJson;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
@@ -128,10 +160,13 @@ class ElTemplate {
 	 * <p>
 	 * When {@code result} is an array, the template is applied once to each element
 	 * with its numeric index and first-element state available to the expression
-	 * contexts. All other values are rendered once. A completion context is placed
-	 * beneath the template expression contexts on {@code evalStack}; after those
-	 * expressions complete, it stores the rendered buffer as a JSON string in
-	 * {@code evalContext}.
+	 * contexts. When {@code result} is a JSON object and {@code evalContext} has
+	 * been marked to introspect properties ({@link ElContext#markAsIntrospect()}),
+	 * the template is instead applied once per property, exposing each property's
+	 * name in place of a numeric index. All other values are rendered once. A
+	 * completion context is placed beneath the template expression contexts on
+	 * {@code evalStack}; after those expressions complete, it stores the rendered
+	 * buffer as a JSON string in {@code evalContext}.
 	 * </p>
 	 *
 	 * @param result      JSON value to which the template is applied
@@ -148,7 +183,13 @@ class ElTemplate {
 			var array = result.asJsonArray();
 			for (int i = 0; i < array.size(); i++)
 				apply(buffer, i == 0, IuJson.number(i), array.get(i), evalContext, evalStack);
-		} else // TODO: introspect if & is seen
+		} else if (evalContext.isIntrospect()) {
+			var first = true;
+			for (final var entry : result.asJsonObject().entrySet()) {
+				apply(buffer, first, IuJson.string(entry.getKey()), entry.getValue(), evalContext, evalStack);
+				first = false;
+			}
+		} else
 			apply(buffer, false, null, result, evalContext, evalStack);
 	}
 

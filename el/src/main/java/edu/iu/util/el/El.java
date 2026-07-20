@@ -1,3 +1,34 @@
+/*
+ * Copyright © 2026 Indiana University
+ * All rights reserved.
+ *
+ * BSD 3-Clause License
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * - Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * - Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 package edu.iu.util.el;
 
 import static edu.iu.util.el.ElUtils.ANY;
@@ -12,10 +43,10 @@ import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -23,6 +54,7 @@ import java.util.function.Function;
 import edu.iu.client.IuJson;
 import jakarta.json.Json;
 import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
@@ -41,7 +73,8 @@ import jakarta.json.JsonValue;
  * {@code p.} evaluates a path against the parent template context.</li>
  * <li>{@code i}, {@code head}, and {@code tail} expose an array item's index,
  * whether it is the first item, and whether it is not the first item while a
- * template is iterating an array.</li>
+ * template is iterating an array or, when introspecting an object with
+ * {@code &}, a property's name in place of a numeric index.</li>
  * <li>Dot-separated path elements select object members or array indexes. A
  * path element beginning with {@code /} is evaluated as a JSON Pointer; for
  * example, {@code $./items/0/name}.</li>
@@ -56,6 +89,11 @@ import jakarta.json.JsonValue;
  * <li>{@code =} compares the current value with the following expression.</li>
  * <li>{@code #} formats numbers with a {@link DecimalFormat} pattern and ISO
  * instant strings with a {@link SimpleDateFormat} pattern.</li>
+ * <li>{@code &} marks the current value, which must be a JSON object, so that
+ * the template applied by the expression that follows (see {@code <} below)
+ * is applied once per property instead of once for the whole object.
+ * {@code &} applied to a value that is not a JSON object throws
+ * {@link IllegalArgumentException}.</li>
  * </ul>
  *
  * <p>
@@ -63,10 +101,12 @@ import jakarta.json.JsonValue;
  * expression. Resource paths may be absolute or relative to the containing
  * template. A template contains expressions in braces, such as
  * {@code {$.name}}; prefixing an opening brace with {@code \} leaves it as
- * literal text. Applying a template to an array renders it once per item and
- * makes the iteration symbols above available. An inline template is delimited
- * by backticks after {@code <}, for example {@code <`Hello {$.name}`}. Nested
- * resource and inline templates are supported.
+ * literal text. Applying a template to an array renders it once per item, and
+ * applying a template to an object marked with {@code &} renders it once per
+ * property; both make the iteration symbols above available. An inline
+ * template is delimited by backticks after {@code <}, for example
+ * {@code <`Hello {$.name}`}. Nested resource and inline templates are
+ * supported.
  * </p>
  */
 public final class El {
@@ -141,8 +181,9 @@ public final class El {
 	 */
 	public static JsonValue eval(JsonValue context, String expr, Function<String, String> readResource) {
 		final Map<String, ElTemplate> templateCache = new HashMap<>();
+		final Map<String, ElTemplate> inlineTemplateCache = new HashMap<>();
 		final var rootContext = new ElContext(context, expr);
-		final Deque<ElContext> evalStack = new LinkedList<>();
+		final Deque<ElContext> evalStack = new ArrayDeque<>();
 		evalStack.push(rootContext);
 
 		while (!evalStack.isEmpty()) {
@@ -194,6 +235,16 @@ public final class El {
 				evalContext.trim(1);
 				break;
 
+			case '&': { // introspect
+				final var result = evalContext.getResult();
+				if (!(result instanceof JsonObject))
+					throw new IllegalArgumentException("unexpected & " + evalContext);
+				
+				evalContext.markAsIntrospect();
+				evalContext.trim(1);
+				break;
+			}
+
 			case '<': { // template
 				final var result = evalContext.getResult();
 				final var templatePathExpr = expression.substring(1);
@@ -207,7 +258,10 @@ public final class El {
 							|| templatePathExpr.charAt(elen - 1) != '`')
 						throw new IllegalArgumentException("inline template doesn't end with '`'");
 
-					final var template = new ElTemplate(templatePathExpr.substring(1, templatePathExpr.length() - 1));
+					ElTemplate template = inlineTemplateCache.get(templatePathExpr);
+					if (template == null)
+						inlineTemplateCache.put(templatePathExpr, template = new ElTemplate(
+								templatePathExpr.substring(1, templatePathExpr.length() - 1)));
 					template.apply(result, evalContext, evalStack);
 				} else {
 					final var templatePathContext = new ElContext(evalContext, result, templatePathExpr,
