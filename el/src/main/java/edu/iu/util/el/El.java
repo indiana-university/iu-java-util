@@ -90,23 +90,22 @@ import jakarta.json.JsonValue;
  * <li>{@code #} formats numbers with a {@link DecimalFormat} pattern and ISO
  * instant strings with a {@link SimpleDateFormat} pattern.</li>
  * <li>{@code &} marks the current value, which must be a JSON object, so that
- * the template applied by the expression that follows (see {@code <} below)
- * is applied once per property instead of once for the whole object.
- * {@code &} applied to a value that is not a JSON object throws
+ * the template applied by the expression that follows (see {@code <} below) is
+ * applied once per property instead of once for the whole object. {@code &}
+ * applied to a value that is not a JSON object throws
  * {@link IllegalArgumentException}.</li>
  * </ul>
  *
  * <p>
  * {@code <} applies a template whose resource path is produced by the following
- * expression. Resource paths may be absolute or relative to the containing
- * template. A template contains expressions in braces, such as
- * {@code {$.name}}; prefixing an opening brace with {@code \} leaves it as
- * literal text. Applying a template to an array renders it once per item, and
- * applying a template to an object marked with {@code &} renders it once per
- * property; both make the iteration symbols above available. An inline
- * template is delimited by backticks after {@code <}, for example
- * {@code <`Hello {$.name}`}. Nested resource and inline templates are
- * supported.
+ * expression. Resource paths are passed verbatim to {@code readResource}. A
+ * template contains expressions in braces, such as {@code {$.name}}; prefixing
+ * an opening brace with {@code \} leaves it as literal text. Applying a
+ * template to an array renders it once per item, and applying a template to an
+ * object marked with {@code &} renders it once per property; both make the
+ * iteration symbols above available. An inline template is delimited by
+ * backticks after {@code <}, for example {@code <`Hello {$.name}`}. Nested
+ * resource and inline templates are supported.
  * </p>
  */
 public final class El {
@@ -239,7 +238,7 @@ public final class El {
 				final var result = evalContext.getResult();
 				if (!(result instanceof JsonObject))
 					throw new IllegalArgumentException("unexpected & " + evalContext);
-				
+
 				evalContext.markAsIntrospect();
 				evalContext.trim(1);
 				break;
