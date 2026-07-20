@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"edu.iu.util.el","l":"El"},{"p":"edu.iu.util.el","l":"ElContext"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"edu.iu.util.el","l":"El"},{"p":"edu.iu.util.el","l":"ElContext"},{"p":"edu.iu.util.el","l":"ElTemplate"},{"p":"edu.iu.util.el","l":"ElUtils"},{"p":"edu.iu.util.el","l":"ElTemplate.Expression","k":"11"}];updateSearchResults();
