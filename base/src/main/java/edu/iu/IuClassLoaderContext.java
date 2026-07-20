@@ -29,15 +29,43 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu;
+
+import iu.ClassLoaderContext;
+
 /**
- * Provides basic Java utilities that simplify working with {@link java.base}.
- * 
- * @uses edu.iu.IuListener For observing container-level events
+ * Provides descriptive metadata per application context {@link ClassLoader}.
  */
-module iu.util {
-	exports edu.iu;
+public interface IuClassLoaderContext {
 
-	requires transitive java.logging;
+	/**
+	 * Registers a {@link IuClassLoaderContext} instance.
+	 * 
+	 * <p>
+	 * MAY be invoked exactly once per {@link ClassLoader}, at container initialization time.
+	 * </p>
+	 * 
+	 * @param context {@link IuClassLoaderContext}
+	 * @param loader  {@link ClassLoader}
+	 */
+	static void register(IuClassLoaderContext context, ClassLoader loader) {
+		ClassLoaderContext.register(context, loader);
+	}
 
-	uses edu.iu.IuListener;
+	/**
+	 * Gets the context registered for the current thread.
+	 * 
+	 * @return {@link IuClassLoaderContext}
+	 */
+	static IuClassLoaderContext getContext() {
+		return ClassLoaderContext.get();
+	}
+
+	/**
+	 * Gets the context name.
+	 * 
+	 * @return context name
+	 */
+	String getName();
+
 }

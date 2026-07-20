@@ -41,10 +41,11 @@ module iu.util.redis.impl {
 
 	requires static org.apache.commons.pool2;
 	requires static lettuce.core;
+	requires static iu.util.client;
 	requires iu.util;
+	requires iu.util.crypt;
 
 	requires transitive iu.util.redis;
-	requires jakarta.annotation;
 
 	provides edu.iu.redis.spi.IuRedisSpi with iu.redis.spi.RedisSpi;
 }

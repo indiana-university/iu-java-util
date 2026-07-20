@@ -34,6 +34,10 @@ package iu.redis.lettuce;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.cert.X509Certificate;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -41,41 +45,45 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-import edu.iu.client.IuVault;
+import edu.iu.IuRuntimeEnvironment;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.test.IuTestLogger;
 
-@EnabledIf("edu.iu.client.IuVault#isConfigured")
+@EnabledIf("iu.redis.lettuce.LettuceConnectionIT#isEnabled")
 @SuppressWarnings("javadoc")
 public class LettuceConnectionIT {
 	private static IuRedisConfiguration config;
 
+	public static boolean isEnabled() {
+		return IuRuntimeEnvironment.envOptional("redis.host") != null;
+	}
+
 	@BeforeAll
-	public static void setupClass() {
-		IuVault vault = IuVault.RUNTIME;
-		final var host = vault.get("spring.redis.host").getValue();
-		String port = vault.get("spring.redis.port").getValue();
-		String password = vault.get("spring.redis.password").getValue();
+	public static void setupClass() throws IOException {
+		final var caCert = Path.of(IuRuntimeEnvironment.env("redis.cacert"));
+		final var ca = PemEncoded.parse(Files.readString(caCert)).next().asCertificate();
 		config = new IuRedisConfiguration() {
 			@Override
 			public String getHost() {
-				return host;
+				return IuRuntimeEnvironment.envOptional("redis.host");
 			}
 
 			@Override
 			public String getPort() {
-				return port;
+				return IuRuntimeEnvironment.env("redis.port");
 			}
 
 			@Override
 			public String getPassword() {
-				return password;
+				return IuRuntimeEnvironment.env("redis.password");
 			}
 
 			@Override
-			public String getUsername() {
-				return "test_user";
+			public X509Certificate getTrustedCert() {
+				return ca;
 			}
+
 		};
 	}
 

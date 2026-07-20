@@ -495,13 +495,28 @@ public class WebKeyCli {
 		final var keyType = jwk.getType();
 		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
 		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
-		final var pemCert = IuProcess.exec( //
-				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", Integer.toString(days()), //
-				"-subj", subjectOrg() + "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
-				"-addext", "basicConstraints=CA:false", //
-				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
-		);
-
+		final var cn = jwk.getKeyId().replaceAll("([+=/])", "\\\\$1");
+		
+		final Queue<String> cmd = new ArrayDeque<>();
+		cmd.offer("openssl");
+		cmd.offer("req");
+		cmd.offer("-x509");
+		cmd.offer("-key");
+		cmd.offer(privateKeyFile.toString());
+		cmd.offer("-days");
+		cmd.offer(Integer.toString(days()));
+		cmd.offer("-subj");
+		cmd.offer(subjectOrg() + "/CN=" + cn);
+		cmd.offer("-addext");
+		cmd.offer("basicConstraints=CA:false");
+		if (cn.matches("[\\w\\.\\-\\*]+")) {
+			cmd.offer("-addext");
+			cmd.offer("subjectAltName=DNS:" + cn);
+		}
+		cmd.offer("-addext");
+		cmd.offer("keyUsage=" + X500Utils.keyUsage(jwk));
+		final var pemCert = IuProcess.exec(cmd.toArray(String[]::new));
+		
 		IuProcess.deleteTempFiles();
 
 		return WebKey.builder(keyType) //
@@ -581,6 +596,7 @@ public class WebKeyCli {
 				default_ca = a
 
 				[ a ]
+				default_md = sha256
 				private_key = ${private_key}
 				certificate = ${certificate}
 				database = ${database}
@@ -614,12 +630,25 @@ public class WebKeyCli {
 	 */
 	static void req(PrintStream out, WebKey jwk) {
 		final var privateKeyFile = IuProcess.temp(PemEncoded::print, jwk.getPrivateKey());
-		final var csr = IuProcess.exec( //
-				"openssl", "req", "-new", "-key", privateKeyFile.toString(), //
-				"-subj", subjectOrg() + "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
-				"-addext", "basicConstraints=CA:false", //
-				"-addext", "keyUsage=" + X500Utils.keyUsage(jwk) //
-		);
+		final var cn = jwk.getKeyId().replaceAll("([+=/])", "\\\\$1");
+		
+		final Queue<String> cmd = new ArrayDeque<>();
+		cmd.offer("openssl");
+		cmd.offer("req");
+		cmd.offer("-new");
+		cmd.offer("-key");
+		cmd.offer(privateKeyFile.toString());
+		cmd.offer("-subj");
+		cmd.offer(subjectOrg() + "/CN=" + cn);
+		cmd.offer("-addext");
+		cmd.offer("basicConstraints=CA:false");
+		if (cn.matches("[\\w\\.\\-\\*]+")) {
+			cmd.offer("-addext");
+			cmd.offer("subjectAltName=DNS:" + cn);
+		}
+		cmd.offer("-addext");
+		cmd.offer("keyUsage=" + X500Utils.keyUsage(jwk));
+		final var csr = IuProcess.exec(cmd.toArray(String[]::new));
 
 		IuProcess.deleteTempFiles();
 
@@ -810,6 +839,8 @@ public class WebKeyCli {
 				} else if (cmd.equals("export")) {
 					if (inputKey != null)
 						export(System.out, inputKey);
+					else if (arg.length == 1)
+						export(System.out, inputCa.getJwk().wellKnown());
 					else
 						export(System.out, inputCa, parseSerial(arg[1]));
 					return;

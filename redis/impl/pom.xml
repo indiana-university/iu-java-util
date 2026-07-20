@@ -22,14 +22,15 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-redis</artifactId>
+			<artifactId>iu-java-crypt</artifactId>
 			<version>${project.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>jakarta.annotation</groupId>
-			<artifactId>jakarta.annotation-api</artifactId>
-			<version>${jakarta.annotation-api.version}</version>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-redis</artifactId>
+			<version>${project.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -38,9 +39,15 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-    		<groupId>io.lettuce</groupId>
-    		<artifactId>lettuce-core</artifactId>
-    		<version>${lettuce.version}</version>
+			<groupId>io.lettuce</groupId>
+			<artifactId>lettuce-core</artifactId>
+			<version>${lettuce.version}</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-client</artifactId>
+			<version>${project.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -72,5 +79,5 @@
 			</plugin>
 		</plugins>
 	</build>
-	
+
 </project>
