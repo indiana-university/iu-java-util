@@ -47,6 +47,7 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuException;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.Json;
@@ -165,6 +166,8 @@ public class ElTest {
 	public void testBadTemplates() {
 		assertEquals("inline template doesn't end with '`'",
 				assertThrows(IllegalArgumentException.class, () -> El.eval("<`")).getMessage());
+		assertEquals("invalid template name {}, expected a string",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(IuJson.object().build(), "<_")).getMessage());
 	}
 
 	@Test

@@ -265,7 +265,11 @@ public final class El {
 				} else {
 					final var templatePathContext = new ElContext(evalContext, result, templatePathExpr,
 							templateName -> {
-								final var path = ((JsonString) templateName).getString();
+								if (!(templateName instanceof JsonString js))
+									throw new IllegalArgumentException(
+											"invalid template name " + templateName + ", expected a string");
+
+								final var path = js.getString();
 
 								ElTemplate template = templateCache.get(path);
 								if (template == null)
