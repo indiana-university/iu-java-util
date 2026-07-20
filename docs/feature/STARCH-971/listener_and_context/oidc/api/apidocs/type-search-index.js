@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"edu.iu.oidc","l":"IuOidcAuthorization","k":"10"},{"p":"edu.iu.oidc","l":"IuOidcPrincipal","k":"10"},{"p":"edu.iu.oidc","l":"IuOidcProviderMetadata","k":"10"},{"p":"edu.iu.oidc","l":"IuOidcTokenResponse","k":"10"}];updateSearchResults();
