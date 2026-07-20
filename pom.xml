@@ -503,6 +503,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>transaction</module>
 				<module>jdbc</module>
 				<module>type</module>
+				<module>el</module>
 				<module>logging</module>
 				<module>web</module>
 				<module>site</module>
