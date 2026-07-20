@@ -32,14 +32,10 @@
 package iu.crypt.init;
 
 import edu.iu.crypt.Init;
-import jakarta.annotation.Priority;
-import jakarta.annotation.Resource;
 
 /**
  * Bootstraps {@link Init}
  */
-@Resource
-@Priority(0)
 class CryptImplResource {
 
 	/**

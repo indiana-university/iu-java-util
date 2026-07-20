@@ -39,8 +39,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.logging.Level;
 
@@ -49,8 +53,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import edu.iu.IuProcess;
+import edu.iu.crypt.PemEncoded;
 import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.test.IuTestLogger;
+import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.RedisURI.Builder;
@@ -226,6 +233,40 @@ public class LettuceConnectionTest {
 					() -> lettuceConnection.put("key".getBytes(), "value".getBytes(), null));
 			assertDoesNotThrow(() -> lettuceConnection.close());
 			assertDoesNotThrow(() -> lettuceConnection.close());
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testWithTrustedCert() throws Exception {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = mock(IuRedisConfiguration.class);
+		when(config.getHost()).thenReturn("localhost");
+		when(config.getPort()).thenReturn("6379");
+		when(config.getPassword()).thenReturn("securePassword");
+
+		final var mockCert = mock(X509Certificate.class);
+		when(config.getTrustedCert()).thenReturn(mockCert);
+
+		final var tempFile = Files.createTempFile("test-trusted-cert-", ".pem");
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class);
+				final var iuProcessMock = mockStatic(IuProcess.class);
+				final var pemEncodedMock = mockStatic(PemEncoded.class)) {
+
+			iuProcessMock.when(IuProcess::createTempFile).thenReturn(tempFile);
+			pemEncodedMock.when(() -> PemEncoded.print(any(PrintStream.class), any(X509Certificate.class)))
+					.thenAnswer(inv -> null);
+
+			final var mockClient = mock(RedisClient.class);
+			when(mockClient.connect()).thenReturn(mock(StatefulRedisConnection.class));
+			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
+
+			final var lettuceConnection = new LettuceConnection(config);
+			assertNotNull(lettuceConnection);
+			verify(mockClient).setOptions(any(ClientOptions.class));
+			assertDoesNotThrow(() -> lettuceConnection.close());
+		} finally {
+			Files.deleteIfExists(tempFile);
 		}
 	}
 

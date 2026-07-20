@@ -29,15 +29,70 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu;
+
+import java.net.URI;
+import java.time.Instant;
+
 /**
- * Provides basic Java utilities that simplify working with {@link java.base}.
- * 
- * @uses edu.iu.IuListener For observing container-level events
+ * Provides common metadata for observable events.
  */
-module iu.util {
-	exports edu.iu;
+public interface IuObservableEvent {
 
-	requires transitive java.logging;
+	/**
+	 * Gets a unique identifier for the event.
+	 * 
+	 * @return unique identifier
+	 */
+	String getId();
 
-	uses edu.iu.IuListener;
+	/**
+	 * Gets the start time associated with the event, i.e., transaction begin time.
+	 * 
+	 * @return {@link Instant}
+	 */
+	Instant getStartTime();
+
+	/**
+	 * Gets the time the event occurred.
+	 * 
+	 * @return {@link Instant}; null to indicate the start of a multi-part event sequence
+	 */
+	Instant getTime();
+
+	/**
+	 * Gets a name of the context-independent type of the event.
+	 * 
+	 * @return event type
+	 */
+	String getType();
+
+	/**
+	 * Gets the URI associated with the event, i.e., HTTP request URI.
+	 * 
+	 * @return {@link URI}
+	 */
+	default URI getUri() {
+		return null;
+	}
+
+	/**
+	 * Gets the name of the event's context, i.e., application/environment code.
+	 * 
+	 * @return context name
+	 */
+	default String getContext() {
+		return null;
+	}
+
+	/**
+	 * Gets the name of the action associated with the event, within the
+	 * application's context.
+	 * 
+	 * @return action name
+	 */
+	default String getAction() {
+		return null;
+	}
+
 }

@@ -29,15 +29,23 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+package edu.iu;
+
+import iu.ListenerSpi;
+
 /**
- * Provides basic Java utilities that simplify working with {@link java.base}.
- * 
- * @uses edu.iu.IuListener For observing container-level events
+ * SPI listener interface for receiving {@link IuObservableEvent} notifications.
  */
-module iu.util {
-	exports edu.iu;
+public interface IuListener extends UnsafeConsumer<IuObservableEvent> {
 
-	requires transitive java.logging;
+	/**
+	 * Passes an {@link IuObservableEvent} instance from an upstream resource to one
+	 * or more container-specific event listeners.
+	 * 
+	 * @param event {@link IuObservableEvent}
+	 */
+	static void observe(IuObservableEvent event) {
+		ListenerSpi.observe(event);
+	}
 
-	uses edu.iu.IuListener;
 }

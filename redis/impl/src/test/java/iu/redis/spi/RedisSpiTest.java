@@ -31,7 +31,6 @@
  */
 package iu.redis.spi;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mockConstruction;
 
@@ -73,13 +72,4 @@ public class RedisSpiTest {
 		}
 	}
 
-	@Test
-	public void testInit() {
-		final var spi = new RedisSpi();
-		assertDoesNotThrow(() -> {
-			final var m = RedisSpi.class.getDeclaredMethod("init");
-			m.setAccessible(true);
-			m.invoke(spi);
-		});
-	}
 }
