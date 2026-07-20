@@ -103,8 +103,7 @@ final class ElUtils {
 					char p = s.charAt(i - 1);
 					if (p == '<')
 						depth++;
-					else if (i + 1 == l //
-							|| s.charAt(i + 1) == '}')
+					else
 						depth--;
 				}
 			} else if (any) {
