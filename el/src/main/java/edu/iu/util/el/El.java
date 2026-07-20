@@ -1,21 +1,28 @@
 package edu.iu.util.el;
 
+import static edu.iu.util.el.ElUtils.ANY;
+import static edu.iu.util.el.ElUtils.EMPTY;
+import static edu.iu.util.el.ElUtils.ESC_TOKEN;
+import static edu.iu.util.el.ElUtils.getCloseBracket;
+import static edu.iu.util.el.ElUtils.getIndexFrom;
+import static edu.iu.util.el.ElUtils.select;
+
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import edu.iu.client.IuJson;
 import jakarta.json.Json;
-import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
@@ -85,74 +92,7 @@ public final class El {
 		}
 	};
 
-	/**
-	 * Character to indicate any control character
-	 */
-	static char ANY = '\0';
-	/**
-	 * Escape character
-	 */
-	static char ESC_TOKEN = '\\';
-	/**
-	 * Control characters
-	 */
-	static char[] CONTROL_CHARS = new char[] { '\'', '@', '<', '`', '=', '?', '!', '&', '#', '*' };
-	/**
-	 * Empty JsonString
-	 */
-	static JsonString EMPTY = Json.createValue("");
-
-	static {
-		Arrays.sort(CONTROL_CHARS);
-	}
-
 	private El() {
-	}
-
-	/**
-	 * Finds the index of a character in a string, starting from a given position,
-	 * while skipping over inline template blocks ({@code <`...`}}).
-	 *
-	 * <p>
-	 * Inline template blocks delimited by {@code <`} and {@code `}} (or a terminal
-	 * {@code `}) are skipped; nesting is tracked so that only characters at depth 0
-	 * are considered when searching.
-	 * </p>
-	 *
-	 * @param s    the string to search
-	 * @param c    the character to search for, or {@link #ANY} ({@code '\0'}) to
-	 *             match the first occurrence of any {@link #CONTROL_CHARS control
-	 *             character}
-	 * @param from the index to start searching from (inclusive)
-	 * @return the index of the first matching character at depth 0, or {@code -1}
-	 *         if not found
-	 */
-	static int getIndexFrom(String s, char c, int from) {
-		boolean any = c == ANY;
-		int l = s.length();
-		int depth = 0;
-		for (int i = from; i < l; i++) {
-			char n = s.charAt(i);
-			if (depth > 0) {
-				if (n == '`') {
-					char p = s.charAt(i - 1);
-					if (p == '<')
-						depth++;
-					else if (i + 1 == l //
-							|| s.charAt(i + 1) == '}')
-						depth--;
-				}
-			} else if (any) {
-				if (Arrays.binarySearch(CONTROL_CHARS, n) >= 0)
-					return i;
-			} else if (n == c)
-				return i;
-			else if (n == '`' //
-					&& i > 0 //
-					&& s.charAt(i - 1) == '<')
-				depth++;
-		}
-		return -1;
 	}
 
 	/**
@@ -177,6 +117,14 @@ public final class El {
 		return eval(context, expr, null);
 	}
 
+	private static boolean isTruthy(JsonValue value) {
+		return value != null //
+				&& !((value instanceof JsonNumber n) //
+						&& n.intValue() == 0) //
+				&& !JsonValue.FALSE.equals(value) //
+				&& !JsonValue.NULL.equals(value);
+	}
+
 	/**
 	 * Evaluate an expression within a given context.
 	 * 
@@ -192,111 +140,171 @@ public final class El {
 	 *         given context
 	 */
 	public static JsonValue eval(JsonValue context, String expr, Function<String, String> readResource) {
-		ElContext evalContext = new ElContext(null, false, null, context, expr);
-		Deque<ElContext> evalStack = new LinkedList<>();
-		evalStack.push(evalContext);
+		final Map<String, ElTemplate> templateCache = new HashMap<>();
+		final var rootContext = new ElContext(context, expr);
+		final Deque<ElContext> evalStack = new LinkedList<>();
+		evalStack.push(rootContext);
 
 		while (!evalStack.isEmpty()) {
-			evalContext = evalStack.pop();
+			final var evalContext = evalStack.pop();
 			if (evalContext.isEmpty()) {
-				evalContext.postProcessResult(evalStack, readResource);
+				evalContext.complete();
 				continue;
-			}
+			} else
+				evalStack.push(evalContext);
 
-			String etail = evalContext.getExpression();
-			int pos = evalContext.getPosition();
-			switch (etail.charAt(0)) {
+			final var position = evalContext.getPosition();
+			final var expression = evalContext.getExpression();
+			switch (expression.charAt(0)) {
 
 			case '*': // comment
-				evalContext.setResult(EMPTY);
+				if (position == 0)
+					evalContext.setResult(EMPTY);
 				evalContext.setPositionAtEnd();
 				break;
 
-			case '\'': // quote
-				int commentPos = getIndexFrom(etail, '*', 1);
-				if (commentPos == -1)
-					evalContext.setResult(Json.createValue(etail.substring(1)));
-				else if (etail.charAt(commentPos - 1) == ESC_TOKEN)
-					evalContext.setResult(
-							Json.createValue(etail.substring(1, commentPos - 1) + etail.substring(commentPos)));
+			case '\'': { // quote
+				if (position != 0)
+					throw new IllegalArgumentException("unexpected ' " + evalContext);
+
+				var endPos = getIndexFrom(expression, '*', 1);
+				while (endPos > 0) {
+					if (expression.charAt(endPos - 1) != ESC_TOKEN)
+						break;
+
+					endPos = getIndexFrom(expression, '*', endPos + 1);
+				}
+
+				final String quoted;
+				if (endPos == -1)
+					quoted = expression.substring(1);
 				else
-					evalContext.setResult(Json.createValue(etail.substring(1, commentPos)));
+					quoted = expression.substring(1, endPos);
+
+				evalContext.setResult(IuJson.string(quoted.replace("\\*", "*")));
 				evalContext.setPositionAtEnd();
 				break;
+			}
 
 			case '@': // raw
+				if (position != 0)
+					throw new IllegalArgumentException("unexpected @ " + evalContext);
+
 				evalContext.markAsRaw();
-				evalContext.advancePosition(1);
+				evalContext.trim(1);
 				break;
 
-			case '<': // template
-				String templatePathExpr = etail.substring(1);
-				JsonValue result = evalContext.getResult();
-
-				ElContext templatePathContext = new ElContext(evalContext, false, null, result, templatePathExpr);
-				templatePathContext.markAsRaw();
-
+			case '<': { // template
+				final var result = evalContext.getResult();
+				final var templatePathExpr = expression.substring(1);
 				evalContext.setPositionAtEnd();
-				evalContext.markAsTemplate();
-				evalStack.push(evalContext);
-				evalStack.push(templatePathContext);
-				continue;
 
-			case '`': // inline template
-				int elen = etail.length();
-				final var onlyOneBackTick = elen <= 1;
-				final var lastCharNotBackTick = etail.charAt(elen - 1) != '`';
-				if (onlyOneBackTick || lastCharNotBackTick)
-					throw new IllegalArgumentException("inline template doesn't end with '`'");
-				evalContext.setResult(Json.createValue(etail));
-				evalContext.setPositionAtEnd();
+				final var inline = templatePathExpr.startsWith("`");
+
+				if (inline) {
+					final var elen = templatePathExpr.length();
+					if (elen <= 1 //
+							|| templatePathExpr.charAt(elen - 1) != '`')
+						throw new IllegalArgumentException("inline template doesn't end with '`'");
+
+					final var template = new ElTemplate(templatePathExpr.substring(1, templatePathExpr.length() - 1));
+					template.apply(result, evalContext, evalStack);
+				} else {
+					final var templatePathContext = new ElContext(evalContext, result, templatePathExpr,
+							templateName -> {
+								final var path = ((JsonString) templateName).getString();
+
+								ElTemplate template = templateCache.get(path);
+								if (template == null)
+									templateCache.put(path,
+											template = new ElTemplate(Objects.requireNonNull(
+													Objects.requireNonNull(readResource,
+															"missing readResource function").apply(path),
+													"missing resource content " + path)));
+
+								template.apply(result, evalContext, evalStack);
+							});
+					templatePathContext.markAsRaw();
+
+					evalStack.push(templatePathContext);
+				}
 				break;
+			}
+
+			case '[': {
+				final var closeBracket = getCloseBracket(expression, 1);
+				if (closeBracket == -1)
+					throw new IllegalArgumentException("missing close bracket ']'");
+
+				evalContext.advancePosition(closeBracket + 1);
+
+				final var result = evalContext.getResult();
+				ElContext subContext = new ElContext(evalContext, false, null, evalContext.getContext(),
+						expression.substring(1, closeBracket), name -> evalContext.setResult(select(result, name)));
+				evalStack.push(subContext);
+				break;
+			}
+
+			case '.': {
+				final var endOfReference = getIndexFrom(expression, ANY, 1);
+				final JsonValue result;
+				if (endOfReference == -1) {
+					result = select(evalContext.getResult(), expression.substring(1));
+					evalContext.setPositionAtEnd();
+				} else {
+					result = select(evalContext.getResult(), expression.substring(1, endOfReference));
+					evalContext.advancePosition(endOfReference);
+				}
+				evalContext.setResult(result);
+				break;
+			}
 
 			case '?': { // if conditional
-				final var cval = evalContext.getResult();
-				final var unlessPos = getIndexFrom(etail, '!', 1);
-				final var cond = cval != null //
-						&& !((cval instanceof JsonNumber n) //
-								&& n.intValue() == 0) //
-						&& !JsonValue.FALSE.equals(cval) //
-						&& !JsonValue.NULL.equals(cval);
-				if (cond) {
-					final var trueCondExprToEval = unlessPos == -1 ? etail.substring(1) : etail.substring(1, unlessPos);
-					evalStack.push(new ElContext(evalContext, trueCondExprToEval));
-				}
-				if (cond || unlessPos == -1) {
+				final var result = evalContext.getResult();
+				final var truthy = isTruthy(result);
+
+				final var unlessPos = getIndexFrom(expression, '!', 1);
+				if (truthy) {
+					final var truthyExpression = unlessPos == -1 //
+							? expression.substring(1)
+							: expression.substring(1, unlessPos);
+
+					evalStack.push(new ElContext(evalContext, evalContext.getContext(), truthyExpression,
+							evalContext::setResult));
+
 					evalContext.setPositionAtEnd();
-					continue;
 				}
-				evalContext.advancePosition(unlessPos);
+
+				else if (unlessPos == -1)
+					evalContext.setPositionAtEnd();
+				else
+					evalContext.advancePosition(unlessPos);
+
 				break;
 			}
 
 			case '!': { // unless conditional
-				final var cval = evalContext.getResult();
-				if (cval == null //
-						|| ((cval instanceof JsonNumber n) //
-								&& n.intValue() == 0) //
-						|| JsonValue.FALSE.equals(cval) //
-						|| JsonValue.NULL.equals(cval))
-					evalStack.push(new ElContext(evalContext, etail.substring(1)));
+				final var result = evalContext.getResult();
+				if (!isTruthy(result))
+					evalStack.push(new ElContext(evalContext, evalContext.getContext(), expression.substring(1),
+							evalContext::setResult));
+
 				evalContext.setPositionAtEnd();
-				continue;
+				break;
 			}
 
 			case '=': { // equals match
-				ElContext melc = new ElContext(evalContext, etail.substring(1));
-				melc.setMatchResult(evalContext.getResult());
-				evalStack.push(melc);
+				evalStack.push(new ElContext(evalContext, evalContext.getContext(), expression.substring(1),
+						evalContext::setMatchResult));
 				evalContext.setPositionAtEnd();
-				continue;
+				break;
 			}
 
 			case '#': { // format
 				final var cval = evalContext.getResult();
 				if (cval instanceof JsonNumber) {
 					DecimalFormat df = DECIMAL_FMT.get();
-					df.applyPattern(etail.substring(1));
+					df.applyPattern(expression.substring(1));
 					evalContext.setResult(Json.createValue(df.format(((JsonNumber) cval).numberValue())));
 				}
 				// Expect the value is formatted as ISO 8601, treat it as a date and apply the
@@ -306,7 +314,7 @@ public final class El {
 						DateTimeFormatter dtf = DATE_TIME_FMT.get();
 						final var instant = dtf.parse(((JsonString) cval).getString(), Instant::from);
 						SimpleDateFormat df = DATE_FMT.get();
-						df.applyPattern(etail.substring(1));
+						df.applyPattern(expression.substring(1));
 						evalContext.setResult(Json.createValue(df.format(new Date(instant.toEpochMilli()))));
 					} catch (DateTimeParseException e) {
 						// ignore
@@ -317,107 +325,68 @@ public final class El {
 				break;
 			}
 
-			case 'p': {
-				if (etail.length() < 2 //
-						|| etail.charAt(1) != '.') {
-					throw new IllegalArgumentException("expected '.' after 'p'");
+			default: {
+				final var nextControlChar = getIndexFrom(expression, ANY, 0);
+				final String symbol;
+				if (nextControlChar == -1) {
+					evalContext.setPositionAtEnd();
+					symbol = expression;
+				} else {
+					evalContext.advancePosition(nextControlChar);
+					symbol = expression.substring(0, nextControlChar);
 				}
-				String parentPathExpr = etail.substring(2);
-				ElContext parentContext = evalContext.getP();
-				if (parentContext == null)
-					throw new IllegalArgumentException("no parent context");
-				ElContext parentPathContext = new ElContext(parentContext, false, null, parentContext.get$(),
-						parentPathExpr);
 
-				parentPathContext.markAsRaw();
-				evalContext.setPositionAtEnd();
+				switch (symbol) {
+				case "p": {
+					final var parentContext = Objects.requireNonNull(evalContext.getParent(), "missing parent context");
+					evalStack.push(new ElContext(parentContext, parentContext.getContext(), expression.substring(1),
+							evalContext::setResult));
+					evalContext.setPositionAtEnd();
+					continue;
+				}
 
-				evalStack.push(evalContext);
-				evalStack.push(parentPathContext);
-				continue;
+				case "_": {
+					final var parentContext = Objects.requireNonNull(evalContext.getParent(), "missing parent context");
+					evalStack.push(new ElContext(parentContext, parentContext.getThis(), expression.substring(1),
+							evalContext::setResult));
+					evalContext.setPositionAtEnd();
+					continue;
+				}
+
+				case "root": {
+					evalContext.setResult(evalContext.getRoot());
+					continue;
+				}
+
+				case "$": {
+					continue;
+				}
+
+				case "head": {
+					evalContext.setResult(evalContext.isHead() ? JsonValue.TRUE : JsonValue.FALSE);
+					continue;
+				}
+
+				case "tail": {
+					evalContext.setResult(evalContext.isHead() ? JsonValue.FALSE : JsonValue.TRUE);
+					continue;
+				}
+
+				case "i": {
+					evalContext.setResult(evalContext.getIndex());
+					continue;
+				}
+
+				default: {
+					evalContext.setResult(select(evalContext.getResult(), symbol));
+					continue;
+				}
+				}
 			}
-
-			default:
-				int npos = getIndexFrom(etail, ANY, pos);
-				if (npos == -1)
-					npos = etail.length();
-
-				JsonValue selected = null;
-				var path = etail.substring(0, npos);
-				var dot = etail.indexOf('.');
-
-				String firstSymbol;
-				if (dot == -1)
-					firstSymbol = path;
-				else
-					firstSymbol = path.substring(0, dot);
-				switch (firstSymbol) {
-				case "$":
-					selected = evalContext.get$();
-					break;
-
-				case "_":
-					selected = evalContext.get_();
-					break;
-
-				case "root":
-					selected = evalContext.getRoot();
-					break;
-
-				case "head":
-					selected = evalContext.isHead() ? JsonValue.TRUE : JsonValue.FALSE;
-					break;
-
-				case "tail":
-					selected = evalContext.isTail() ? JsonValue.TRUE : JsonValue.FALSE;
-					break;
-
-				case "i":
-					selected = evalContext.getI();
-					break;
-
-				default:
-					throw new IllegalArgumentException("unexpected " + firstSymbol);
-				}
-
-				while (dot != -1) {
-					var nextDot = path.indexOf('.', dot + 1);
-					String pathElement;
-					if (nextDot == -1)
-						pathElement = path.substring(dot + 1);
-					else
-						pathElement = path.substring(dot + 1, nextDot);
-
-					if (pathElement.startsWith("/")) {
-						final var pointer = IuJson.PROVIDER.createPointer(pathElement);
-						if (selected instanceof JsonObject)
-							selected = pointer.getValue(selected.asJsonObject());
-						else if (selected instanceof JsonArray)
-							selected = pointer.getValue(selected.asJsonArray());
-						else
-							throw new IllegalArgumentException("expected object or array for " + selected);
-					} else {
-						if (selected instanceof JsonArray)
-							selected = selected.asJsonArray().get(Integer.parseInt(pathElement));
-						else if (selected instanceof JsonObject)
-							selected = selected.asJsonObject().get(pathElement);
-						else
-							throw new IllegalArgumentException("expected object or array for " + selected);
-					}
-
-					dot = nextDot;
-				}
-
-				evalContext.setResult(selected);
-
-				evalContext.advancePosition(npos);
-				break;
 			}
-
-			evalStack.push(evalContext);
 		}
 
-		return evalContext.getResult();
+		return rootContext.getResult();
 	}
 
 }

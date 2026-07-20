@@ -1,4 +1,2 @@
-Here it is {$.baz?_<'bazTemplate}
-Here it is {$.bim?_<'bazTemplate}
-List test-classes dir {$.baz.message?_<'/}
-No resource path lists test resources {$.baz.message?_<'}
+Here it is {$.baz?_<'el/bazTemplate}
+Here it is {$.bim?_<'el/bazTemplate}

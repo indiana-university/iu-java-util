@@ -24,113 +24,28 @@ import jakarta.json.JsonValue;
 @SuppressWarnings("javadoc")
 public class ElTest {
 
-//	private static final Logger LOG = Logger.getLogger(ElTest.class.getName());
 	private static final Path TEST_RESOURCES = IuException
 			.unchecked(() -> Path.of(ElTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()));
 
 	private static String readResource(String resource) {
 		return IuException.unchecked(() -> {
-			String resourceName = resource.replace('\\', '/');
-			if (resourceName.startsWith("C://"))
-				resourceName = "el/" + resourceName.substring(4);
-			else if (resourceName.startsWith("C:/"))
-				resourceName = "el/" + resourceName.substring(3);
-
-			final var resourcePath = TEST_RESOURCES.resolve(resourceName).normalize();
-			if (!resourcePath.startsWith(TEST_RESOURCES) || !Files.exists(resourcePath))
+			final var resourcePath = TEST_RESOURCES.resolve(resource).normalize();
+			if (!resourcePath.startsWith(TEST_RESOURCES) //
+					|| !Files.exists(resourcePath) //
+					|| Files.isDirectory(resourcePath))
 				throw new IllegalArgumentException(resource);
 
-			if (!Files.isDirectory(resourcePath))
-				return Files.readString(resourcePath);
-
-			return "";
-//			try (final var entries = Files.list(resourcePath)) {
-//				return entries.map(path -> path.getFileName().toString())
-//						.sorted(String.CASE_INSENSITIVE_ORDER)
-//						.collect(Collectors.joining("\n", "", "\n"));
-//			}
+			return Files.readString(resourcePath);
 		});
-	}
-
-	@Test
-	public void testGetIndexFromFindsChar() {
-		assertEquals(3, El.getIndexFrom("abc*def", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromStartsFromOffset() {
-		assertEquals(7, El.getIndexFrom("abc*def*ghi", '*', 4));
-	}
-
-	@Test
-	public void testGetIndexFromReturnsMinusOneWhenNotFound() {
-		assertEquals(-1, El.getIndexFrom("abcdef", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromReturnsMinusOneWhenBeyondEnd() {
-		assertEquals(-1, El.getIndexFrom("abc*def", '*', 4));
-	}
-
-	@Test
-	public void testGetIndexFromAnyFindsFirstControlChar() {
-		// 'a' at 0, '@' at 3 is first control char
-		assertEquals(3, El.getIndexFrom("abc@def", El.ANY, 0));
-	}
-
-	@Test
-	public void testGetIndexFromSkipsInsideInlineTemplate() {
-		// "<`*`}" — the '*' at index 2 is inside an inline template block; no match at
-		// depth 0
-		assertEquals(-1, El.getIndexFrom("<`*`}", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromSkipsEolComment() {
-		// "<`*`foo" — the '*' at index 2 is inside an inline template block; no match
-		// at depth 0
-		assertEquals(-1, El.getIndexFrom("<`*`foo", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromLeadingTick() {
-		assertEquals(1, El.getIndexFrom("`*", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromLazyTick() {
-		assertEquals(2, El.getIndexFrom("a`*", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromFindsCharAfterInlineTemplate() {
-		// "<`inner`}*" — '*' at index 9 is outside the inline template block
-		assertEquals(9, El.getIndexFrom("<`inner`}*", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromHandlesNestedInlineTemplates() {
-		// "<`<`inner`}`}*rest" — nested templates both close properly; '*' at index 13
-		// is found
-		assertEquals(13, El.getIndexFrom("<`<`inner`}`}*rest", '*', 0));
-	}
-
-	@Test
-	public void testGetIndexFromTerminalBacktickClosesDepth() {
-		// "<`*`" — '`' at end of string is terminal and closes the block; '*' inside is
-		// skipped
-		assertEquals(-1, El.getIndexFrom("<`*`", '*', 0));
 	}
 
 	@Test
 	public void testEmptyExpression() {
 		assertNull(El.eval(null));
 		assertNull(El.eval(""));
-		assertEquals("Non-atmoic result",
-				assertThrows(IllegalStateException.class, () -> El.eval(JsonValue.EMPTY_JSON_OBJECT, null))
-						.getMessage());
-		assertEquals("Non-atmoic result",
-				assertThrows(IllegalStateException.class, () -> El.eval(JsonValue.EMPTY_JSON_OBJECT, "")).getMessage());
+		final var o = JsonValue.EMPTY_JSON_OBJECT;
+		assertEquals(o, El.eval(o, null));
+		assertEquals(o, El.eval(o, ""));
 	}
 
 	@Test
@@ -161,8 +76,6 @@ public class ElTest {
 	public void testResource() {
 		assertEquals("Hello World",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(null, "<'el/hello.txt", ElTest::readResource)));
-		assertEquals("Hello World",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(null, "<'/el/hello.txt", ElTest::readResource)));
 	}
 
 	// Try this test with a JsonObject instead of ExprTestBean
@@ -171,6 +84,12 @@ public class ElTest {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("foo", "bar");
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.foo")));
+		b.add("foo", "bar");
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), ".foo")));
+		b.add("foo", "bar");
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "foo")));
+		b.add("foo", "bar");
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "foo*bar")));
 
 		b.add("fooList", Json.createArrayBuilder().add("foo").add("bar").add("baz"));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList.1")));
@@ -180,15 +99,38 @@ public class ElTest {
 		b1.add("bar", "bam");
 		b1.add("bam", "foo");
 		b.add("fooMap", b1);
-		
+
 		final var c = b.build();
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap.foo")));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap?_.foo")));
-		// TODO: Is there a way to access a value of the JsonObject (equivalent to a
-		// Map) using an expression as a key?
-		// Current El doesn't like the brackets. Should it be able to interpret the
-		// brackets as a new expression?
-		//assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap[$.fooMap[bam]]")));
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap[$.fooMap[_.bar]]")));
+	}
+
+	@Test
+	public void testMisplacedMacros() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", "bar");
+		final var c = b.build();
+		assertEquals("unexpected ' EL expression \"foo'bar\" at 3: \"foo[']bar\"",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(c, "foo'bar")).getMessage());
+		assertEquals("unexpected @ EL expression \"foo@bar\" at 3: \"foo[@]bar\"",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(c, "foo@bar")).getMessage());
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "foo[bar]")));
+	}
+
+	@Test
+	public void testBadTemplates() {
+		assertEquals("inline template doesn't end with '`'",
+				assertThrows(IllegalArgumentException.class, () -> El.eval("<`")).getMessage());
+	}
+
+	@Test
+	public void testBadSubExpression() {
+		JsonObjectBuilder b = Json.createObjectBuilder();
+		b.add("foo", "bar");
+		final var c = b.build();
+		assertEquals("missing close bracket ']'",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(c, "['foo")).getMessage());
 	}
 
 	@Test
@@ -217,8 +159,8 @@ public class ElTest {
 		arr.add("baz");
 		b.add("fooList", arr);
 		b.add("fool", "el/-list");
-		assertEquals("foo,bar,baz", IuJsonAdapter.of(String.class)
-				.fromJson(El.eval(b.build(), "$.fooList<p.$.fool", ElTest::readResource)));
+		assertEquals("foo,bar,baz",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.fool", ElTest::readResource)));
 	}
 
 	@Test
@@ -230,8 +172,8 @@ public class ElTest {
 		arr.add("baz");
 		b.add("fooList", arr);
 		b.add("fool", "el/-list-head");
-		assertEquals("0: foo, 1: bar, 2: baz", IuJsonAdapter.of(String.class)
-				.fromJson(El.eval(b.build(), "$.fooList<p.$.fool", ElTest::readResource)));
+		assertEquals("0: foo, 1: bar, 2: baz",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList<p.fool", ElTest::readResource)));
 	}
 
 	@Test
@@ -243,23 +185,8 @@ public class ElTest {
 				"failure message");
 		b.add("foo", Json.createObjectBuilder().add("baz", success).add("bim", failure));
 		assertEquals("Here it is a success success message!" + System.lineSeparator() + //
-				"Here it is a failure failure message!" + System.lineSeparator() + //
-				"List test-classes dir " + System.lineSeparator() + //
-				"No resource path lists test resources ", IuJsonAdapter.of(String.class)
+				"Here it is a failure failure message!" + System.lineSeparator(), IuJsonAdapter.of(String.class)
 						.fromJson(El.eval(b.build(), "$.foo<'el/testTemplate", ElTest::readResource)));
-	}
-
-	@Test
-	public void testTemplateEmptyResource() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("foo", Json.createObjectBuilder().add("bar", "baz"));
-		final var context = b.build();
-		assertEquals("",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'", ElTest::readResource)));
-		assertEquals("",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'/", ElTest::readResource)));
-		assertEquals("",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<'.", ElTest::readResource)));
 	}
 
 	@Test
@@ -269,7 +196,7 @@ public class ElTest {
 		b.add("foo", Json.createObjectBuilder().add("bar", "baz"));
 		b.add("fool", "el/-not-found");
 		final var err = assertThrows(IllegalArgumentException.class,
-				() -> El.eval(b.build(), "$.foo<p.$.fool", ElTest::readResource));
+				() -> El.eval(b.build(), "$.foo<p.fool", ElTest::readResource));
 		assertEquals("el/-not-found", err.getMessage());
 	}
 
@@ -283,7 +210,7 @@ public class ElTest {
 		b.add("foo", Json.createObjectBuilder().add("bar", success).add("bim", failure));
 
 		assertEquals("What do we have here? a success success message!", IuJsonAdapter.of(String.class)
-				.fromJson(El.eval(b.build(), "$.foo<'C:\\\\parentTemplate", ElTest::readResource)));
+				.fromJson(El.eval(b.build(), "$.foo<'el/parentTemplate", ElTest::readResource)));
 	}
 
 	@Test
@@ -296,41 +223,9 @@ public class ElTest {
 		b.add("fooList", arr);
 		b.add("fool", "el/-list");
 		assertEquals("java.io.IOException: test",
-				assertThrows(IllegalStateException.class, () -> El.eval(b.build(), "$.fooList<p.$.fool", resource -> {
+				assertThrows(IllegalStateException.class, () -> El.eval(b.build(), "$.fooList<p.fool", resource -> {
 					throw new IllegalStateException(new IOException("test"));
 				})).getMessage());
-	}
-
-	@Test
-	public void testTemplateExprNoParent() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("fool", "el/-list");
-		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "p.$.fool"));
-		assertEquals("no parent context", err.getMessage());
-	}
-
-	@Test
-	public void testTemplateExprUnexpectedFirstSymbol() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("fool", "el/-list");
-		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "Z.fool"));
-		assertEquals("unexpected Z", err.getMessage());
-	}
-
-	@Test
-	public void testTemplateExprExpectedObjectOrArray() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("fool", "el/-list");
-		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "_.fool"));
-		assertEquals("expected object or array for null", err.getMessage());
-	}
-
-	@Test
-	public void testTemplateExprExpectedObjectOrArrayPointer() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("fool", "el/-list");
-		final var err = assertThrows(IllegalArgumentException.class, () -> El.eval(b.build(), "_./fool"));
-		assertEquals("expected object or array for null", err.getMessage());
 	}
 
 	@Test
@@ -353,8 +248,7 @@ public class ElTest {
 		b1.add("baz", JsonValue.FALSE);
 		b1.add("bim", JsonValue.NULL);
 		final var context1 = b1.build();
-		assertEquals("true false ",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
+		assertEquals("  ", IuJsonAdapter.of(String.class).fromJson(El.eval(context1, "<`{$.foo} {$.baz} {$.bim}`")));
 
 		JsonObjectBuilder b2 = Json.createObjectBuilder();
 		b2.add("foo", Json.createObjectBuilder().add("bar", "baz"));
@@ -386,20 +280,27 @@ public class ElTest {
 		JsonObjectBuilder b = Json.createObjectBuilder();
 		b.add("foo", Json.createObjectBuilder().add("bar", "baz").add("baz", "bar"));
 		final var context = b.build();
-		assertEquals("expected '.' after 'p'",
-				assertThrows(IllegalArgumentException.class,
-						() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p}`")))
-						.getMessage());
-		assertEquals("expected '.' after 'p'",
-				assertThrows(IllegalArgumentException.class,
-						() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p-}`")))
-						.getMessage());
-		assertEquals("unexpected \\p",
-				assertThrows(IllegalArgumentException.class,
-						() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{\\p}`")))
-						.getMessage());
+
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p}`")));
+		assertEquals("invalid result " + context + ", expected a single value from p", error.getMessage(), () -> {
+			throw error;
+		});
+
+		final var error2 = assertThrows(IllegalArgumentException.class,
+				() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p-}`")));
+		assertEquals("expected object or array for property 'p-', found \"baz\"", error2.getMessage(), () -> {
+			throw error2;
+		});
+
+		final var error3 = assertThrows(IllegalArgumentException.class,
+				() -> IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{\\p}`")));
+		assertEquals("expected object or array for property '\\p', found \"baz\"", error3.getMessage(), () -> {
+			throw error3;
+		});
 		assertEquals("p", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{'p}`")));
-		assertEquals("baz", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p._}`")));
+		assertEquals("baz", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{_}`")));
+		assertEquals("baz", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.foo.bar<`{p.foo.bar}`")));
 	}
 
 	@Test
@@ -440,8 +341,7 @@ public class ElTest {
 		assertEquals("baz is false", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz!'baz is false")));
 		assertEquals("bum is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
-		assertEquals("1",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.one!'one is false")));
+		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.one!'one is false")));
 		assertEquals("zero is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero!'zero is false")));
 		assertEquals("bif is null",

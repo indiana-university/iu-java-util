@@ -1,209 +1,171 @@
 package edu.iu.util.el;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayDeque;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
 import jakarta.json.Json;
-import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
 public class ElContextTest {
 
 	@Test
-	public void testContextToString() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("foo", "bar");
-		b.add("baz", "bif");
-		b.add("bim", "bam");
-		final var context = b.build();
-		final var evalContext = new ElContext(null, false, null, context, "<`{$.foo} {$.baz} {$.bim}`");
-		assertEquals("EL expression \"<`{$.foo} {$.baz} {$.bim}`\" at 0: \"[<]`{$.f\"", evalContext.toString());
-		evalContext.advancePosition(1);
-		assertEquals("EL expression \"<`{$.foo} {$.baz} {$.bim}`\" at 1: \"<[`]{$.fo\"", evalContext.toString());
-		evalContext.setPositionAtEnd();
-		assertEquals("EL expression \"<`{$.foo} {$.baz} {$.bim}`\" at 26: \"bim}`[]\"", evalContext.toString());
+	public void testRootContext() {
+		final var value = Json.createObjectBuilder().add("name", "root").build();
+		final var context = new ElContext(value, "foo.bar");
 
-		final var evalContext2 = new ElContext(null, false, null, context, null);
-		assertEquals("EL", evalContext2.toString());
-
-		JsonObjectBuilder p = Json.createObjectBuilder();
-		p.add("foo", "bar");
-		final var parentContextJson = p.build();
-		final var parentContext = new ElContext(null, false, null, parentContextJson, null);
-		final var evalContext3 = new ElContext(parentContext, false, null, context, "<`p.foo`");
-		assertEquals("EL expression \"<`p.foo`\" at 0: \"[<]`p.fo\"\nParent EL", evalContext3.toString());
-
-		JsonObjectBuilder p2 = Json.createObjectBuilder();
-		p2.add("foo", "bar");
-		p2.add("baz", "bif");
-		p2.add("bim", "bam");
-		final var parentContextJson2 = p2.build();
-		final var parentContext2 = new ElContext(null, false, null, parentContextJson2, "$.foo<`{_} {_}`");
-		final var templateContext = new ElContext(parentContext2, false, null, parentContextJson2.get("foo"),
-				"`{_} {_}`");
-		templateContext.markAsRaw();
-
-		parentContext2.setPositionAtEnd();
-		parentContext2.markAsTemplate();
-		ArrayDeque<ElContext> evalStack = new ArrayDeque<>();
-		evalStack.push(parentContext2);
-		templateContext.setResult(Json.createValue("`{_} {_}`"));
-		templateContext.setPositionAtEnd();
-		templateContext.postProcessResult(evalStack, null);
-		assertEquals("EL expression \"`{_} {_}`\" at 9: \" {_}`[]\"\n" + //
-				"Parent EL expression \"$.foo<`{_} {_}`\" at 15: \" {_}`[]\"\n   in `{_} {_}` = \" \"",
-				templateContext.toString());
-		final var templateContext2 = evalStack.pop();
-		assertEquals("EL expression \"_\" at 0: \"[_]\" insert at 1\n" + //
-				"Parent EL expression \"$.foo<`{_} {_}`\" at 15: \" {_}`[]\"\n   in `{_} {_}` = \" \"",
-				templateContext2.toString());
-
-		JsonObjectBuilder p3 = Json.createObjectBuilder();
-		p3.add("foo", "bar");
-		p3.add("baz", "bif");
-		p3.add("bim", "bam");
-		final var parentContextJson3 = p3.build();
-		final var parentContext3 = new ElContext(null, false, null, parentContextJson3, "$.foo<``");
-		final var templateContext3 = new ElContext(parentContext3, false, null, parentContextJson3.get("foo"), "``");
-		templateContext3.markAsRaw();
-
-		parentContext3.setPositionAtEnd();
-		parentContext3.markAsTemplate();
-		ArrayDeque<ElContext> evalStack2 = new ArrayDeque<>();
-		evalStack2.push(parentContext3);
-		templateContext3.setResult(Json.createValue("``"));
-		templateContext3.setPositionAtEnd();
-		templateContext3.postProcessResult(evalStack2, null);
-		assertEquals(
-				"EL expression \"``\" at 2: \"``[]\"\nParent EL expression \"$.foo<``\" at 8: \"oo<``[]\"\n   in `` = \"\"",
-				templateContext3.toString());
-		final var templateContext4 = evalStack2.pop();
-		assertEquals("EL expression \"$.foo<``\" at 8: \"oo<``[]\"\n   in `` = \"\"", templateContext4.toString());
+		assertNull(context.getParent());
+		assertSame(value, context.getRoot());
+		assertSame(value, context.getContext());
+		assertSame(value, context.getResult());
+		assertSame(value, context.getThis());
+		assertNull(context.getIndex());
+		assertFalse(context.isHead());
+		assertFalse(context.isRaw());
+		assertFalse(context.isEmpty());
+		assertEquals(0, context.getPosition());
+		assertEquals("foo.bar", context.getExpression());
 	}
 
 	@Test
-	public void testTemplateWithEscape() {
-		JsonObjectBuilder p = Json.createObjectBuilder();
-		p.add("foo", "bar");
-		p.add("baz", "bif");
-		p.add("bim", "bam");
-		final var parentContextJson = p.build();
-		final var parentContext = new ElContext(null, false, null, parentContextJson, "$.foo<`\\{{_}\\}`");
-		final var templateContext = new ElContext(parentContext, false, null, parentContextJson.get("foo"),
-				"`\\{{_}\\}`");
-		templateContext.markAsRaw();
+	public void testChildContext() {
+		final var rootValue = Json.createObjectBuilder().add("root", true).build();
+		final var parent = new ElContext(rootValue, "parent");
+		final var value = Json.createValue("item");
+		final var index = Json.createValue(2);
+		final var child = new ElContext(parent, true, index, value, "child", null);
 
-		parentContext.setPositionAtEnd();
-		parentContext.markAsTemplate();
-		ArrayDeque<ElContext> evalStack = new ArrayDeque<>();
-		evalStack.push(parentContext);
-		templateContext.setResult(Json.createValue("`\\{{_}\\}`"));
-		templateContext.setPositionAtEnd();
-		templateContext.postProcessResult(evalStack, null);
-		assertEquals("EL expression \"`\\{{_}\\}`\" at 9: \"_}\\}`[]\"\n" + //
-				"Parent EL expression \"$.foo<`\\{{_}\\}`\" at 15: \"_}\\}`[]\"\n   in `\\{{_}\\}` = \"{\\}\"",
-				templateContext.toString());
-		final var templateContext1 = evalStack.pop();
-		assertEquals("EL expression \"_\" at 0: \"[_]\" insert at 1\n" + //
-				"Parent EL expression \"$.foo<`\\{{_}\\}`\" at 15: \"_}\\}`[]\"\n   in `\\{{_}\\}` = \"{\\}\"",
-				templateContext1.toString());
-
-		JsonObjectBuilder p2 = Json.createObjectBuilder();
-		p2.add("foo", "bar");
-		p2.add("baz", "bif");
-		p2.add("bim", "bam");
-		final var parentContextJson2 = p2.build();
-		final var parentContext2 = new ElContext(null, false, null, parentContextJson2, "$.foo<`${baz}`");
-		final var templateContext2 = new ElContext(parentContext2, false, null, parentContextJson2.get("foo"),
-				"`${baz}`");
-		templateContext2.markAsRaw();
-
-		parentContext2.setPositionAtEnd();
-		parentContext2.markAsTemplate();
-		ArrayDeque<ElContext> evalStack2 = new ArrayDeque<>();
-		evalStack2.push(parentContext2);
-		templateContext2.setResult(Json.createValue("`${baz}`"));
-		templateContext2.setPositionAtEnd();
-		templateContext2.postProcessResult(evalStack2, null);
-		assertEquals("EL expression \"`${baz}`\" at 8: \"baz}`[]\"\n" + //
-				"Parent EL expression \"$.foo<`${baz}`\" at 14: \"baz}`[]\"\n   in `${baz}` = \"${baz}\"",
-				templateContext2.toString());
-		final var templateContext3 = evalStack2.pop();
-		assertEquals("EL expression \"$.foo<`${baz}`\" at 14: \"baz}`[]\"\n   in `${baz}` = \"${baz}\"",
-				templateContext3.toString());
+		assertSame(parent, child.getParent());
+		assertSame(rootValue, child.getRoot());
+		assertSame(value, child.getContext());
+		assertSame(value, child.getThis());
+		assertSame(index, child.getIndex());
+		assertTrue(child.isHead());
 	}
 
 	@Test
-	public void testTemplateMissingEndToken() {
-		JsonObjectBuilder p = Json.createObjectBuilder();
-		p.add("foo", "bar");
-		p.add("baz", "bif");
-		p.add("bim", "bam");
-		final var parentContextJson = p.build();
-		final var parentContext = new ElContext(null, false, null, parentContextJson, "$.foo<`{_`");
-		final var templateContext = new ElContext(parentContext, false, null, parentContextJson.get("foo"), "`{_`");
-		templateContext.markAsRaw();
+	public void testExpressionPositionAndTrimming() {
+		final var context = new ElContext(JsonValue.NULL, "abcdef");
 
-		parentContext.setPositionAtEnd();
-		parentContext.markAsTemplate();
-		ArrayDeque<ElContext> evalStack = new ArrayDeque<>();
-		evalStack.push(parentContext);
-		templateContext.setResult(Json.createValue("`{_`"));
-		templateContext.setPositionAtEnd();
-		assertEquals("Missing end token '`}': {_",
-				assertThrows(IllegalStateException.class, () -> templateContext.postProcessResult(evalStack, null))
-						.getMessage());
+		context.trim(2);
+		assertEquals("cdef", context.getExpression());
+
+		context.advancePosition(1);
+		assertEquals(1, context.getPosition());
+		assertEquals("def", context.getExpression());
+
+		context.trim(2);
+		assertEquals("f", context.getExpression());
+
+		context.setPositionAtEnd();
+		assertTrue(context.isEmpty());
+		assertEquals("", context.getExpression());
 	}
 
 	@Test
-	public void testContextIsRaw() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("foo", "bar");
-		b.add("baz", "bif");
-		b.add("bim", "bam");
-		final var context = b.build();
-		ElContext evalContext = new ElContext(null, false, null, context, "<`{$.foo} {$.baz} {$.bim}`");
-		assertEquals(false, evalContext.isRaw());
+	public void testNullExpressionIsEmpty() {
+		final var context = new ElContext(JsonValue.NULL, null);
+
+		assertTrue(context.isEmpty());
+		assertEquals("", context.getExpression());
+		assertEquals("EL", context.toString());
 	}
 
 	@Test
-	public void testContextEmptyExpression() {
-		JsonObjectBuilder b = Json.createObjectBuilder();
-		b.add("foo", "bar");
-		b.add("baz", "bif");
-		b.add("bim", "bam");
-		final var context = b.build();
-		ElContext evalContext = new ElContext(null, false, null, context, null);
-		assertEquals("", evalContext.getExpression());
+	public void testResultAndMatching() {
+		final var context = new ElContext(JsonValue.NULL, "match");
+		final var expected = Json.createValue("expected");
+
+		context.setResult(expected);
+		assertSame(expected, context.getResult());
+		assertSame(expected, context.getThis());
+
+		context.setMatchResult(expected);
+		assertSame(JsonValue.TRUE, context.getResult());
+
+		final var different = Json.createValue("different");
+		context.setResult(different);
+		assertSame(JsonValue.FALSE, context.getResult());
+		assertSame(different, context.getThis());
 	}
 
 	@Test
-	public void testUnclosedInlineTemplate() {
-		JsonObjectBuilder p = Json.createObjectBuilder();
-		p.add("foo", "bar");
-		p.add("baz", "bif");
-		p.add("bim", "bam");
-		final var parentContextJson = p.build();
-		final var parentContext = new ElContext(null, false, null, parentContextJson, "$.foo<`{_}");
-		final var templateContext = new ElContext(parentContext, false, null, parentContextJson.get("foo"), "`{_}");
-		templateContext.markAsRaw();
+	public void testMissingMatchOperandsDoNotMatch() {
+		final var missingExpected = new ElContext(JsonValue.TRUE, "match");
+		missingExpected.setMatchResult(null);
+		assertSame(JsonValue.FALSE, missingExpected.getResult());
 
-		parentContext.setPositionAtEnd();
-		parentContext.markAsTemplate();
-		ArrayDeque<ElContext> evalStack = new ArrayDeque<>();
-		evalStack.push(parentContext);
-		templateContext.setResult(Json.createValue("`{_}"));
-		templateContext.setPositionAtEnd();
-		assertEquals("`{_}",
-				assertThrows(IllegalArgumentException.class,
-						() -> templateContext.postProcessResult(evalStack, resource -> {
-							throw new IllegalArgumentException(resource);
-						}))
-						.getMessage());
+		final var missingResult = new ElContext(JsonValue.TRUE, "match");
+		missingResult.setResult(null);
+		missingResult.setMatchResult(JsonValue.TRUE);
+		assertSame(JsonValue.FALSE, missingResult.getResult());
 	}
 
+	@Test
+	public void testCompleteInvokesCallbackThenEscapesResult() {
+		final var completed = new AtomicReference<JsonValue>();
+		final var context = new ElContext(null, JsonValue.NULL, "expression", completed::set);
+		final var result = Json.createValue("<strong>value</strong>");
+		context.setResult(result);
+
+		context.complete();
+
+		assertSame(result, completed.get());
+		assertEquals("&lt;strong&gt;value&lt;/strong&gt;", ((JsonString) context.getResult()).getString());
+	}
+
+	@Test
+	public void testCompleteInvokesCallbackThenDoesntEscapeIntResult() {
+		final var completed = new AtomicReference<JsonValue>();
+		final var context = new ElContext(null, JsonValue.NULL, "expression", completed::set);
+		final var result = Json.createValue(34);
+		context.setResult(result);
+
+		context.complete();
+
+		assertSame(result, completed.get());
+		assertEquals(34, ((JsonNumber) context.getResult()).intValue());
+	}
+
+	@Test
+	public void testRawCompletionDoesNotEscapeResult() {
+		final var context = new ElContext(JsonValue.NULL, "expression");
+		final var result = Json.createValue("<strong>value</strong>");
+		context.setResult(result);
+		context.markAsRaw();
+
+		context.complete();
+
+		assertTrue(context.isRaw());
+		assertSame(result, context.getResult());
+	}
+
+	@Test
+	public void testToStringIncludesPositionAndParent() {
+		final var parent = new ElContext(JsonValue.NULL, "parent");
+		final var context = new ElContext(parent, JsonValue.NULL, "0123456789", null);
+		context.advancePosition(6);
+
+		assertEquals("EL expression \"0123456789\" at 6: \"12345[6]789\"\n"
+				+ "Parent EL expression \"parent\" at 0: \"[p]arent\"", context.toString());
+	}
+
+	@Test
+	public void testToStringAtEndPosition() {
+		final var parent = new ElContext(JsonValue.NULL, "parent");
+		final var context = new ElContext(parent, JsonValue.NULL, "0123456789", null);
+		context.setPositionAtEnd();
+
+		assertEquals("EL expression \"0123456789\" at 10: \"56789[]\"\n"
+				+ "Parent EL expression \"parent\" at 0: \"[p]arent\"", context.toString());
+	}
 }
