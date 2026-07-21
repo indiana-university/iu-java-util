@@ -42,7 +42,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.logging.Level;
 
-//import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
 
