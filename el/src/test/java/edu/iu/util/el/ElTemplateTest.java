@@ -132,13 +132,15 @@ public class ElTemplateTest {
 
 	@Test
 	public void testMissingEndToken() {
-		assertEquals("Missing end token '`}': {value",
+		assertEquals("Missing end token '}': {value",
 				assertThrows(IllegalStateException.class, () -> new ElTemplate("before {value")).getMessage());
-		assertEquals("Missing end token '`}': {$.foo?<`value`",
+		assertEquals("Missing end token '}': {$.foo?<`value`",
 				assertThrows(IllegalStateException.class, () -> new ElTemplate("before {$.foo?<`value`")).getMessage());
-		assertEquals("Missing end token '`}': {$.foo?<`value` ",
+		assertEquals("Missing end token '}': {$.foo?<`value` ",
 				assertThrows(IllegalStateException.class, () -> new ElTemplate("before {$.foo?<`value` ")).getMessage());
-		assertEquals("Missing end token '`}': {value` ",
+		assertEquals("Missing closing '`': {$.foo?<`value}",
+				assertThrows(IllegalStateException.class, () -> new ElTemplate("before {$.foo?<`value}")).getMessage());
+		assertEquals("Missing end token '}': {value` ",
 				assertThrows(IllegalStateException.class, () -> new ElTemplate("before {value` ")).getMessage());
 	}
 }
