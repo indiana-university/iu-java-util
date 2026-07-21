@@ -70,6 +70,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<jsoup.version>1.21.2</jsoup.version>
 		<commons-pool2.version>2.12.1</commons-pool2.version>
 		<lettuce.version>7.6.0.RELEASE</lettuce.version>
+		<commons-text.version>1.10.0</commons-text.version>
 
 		<junit-jupiter.version>6.0.3</junit-jupiter.version>
 		<junit-platform.version>6.0.3</junit-platform.version>

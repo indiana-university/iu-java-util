@@ -123,9 +123,7 @@ class ElTemplate {
 					char p = contentBuffer.charAt(indexOfEndToken - 1);
 					if (p == TEMPLATE_TOKEN)
 						depth++; // start of inline template
-					else if (depth > 0 //
-							&& indexOfEndToken + 1 < length //
-							&& contentBuffer.charAt(indexOfEndToken + 1) == END_TOKEN)
+					else if (depth > 0)
 						depth--; // end of inline template
 				}
 
@@ -140,7 +138,10 @@ class ElTemplate {
 			}
 
 			if (indexOfEndToken == length)
-				throw new IllegalStateException("Missing end token '`}': " + content.substring(indexOfStartToken));
+				if (depth > 0)
+					throw new IllegalStateException("Missing closing '`': " + content.substring(indexOfStartToken));
+				else
+					throw new IllegalStateException("Missing end token '}': " + content.substring(indexOfStartToken));
 
 			expressionList.add(
 					new Expression(indexOfStartToken, contentBuffer.substring(indexOfStartToken + 1, indexOfEndToken)));
