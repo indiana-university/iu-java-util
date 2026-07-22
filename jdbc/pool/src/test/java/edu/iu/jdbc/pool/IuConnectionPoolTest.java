@@ -181,7 +181,6 @@ public class IuConnectionPoolTest {
 		when(config.getValidationQuery()).thenReturn("this is bad sql", "select 1");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-valid:" + descr + ".*");
-//		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINER, "jdbc-pool-reuse:" + descr + ":PT.*");
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.INFO, "jdbc-pool-recoverable;.*",
 				PSQLException.class);
 		IuTestLogger.expect(IuConnectionPool.class.getName(), Level.FINE, "jdbc-pool-open:" + descr + ":PT.*");
