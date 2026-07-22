@@ -38,4 +38,5 @@ module iu.util.jdbc.pool {
 	requires transitive iu.util;
 	requires transitive java.sql;
 	requires transitive java.logging;
+	requires transitive jakarta.transaction;
 }
