@@ -6,42 +6,31 @@
 
 	<parent>
 		<groupId>edu.iu.util</groupId>
-		<artifactId>iu-java-jdbc-parent</artifactId>
+		<artifactId>iu-java-dao-parent</artifactId>
 		<version>7.1.1-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-jdbc-pool</artifactId>
-	<name>IU Database Connection Pools</name>
+	<artifactId>iu-java-dao-impl</artifactId>
+	<name>IU Data Access Object Implementation Module</name>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>jakarta.transaction</groupId>
-			<artifactId>jakarta.transaction-api</artifactId>
-			<version>${jakarta.transaction-api.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>jakarta.enterprise</groupId>
-			<artifactId>jakarta.enterprise.cdi-api</artifactId>
-			<version>${jakarta.enterprise.cdi-api.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-test</artifactId>
+			<artifactId>iu-java-dao-api</artifactId>
 			<version>${project.version}</version>
-			<scope>test</scope>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-transaction</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
+			<groupId>jakarta.persistence</groupId>
+			<artifactId>jakarta.persistence-api</artifactId>
+			<version>${jakarta.persistence-api.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
@@ -50,9 +39,15 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.eclipse.parsson</groupId>
-			<artifactId>parsson</artifactId>
-			<version>${parsson.version}</version>
+			<groupId>org.liquibase</groupId>
+			<artifactId>liquibase-core</artifactId>
+			<version>${liquibase.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-test</artifactId>
+			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -65,20 +60,20 @@
 				<version>${liquibase.version}</version>
 				<configuration>
 					<searchPath>${project.basedir}/src/test/sql</searchPath>
-					<url>jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/${env.POSTGRES_USER}</url>
+					<url>jdbc:postgresql://${env.POSTGRES_HOST}:${env.POSTGRES_PORT}/postgres</url>
 					<username>${env.POSTGRES_USER}</username>
 					<password>${env.POSTGRES_PASSWORD}</password>
 				</configuration>
 				<executions>
 					<execution>
-						<id>update-database</id>
+						<id>liquibase-update</id>
 						<phase>generate-test-resources</phase>
 						<goals>
 							<goal>update</goal>
 						</goals>
 						<configuration>
 							<skip>${skipTests}</skip>
-							<changeLogFile>create_test_database.sql</changeLogFile>
+							<changeLogFile>db.changelog-master.sql</changeLogFile>
 						</configuration>
 					</execution>
 				</executions>
