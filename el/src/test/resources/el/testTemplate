@@ -1,0 +1,2 @@
+Here it is {$.baz?_<'el/bazTemplate}
+Here it is {$.bim?_<'el/bazTemplate}
