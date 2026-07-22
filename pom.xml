@@ -71,6 +71,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<jsoup.version>1.21.2</jsoup.version>
 		<commons-pool2.version>2.12.1</commons-pool2.version>
 		<lettuce.version>7.6.0.RELEASE</lettuce.version>
+		<commons-text.version>1.10.0</commons-text.version>
 		<postgresql.version>42.7.8</postgresql.version>
 		<liquibase.version>5.0.3</liquibase.version>
 
@@ -507,6 +508,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>jdbc</module>
 				<module>dao</module>
 				<module>type</module>
+				<module>el</module>
 				<module>logging</module>
 				<module>web</module>
 				<module>site</module>

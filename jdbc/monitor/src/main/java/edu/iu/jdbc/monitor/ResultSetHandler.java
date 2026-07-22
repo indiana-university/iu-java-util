@@ -44,7 +44,7 @@ import edu.iu.IuListener;
 
 /**
  * {@link InvocationHandler} proxy for {@link ResultSet} that counts rows, logs
- * scan progress every 1000 rows, and logs final metrics when the result set is
+ * scan progress every 10000 rows, and logs final metrics when the result set is
  * exhausted.
  */
 class ResultSetHandler implements InvocationHandler {
