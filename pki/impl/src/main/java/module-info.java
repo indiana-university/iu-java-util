@@ -33,6 +33,7 @@
  * IU PKI utilities implementation module.
  */
 module iu.util.pki.impl {
+	exports iu.pki;
 	requires iu.util;
 	requires iu.util.pki;
 }

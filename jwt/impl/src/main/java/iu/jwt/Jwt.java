@@ -294,8 +294,13 @@ public class Jwt implements WebToken {
 			builder.keyId(keyId);
 
 		final var certChain = issuerKey.getCertificateChain();
-		if (certChain != null)
-			builder.x5t(IuDigest.sha1(IuException.unchecked(certChain[0]::getEncoded)));
+		if (certChain != null) {
+			final var cert = certChain[0];
+			if (certChain.length == 1)
+				builder.x5t(IuDigest.sha1(IuException.unchecked(certChain[0]::getEncoded)));
+			else // include full cert for CA-signed
+				builder.cert(cert);
+		}
 
 		return builder.sign(claims.toString()).compact();
 	}
