@@ -42,6 +42,9 @@ import java.lang.reflect.AnnotatedElement;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.type.IuType;
+import edu.iu.type.testresources.PermissionTestSupport.AllowsInheritedRole;
+import edu.iu.type.testresources.PermissionTestSupport.PermitsAllByDefault;
 import jakarta.annotation.Resource;
 import jakarta.annotation.security.DenyAll;
 import jakarta.annotation.security.PermitAll;
@@ -134,6 +137,27 @@ public class AnnotatedElementTest extends IuTypeTestCase {
 		interface CantJustDoIt {
 		}
 		assertFalse(base(CantJustDoIt.class).permitted());
+	}
+
+	@Test
+	public void testTopLevelTypeDeniesByDefault() {
+		class CantJustDoIt {
+		}
+		assertFalse(IuType.of(CantJustDoIt.class).permitted());
+	}
+
+	@Test
+	public void testDeclaredElementInheritsRolesAllowed() {
+		var method = IuType.of(AllowsInheritedRole.class).method("run");
+		assertFalse(method.permitted());
+		assertTrue(method.permitted("inherited"::equals));
+	}
+
+	@Test
+	public void testDeclaredRolesAllowedOverridesPermitAll() {
+		var method = IuType.of(PermitsAllByDefault.class).method("run");
+		assertFalse(method.permitted());
+		assertTrue(method.permitted("restricted"::equals));
 	}
 
 }
