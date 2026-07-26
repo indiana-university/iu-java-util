@@ -65,4 +65,11 @@ public interface IuMethod<D, R> extends IuNamedElement<D>, IuExecutable<D, R> {
 	@Override
 	R exec(Object... arguments) throws Exception;
 
+	/**
+	 * Determines if this is a public method.
+	 *
+	 * @return true if public; else false
+	 */
+	boolean isPublic();
+
 }
