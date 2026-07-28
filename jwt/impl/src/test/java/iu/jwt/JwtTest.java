@@ -333,6 +333,61 @@ public class JwtTest {
 		assertEquals("SHA256withECDSA verification failed", error.getMessage());
 	}
 
+	@SuppressWarnings("deprecation")
+	@Test
+	public void testSignAndVerifyCaSignedCert() {
+		final var jwt = new Jwt(IuJson.object().build());
+		final var id = IdGenerator.generateId();
+		final var key = WebKey.builder(Algorithm.ES256).keyId(id).ephemeral().build();
+		final var privateKey = Objects.requireNonNull(key.getPrivateKey(), "Missing private key");
+		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
+
+		final var caId = IdGenerator.generateId();
+		final var caKey = WebKey.builder(Algorithm.ES256).keyId(caId).ephemeral().build();
+		final var caPrivateKey = Objects.requireNonNull(caKey.getPrivateKey(), "Missing CA private key");
+		final var caPrivateKeyFile = IuProcess.temp(PemEncoded::print, caPrivateKey);
+
+		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
+		final var caCert = IuProcess.exec( //
+				"openssl", "req", "-x509", "-key", caPrivateKeyFile.toString(), "-days", "1", //
+				"-subj", "/CN=" + caId.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=critical,CA:true,pathlen:0", //
+				"-addext", "keyUsage=keyCertSign,cRLSign" //
+		);
+		final var caCertFile = IuProcess.temp((out, value) -> out.print(value), caCert);
+
+		final var csr = IuProcess.exec( //
+				"openssl", "req", "-new", "-key", privateKeyFile.toString(), //
+				"-subj", "/CN=" + id.replaceAll("([+=/])", "\\\\$1"), //
+				"-addext", "basicConstraints=CA:false", //
+				"-addext", "keyUsage=" + X500Utils.keyUsage(key) //
+		);
+		final var csrFile = IuProcess.temp((out, value) -> out.print(value), csr);
+		final var leafCert = IuProcess.exec( //
+				"openssl", "x509", "-req", "-in", csrFile.toString(), //
+				"-CA", caCertFile.toString(), "-CAkey", caPrivateKeyFile.toString(), //
+				"-set_serial", "1", "-days", "1", "-copy_extensions", "copyall" //
+		);
+		IuProcess.deleteTempFiles();
+
+		final var issuerKey = WebKey.builder(key.getType()) //
+				.keyId(id) //
+				.key(privateKey) //
+				.key(key.getPublicKey()) //
+				.algorithm(key.getAlgorithm()) //
+				.pem(leafCert + System.lineSeparator() + caCert) //
+				.build();
+		final var expectedChain = issuerKey.getCertificateChain();
+		assertEquals(2, expectedChain.length);
+
+		final var signed = jwt.sign("JWT", Algorithm.ES256, issuerKey);
+		assertEquals(jwt, Jwt.verify(signed, issuerKey));
+
+		final var header = WebSignedPayload.parse(signed).getSignatures().iterator().next().getHeader();
+		assertArrayEquals(expectedChain, header.getCertificateChain());
+		assertNull(header.getCertificateThumbprint());
+	}
+
 	@Test
 	public void testSignEncryptDecryptAndVerify() {
 		final var tokenId = IdGenerator.generateId();
