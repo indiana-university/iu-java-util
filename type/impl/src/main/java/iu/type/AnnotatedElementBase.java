@@ -92,6 +92,17 @@ sealed class AnnotatedElementBase<E extends AnnotatedElement> extends ElementBas
 		return AnnotationBridge.getAnnotations(annotatedElement);
 	}
 
+	/**
+	 * Determines whether access is permitted when this element has no security
+	 * annotation.
+	 *
+	 * @param isUserInRole delegates role checks to a higher-level module
+	 * @return false
+	 */
+	protected boolean permittedByDefault(Predicate<String> isUserInRole) {
+		return false;
+	}
+
 	@Override
 	public boolean permitted(Predicate<String> isUserInRole) {
 		checkSealed();
@@ -102,13 +113,15 @@ sealed class AnnotatedElementBase<E extends AnnotatedElement> extends ElementBas
 		if (hasAnnotation(PermitAll.class))
 			return true;
 
-		var rolesAllowed = annotation(RolesAllowed.class);
-		if (rolesAllowed != null)
+		final var rolesAllowed = annotation(RolesAllowed.class);
+		if (rolesAllowed != null) {
 			for (var role : rolesAllowed.value())
 				if (isUserInRole.test(role))
 					return true;
+			return false;
+		}
 
-		return false;
+		return permittedByDefault(isUserInRole);
 	}
 
 }
