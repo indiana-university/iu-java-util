@@ -2,6 +2,9 @@
 .project
 .settings
 target
+
+.claude
+
 dependency-reduced-pom.xml
 __review
 *.vpp.*

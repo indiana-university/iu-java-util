@@ -34,9 +34,13 @@
  */
 module iu.util.dao {
 	exports edu.iu.dao;
+	exports edu.iu.dao.spi;
+
+	uses edu.iu.dao.spi.IuDaoSpi;
 
 	requires iu.util;
 	requires transitive java.sql;
 	requires transitive java.naming;
 	requires transitive jakarta.persistence;
+	requires transitive jakarta.transaction;
 }
