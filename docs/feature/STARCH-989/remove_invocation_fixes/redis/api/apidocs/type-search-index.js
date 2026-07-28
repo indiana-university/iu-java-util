@@ -1,0 +1,1 @@
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"edu.iu.redis","l":"IuRedis","k":"10"},{"p":"edu.iu.redis","l":"IuRedisConfiguration","k":"10"},{"p":"edu.iu.redis.spi","l":"IuRedisSpi","k":"10"},{"p":"iu.redis","l":"IuRedisSpiFactory"}];updateSearchResults();
