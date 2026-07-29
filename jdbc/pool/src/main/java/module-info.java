@@ -34,6 +34,8 @@
  */
 module iu.util.jdbc.pool {
 	exports edu.iu.jdbc.pool;
+	exports iu.jdbc.pool.config;
+	opens iu.jdbc.pool.config;
 
 	requires transitive iu.util;
 	requires transitive java.sql;

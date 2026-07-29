@@ -13,6 +13,7 @@ import javax.sql.DataSource;
 import javax.sql.XAConnection;
 
 import edu.iu.IuException;
+import iu.jdbc.pool.config.IuConnectionPoolConfiguration;
 import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
 

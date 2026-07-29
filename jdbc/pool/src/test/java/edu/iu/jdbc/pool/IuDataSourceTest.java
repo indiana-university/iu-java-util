@@ -36,6 +36,7 @@ import org.mockito.ArgumentMatcher;
 import edu.iu.IdGenerator;
 import edu.iu.test.IuTestLogger;
 import edu.iu.transaction.IuTransactionManager;
+import iu.jdbc.pool.config.IuConnectionPoolConfiguration;
 import jakarta.transaction.Status;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 

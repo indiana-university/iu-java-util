@@ -9,6 +9,8 @@ import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
+import iu.jdbc.pool.config.IuConnectionPoolConfiguration;
+
 @SuppressWarnings("javadoc")
 public class IuConnectionPoolConfigurationTest {
 

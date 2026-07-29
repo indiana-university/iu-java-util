@@ -63,6 +63,7 @@ import edu.iu.IuException;
 import edu.iu.IuParallelWorkloadController;
 import edu.iu.UnsafeRunnable;
 import edu.iu.test.IuTestLogger;
+import iu.jdbc.pool.config.IuConnectionPoolConfiguration;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(TestDatabase.class)

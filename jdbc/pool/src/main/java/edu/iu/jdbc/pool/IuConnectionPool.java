@@ -53,6 +53,7 @@ import javax.sql.PooledConnection;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuUtilityTaskController;
+import iu.jdbc.pool.config.IuConnectionPoolConfiguration;
 
 /**
  * Basic database connection pool utility.
