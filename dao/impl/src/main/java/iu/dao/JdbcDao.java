@@ -36,7 +36,11 @@ import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.io.CharArrayReader;
 import java.io.Reader;
+import java.lang.reflect.Array;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -213,18 +217,71 @@ public final class JdbcDao implements IuDao {
 		return new StatementOperation(sql, args);
 	}
 
-	@Override
-	public <B> B getEntityInstance(Class<B> entityClass) {
-		Objects.requireNonNull(entityClass, "entityClass");
-		// TODO: support interfaces via proxy backed by data extracted from ResultSet
+	/**
+	 * Materializes the result set's current row as an instance of the entity type.
+	 *
+	 * <p>
+	 * A class is instantiated through its no-argument constructor, which may be
+	 * non-public, and populated through its setters. An interface cannot be
+	 * instantiated, so it is proxied over an immutable snapshot of the row's resolved
+	 * values; see {@link ResolvedRow}. Taking the snapshot rather than holding the
+	 * result set is what allows a materialized row to outlive the cursor it came
+	 * from, which every accessor that accumulates rows depends on.
+	 * </p>
+	 *
+	 * @param entityClass      entity type to materialize
+	 * @param columnProperties property each column supplies, in column order,
+	 *                         {@code null} where the column maps to nothing
+	 * @param resultSet        result set positioned at the row to materialize
+	 * @param <B>              entity type
+	 * @return the materialized row
+	 * @throws IllegalArgumentException if {@code entityClass} is a class that cannot
+	 *                                  be instantiated
+	 * @throws SQLException             if a column cannot be read
+	 */
+	private static <B> B getEntityInstance(Class<B> entityClass, PropertyDescriptor[] columnProperties,
+			ResultSet resultSet) throws SQLException {
+		if (entityClass.isInterface())
+			return entityClass.cast(Proxy.newProxyInstance(entityClass.getClassLoader(),
+					new Class<?>[] { entityClass }, new ResolvedRow(entityClass, resolvedValues(columnProperties, resultSet))));
+
+		final B bean;
 		try {
 			final var constructor = entityClass.getDeclaredConstructor();
 			if (!constructor.canAccess(null))
 				constructor.setAccessible(true);
-			return constructor.newInstance();
+			bean = constructor.newInstance();
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalArgumentException("Cannot instantiate " + entityClass.getName(), e);
 		}
+
+		for (int i = 0; i < columnProperties.length; i++) {
+			final var property = columnProperties[i];
+			if (property != null)
+				setProperty(bean, property, columnValue(resultSet, i + 1, property.getPropertyType()));
+		}
+		return bean;
+	}
+
+	/**
+	 * Reads every mapped column of the current row into an immutable map keyed by
+	 * property name.
+	 *
+	 * @param columnProperties property each column writes to, in column order,
+	 *                         {@code null} where the column maps to nothing
+	 * @param resultSet        result set positioned at the row to read
+	 * @return resolved values by property name, retaining {@code null} column values
+	 * @throws SQLException if a column cannot be read
+	 */
+	private static Map<String, Object> resolvedValues(PropertyDescriptor[] columnProperties, ResultSet resultSet)
+			throws SQLException {
+		final Map<String, Object> values = new LinkedHashMap<>();
+		for (int i = 0; i < columnProperties.length; i++) {
+			final var property = columnProperties[i];
+			if (property != null)
+				values.put(property.getName(), columnValue(resultSet, i + 1, property.getPropertyType()));
+		}
+		return Collections.unmodifiableMap(values);
 	}
 
 	@Override
@@ -791,23 +848,17 @@ public final class JdbcDao implements IuDao {
 
 		@Override
 		public B apply(ResultSet resultSet) {
-			final var bean = getEntityInstance(beanClass);
 			try {
 				if (columnProperties == null)
 					columnProperties = resolveColumnProperties(resultSet.getMetaData());
-				for (int i = 0; i < columnProperties.length; i++) {
-					final var property = columnProperties[i];
-					if (property != null)
-						setProperty(bean, property, columnValue(resultSet, i + 1, property.getPropertyType()));
-				}
-				return bean;
+				return getEntityInstance(beanClass, columnProperties, resultSet);
 			} catch (SQLException | IntrospectionException e) {
 				throw new IllegalStateException("Unable to map SQL result to " + beanClass.getName(), e);
 			}
 		}
 
 		/**
-		 * Determines which property, if any, each result-set column writes to.
+		 * Determines which property, if any, each result-set column supplies.
 		 *
 		 * <p>
 		 * A column label is first resolved through the entity's
@@ -819,18 +870,25 @@ public final class JdbcDao implements IuDao {
 		 * underscores.
 		 * </p>
 		 *
+		 * <p>
+		 * A class's candidate properties are the ones it can be populated through, so
+		 * they must be writable. An interface's are the ones it exposes, so they need
+		 * only be readable.
+		 * </p>
+		 *
 		 * @param metadata metadata of the executing query
 		 * @return one entry per column, in column order, {@code null} where the column
-		 *         maps to no writable property
-		 * @throws SQLException          if the metadata cannot be read
+		 *         maps to no usable property
+		 * @throws SQLException           if the metadata cannot be read
 		 * @throws IntrospectionException if the bean type cannot be introspected
 		 */
 		private PropertyDescriptor[] resolveColumnProperties(ResultSetMetaData metadata)
 				throws SQLException, IntrospectionException {
+			final var readOnly = beanClass.isInterface();
 			final Map<String, PropertyDescriptor> byName = new HashMap<>();
 			final Map<String, PropertyDescriptor> byNormalizedName = new HashMap<>();
 			for (final var property : Introspector.getBeanInfo(beanClass).getPropertyDescriptors())
-				if (property.getWriteMethod() != null) {
+				if (readOnly ? property.getReadMethod() != null : property.getWriteMethod() != null) {
 					byName.put(property.getName(), property);
 					byNormalizedName.put(normalize(property.getName()), property);
 				}
@@ -842,6 +900,84 @@ public final class JdbcDao implements IuDao {
 				resolved[i] = mapped == null ? byNormalizedName.get(normalize(label)) : byName.get(mapped);
 			}
 			return resolved;
+		}
+	}
+
+	/**
+	 * Backs an interface-typed entity with an immutable snapshot of one row's
+	 * resolved column values.
+	 *
+	 * <p>
+	 * The snapshot is taken when the row is materialized, so the view neither holds
+	 * the result set open nor changes as the cursor advances. It is a read-only view:
+	 * getters answer from the snapshot, {@code default} methods run as written
+	 * against those getters, and no other abstract method can be honored.
+	 * </p>
+	 *
+	 * @param entityClass proxied entity interface
+	 * @param values      resolved column values by property name
+	 */
+	private record ResolvedRow(Class<?> entityClass, Map<String, Object> values) implements InvocationHandler {
+
+		@Override
+		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+			// Only equals, hashCode, and toString are dispatched here from Object.
+			if (method.getDeclaringClass() == Object.class)
+				return switch (method.getName()) {
+				case "hashCode" -> values.hashCode();
+				case "toString" -> entityClass.getSimpleName() + values;
+				default -> args[0] != null //
+						&& Proxy.isProxyClass(args[0].getClass()) //
+						&& equals(Proxy.getInvocationHandler(args[0]));
+				};
+
+			if (method.isDefault())
+				return InvocationHandler.invokeDefault(proxy, method, args);
+
+			final var property = propertyName(method);
+			if (property == null)
+				throw new UnsupportedOperationException(
+						method.getName() + " is not a property of " + entityClass.getName());
+
+			// A column the query did not select is indistinguishable from a null one, and
+			// both must answer with something the return type accepts.
+			final var value = values.get(property);
+			return value == null ? unset(method.getReturnType()) : value;
+		}
+
+		/**
+		 * Derives the property name a method reads, using the same conventions bean
+		 * introspection applies.
+		 *
+		 * @param method method being invoked
+		 * @return property name, or {@code null} when the method is not a getter
+		 */
+		private static String propertyName(Method method) {
+			if (method.getParameterCount() > 0)
+				return null;
+			final var name = method.getName();
+			if (name.length() > 3 && name.startsWith("get"))
+				return Introspector.decapitalize(name.substring(3));
+			if (name.length() > 2 && name.startsWith("is") && method.getReturnType() == boolean.class)
+				return Introspector.decapitalize(name.substring(2));
+			return null;
+		}
+
+		/**
+		 * Gets the value a getter must answer with when its column carries no value.
+		 *
+		 * <p>
+		 * A primitive-returning getter cannot answer {@code null} — the proxy would
+		 * reject it — so it answers with the same zero value an unassigned field of that
+		 * type would hold, obtained from a one-element array rather than enumerated by
+		 * type.
+		 * </p>
+		 *
+		 * @param type getter's return type
+		 * @return the type's zero value, or {@code null} for a reference type
+		 */
+		private static Object unset(Class<?> type) {
+			return type.isPrimitive() ? Array.get(Array.newInstance(type, 1), 0) : null;
 		}
 	}
 

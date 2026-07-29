@@ -4,6 +4,7 @@ package iu.dao;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,6 +25,7 @@ import java.io.StringReader;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,6 +87,12 @@ public class JdbcDaoTest {
 
 	private static final class PrivateBean {
 		private PrivateBean() { }
+	}
+
+	/** Has no no-argument constructor, so it cannot back a query result. */
+	public static class NoDefaultConstructor {
+		public NoDefaultConstructor(String unused) {
+		}
 	}
 
 	public static class ThrowingBean {
@@ -163,8 +171,9 @@ public class JdbcDaoTest {
 		dao.clear();
 		assertThrows(IllegalArgumentException.class, () -> dao.searchBeans(Bean.class, params, false, -1));
 		assertThrows(IllegalArgumentException.class, () -> dao.getQuery(Bean.class, "select").getResults(0));
-		assertInstanceOf(IllegalArgumentException.class, assertThrows(IllegalArgumentException.class,
-				() -> dao.getEntityInstance(Runnable.class)));
+		// A class with no no-argument constructor cannot back a query result.
+		assertThrows(IllegalArgumentException.class,
+				() -> dao.getQuery(NoDefaultConstructor.class, "select first_name, age").getResults());
 	}
 
 	@Test
@@ -188,7 +197,9 @@ public class JdbcDaoTest {
 		assertEquals(1, dao.getBeanUpdate(bean, null).execute());
 		assertEquals(1, dao.getStatement("update", null).execute());
 		new JdbcDao(jdbc.dataSource(), transactionManager(0), registry());
-		assertInstanceOf(PrivateBean.class, dao.getEntityInstance(PrivateBean.class));
+		// A non-public no-argument constructor is still usable.
+		assertInstanceOf(PrivateBean.class,
+				dao.getQuery(PrivateBean.class, "select first_name, age").getFirstRecord());
 		assertThrows(IllegalStateException.class, () -> new JdbcDao(failingDataSource(), transactionManager(0), registry(), builder())
 				.getStatement("select").getPreparedStatement());
 		assertThrows(IllegalStateException.class, () -> new JdbcDao(jdbc.dataSource(), throwingTransactionManager(), registry(), builder()).clear());
@@ -299,18 +310,99 @@ public class JdbcDaoTest {
 		}
 	}
 
+	/**
+	 * Interface-typed entity, exercising mapped getters, getters for columns the
+	 * query does not select, a default method, and methods that are not getters.
+	 */
+	@Entity
+	@Table(name = "person", schema = "s")
+	public interface PersonView {
+		@Id
+		@Column(name = "EMPLID")
+		String getEmployeeId();
+
+		@Column
+		String getLabel();
+
+		String getMissing();
+
+		int getCount();
+
+		boolean isActive();
+
+		String isNotAGetter();
+
+		String value();
+
+		String id();
+
+		void setLabel(String label);
+
+		default String describe() {
+			return "person:" + getEmployeeId();
+		}
+	}
+
+	private static IuDao daoOver(Map<String, Object> row) {
+		final var jdbc = new Jdbc();
+		return new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of(row))),
+				transactionManager(Status.STATUS_NO_TRANSACTION), registry());
+	}
+
+	private static Map<String, Object> personRow(String employeeId, String label) {
+		final var row = new LinkedHashMap<String, Object>();
+		row.put("EMPLID", employeeId);
+		row.put("LABEL", label);
+		return row;
+	}
+
+	@Test
+	public void testInterfaceEntityIsAnImmutableViewOfItsRow() {
+		final var view = daoOver(personRow("0000123", "seed")).getBeanQuery(PersonView.class, List.of())
+				.getSingleResult();
+
+		// Mapped columns answer from the snapshot, which outlives the closed cursor.
+		assertEquals("0000123", view.getEmployeeId());
+		assertEquals("seed", view.getLabel());
+		assertEquals("person:0000123", view.describe());
+
+		// Columns the query did not select answer with the return type's zero value.
+		assertEquals(null, view.getMissing());
+		assertEquals(0, view.getCount());
+		assertEquals(false, view.isActive());
+
+		// A read-only view cannot honor anything that is not a getter.
+		assertThrows(UnsupportedOperationException.class, view::id);
+		assertThrows(UnsupportedOperationException.class, view::value);
+		assertThrows(UnsupportedOperationException.class, view::isNotAGetter);
+		assertThrows(UnsupportedOperationException.class, () -> view.setLabel("other"));
+	}
+
+	@Test
+	public void testInterfaceEntityComparesByResolvedValues() {
+		final var view = daoOver(personRow("0000123", "seed")).getBeanQuery(PersonView.class, List.of())
+				.getSingleResult();
+		final var same = daoOver(personRow("0000123", "seed")).getBeanQuery(PersonView.class, List.of())
+				.getSingleResult();
+		final var other = daoOver(personRow("0000456", "seed")).getBeanQuery(PersonView.class, List.of())
+				.getSingleResult();
+
+		assertEquals("PersonView{employeeId=0000123, label=seed}", view.toString());
+		assertEquals(view.hashCode(), same.hashCode());
+		assertEquals(view, same);
+		assertNotEquals(view, other);
+		assertNotEquals(view, null);
+		assertNotEquals(view, "not a proxy");
+		// A proxy backed by some other handler is never equal.
+		assertNotEquals(view, registry());
+	}
+
 	@Test
 	public void testMappedColumnNamesPopulateTheirProperties() {
-		final var jdbc = new Jdbc();
-		final var row = new java.util.LinkedHashMap<String, Object>();
-		row.put("EMPLID", "0000123");
-		row.put("LABEL", "seed");
-
 		// The default SQL builder, so that column resolution runs against real entity
 		// metadata rather than a stub.
-		final var dao = new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of(row))),
-				transactionManager(Status.STATUS_NO_TRANSACTION), registry());
-		final var person = dao.getBeanQuery(Person.class, List.of()).getSingleResult();
+		final var person = daoOver(personRow("0000123", "seed")).getBeanQuery(Person.class, List.of())
+				.getSingleResult();
 
 		assertEquals("0000123", person.getEmployeeId());
 		assertEquals("seed", person.getLabel());

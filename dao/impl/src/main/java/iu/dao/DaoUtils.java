@@ -169,7 +169,7 @@ final class DaoUtils {
 	}
 
 	/**
-	 * Returns all readable bean properties for an entity class and its full
+	 * Returns all readable bean properties for an entity type and its full
 	 * superclass hierarchy (excluding {@link Object}).
 	 *
 	 * <p>
@@ -178,7 +178,13 @@ final class DaoUtils {
 	 * is always excluded. Only properties with a getter are included.
 	 * </p>
 	 *
-	 * @param entityClass entity class; must not be {@code null}
+	 * <p>
+	 * An interface has no superclass, so its hierarchy is the interface alone;
+	 * inherited properties are still reported, because bean introspection walks an
+	 * interface's extended interfaces itself.
+	 * </p>
+	 *
+	 * @param entityClass entity class or interface; must not be {@code null}
 	 * @return ordered list of readable property descriptors
 	 */
 	static Iterable<PropertyDescriptor> getAllBeanProperties(Class<?> entityClass) {
@@ -186,7 +192,7 @@ final class DaoUtils {
 
 		final Deque<Class<?>> hierarchy = new ArrayDeque<>();
 		for (var current = entityClass; //
-				current != Object.class; //
+				current != null && current != Object.class; //
 				current = current.getSuperclass())
 			hierarchy.push(current);
 

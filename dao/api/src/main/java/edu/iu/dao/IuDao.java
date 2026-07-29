@@ -56,8 +56,9 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  * Entity mapping is driven by the annotations described on {@link IuSqlBuilder},
  * so an entity needs {@link jakarta.persistence.Table @Table} plus
  * {@link jakarta.persistence.Column @Column} or {@link SqlColumn @SqlColumn}
- * getters, and a no-argument constructor for
- * {@link #getEntityInstance(Class) instantiation}.
+ * getters. An entity type may be a class with a no-argument constructor, which is
+ * instantiated and populated through its setters, or an interface, which is
+ * materialized as an immutable view of the row it was read from.
  * </p>
  *
  * <p>
@@ -147,18 +148,6 @@ public interface IuDao {
 	 * @return unexecuted statement
 	 */
 	SqlStatement getStatement(String sql, Iterable<?> args);
-
-	/**
-	 * Creates an empty entity instance using its no-argument constructor, which may
-	 * be non-public.
-	 *
-	 * @param entityClass entity type to instantiate
-	 * @param <B>         entity type
-	 * @return new instance with all properties unset
-	 * @throws IllegalArgumentException if the type has no no-argument constructor or
-	 *                                  cannot be instantiated
-	 */
-	<B> B getEntityInstance(Class<B> entityClass);
 
 	/**
 	 * Gets an unexecuted query selecting an entity's mapped columns, restricted by
@@ -435,7 +424,7 @@ public interface IuDao {
 
 	/**
 	 * Gets an unexecuted query over caller-supplied SQL, materializing each row by
-	 * matching result-set column labels to the target type's writable properties.
+	 * matching result-set column labels to the target type's properties.
 	 *
 	 * @param beanClass type to materialize, which need not be a mapped entity
 	 * @param sql       SQL text to execute
@@ -449,15 +438,25 @@ public interface IuDao {
 	/**
 	 * Gets an unexecuted query over caller-supplied SQL and its bind arguments,
 	 * materializing each row by matching result-set column labels to the target
-	 * type's writable properties.
+	 * type's properties.
 	 *
 	 * <p>
 	 * A mapped entity's labels are resolved through its
 	 * {@link jakarta.persistence.Column @Column} and {@link SqlColumn @SqlColumn}
 	 * mappings; any label that resolves to no mapped property, and every label of an
 	 * unmapped type, falls back to matching the property name ignoring case and
-	 * underscores. Labels matching no property are ignored, as are values that would
-	 * assign {@code null} to a primitive property.
+	 * underscores. Labels matching no property are ignored.
+	 * </p>
+	 *
+	 * <p>
+	 * A class is instantiated through its no-argument constructor and populated
+	 * through its setters, skipping values that would assign {@code null} to a
+	 * primitive property. An interface is instead materialized as an immutable view
+	 * of the row's resolved values: its getters return those values, getters for
+	 * columns the query did not select return {@code null} or the appropriate
+	 * primitive default, its {@code default} methods run as written, and any other
+	 * abstract method throws {@link UnsupportedOperationException}. Such a view stays
+	 * valid after the query is closed.
 	 * </p>
 	 *
 	 * @param beanClass type to materialize, which need not be a mapped entity
@@ -466,6 +465,9 @@ public interface IuDao {
 	 *                  empty
 	 * @param <B>       result type
 	 * @return unexecuted query
+	 * @throws IllegalArgumentException if {@code beanClass} is a class that cannot be
+	 *                                  instantiated, thrown when a row is
+	 *                                  materialized
 	 */
 	<B> SqlQuery<B> getQuery(Class<B> beanClass, String sql, Iterable<?> args);
 
