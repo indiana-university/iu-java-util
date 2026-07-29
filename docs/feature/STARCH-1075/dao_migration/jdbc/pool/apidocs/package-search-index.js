@@ -1,1 +1,1 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.jdbc.pool","l":"edu.iu.jdbc.pool"}];updateSearchResults();
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.jdbc.pool","l":"edu.iu.jdbc.pool"},{"m":"iu.util.jdbc.pool","l":"iu.jdbc.pool.config"}];updateSearchResults();
