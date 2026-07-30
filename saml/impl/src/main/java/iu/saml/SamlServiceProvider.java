@@ -162,7 +162,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 	 * @param config         SP metadata configuration supplier
 	 * @param sessionHandler Session handler
 	 */
-	SamlServiceProvider(Supplier<IuSamlServiceProviderMetadata> config, IuSessionHandler sessionHandler) {
+	public SamlServiceProvider(Supplier<IuSamlServiceProviderMetadata> config, IuSessionHandler sessionHandler) {
 		this.config = config;
 		this.sessionHandler = sessionHandler;
 	}

@@ -66,7 +66,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<jakarta.json.bind-api.version>3.0.1</jakarta.json.bind-api.version>
 		<jakarta.transaction-api.version>2.0.1</jakarta.transaction-api.version>
 		<jakarta.enterprise.cdi-api.version>4.1.0</jakarta.enterprise.cdi-api.version>
-		
+
 		<parsson.version>1.1.7</parsson.version>
 		<jsoup.version>1.21.2</jsoup.version>
 		<commons-pool2.version>2.12.1</commons-pool2.version>
@@ -74,6 +74,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<commons-text.version>1.10.0</commons-text.version>
 		<postgresql.version>42.7.8</postgresql.version>
 		<liquibase.version>5.0.3</liquibase.version>
+		
+		<opensaml.version>5.2.3</opensaml.version>
+		<slf4j.version>2.0.17</slf4j.version>
 
 		<junit-jupiter.version>6.0.3</junit-jupiter.version>
 		<junit-platform.version>6.0.3</junit-platform.version>
