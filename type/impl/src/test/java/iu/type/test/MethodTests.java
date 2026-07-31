@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuType;
+import edu.iu.type.testresources.EnclosedClassesSupport;
 import edu.iu.type.testresources.HasAroundInvokeMethod;
 import edu.iu.type.testresources.HasInterceptors;
 import edu.iu.type.testresources.HasInterceptorsOnMethod;
@@ -74,6 +75,16 @@ public class MethodTests extends IuTypeTestCase {
 		assertEquals("add", method.name());
 		assertSame(int.class, method.returnType().erasedClass());
 		assertEquals(7, method.exec(3, 4));
+	}
+
+	@Test
+	public void testPublicMethod() {
+		assertTrue(IuType.of(EnclosedClassesSupport.class).method("getMethodLevelClass").isPublic());
+	}
+
+	@Test
+	public void testNonPublicMethod() {
+		assertFalse(IuType.of(MethodTestSupport.class).method("echo", String.class).isPublic());
 	}
 
 	@Test

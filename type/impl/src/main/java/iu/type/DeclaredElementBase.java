@@ -35,6 +35,7 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.GenericDeclaration;
 import java.lang.reflect.Type;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import edu.iu.type.IuDeclaredElement;
 import edu.iu.type.IuReferenceKind;
@@ -64,7 +65,8 @@ abstract sealed class DeclaredElementBase<D, E extends AnnotatedElement> extends
 	final TypeFacade<?, D> declaringType;
 
 	/**
-	 * Default constructor, for use by all subclasses extended by {@link TypeTemplate}.
+	 * Default constructor, for use by all subclasses extended by
+	 * {@link TypeTemplate}.
 	 * 
 	 * @param annotatedElement      parameterized element to provide a view of
 	 * @param type                  generic type associated with the element
@@ -102,6 +104,18 @@ abstract sealed class DeclaredElementBase<D, E extends AnnotatedElement> extends
 		if (declaringType != null)
 			declaringType.checkSealed();
 		return declaringType;
+	}
+
+	/**
+	 * Inherits the default permission from the declaring type.
+	 *
+	 * @param isUserInRole delegates role checks to a higher-level module
+	 * @return the declaring type's permission, or false when there is no declaring
+	 *         type
+	 */
+	@Override
+	protected boolean permittedByDefault(Predicate<String> isUserInRole) {
+		return declaringType != null && declaringType.permitted(isUserInRole);
 	}
 
 }

@@ -78,6 +78,12 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 	}
 
 	@Override
+	public boolean isPublic() {
+		var mod = annotatedElement.getModifiers();
+		return (mod | Modifier.PUBLIC) == mod;
+	}
+
+	@Override
 	public boolean isStatic() {
 		var mod = annotatedElement.getModifiers();
 		return (mod | Modifier.STATIC) == mod;
