@@ -96,7 +96,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
 
-		final var resource = config.getResourceUri();
+		final var resource = oidcClient.getResourceUri();
 		if (resource != null)
 			params.put("resource", IuIterable.iter(resource.toString()));
 
@@ -135,7 +135,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (!IuObject.equals(preAuth.getState(), state))
 			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
 
-		final var grant = new AuthorizationGrant(config, code);
+		final var grant = new AuthorizationGrant(config, code, requestAttributes.getRequestUri());
 		final var response = grant.getTokenResponse();
 		final var idToken = Objects.requireNonNull(grant.getIdToken(), "missing verified ID token");
 

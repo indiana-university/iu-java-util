@@ -80,12 +80,14 @@ public class AuthorizationGrantTest {
 		when(config.getProvider()).thenReturn(provider);
 
 		final var code = IdGenerator.generateId();
-		final var grant = new AuthorizationGrant(config, code);
+		final var uri = URI.create(IdGenerator.generateId());
+		final var grant = new AuthorizationGrant(config, code, uri);
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		final var rb = mock(HttpRequest.Builder.class);
 		grant.tokenAuth(rb, params);
 		assertEquals("authorization_code", params.get("grant_type").iterator().next());
 		assertEquals(code, params.get("code").iterator().next());
+		assertEquals(uri.toString(), params.get("redirect_uri").iterator().next());
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		final var assertion = WebToken.verify(params.get("client_assertion").iterator().next(), assertionJwk);
 		assertion.validateClaims(URI.create(clientId), tokenEndpoint, Duration.ofMinutes(15L));

@@ -34,6 +34,7 @@ package iu.oidc.client;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,11 +44,14 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpRequest.Builder;
+import java.net.http.HttpResponse;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -55,6 +59,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -63,6 +68,7 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
+import edu.iu.client.HttpException;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -85,6 +91,11 @@ public class OidcTokenGrantTest {
 	static {
 		edu.iu.crypt.Init.init();
 		Init.init();
+	}
+	
+	@BeforeEach
+	void setup() {
+		IuTestLogger.allow(OidcTokenGrant.class.getName(), Level.FINE, "OIDC token response .*");
 	}
 
 	@Test
@@ -141,6 +152,42 @@ public class OidcTokenGrantTest {
 				.build());
 		assertEquals(accessToken2, grant.getTokenResponse().getAccessToken());
 		assertEquals(accessToken2, grant2.getTokenResponse().getAccessToken());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testTokenErrorResponseBodyLogging() {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
+		when(provider.getIssuer()).thenReturn(issuer);
+		final var metadataUri = provider.getMetadataUri();
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getProvider()).thenReturn(provider);
+
+		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.build());
+
+		final var body = "invalid_grant";
+		final HttpResponse<InputStream> response = mock(HttpResponse.class);
+		when(response.statusCode()).thenReturn(400);
+		when(response.body()).thenReturn(new ByteArrayInputStream(IuText.utf8(body)));
+		final var error = new HttpException(response, "token request failed");
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> true), eq(IuHttp.READ_JSON_OBJECT)))
+				.thenThrow(error);
+
+		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO,
+				"OIDC token error 400 BAD REQUEST; body =" + body);
+
+		final var grant = new OidcTokenGrant(config) {
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+		};
+		final var thrown = assertThrows(IllegalStateException.class, grant::getTokenResponse);
+		assertSame(error, thrown.getCause());
 	}
 
 	@Test

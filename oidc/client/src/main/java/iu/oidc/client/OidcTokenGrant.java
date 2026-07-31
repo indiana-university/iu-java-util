@@ -42,12 +42,15 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
+import edu.iu.client.HttpException;
 import edu.iu.client.IuHttp;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
@@ -55,12 +58,15 @@ import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcTokenResponse;
 import iu.oidc.client.config.IuOidcClientReference;
+import jakarta.json.JsonObject;
 
 /**
  * Authenticates to a token endpoint, verifies and holds token response until
  * expired.
  */
 public abstract class OidcTokenGrant {
+
+	private static final Logger LOG = Logger.getLogger(OidcTokenGrant.class.getName());
 
 	/**
 	 * Client configuration reference.
@@ -244,10 +250,10 @@ public abstract class OidcTokenGrant {
 						"Authenticated session lifetime " + authAge + " exceeds maximum " + maxAge);
 		}
 
-		final var accessToken = response.getAccessToken();
-		if (accessToken != null) {
-			final var atHash = Objects.requireNonNull(verifiedIdToken.getClaim("at_hash", String.class),
-					"Missing at_hash claim");
+		final var atHash = verifiedIdToken.getClaim("at_hash", String.class);
+		if (atHash != null) {
+			final var accessToken = Objects.requireNonNull(response.getAccessToken(),
+					"missing access token for validating at_hash");
 			final var sha = IuException.unchecked(() -> MessageDigest.getInstance("SHA-" + alg.size));
 			final var hash = sha.digest(IuText.ascii(accessToken));
 			final var halfHash = Arrays.copyOfRange(hash, 0, alg.size / 16);
@@ -270,8 +276,19 @@ public abstract class OidcTokenGrant {
 			final var metadata = OidcProviders.getMetadata(config.getProvider());
 			final var tokenEndpoint = metadata.getTokenEndpoint();
 
-			final var tokenResponse = config.adaptJson(IuOidcTokenResponse.class).fromJson(
-					IuException.unchecked(() -> IuHttp.send(tokenEndpoint, this::tokenAuth, IuHttp.READ_JSON_OBJECT)));
+			final JsonObject httpResponse;
+			try {
+				httpResponse = IuHttp.send(tokenEndpoint, this::tokenAuth, IuHttp.READ_JSON_OBJECT);
+			} catch (HttpException e) {
+				IuException.suppress(e,
+						() -> LOG.info("OIDC token error " + IuWebUtils.describeStatus(e.getResponse().statusCode())
+								+ "; body =" + IuText.utf8(IuStream.read(e.getResponse().body()))));
+				throw new IllegalStateException(
+						"OIDC token error " + IuWebUtils.describeStatus(e.getResponse().statusCode()), e);
+			}
+
+			final var tokenResponse = config.adaptJson(IuOidcTokenResponse.class).fromJson(httpResponse);
+			LOG.fine(() -> "OIDC token response " + tokenResponse);
 
 			idToken = validateTokenResponse(tokenResponse);
 
