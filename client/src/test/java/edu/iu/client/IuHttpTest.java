@@ -34,8 +34,10 @@ package edu.iu.client;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -297,8 +299,11 @@ public class IuHttpTest extends IuHttpTestCase {
 			final var e = new IOException();
 			when(http.send(eq(request), any(BodyHandler.class))).thenThrow(e);
 
-			final var t = assertThrows(IllegalStateException.class, () -> IuHttp.get(TEST_URI));
+			final var t = assertThrows(HttpException.class, () -> IuHttp.get(TEST_URI));
 			assertEquals("HTTP connection failed GET " + TEST_URI, t.getMessage());
+			assertSame(e, t.getCause());
+			assertNull(t.getResponse());
+			assertFalse(Thread.interrupted());
 
 			mockListener.verify(() -> IuListener.observe(argThat(a -> "send".equals(a.getAction()))));
 			mockListener.verify(() -> IuListener.observe(argThat(a -> "incomplete".equals(a.getAction()))));
@@ -309,6 +314,35 @@ public class IuHttpTest extends IuHttpTestCase {
 				assertSame(e, r.getThrown());
 				return true;
 			}));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testConnectionInterrupted() throws Exception {
+		try (final var mockRequest = mockStatic(HttpRequest.class);
+				final var mockListener = mockStatic(IuListener.class)) {
+			final var request = mock(HttpRequest.class);
+			when(request.method()).thenReturn("GET");
+			when(request.headers()).thenReturn(HttpHeaders.of(Map.of(), (a, b) -> true));
+			when(request.uri()).thenReturn(TEST_URI);
+
+			final var mockBuilder = mock(HttpRequest.Builder.class);
+			when(mockBuilder.build()).thenReturn(request);
+			mockRequest.when(() -> HttpRequest.newBuilder(TEST_URI)).thenReturn(mockBuilder);
+
+			final var e = new InterruptedException();
+			when(http.send(eq(request), any(BodyHandler.class))).thenThrow(e);
+
+			final var t = assertThrows(HttpException.class, () -> IuHttp.get(TEST_URI));
+			assertEquals("HTTP connection failed GET " + TEST_URI, t.getMessage());
+			assertSame(e, t.getCause());
+			assertNull(t.getResponse());
+
+			// clears the interrupt status so it doesn't leak into the next test
+			assertTrue(Thread.interrupted(), "expected the interrupt status to be restored");
+
+			mockListener.verify(() -> IuListener.observe(argThat(a -> "incomplete".equals(a.getAction()))));
 		}
 	}
 

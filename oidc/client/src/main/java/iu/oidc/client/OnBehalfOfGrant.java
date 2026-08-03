@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest.Builder;
 import java.util.Map;
@@ -61,7 +62,7 @@ public class OnBehalfOfGrant extends OidcTokenGrant {
 	}
 
 	@Override
-	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 		params.put("grant_type", IuIterable.iter("urn:ietf:params:oauth:grant-type:jwt-bearer"));
 		params.put("resource", IuIterable.iter(resource.toString()));
 		addClientAuth(requestBuilder, params);

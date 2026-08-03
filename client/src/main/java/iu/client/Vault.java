@@ -346,7 +346,9 @@ public final class Vault implements IuVault {
 			try {
 				return IuHttp.send(dataUri(secret), this::authorize, IuHttp.READ_JSON_OBJECT).getJsonObject("data");
 			} catch (HttpException e) {
-				if (e.getResponse().statusCode() == 404)
+				final var errorResponse = e.getResponse();
+				if (errorResponse != null //
+						&& errorResponse.statusCode() == 404)
 					if (cubbyhole)
 						return IuJson.object().build();
 					else

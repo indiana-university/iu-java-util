@@ -43,6 +43,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -163,7 +164,7 @@ public class CryptSpiTest extends CryptImplTestCase {
 	}
 
 	@Test
-	public void testReadJwksFromUri() {
+	public void testReadJwksFromUri() throws IOException {
 		final var uri = mock(URI.class);
 		final var webKey = mock(WebKey.class);
 		final var jwks = IuIterable.iter(webKey);
@@ -174,7 +175,7 @@ public class CryptSpiTest extends CryptImplTestCase {
 	}
 
 	@Test
-	public void testReadJwksFromInputStream() {
+	public void testReadJwksFromInputStream() throws IOException {
 		final var in = mock(InputStream.class);
 		final var webKey = mock(WebKey.class);
 		final var jwks = IuIterable.iter(webKey);

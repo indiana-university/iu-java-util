@@ -40,6 +40,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,6 +58,7 @@ import edu.iu.IuDigest;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.crypt.EphemeralKeys;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.test.IuTestLogger;
@@ -156,6 +158,26 @@ public class SessionHandlerTest {
 		})) {
 			final var session = handler.activate(IuIterable.iter(cookie));
 			assertEquals(session, mockSession.constructed().get(0));
+		}
+	}
+
+	@Test
+	void testActivateSessionConstructorError() {
+		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = mock(IuSessionConfiguration.class);
+		final var store = mock(IuDataStore.class);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
+		final var secretKey = EphemeralKeys.secret("AES", 256);
+		final var activated = IdGenerator.generateId();
+		when(store.get(SessionHandler.hashKey(secretKey))).thenReturn(IuText.utf8(activated));
+		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
+		final var error = new Error();
+		IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Purging invalid sesison", Error.class,
+				thrown -> thrown == error);
+
+		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
+			mockWebCryptoHeader.when(() -> WebCryptoHeader.getProtectedHeader(activated)).thenThrow(error);
+			assertNull(handler.activate(IuIterable.iter(cookie)));
 		}
 	}
 

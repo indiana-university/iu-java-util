@@ -31,6 +31,8 @@
  */
 package edu.iu.oidc;
 
+import java.io.IOException;
+
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
 
@@ -48,27 +50,32 @@ public interface IuOidcAuthorization {
 	 * @param impersonatedPrincipalName requested impersonated principal name; null
 	 *                                  if not requesting impersonation, SHOULD be
 	 *                                  null in production environments
-	 * 
+	 *
 	 * @return authorization redirect
+	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName);
+	IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName) throws IOException;
 
 	/**
 	 * Resumes an authorization session upon return from the authorization server.
-	 * 
+	 *
 	 * @param attributes request attributes
 	 * @param code       authorization code
 	 * @param state      state parameter value
 	 * @return Verified {@link IuStatefulRedirect}
+	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	IuStatefulRedirect authorize(IuRequestAttributes attributes, String code, String state);
+	IuStatefulRedirect authorize(IuRequestAttributes attributes, String code, String state) throws IOException;
 
 	/**
 	 * Gets the {@link IuOidcPrincipal} previously authorized for a web session.
 	 * 
 	 * @param attributes request attributes
 	 * @return Verified {@link IuOidcPrincipal}
+	 * @throws IOException                     if communication with an upstream
+	 *                                         provider is interrupted
 	 */
-	IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes);
+	IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes)
+			throws IOException;
 
 }

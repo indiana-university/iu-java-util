@@ -251,6 +251,28 @@ public class VaultTest extends IuHttpTestCase {
 	}
 
 	@Test
+	public void testReadSecretConnectionFailure() {
+		final var secret = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.token", token);
+		props.setProperty("iu.vault.secrets", secret);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			// a pre-response HttpException reports no status code to inspect
+			final var e = mock(HttpException.class);
+			when(e.getResponse()).thenReturn(null);
+			mockHttp.when(() -> IuHttp.send(any(URI.class), any(), any())).thenThrow(e);
+
+			assertSame(e, assertThrows(IllegalStateException.class, () -> vault.readSecret(secret)).getCause());
+		}
+	}
+
+	@Test
 	public void testOfPropertiesWithNoAuthConfig() {
 		final var endpoint = URI.create("test:" + IdGenerator.generateId());
 		final var props = new Properties();

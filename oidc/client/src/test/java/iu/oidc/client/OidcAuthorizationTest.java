@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -81,7 +83,7 @@ public class OidcAuthorizationTest {
 	}
 
 	@Test
-	void testInit() {
+	void testInit() throws IOException {
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -121,7 +123,7 @@ public class OidcAuthorizationTest {
 	}
 
 	@Test
-	void testInitWithExtras() {
+	void testInitWithExtras() throws IOException {
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -173,7 +175,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAuthorizeMissingSession() {
+	void testAuthorizeMissingSession() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var sessionHandler = mock(IuSessionHandler.class);
 
@@ -188,9 +190,7 @@ public class OidcAuthorizationTest {
 		final var authorization = new OidcAuthorization(config);
 		assertEquals("missing or expired preAuth session", assertThrows(IllegalStateException.class,
 				() -> authorization.authorize(requestAttributes, code, IdGenerator.generateId())).getMessage());
-		assertEquals("missing or expired authorization session",
-				assertThrows(IllegalStateException.class, () -> authorization.getAuthorizedPrincipal(requestAttributes))
-						.getMessage());
+		assertNull(authorization.getAuthorizedPrincipal(requestAttributes));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -224,7 +224,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAuthorize() {
+	void testAuthorize() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -288,7 +288,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAuthorizeNoNonce() {
+	void testAuthorizeNoNonce() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -554,7 +554,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testGetPrincipal() {
+	void testGetPrincipal() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -672,7 +672,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testGetPrincipalWithRefreshAndEncrypted() {
+	void testGetPrincipalWithRefreshAndEncrypted() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);

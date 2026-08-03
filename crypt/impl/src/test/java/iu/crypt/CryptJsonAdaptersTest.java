@@ -286,4 +286,36 @@ public class CryptJsonAdaptersTest {
 		}
 	}
 
+	@Test
+	public void testCaFromJsonPropertyGetters() {
+		final var keyData = new byte[32];
+		final var database = new byte[128];
+		final var certData = new byte[64];
+		final var crlData = new byte[64];
+		ThreadLocalRandom.current().nextBytes(keyData);
+		ThreadLocalRandom.current().nextBytes(database);
+		ThreadLocalRandom.current().nextBytes(certData);
+		ThreadLocalRandom.current().nextBytes(crlData);
+		final var cert = mock(X509Certificate.class);
+		final var crl = mock(X509CRL.class);
+		final var json = IuJson.object() //
+				.add("jwk", IuJson.object().add("kty", "oct").add("k", IuText.base64Url(keyData))) //
+				.add("database", IuText.base64Url(database)) //
+				.add("certificates", IuJson.array().add(IuText.base64(certData))) //
+				.add("crl", IuJson.array().add(IuText.base64(crlData))) //
+				.build();
+
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(certData)).thenReturn(cert);
+			mockPemEncoded.when(() -> PemEncoded.asCRL(crlData)).thenReturn(crl);
+
+			final var ca = CryptJsonAdapters.CA.fromJson(json);
+			assertEquals(WebKey.Type.RAW, ca.getJwk().getType());
+			assertArrayEquals(keyData, ca.getJwk().getKey());
+			assertArrayEquals(database, ca.getDatabase());
+			assertSame(cert, ca.getCertificates().iterator().next());
+			assertSame(crl, ca.getCrl().iterator().next());
+		}
+	}
+
 }

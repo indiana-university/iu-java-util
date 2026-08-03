@@ -31,6 +31,7 @@
  */
 package edu.iu.crypt;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -992,8 +993,9 @@ public interface WebKey extends WebKeyReference {
 	 * 
 	 * @param jwks serialized JWKS
 	 * @return parsed key set
+	 * @throws IOException if an error occurs reading the URI
 	 */
-	static Iterable<? extends WebKey> readJwks(URI jwks) {
+	static Iterable<? extends WebKey> readJwks(URI jwks) throws IOException {
 		return Init.SPI.readJwks(jwks);
 	}
 
@@ -1002,8 +1004,9 @@ public interface WebKey extends WebKeyReference {
 	 * 
 	 * @param jwks serialized JWKS
 	 * @return parsed key set
+	 * @throws IOException if an error occurs reading the stream
 	 */
-	static Iterable<? extends WebKey> readJwks(InputStream jwks) {
+	static Iterable<? extends WebKey> readJwks(InputStream jwks) throws IOException {
 		return Init.SPI.readJwks(jwks);
 	}
 

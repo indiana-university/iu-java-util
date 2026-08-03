@@ -31,17 +31,20 @@
  */
 package iu.oidc.client;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.URI;
-import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.UnsafeFunction;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
@@ -57,7 +60,7 @@ public class OidcPrincipalTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testProperties() {
+	void testProperties() throws Throwable {
 		final var sub = IdGenerator.generateId();
 		final var foo = IdGenerator.generateId();
 		final var bar = IdGenerator.generateId();
@@ -67,7 +70,7 @@ public class OidcPrincipalTest {
 
 		final var uri = URI.create(IdGenerator.generateId());
 		final var accessToken = IdGenerator.generateId();
-		final var accessTokenLookup = mock(Function.class);
+		final var accessTokenLookup = mock(UnsafeFunction.class);
 		when(accessTokenLookup.apply(uri)).thenReturn(accessToken);
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, setCookie, accessTokenLookup,
@@ -79,6 +82,44 @@ public class OidcPrincipalTest {
 		assertEquals(accessToken, principal.getAccessToken(uri));
 		assertEquals(foo, principal.getClaim("foo", String.class));
 		assertEquals(bar, principal.getClaim("bar", String.class));
+		assertDoesNotThrow(principal::toString);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAccessTokenLookupIoFailure() throws Throwable {
+		final var sub = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).build();
+
+		final var uri = URI.create(IdGenerator.generateId());
+		final var failure = new IOException(IdGenerator.generateId());
+		final var accessTokenLookup = mock(UnsafeFunction.class);
+		when(accessTokenLookup.apply(uri)).thenThrow(failure);
+
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, accessTokenLookup,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		// an on-behalf-of exchange failure reaches the caller as a checked IOException
+		assertSame(failure, assertThrows(IOException.class, () -> principal.getAccessToken(uri)));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAccessTokenLookupRuntimeFailure() throws Throwable {
+		final var sub = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).build();
+
+		final var uri = URI.create(IdGenerator.generateId());
+		final var failure = new IllegalArgumentException(IdGenerator.generateId());
+		final var accessTokenLookup = mock(UnsafeFunction.class);
+		when(accessTokenLookup.apply(uri)).thenThrow(failure);
+
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, accessTokenLookup,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		assertSame(failure, assertThrows(IllegalArgumentException.class, () -> principal.getAccessToken(uri)));
 	}
 
 	@Test

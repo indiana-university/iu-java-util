@@ -105,8 +105,14 @@ public class SessionHandler implements IuSessionHandler {
 		if (activatedSession == null)
 			return null;
 
-		return new Session(resourceUri, activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
-				configuration.get());
+		try {
+			return new Session(resourceUri, activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
+					configuration.get());
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, "Purging invalid sesison", e);
+			dataStore.put(hashKey(secretKey), null);
+			return null;
+		}
 	}
 
 	@Override

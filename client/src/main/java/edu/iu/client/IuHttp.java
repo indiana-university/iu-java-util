@@ -166,7 +166,10 @@ public class IuHttp {
 	 * @param uri public URI
 	 * 
 	 * @return {@link HttpResponse}
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static HttpResponse<InputStream> get(URI uri) throws HttpException {
 		return send(uri, null);
@@ -182,7 +185,10 @@ public class IuHttp {
 	 *                        response type.
 	 * 
 	 * @return response value
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static <T> T get(URI uri, HttpResponseHandler<T> responseHandler) throws HttpException {
 		return responseHandler.apply(send(uri, null));
@@ -196,7 +202,10 @@ public class IuHttp {
 	 *                        sending to the server.
 	 * 
 	 * @return {@link HttpResponse}
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static HttpResponse<InputStream> send(URI uri, UnsafeConsumer<HttpRequest.Builder> requestConsumer)
 			throws HttpException {
@@ -230,7 +239,10 @@ public class IuHttp {
 	 *                        requestConsumer
 	 * 
 	 * @return {@link HttpResponse}
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 * @throws E             from requestConsumer
 	 */
 	public static <E extends Exception> HttpResponse<InputStream> send(Class<E> exceptionClass, URI uri,
@@ -267,10 +279,13 @@ public class IuHttp {
 			} catch (Throwable e) {
 				final var m = "HTTP connection failed " + sb;
 				LOG.log(Level.INFO, e, () -> m);
-				
+
 				IuListener.observe(event.received(0));
-				
-				throw new IllegalStateException(m, e);
+
+				if (e instanceof InterruptedException)
+					Thread.currentThread().interrupt();
+
+				throw new HttpException(m, e);
 			}
 
 			final var status = response.statusCode();
@@ -308,7 +323,10 @@ public class IuHttp {
 	 *                        response type.
 	 * 
 	 * @return response value
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static <T> T send(URI uri, UnsafeConsumer<HttpRequest.Builder> requestConsumer,
 			HttpResponseHandler<T> responseHandler) throws HttpException {
@@ -331,7 +349,10 @@ public class IuHttp {
 	 *                        response type.
 	 * 
 	 * @return response value
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 * @throws E             from requestConsumer
 	 */
 	public static <T, E extends Exception> T send(Class<E> exceptionClass, URI uri,

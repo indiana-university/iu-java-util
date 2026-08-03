@@ -45,6 +45,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -250,7 +251,7 @@ public class WebKeyTest extends CryptImplTestCase {
 	}
 
 	@Test
-	public void testJwks() {
+	public void testJwks() throws IOException {
 		final var jwks = WebKey.asJwks(IuIterable.of(() -> new Iterator<WebKey>() {
 			int i = 0;
 

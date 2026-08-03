@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -105,12 +106,12 @@ public class CryptSpi implements IuCryptSpi {
 	}
 
 	@Override
-	public Iterable<? extends WebKey> readJwks(URI jwks) {
+	public Iterable<? extends WebKey> readJwks(URI jwks) throws IOException {
 		return Jwk.readJwks(jwks);
 	}
 
 	@Override
-	public Iterable<? extends WebKey> readJwks(InputStream jwks) {
+	public Iterable<? extends WebKey> readJwks(InputStream jwks) throws IOException {
 		return Jwk.readJwks(jwks);
 	}
 

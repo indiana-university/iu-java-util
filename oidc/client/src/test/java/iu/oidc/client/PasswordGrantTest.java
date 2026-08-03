@@ -36,6 +36,7 @@ import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -62,7 +63,7 @@ public class PasswordGrantTest {
 	}
 
 	@Test
-	public void testGrantType() {
+	public void testGrantType() throws IOException {
 		final var clientId = IdGenerator.generateId();
 		final var username = IdGenerator.generateId();
 		final var password = IdGenerator.generateId();

@@ -36,6 +36,7 @@ import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -64,7 +65,7 @@ public class RefreshTokenGrantTest {
 	}
 
 	@Test
-	public void testGrantType() {
+	public void testGrantType() throws IOException {
 		final var clientId = IdGenerator.generateId();
 		final var assertionJwk = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).ephemeral().build();
 		final var client = mock(IuOidcClient.class, CALLS_REAL_METHODS);

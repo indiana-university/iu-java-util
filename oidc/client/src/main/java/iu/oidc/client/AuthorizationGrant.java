@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest.Builder;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class AuthorizationGrant extends OidcTokenGrant {
 	}
 
 	@Override
-	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 		final var code = Objects.requireNonNull(this.code, "already used");
 		this.code = null;
 

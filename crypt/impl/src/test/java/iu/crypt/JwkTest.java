@@ -49,6 +49,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.URI;
@@ -303,7 +304,7 @@ public class JwkTest extends CryptImplTestCase {
 	}
 
 	@Test
-	public void testEphemerals() {
+	public void testEphemerals() throws IOException {
 		assertThrows(UnsupportedOperationException.class, () -> WebKey.ephemeral(Algorithm.DIRECT));
 		for (int i = 0; i < 4; i++)
 			for (Algorithm algorithm : Algorithm.values()) {
@@ -319,20 +320,20 @@ public class JwkTest extends CryptImplTestCase {
 	}
 
 	@Test
-	public void testEphemeralED() {
+	public void testEphemeralED() throws IOException {
 		final var jwk = (Jwk) WebKey.builder(Type.ED25519).keyId(IdGenerator.generateId()).ephemeral().build();
 		assertEphemeral(jwk);
 	}
 
 	@Test
-	public void testEphemeralRSA() {
+	public void testEphemeralRSA() throws IOException {
 		final var jwk = (Jwk) WebKey.builder(Type.RSA).keyId(IdGenerator.generateId()).ephemeral(3072).build();
 		assertEphemeral(jwk);
 		assertEquals(3072, ((RSAPublicKey) jwk.getPublicKey()).getModulus().bitLength());
 	}
 
 	@Test
-	public void testEphemeralIgnoreSize() {
+	public void testEphemeralIgnoreSize() throws IOException {
 		final var jwk = (Jwk) WebKey.builder(Type.X448).keyId(IdGenerator.generateId()).algorithm(Algorithm.ECDH_ES)
 				.ephemeral(0).build();
 		assertEphemeral(jwk);
@@ -393,7 +394,7 @@ public class JwkTest extends CryptImplTestCase {
 		assertFalse(key.represents(key2));
 	}
 
-	private void assertEphemeral(Jwk jwk) {
+	private void assertEphemeral(Jwk jwk) throws IOException {
 		assertEquals(jwk, new Jwk(IuJson.parse(jwk.toString()).asJsonObject()));
 
 		final var wellKnown = jwk.wellKnown();

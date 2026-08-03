@@ -31,21 +31,34 @@
  */
 package edu.iu.client;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.http.HttpResponse;
 
 /**
- * Thrown by {@link IuHttp} when an error response is received from an HTTP
- * request.
+ * Thrown by {@link IuHttp} when an HTTP request cannot be completed
+ * successfully.
+ *
+ * <p>
+ * Extends {@link IOException} so that callers <em>may</em> handle every
+ * interruption of an upstream HTTP interaction uniformly, whether the request
+ * never reached the server or the server responded in error. Use
+ * {@link #getResponse()} to tell the two apart: it is null when the failure
+ * occurred before a response was received.
+ * </p>
  */
-public class HttpException extends Exception {
+public class HttpException extends IOException {
 	private static final long serialVersionUID = 1L;
 
 	private final transient HttpResponse<InputStream> response;
 
 	/**
 	 * Pre-response constructor.
-	 * 
+	 *
+	 * <p>
+	 * Leaves {@link #getResponse()} null.
+	 * </p>
+	 *
 	 * @param message message
 	 */
 	public HttpException(String message) {
@@ -55,9 +68,14 @@ public class HttpException extends Exception {
 
 	/**
 	 * Pre-response constructor.
-	 * 
+	 *
+	 * <p>
+	 * Reports a failure that occurred before a response was received, for example a
+	 * connection, TLS, or timeout error. Leaves {@link #getResponse()} null.
+	 * </p>
+	 *
 	 * @param message message
-	 * @param cause cause
+	 * @param cause   cause
 	 */
 	public HttpException(String message, Throwable cause) {
 		super(message, cause);
@@ -66,8 +84,8 @@ public class HttpException extends Exception {
 
 	/**
 	 * Constructor.
-	 * 
-	 * @param response error response, status code >= 400
+	 *
+	 * @param response error response, status code &gt;= 400
 	 * @param message  detailed error message
 	 */
 	public HttpException(HttpResponse<InputStream> response, String message) {
@@ -77,8 +95,15 @@ public class HttpException extends Exception {
 
 	/**
 	 * Gets the HTTP response that failed.
-	 * 
-	 * @return {@link HttpResponse}
+	 *
+	 * <p>
+	 * Note that the response is {@code transient}: it does not survive
+	 * serialization, and it is null when the request failed before a response was
+	 * received. Callers <em>must</em> tolerate a null return value.
+	 * </p>
+	 *
+	 * @return {@link HttpResponse}; null if the failure occurred before a response
+	 *         was received
 	 */
 	public HttpResponse<InputStream> getResponse() {
 		return response;
