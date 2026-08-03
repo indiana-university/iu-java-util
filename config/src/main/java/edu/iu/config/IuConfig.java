@@ -142,15 +142,14 @@ public class IuConfig {
 	}
 
 	/**
-	 * Registers an authorization configuration interface that doesn't tie to a
-	 * vault configuration name.
+	 * No-op, non-platform interfaces no longer need to be registered.
 	 * 
 	 * @param <T>             configuration type
 	 * @param configInterface configuration interface
+	 * @deprecated this method will be removed in a future version
 	 */
+	@Deprecated(forRemoval = true)
 	public static synchronized <T> void registerInterface(Class<T> configInterface) {
-		registerAdapter(configInterface, IuJsonAdapter.from(configInterface,
-				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuConfig::adaptJson));
 	}
 
 	/**
@@ -281,8 +280,16 @@ public class IuConfig {
 	public static IuJsonAdapter<?> adaptJson(Type type) {
 		if (STORAGE.containsKey(type))
 			return STORAGE.get(type).adapter;
-		else
-			return IuJsonAdapter.of(type, IuConfig::adaptJson);
+
+		if (type instanceof Class) {
+			final var c = (Class<?>) type;
+			if (!IuObject.isPlatformName(c.getName()) //
+					&& c.isInterface())
+				return IuJsonAdapter.from((Class<?>) type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
+						IuConfig::adaptJson);
+		}
+
+		return IuJsonAdapter.of(type, IuConfig::adaptJson);
 	}
 
 	private IuConfig() {

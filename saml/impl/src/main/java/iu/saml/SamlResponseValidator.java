@@ -33,7 +33,6 @@ package iu.saml;
 
 import java.net.InetAddress;
 import java.net.URI;
-import java.security.KeyPair;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,7 +68,6 @@ import org.opensaml.xmlsec.signature.support.impl.ExplicitKeySignatureTrustEngin
 
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.saml.IuSamlAssertion;
 import iu.saml.config.IuSamlServiceProviderMetadata;
@@ -169,17 +167,8 @@ class SamlResponseValidator {
 	 * @return {@link Decrypter}
 	 */
 	static Decrypter getDecrypter(WebKey identity) {
-		final var pem = PemEncoded.serialize(new KeyPair(identity.getPublicKey(), identity.getPrivateKey()),
-				identity.getCertificateChain());
-		final var sb = new StringBuilder();
-		pem.forEachRemaining(sb::append);
-
-		final var pemImported = PemEncoded.parse(sb.toString());
-		final var privateKey = pemImported.next().asPrivate(identity.getAlgorithm().algorithm);
-		final var cert = pemImported.next().asCertificate();
-
 		List<Credential> certs = new ArrayList<>();
-		certs.add(new BasicX509Credential(cert, privateKey));
+		certs.add(new BasicX509Credential(identity.getCertificateChain()[0], identity.getPrivateKey()));
 		KeyInfoCredentialResolver keyInfoResolver = new StaticKeyInfoCredentialResolver(certs);
 
 		final var decrypter = new Decrypter(null, keyInfoResolver, new InlineEncryptedKeyResolver());

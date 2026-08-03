@@ -64,7 +64,7 @@ public final class SamlPrincipal implements IuSamlPrincipal {
 	SamlPrincipal(String name, String authnAuthority, Instant authnInstant, Instant expires,
 			Iterable<IuSamlAssertion> assertions) {
 		this.name = Objects.requireNonNull(name, "missing principal name");
-		this.authnAuthority = Objects.requireNonNull(authnAuthority, "missing authnAuthority");
+		this.authnAuthority = authnAuthority;
 		this.authnInstant = Objects.requireNonNull(authnInstant, "missing authnInstant");
 		this.expires = Objects.requireNonNull(expires, "missing expires");
 		this.assertions = Objects.requireNonNull(assertions, "missing assertions");

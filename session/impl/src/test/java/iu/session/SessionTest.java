@@ -57,7 +57,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.config.IuConfig;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -72,7 +71,6 @@ public class SessionTest {
 
 	static {
 		Init.init();
-		IuConfig.registerInterface(SessionDetailAttributes.class);
 	}
 
 	private Session session;
