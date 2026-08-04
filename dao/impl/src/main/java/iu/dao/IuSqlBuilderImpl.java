@@ -281,6 +281,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 			} else
 				sb.append("\n    OR ");
 
+			Boolean hasNextRow = null;
 			boolean firstColumn = true;
 			Iterator<Iterator<String>> valueIterator = valueQueue.iterator();
 			for (String left : leftHandSides) {
@@ -299,8 +300,20 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 				else
 					sb.append(" = ").append(right);
 
-				done = !rightValues.hasNext();
+ 				final boolean colHasNext = rightValues.hasNext();
+ 				if (hasNextRow == null)
+ 					hasNextRow = colHasNext;
+ 				else if (hasNextRow.booleanValue() != colHasNext)
+ 					throw new IllegalArgumentException("Mismatched match criteria lengths");
 			}
+ 			
+			if (firstColumn)
+ 				throw new IllegalArgumentException("At least one left-hand side is required");
+ 			if (valueIterator.hasNext())
+ 				throw new IllegalArgumentException("Match criteria column count does not match left-hand sides");
+ 			
+ 			done = !hasNextRow.booleanValue();
+ 			
 			sb.append(')');
 		}
 		sb.append(')');

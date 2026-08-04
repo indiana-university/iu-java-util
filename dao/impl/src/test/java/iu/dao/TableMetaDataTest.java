@@ -172,7 +172,7 @@ public class TableMetaDataTest {
 	}
 
 	@Test
-	public void testConstructor_fullNameUnqualifiedWhenSchemaNul() {
+	public void testConstructor_fullNameUnqualifiedWhenSchemaNull() {
 		final var t = new TableMetaData("my_table", null, "a", true, null);
 		assertEquals("my_table", t.fullName);
 	}

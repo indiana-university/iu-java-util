@@ -644,6 +644,28 @@ public class IuSqlBuilderImplTest {
 				sqlBuilder.getMultipartKeyListMatch(List.of("COL1"), List.of(List.of())));
 	}
 
+	@Test
+	public void testGetMultipartKeyListMatch_columnCountDoesNotMatchLeftHandSides() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> sqlBuilder
+				.getMultipartKeyListMatch(List.of("COL1"), List.of(List.of("'A'"), List.of("'B'"))));
+		assertEquals("Match criteria column count does not match left-hand sides", error.getMessage());
+	}
+
+	@Test
+	public void testGetMultipartKeyListMatch_emptyLeftHandSides() {
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> sqlBuilder.getMultipartKeyListMatch(List.of(), List.of()));
+		assertEquals("At least one left-hand side is required", error.getMessage());
+	}
+
+	@Test
+	public void testGetMultipartKeyListMatch_mismatchedMatchCriteriaLengths() {
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> sqlBuilder.getMultipartKeyListMatch(List.of("COL1", "COL2"),
+						List.of(List.of("'A'"), List.of("'B'", "'C'"))));
+		assertEquals("Mismatched match criteria lengths", error.getMessage());
+	}
+
 	// =======================================================================
 	// getColumnMatchCriteria / getJoinedColumnMatchCriteria
 	// =======================================================================

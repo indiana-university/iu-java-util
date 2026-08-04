@@ -77,7 +77,6 @@ public class DaoUtilsTest {
 	@Test
 	public void testCamelToSnakeUpper_leadingUpperNotPrefixed() {
 		// Leading uppercase letter must NOT produce a leading underscore
-		assertEquals("MyColumn", "MyColumn");
 		assertEquals("MY_COLUMN", DaoUtils.camelToSnakeUpper("MyColumn"));
 	}
 
