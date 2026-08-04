@@ -483,6 +483,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 			postAuth.setInvalid(true);
 		}
 
+		session.setStrict(false);
 		final var setCookie = sessionHandler.store(session);
 		return new IuStatefulRedirect() {
 			@Override

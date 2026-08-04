@@ -39,8 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -86,6 +89,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.X500Utils;
+import edu.iu.saml.IuSamlAssertion;
 import edu.iu.test.IuTestLogger;
 import iu.saml.config.IuSamlServiceProviderMetadata;
 import net.shibboleth.shared.resolver.CriteriaSet;
@@ -176,6 +180,38 @@ public class SamlResponseValidatorTest {
 		}
 	}
 
+	@Test
+	void testValidateRejectsAssertionExpirationAfterConfiguredMaximum() throws Exception {
+		final var trustEngine = mock(ExplicitKeySignatureTrustEngine.class);
+		final var authnInstant = Instant.now();
+		final var maxExpires = authnInstant.plus(config.getAuthenticatedSessionTimeout());
+		final var expires = maxExpires.plusNanos(1L);
+		final var authnAssertion = mock(IuSamlAssertion.class);
+		when(authnAssertion.getAuthnInstant()).thenReturn(authnInstant);
+		when(authnAssertion.getAuthnAuthority()).thenReturn(entityId);
+		when(authnAssertion.getAttributes()).thenReturn(Map.of(nameAttribute, IdGenerator.generateId()));
+		when(authnAssertion.getNotOnOrAfter()).thenReturn(expires);
+
+		IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE, "SamlResponseValidator spEntityId: "
+				+ spEntityId + "; postUri: " + postUri + "; allowedRange: \\[\\]; staticParams: .*");
+		final var validator = spy(
+				new SamlResponseValidator(postUri, entityId, sessionId, remoteAddr, config, trustEngine));
+		final var response = mock(Response.class);
+		final var responseXml = "<Response>" + IdGenerator.generateId() + "</Response>";
+		when(response.getDOM()).thenReturn(XmlDomUtil.parse(responseXml).getDocumentElement());
+		final var issuer = mock(Issuer.class);
+		when(issuer.getValue()).thenReturn(entityId);
+		when(response.getIssuer()).thenReturn(issuer);
+
+		doNothing().when(validator).validateSignature(response);
+		doReturn(IuIterable.iter(authnAssertion)).when(validator).validateAssertions(response);
+		doNothing().when(validator).verifySubjectConfirmation();
+		IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE, "saml:pre-validate\n" + responseXml);
+
+		final var error = assertThrows(IllegalStateException.class, () -> validator.validate(response));
+		assertEquals("authnAssertion expiration time must be no later than " + maxExpires, error.getMessage());
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	void testValidate() {
@@ -253,6 +289,7 @@ public class SamlResponseValidatorTest {
 						when(a.getAuthnInstant()).thenReturn(authnInstant);
 						when(a.getAuthnAuthority()).thenReturn(authnAuthority);
 						when(a.getAttributes()).thenReturn(Map.of(nameAttribute, name));
+						when(a.getNotOnOrAfter()).thenReturn(expires);
 					} else
 						assertEquals(assertion, ctx.arguments().get(0));
 				});

@@ -208,7 +208,10 @@ class SamlResponseValidator {
 				principalNameAttribute);
 
 		final var issuer = response.getIssuer().getValue();
-		final var expires = authnInstant.plus(config.getAuthenticatedSessionTimeout());
+		final var expires = authnAssertion.getNotOnOrAfter();
+		final var maxExpires = authnInstant.plus(config.getAuthenticatedSessionTimeout());
+		if (expires.isAfter(maxExpires))
+			throw new IllegalStateException("authnAssertion expiration time must be no later than " + maxExpires);
 
 		LOG.fine(() -> "saml:post-validate:" + principalName + ":" + authnAuthority + " @" + authnInstant + "; issuer: "
 				+ issuer + " @" + issueInstant + ", expires " + expires + "; assertions: " + samlAssertions);
