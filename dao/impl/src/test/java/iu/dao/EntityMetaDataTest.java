@@ -99,6 +99,22 @@ public class EntityMetaDataTest {
 		}
 	}
 
+	/** Entity with a mapped update property but no @Id property. */
+	@Entity
+	@Table(name = "no_id", schema = "pub")
+	public static class NoIdEntity {
+		private String label;
+
+		@Column(name = "LABEL")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+	}
+
 	/** @Entity with a name but no @Table — table name comes from @Entity.name(). */
 	@Entity(name = "ent_name")
 	public static class EntityNamedEntity {
@@ -990,6 +1006,13 @@ public class EntityMetaDataTest {
 		assertThrows(UnsupportedOperationException.class, meta::getDeleteStatement);
 	}
 
+	@Test
+	public void testGetDeleteStatement_throwsWithoutIdProperty() {
+		final var meta = EntityMetaData.of(NoIdEntity.class);
+		final var error = assertThrows(IllegalArgumentException.class, meta::getDeleteStatement);
+		assertEquals("No @Id criteria defined for " + NoIdEntity.class, error.getMessage());
+	}
+
 	// =======================================================================
 	// getUpdateStatement
 	// =======================================================================
@@ -1013,6 +1036,14 @@ public class EntityMetaDataTest {
 	public void testGetUpdateStatement_throwsForSecondaryTableColumn() {
 		final var meta = EntityMetaData.of(SecondaryTableEntity.class);
 		assertThrows(IllegalArgumentException.class, () -> meta.getUpdateStatement(List.of("detail")));
+	}
+
+	@Test
+	public void testGetUpdateStatement_throwsWithoutIdProperty() {
+		final var meta = EntityMetaData.of(NoIdEntity.class);
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> meta.getUpdateStatement(List.of("label")));
+		assertEquals("No @Id criteria defined for " + NoIdEntity.class, error.getMessage());
 	}
 
 	@Test

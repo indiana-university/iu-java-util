@@ -149,6 +149,11 @@ public class JoinConditionTest {
 	private static class PkJoinUnknownRef {
 	}
 
+	/** empty name — secondary column falls back to the resolved primary column */
+	@PrimaryKeyJoinColumn
+	private static class PkJoinEmptyName {
+	}
+
 	// -----------------------------------------------------------------------
 	// Constructor 1: JoinCondition(String secondaryAlias, ColumnMetaData column)
 	// -----------------------------------------------------------------------
@@ -211,6 +216,16 @@ public class JoinConditionTest {
 		final var sb = new StringBuilder();
 		join.appendTo(sb);
 		assertEquals("a.NOT_IN_ENTITY = b.UNKNOWN_REF", sb.toString());
+	}
+
+	@Test
+	public void testFromPkJoinColumn_emptyNameUsesResolvedPrimaryColumn() {
+		final var entity = EntityMetaData.of(SinglePkEntity.class);
+		final var pkJoin = PkJoinEmptyName.class.getAnnotation(PrimaryKeyJoinColumn.class);
+		final var join = new JoinCondition("b", pkJoin, entity);
+		final var sb = new StringBuilder();
+		join.appendTo(sb);
+		assertEquals("a.ID = b.ID", sb.toString());
 	}
 
 }

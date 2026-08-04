@@ -94,7 +94,9 @@ class JoinCondition {
 			this.primaryColumn = column.columnName;
 		}
 		this.secondaryAlias = secondaryAlias;
-		this.secondaryColumn = pkJoinColumn.name();
+		this.secondaryColumn = pkJoinColumn.name().isEmpty() //
+				? primaryLookup
+				: pkJoinColumn.name();
 	}
 
 	/**

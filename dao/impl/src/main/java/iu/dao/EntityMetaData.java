@@ -755,8 +755,13 @@ class EntityMetaData {
 			final var column = requirePrimaryColumn(i.next());
 			sb.append("\n    ").append(column.columnName).append(" = ?,");
 		}
-		sb.setLength(sb.length() - 1);
-		sb.append(DaoUtils.buildWhere(DaoUtils.idCriteria(idColumns, "?")));
+		sb.setLength(sb.length() - 1); // trim last comma
+
+		final var where = DaoUtils.buildWhere(DaoUtils.idCriteria(idColumns, "?"));
+		if (where.isEmpty())
+			throw new IllegalArgumentException("No @Id criteria defined for " + entityClass);
+		else
+			sb.append(where);
 
 		final var sql = sb.toString();
 		updateStatementCache.put(fingerprint, sql);
@@ -814,9 +819,16 @@ class EntityMetaData {
 	synchronized String getDeleteStatement() {
 		if (effectiveDated != null)
 			throw new UnsupportedOperationException("Delete is not supported for effective-dated entities");
-		if (deleteStatement == null)
-			deleteStatement = new StringBuilder("DELETE FROM ").append(primaryTable.fullName)
-					.append(DaoUtils.buildWhere(DaoUtils.idCriteria(idColumns, "?"))).toString();
+		if (deleteStatement == null) {
+			final var sb = new StringBuilder("DELETE FROM ").append(primaryTable.fullName);
+			final var where = DaoUtils.buildWhere(DaoUtils.idCriteria(idColumns, "?"));
+			if (where.isEmpty())
+				throw new IllegalArgumentException("No @Id criteria defined for " + entityClass);
+			else
+				sb.append(where);
+
+			deleteStatement = sb.toString();
+		}
 		return deleteStatement;
 	}
 
