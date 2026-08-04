@@ -39,6 +39,11 @@ import java.lang.annotation.Target;
 
 /**
  * Supplies a raw SQL expression for a bean property.
+ * 
+ * <p>
+ * <strong>Security:</strong> This expression is emitted verbatim in SELECT
+ * clauses. It must not contain user-controlled content.
+ * </p>
  */
 @Documented
 @Target({ ElementType.FIELD, ElementType.METHOD })

@@ -245,7 +245,15 @@ public interface IuSqlBuilder {
 	/**
 	 * Builds an {@code IN} criterion.
 	 *
-	 * @param leftHandSide  column or expression
+	 * <p>
+	 * <strong>Security:</strong> {@code matchCriteria} values are embedded verbatim
+	 * in the generated SQL. Callers MUST ensure each value is either a
+	 * bind-parameter placeholder ({@code "?"}) or the output of
+	 * {@link #getLiteral(Object)}. Passing unsanitized user input produces a SQL
+	 * injection vulnerability.
+	 * </p>
+	 * 
+	 * @param leftHandSide column or expression
 	 * @param matchCriteria literals or parameter placeholders
 	 * @return criterion
 	 */

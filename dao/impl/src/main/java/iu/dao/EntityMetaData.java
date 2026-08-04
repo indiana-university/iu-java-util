@@ -1,9 +1,9 @@
 package iu.dao;
 
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,6 +14,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.WeakHashMap;
 
+import edu.iu.IuCacheMap;
 import edu.iu.IuIterable;
 import edu.iu.dao.Distinct;
 import edu.iu.dao.EffectiveDated;
@@ -58,8 +59,13 @@ import jakarta.persistence.Table;
  */
 class EntityMetaData {
 
-	private static final WeakHashMap<Class<?>, EntityMetaData> CACHE = new WeakHashMap<>();
-
+	private static final ClassValue<EntityMetaData> CACHE = new ClassValue<>() {
+	    @Override
+	    protected EntityMetaData computeValue(Class<?> type) {
+	        return new EntityMetaData(type);
+	    }
+	};
+	
 	private static final Set<String> ALLOWED_COMPARATORS = Set.of("=", "<>", "!=", "<", ">", "<=", ">=", "LIKE",
 			"NOT LIKE", "IS", "IS NOT");
 
@@ -73,9 +79,7 @@ class EntityMetaData {
 	 */
 	static EntityMetaData of(Class<?> entityClass) {
 		Objects.requireNonNull(entityClass, "entityClass");
-		synchronized (CACHE) {
-			return CACHE.computeIfAbsent(entityClass, EntityMetaData::new);
-		}
+	    return CACHE.get(entityClass);
 	}
 
 	/**
@@ -191,25 +195,25 @@ class EntityMetaData {
 	final EffectiveDated effectiveDated;
 
 	/** Cache for {@code SELECT … FROM} clause fragments, keyed by fingerprint. */
-	final Map<List<?>, String> selectAndFromCache = new HashMap<>();
+	final Map<List<?>, String> selectAndFromCache = new IuCacheMap<>(Duration.ofMinutes(10L));
 
 	/**
 	 * Cache for complete {@code SELECT} statement strings, keyed by fingerprint.
 	 */
-	final Map<List<?>, String> selectStatementCache = new HashMap<>();
+	final Map<List<?>, String> selectStatementCache = new IuCacheMap<>(Duration.ofMinutes(10L));
 
 	/** Cache for {@code UPDATE} statement strings, keyed by fingerprint. */
-	final Map<List<?>, String> updateStatementCache = new HashMap<>();
+	final Map<List<?>, String> updateStatementCache = new IuCacheMap<>(Duration.ofMinutes(10L));
 
 	/**
 	 * Lazily initialized {@code INSERT} statement; {@code null} until first use.
 	 */
-	private String insertStatement;
+	private volatile String insertStatement;
 
 	/**
 	 * Lazily initialized {@code DELETE} statement; {@code null} until first use.
 	 */
-	private String deleteStatement;
+	private volatile String deleteStatement;
 
 	/**
 	 * Constructs metadata for the given entity class.
@@ -650,7 +654,7 @@ class EntityMetaData {
 	 * @throws IllegalArgumentException if {@code props} resolves to an empty
 	 *                                  sequence
 	 */
-	synchronized String getSelectAndFromClause(Iterable<String> props) {
+	String getSelectAndFromClause(Iterable<String> props) {
 		final var effectiveProps = props == null ? defaultPropertyNames() : props;
 		final var fingerprint = DaoUtils.getFingerprint(effectiveProps);
 		final var cached = selectAndFromCache.get(fingerprint);
@@ -712,7 +716,7 @@ class EntityMetaData {
 	 * @param forUpdate {@code true} to append {@code FOR UPDATE}
 	 * @return complete SQL {@code SELECT} statement
 	 */
-	synchronized String getSelectStatement(Iterable<String> props, Iterable<String> where, Iterable<String> order,
+	String getSelectStatement(Iterable<String> props, Iterable<String> where, Iterable<String> order,
 			boolean forUpdate) {
 		final var criteria = IuIterable.cat(where, resolveFilters(), resolveEffectiveDatedCriteria());
 		final var effectiveProps = props == null ? defaultPropertyNames() : props;
@@ -749,7 +753,7 @@ class EntityMetaData {
 	 * @throws IllegalArgumentException           if any property is unknown or maps
 	 *                                            to a secondary table
 	 */
-	synchronized String getUpdateStatement(Iterable<String> properties) {
+	String getUpdateStatement(Iterable<String> properties) {
 		final var i = properties.iterator();
 		if (!i.hasNext())
 			throw new IuSqlUnchangedException();

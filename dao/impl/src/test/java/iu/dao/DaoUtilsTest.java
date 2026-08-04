@@ -249,6 +249,7 @@ public class DaoUtilsTest {
 		private String name;
 		private int value;
 
+		@Column
 		public String getName() {
 			return name;
 		}
@@ -265,6 +266,7 @@ public class DaoUtilsTest {
 			this.value = value;
 		}
 
+		@Column
 		public boolean isThisAProblem() {
 			throw new IllegalStateException("yes");
 		}
@@ -347,16 +349,16 @@ public class DaoUtilsTest {
 	public void testGetPropertyValue_returnsValue() throws Exception {
 		final var bean = new SimpleBean();
 		bean.setName("hello");
-		final var prop = DaoUtils.findProperty(SimpleBean.class, "name");
-		assertEquals("hello", DaoUtils.getPropertyValue(bean, prop));
+		final var column = EntityMetaData.of(SimpleBean.class).columns.get("name");
+		assertEquals("hello", DaoUtils.getPropertyValue(bean, column));
 	}
 
 	@Test
 	public void testGetPropertyValue_throws() throws Exception {
 		final var bean = new SimpleBean();
-		final var prop = DaoUtils.findProperty(SimpleBean.class, "thisAProblem");
-		final var err = assertThrows(IllegalStateException.class, () -> DaoUtils.getPropertyValue(bean, prop));
-		assertEquals("Failed to read property thisAProblem from " + SimpleBean.class, err.getMessage());
+		final var column = EntityMetaData.of(SimpleBean.class).columns.get("thisAProblem");
+		final var err = assertThrows(IllegalStateException.class, () -> DaoUtils.getPropertyValue(bean, column));
+		assertEquals("Failed to read thisAProblem from " + SimpleBean.class, err.getMessage());
 		assertEquals("yes", err.getCause().getMessage());
 	}
 
@@ -429,7 +431,7 @@ public class DaoUtilsTest {
 	}
 
 	// -----------------------------------------------------------------------
-	// getSqlType — via @Column columnDefinition
+	// resolveSqlType — via @Column columnDefinition
 	// -----------------------------------------------------------------------
 
 	static class SqlTypeBean {
@@ -503,76 +505,82 @@ public class DaoUtilsTest {
 		}
 	}
 
-	@Test
-	public void testGetSqlType_charColumnDef() {
-		assertEquals(String.class, DaoUtils.getSqlType(SqlTypeBean.class, "charProp"));
+	private static Class<?> resolveSqlType(String propertyName) {
+		final var property = DaoUtils.findProperty(SqlTypeBean.class, propertyName);
+		final var column = property.getReadMethod().getAnnotation(Column.class);
+		return DaoUtils.resolveSqlType(property, column);
 	}
 
 	@Test
-	public void testGetSqlType_intColumnDef() {
-		assertEquals(Long.class, DaoUtils.getSqlType(SqlTypeBean.class, "intProp"));
+	public void testResolveSqlType_charColumnDef() {
+		assertEquals(String.class, resolveSqlType("charProp"));
 	}
 
 	@Test
-	public void testGetSqlType_numberColumnDef() {
-		assertEquals(Number.class, DaoUtils.getSqlType(SqlTypeBean.class, "numberProp"));
+	public void testResolveSqlType_intColumnDef() {
+		assertEquals(Long.class, resolveSqlType("intProp"));
 	}
 
 	@Test
-	public void testGetSqlType_numericColumnDef() {
-		assertEquals(Number.class, DaoUtils.getSqlType(SqlTypeBean.class, "numericProp"));
+	public void testResolveSqlType_numberColumnDef() {
+		assertEquals(Number.class, resolveSqlType("numberProp"));
 	}
 
 	@Test
-	public void testGetSqlType_decimalColumnDef() {
-		assertEquals(Number.class, DaoUtils.getSqlType(SqlTypeBean.class, "decimalProp"));
+	public void testResolveSqlType_numericColumnDef() {
+		assertEquals(Number.class, resolveSqlType("numericProp"));
 	}
 
 	@Test
-	public void testGetSqlType_dateColumnDef() {
-		assertEquals(Date.class, DaoUtils.getSqlType(SqlTypeBean.class, "dateProp"));
+	public void testResolveSqlType_decimalColumnDef() {
+		assertEquals(Number.class, resolveSqlType("decimalProp"));
 	}
 
 	@Test
-	public void testGetSqlType_timeColumnDef() {
-		assertEquals(Time.class, DaoUtils.getSqlType(SqlTypeBean.class, "timeProp"));
+	public void testResolveSqlType_dateColumnDef() {
+		assertEquals(Date.class, resolveSqlType("dateProp"));
 	}
 
 	@Test
-	public void testGetSqlType_timestampColumnDef() {
-		assertEquals(Timestamp.class, DaoUtils.getSqlType(SqlTypeBean.class, "timestampProp"));
+	public void testResolveSqlType_timeColumnDef() {
+		assertEquals(Time.class, resolveSqlType("timeProp"));
 	}
 
 	@Test
-	public void testGetSqlType_datetimeColumnDef() {
-		assertEquals(Timestamp.class, DaoUtils.getSqlType(SqlTypeBean.class, "datetimeProp"));
+	public void testResolveSqlType_timestampColumnDef() {
+		assertEquals(Timestamp.class, resolveSqlType("timestampProp"));
 	}
 
 	@Test
-	public void testGetSqlType_clobColumnDef() {
+	public void testResolveSqlType_datetimeColumnDef() {
+		assertEquals(Timestamp.class, resolveSqlType("datetimeProp"));
+	}
+
+	@Test
+	public void testResolveSqlType_clobColumnDef() {
 		assertArrayEquals(new char[0], (char[]) java.lang.reflect.Array
-				.newInstance(DaoUtils.getSqlType(SqlTypeBean.class, "clobProp").getComponentType(), 0));
-		assertEquals(char[].class, DaoUtils.getSqlType(SqlTypeBean.class, "clobProp"));
+				.newInstance(resolveSqlType("clobProp").getComponentType(), 0));
+		assertEquals(char[].class, resolveSqlType("clobProp"));
 	}
 
 	@Test
-	public void testGetSqlType_textColumnDef() {
-		assertEquals(char[].class, DaoUtils.getSqlType(SqlTypeBean.class, "textProp"));
+	public void testResolveSqlType_textColumnDef() {
+		assertEquals(char[].class, resolveSqlType("textProp"));
 	}
 
 	@Test
-	public void testGetSqlType_unknownSqlType() {
-		assertEquals(Object.class, DaoUtils.getSqlType(SqlTypeBean.class, "unknownSqlProp"));
+	public void testResolveSqlType_unknownSqlType() {
+		assertEquals(Object.class, resolveSqlType("unknownSqlProp"));
 	}
 
 	@Test
-	public void testGetSqlType_noDefinition_autoboxed() {
-		assertEquals(String.class, DaoUtils.getSqlType(SqlTypeBean.class, "noValueProp"));
+	public void testResolveSqlType_noDefinition_autoboxed() {
+		assertEquals(String.class, resolveSqlType("noValueProp"));
 	}
 
 	@Test
-	public void testGetSqlType_noAnnotation_autoboxed() {
-		assertEquals(Integer.class, DaoUtils.getSqlType(SqlTypeBean.class, "noAnnotationProp"));
+	public void testResolveSqlType_noAnnotation_autoboxed() {
+		assertEquals(Integer.class, resolveSqlType("noAnnotationProp"));
 	}
 
 	// -----------------------------------------------------------------------
@@ -755,6 +763,18 @@ public class DaoUtilsTest {
 	@Test
 	public void testSingleQuoted_multipleEmbeddedQuotes_allDoubled() {
 		assertEquals("'a''b''c'", DaoUtils.singleQuoted("a'b'c"));
+	}
+
+	@Test
+	public void testSingleQuoted_rejectsNullCharacter() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> DaoUtils.singleQuoted("a\0b"));
+		assertEquals("String literal contains characters unsafe for SQL embedding", error.getMessage());
+	}
+
+	@Test
+	public void testSingleQuoted_rejectsSubstituteCharacter() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> DaoUtils.singleQuoted("a\u001ab"));
+		assertEquals("String literal contains characters unsafe for SQL embedding", error.getMessage());
 	}
 
 	// -----------------------------------------------------------------------

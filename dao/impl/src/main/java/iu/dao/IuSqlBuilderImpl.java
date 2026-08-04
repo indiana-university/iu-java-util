@@ -141,8 +141,8 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
 		final Queue<String> properties = new ArrayDeque<>();
 		for (final var column : meta.primaryNonIdColumns) {
-			final var currentValue = DaoUtils.getPropertyValue(entity, column.property);
-			final var originalValue = DaoUtils.getPropertyValue(original, column.property);
+			final var currentValue = DaoUtils.getPropertyValue(entity, column);
+			final var originalValue = DaoUtils.getPropertyValue(original, column);
 			if (!IuObject.equals(currentValue, originalValue))
 				properties.offer(column.propertyName);
 		}
@@ -161,11 +161,11 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 		for (final var property : properties) {
 			final var column = meta.requirePrimaryColumn(property);
-			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column.property)));
+			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column)));
 		}
 
 		for (final var idColumn : meta.idColumns)
-			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn.property)));
+			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn)));
 
 		return args::iterator;
 	}
@@ -181,7 +181,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		final Queue<Object> args = new ArrayDeque<>();
 
 		for (final var idColumn : meta.idColumns)
-			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn.property)));
+			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn)));
 
 		return args::iterator;
 	}
@@ -202,7 +202,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		final Queue<Object> args = new ArrayDeque<>();
 
 		for (final var column : meta.primaryColumns)
-			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column.property)));
+			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column)));
 
 		return args::iterator;
 	}
@@ -213,7 +213,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		final var column = meta.resolveColumn(propertyName);
 		if (column == null)
 			throw new IllegalArgumentException("Unknown property " + propertyName + " for " + entity.getClass());
-		return column.normalizeArgument(DaoUtils.getPropertyValue(entity, column.property));
+		return column.normalizeArgument(DaoUtils.getPropertyValue(entity, column));
 	}
 
 	@Override
@@ -289,20 +289,20 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 				else
 					sb.append(" = ").append(right);
 
- 				final boolean colHasNext = rightValues.hasNext();
- 				if (hasNextRow == null)
- 					hasNextRow = colHasNext;
- 				else if (hasNextRow.booleanValue() != colHasNext)
- 					throw new IllegalArgumentException("Mismatched match criteria lengths");
+				final boolean colHasNext = rightValues.hasNext();
+				if (hasNextRow == null)
+					hasNextRow = colHasNext;
+				else if (hasNextRow.booleanValue() != colHasNext)
+					throw new IllegalArgumentException("Mismatched match criteria lengths");
 			}
- 			
+
 			if (firstColumn)
- 				throw new IllegalArgumentException("At least one left-hand side is required");
- 			if (valueIterator.hasNext())
- 				throw new IllegalArgumentException("Match criteria column count does not match left-hand sides");
- 			
- 			done = !hasNextRow.booleanValue();
- 			
+				throw new IllegalArgumentException("At least one left-hand side is required");
+			if (valueIterator.hasNext())
+				throw new IllegalArgumentException("Match criteria column count does not match left-hand sides");
+
+			done = !hasNextRow.booleanValue();
+
 			sb.append(')');
 		}
 		sb.append(')');
@@ -421,7 +421,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		final var meta = EntityMetaData.of(entityClass);
 		final var map = new LinkedHashMap<String, Object>();
 		for (final var column : meta.idColumns)
-			map.put(column.columnName, DaoUtils.getSqlType(entityClass, column.propertyName));
+			map.put(column.columnName, meta.resolveColumn(column.propertyName).sqlType);
 		return map;
 	}
 
@@ -432,7 +432,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		final var map = new LinkedHashMap<String, Object>();
 		for (final var column : meta.columns.values())
 			if (column.columnName != null)
-				map.put(column.columnName, DaoUtils.getSqlType(entityClass, column.propertyName));
+				map.put(column.columnName, meta.resolveColumn(column.propertyName).sqlType);
 		return map;
 	}
 
@@ -460,7 +460,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 			final Queue<String> criteria = new ArrayDeque<>();
 			for (final var idColumn : meta.idColumns) {
-				final var value = DaoUtils.getPropertyValue(entity, idColumn.property);
+				final var value = DaoUtils.getPropertyValue(entity, idColumn);
 				criteria.offer(idColumn.reference() + (value == null ? " IS NULL" : " = " + getLiteral(value)));
 			}
 

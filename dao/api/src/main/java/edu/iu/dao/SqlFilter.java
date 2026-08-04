@@ -37,6 +37,11 @@ import java.lang.annotation.RetentionPolicy;
 
 /**
  * Defines a SQL filter fragment or a named filter pattern.
+ * 
+ * <p>
+ * <strong>Security:</strong> This value is included verbatim in generated SQL
+ * statements. It must not contain user-controlled content.
+ * </p>
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

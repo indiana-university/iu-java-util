@@ -42,6 +42,10 @@ final class DaoUtils {
 	 * @return SQL single-quoted string literal
 	 */
 	static String singleQuoted(String value) {
+		// Defence-in-depth: reject null bytes and backslashes that can
+		// bypass quote-doubling on non-ANSI-mode MySQL or multi-byte charsets.
+		if (value.indexOf('\0') >= 0 || value.indexOf('\u001a') >= 0)
+			throw new IllegalArgumentException("String literal contains characters unsafe for SQL embedding");
 		return "'" + value.replace("'", "''") + "'";
 	}
 
@@ -218,17 +222,16 @@ final class DaoUtils {
 	/**
 	 * Reads the value of a bean property by invoking its getter reflectively.
 	 *
-	 * @param bean bean instance; must not be {@code null}
-	 * @param prop descriptor for the property to read; must have a readable getter
+	 * @param bean   bean instance; must not be {@code null}
+	 * @param column annotated property metadata
 	 * @return the property value, possibly {@code null}
 	 * @throws IllegalStateException if the getter throws or is inaccessible
 	 */
-	static Object getPropertyValue(Object bean, PropertyDescriptor prop) {
+	static Object getPropertyValue(Object bean, ColumnMetaData column) {
 		try {
-			return IuException.checkedInvocation(() -> prop.getReadMethod().invoke(bean));
+			return column.getter.invoke(bean);
 		} catch (Throwable e) {
-			throw new IllegalStateException("Failed to read property " + prop.getName() + " from " + bean.getClass(),
-					e);
+			throw new IllegalStateException("Failed to read " + column.propertyName + " from " + bean.getClass(), e);
 		}
 	}
 
@@ -306,14 +309,12 @@ final class DaoUtils {
 	 * autoboxing any primitive via {@link #autobox(Class)}.
 	 * </p>
 	 *
-	 * @param entityClass entity class owning the property; must not be {@code null}
-	 * @param prop        property name; must exist on the entity class
+	 * @param property property descriptor
+	 * @param column   column
 	 * @return Java type to use for the SQL column
 	 * @throws NoSuchElementException if the property is not found
 	 */
-	static Class<?> getSqlType(Class<?> entityClass, String prop) {
-		final var property = findProperty(entityClass, prop);
-		final var column = property.getReadMethod().getAnnotation(Column.class);
+	static Class<?> resolveSqlType(PropertyDescriptor property, Column column) {
 		if (column != null //
 				&& hasValue(column.columnDefinition())) {
 			final var sqlType = column.columnDefinition().toUpperCase(Locale.ROOT);

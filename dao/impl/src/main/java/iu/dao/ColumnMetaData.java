@@ -1,9 +1,12 @@
 package iu.dao;
 
 import java.beans.PropertyDescriptor;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.sql.Timestamp;
 import java.time.Instant;
 
+import edu.iu.IuException;
 import edu.iu.dao.SpaceForNull;
 import edu.iu.dao.SqlColumn;
 import jakarta.persistence.Column;
@@ -28,9 +31,9 @@ import jakarta.persistence.Id;
  * <dd>The getter carries {@code @SqlColumn} but not {@code @Column}.
  * {@link #columnName} and {@link #table} are {@code null}. {@link #sql} holds
  * the raw SQL expression from {@link SqlColumn#value()}, and
- * {@link #selectAlias} is set to the
- * {@link DaoUtils#camelToSnakeUpper(String) UPPER_SNAKE_CASE} form of the
- * property name so it can be aliased in {@code SELECT} lists.</dd>
+ * {@link #selectAlias} is set to the {@link DaoUtils#camelToSnakeUpper(String)
+ * UPPER_SNAKE_CASE} form of the property name so it can be aliased in
+ * {@code SELECT} lists.</dd>
  * </dl>
  */
 class ColumnMetaData {
@@ -50,8 +53,8 @@ class ColumnMetaData {
 	/**
 	 * The physical database column name used in {@code INSERT}, {@code UPDATE}, and
 	 * {@code WHERE} clauses. Derived from {@link Column#name()} when non-blank;
-	 * otherwise {@link DaoUtils#camelToSnakeUpper(String)} of {@link #propertyName}.
-	 * {@code null} for {@link SqlColumn} properties.
+	 * otherwise {@link DaoUtils#camelToSnakeUpper(String)} of
+	 * {@link #propertyName}. {@code null} for {@link SqlColumn} properties.
 	 */
 	final String columnName;
 
@@ -106,6 +109,16 @@ class ColumnMetaData {
 	final TableMetaData table;
 
 	/**
+	 * The resolved SQL type
+	 */
+	final Class<?> sqlType;
+
+	/**
+	 * Resolved read method getter for fast reflective access.
+	 */
+	final MethodHandle getter;
+
+	/**
 	 * Constructs metadata for a single bean property.
 	 *
 	 * <p>
@@ -141,6 +154,8 @@ class ColumnMetaData {
 			this.sql = this.columnName;
 			this.selectAlias = null;
 		}
+		this.sqlType = DaoUtils.resolveSqlType(property, column);
+		this.getter = IuException.unchecked(() -> MethodHandles.lookup().unreflect(readMethod));
 	}
 
 	/**
@@ -161,12 +176,11 @@ class ColumnMetaData {
 	 * alias.
 	 *
 	 * <p>
-	 * For {@link Column}-mapped properties the result is
-	 * {@code alias.columnName}, where {@code alias} is {@code aliasOverride} when
-	 * non-{@code null}, or the table's own {@link TableMetaData#alias} otherwise.
-	 * For {@link SqlColumn} properties (where {@link #table} is {@code null}) no
-	 * alias prefix is emitted; only {@link #sql} is returned regardless of
-	 * {@code aliasOverride}.
+	 * For {@link Column}-mapped properties the result is {@code alias.columnName},
+	 * where {@code alias} is {@code aliasOverride} when non-{@code null}, or the
+	 * table's own {@link TableMetaData#alias} otherwise. For {@link SqlColumn}
+	 * properties (where {@link #table} is {@code null}) no alias prefix is emitted;
+	 * only {@link #sql} is returned regardless of {@code aliasOverride}.
 	 * </p>
 	 *
 	 * @param aliasOverride table alias to use instead of the table's own alias, or
@@ -182,8 +196,8 @@ class ColumnMetaData {
 	}
 
 	/**
-	 * Returns {@code true} when the property is mapped via {@link Column} (i.e.
-	 * has a physical column name and table binding).
+	 * Returns {@code true} when the property is mapped via {@link Column} (i.e. has
+	 * a physical column name and table binding).
 	 *
 	 * @return {@code true} for {@link Column}-mapped properties
 	 */
@@ -200,7 +214,7 @@ class ColumnMetaData {
 	boolean isPrimaryColumn() {
 		return isMappedColumn() && table.primary;
 	}
-	
+
 	/**
 	 * Normalizes a bind-parameter value before it is passed to a JDBC statement.
 	 *
