@@ -960,6 +960,22 @@ public class EntityMetaDataTest {
 				meta.getJoinedColumnCompareCriteria("sec_tbl", "detail", "LIKE", List.of("'a%'", "'b%'")));
 	}
 
+	@Test
+	public void testGetJoinedColumnCompareCriteria_rejectsNullComparator() {
+		final var meta = EntityMetaData.of(TableNamedEntity.class);
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> meta.getJoinedColumnCompareCriteria(null, "label", null, List.of("'x'")));
+		assertEquals("Invalid SQL comparator: null", error.getMessage());
+	}
+
+	@Test
+	public void testGetJoinedColumnCompareCriteria_rejectsInvalidComparator() {
+		final var meta = EntityMetaData.of(TableNamedEntity.class);
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> meta.getJoinedColumnCompareCriteria(null, "label", "INVALID", List.of("'x'")));
+		assertEquals("Invalid SQL comparator: INVALID", error.getMessage());
+	}
+
 
 	@Test
 	public void testGetInsertStatement_containsInsertIntoTableName() {

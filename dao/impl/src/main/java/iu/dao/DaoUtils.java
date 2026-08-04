@@ -5,11 +5,14 @@ import java.beans.PropertyDescriptor;
 import java.lang.annotation.Annotation;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 
@@ -24,7 +27,7 @@ import jakarta.persistence.Transient;
  */
 final class DaoUtils {
 
-	private static final SimpleDateFormat TIMESTAMP_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS",
+	private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS",
 			Locale.ROOT);
 
 	/**
@@ -55,7 +58,8 @@ final class DaoUtils {
 	 */
 	static String literalFromDate(java.util.Date date) {
 		synchronized (TIMESTAMP_FORMAT) {
-			return "TIMESTAMP '" + TIMESTAMP_FORMAT.format(date) + "'";
+			return "TIMESTAMP '" + TIMESTAMP_FORMAT.format(date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime())
+					+ "'";
 		}
 	}
 
@@ -119,32 +123,19 @@ final class DaoUtils {
 	}
 
 	/**
-	 * Computes a stable 64-bit fingerprint over one or more ordered sequences of
-	 * values.
-	 *
-	 * <p>
-	 * The fingerprint is sensitive to both element identity (via
-	 * {@link Object#hashCode()}) and element count within each iterable, making it
-	 * suitable for cache-key generation. {@code null} elements contribute
-	 * {@code 0}. {@code null} iterables contribute only their zero count.
-	 * </p>
+	 * Copies one or more ordered sequences of values into a stable List suitable
+	 * for use as a hash key.
 	 *
 	 * @param values zero or more iterables whose contents form the fingerprint
-	 * @return a 64-bit fingerprint value, {@code 0L} when {@code values} is
-	 *         {@code null}
+	 * @return a flattened list of all iterated values
 	 */
-	static long getFingerprint(Iterable<?>... values) {
-		long fingerprint = 0L;
+	static List<?> getFingerprint(Iterable<?>... values) {
+		final var fingerprint = new ArrayList<>();
 		if (values != null)
-			for (final var iterable : values) {
-				int count = 0;
+			for (final var iterable : values)
 				if (iterable != null)
-					for (final var value : iterable) {
-						count++;
-						fingerprint = 43L * fingerprint + (value == null ? 0L : value.hashCode());
-					}
-				fingerprint = 23L * fingerprint + count;
-			}
+					for (final var value : iterable)
+						fingerprint.add(value);
 		return fingerprint;
 	}
 

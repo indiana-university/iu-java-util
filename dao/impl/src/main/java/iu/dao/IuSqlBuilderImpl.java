@@ -87,17 +87,6 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	}
 
 	@Override
-	public String getSelectStatement(Class<?> entityClass, Iterable<String> where, int lockTimeout) {
-		return EntityMetaData.of(entityClass).getSelectStatement(null, where, null, true);
-	}
-
-	@Override
-	public String getSelectStatement(Class<?> entityClass, Iterable<String> where, Iterable<String> order,
-			int lockTimeout) {
-		return EntityMetaData.of(entityClass).getSelectStatement(null, where, order, true);
-	}
-
-	@Override
 	public String getSelectStatement(Class<?> entityClass, Iterable<String> props, Iterable<String> where) {
 		return EntityMetaData.of(entityClass).getSelectStatement(props, where, null, false);
 	}

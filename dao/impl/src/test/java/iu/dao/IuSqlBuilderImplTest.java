@@ -286,19 +286,6 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
-	public void testGetSelectStatement_withLockTimeout_appendsForUpdate() {
-		final var sql = sqlBuilder.getSelectStatement(SimpleEntity.class, List.of(), 0);
-		assertTrue(sql.endsWith("\nFOR UPDATE"));
-	}
-
-	@Test
-	public void testGetSelectStatement_withOrderAndLockTimeout_orderedForUpdate() {
-		final var sql = sqlBuilder.getSelectStatement(SimpleEntity.class, List.of(), List.of("a.ID"), 0);
-		assertTrue(sql.contains("ORDER BY a.ID"));
-		assertTrue(sql.endsWith("\nFOR UPDATE"));
-	}
-
-	@Test
 	public void testGetSelectStatement_withProps_limitsSelectColumns() {
 		final var sql = sqlBuilder.getSelectStatement(SimpleEntity.class, List.of("id"), List.of());
 		assertTrue(sql.contains("a.ID"));

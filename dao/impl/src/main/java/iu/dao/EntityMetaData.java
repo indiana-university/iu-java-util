@@ -6,9 +6,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.WeakHashMap;
 
 import edu.iu.IuIterable;
@@ -56,6 +59,9 @@ import jakarta.persistence.Table;
 class EntityMetaData {
 
 	private static final WeakHashMap<Class<?>, EntityMetaData> CACHE = new WeakHashMap<>();
+
+	private static final Set<String> ALLOWED_COMPARATORS = Set.of("=", "<>", "!=", "<", ">", "<=", ">=", "LIKE",
+			"NOT LIKE", "IS", "IS NOT");
 
 	/**
 	 * Returns the cached {@link EntityMetaData} for the given entity class,
@@ -185,15 +191,15 @@ class EntityMetaData {
 	final EffectiveDated effectiveDated;
 
 	/** Cache for {@code SELECT … FROM} clause fragments, keyed by fingerprint. */
-	final Map<Long, String> selectAndFromCache = new HashMap<>();
+	final Map<List<?>, String> selectAndFromCache = new HashMap<>();
 
 	/**
 	 * Cache for complete {@code SELECT} statement strings, keyed by fingerprint.
 	 */
-	final Map<Long, String> selectStatementCache = new HashMap<>();
+	final Map<List<?>, String> selectStatementCache = new HashMap<>();
 
 	/** Cache for {@code UPDATE} statement strings, keyed by fingerprint. */
-	final Map<Long, String> updateStatementCache = new HashMap<>();
+	final Map<List<?>, String> updateStatementCache = new HashMap<>();
 
 	/**
 	 * Lazily initialized {@code INSERT} statement; {@code null} until first use.
@@ -609,7 +615,10 @@ class EntityMetaData {
 	 * @return SQL predicate string, or {@code null} when {@code matchList} is empty
 	 */
 	String getJoinedColumnCompareCriteria(String tab, String col, String comp, Iterable<String> matchList) {
+		if (comp == null || !ALLOWED_COMPARATORS.contains(comp.trim().toUpperCase(Locale.ROOT)))
+			throw new IllegalArgumentException("Invalid SQL comparator: " + comp);
 		final var i = matchList.iterator();
+
 		if (!i.hasNext())
 			return null;
 

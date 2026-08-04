@@ -34,7 +34,6 @@ package iu.dao;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -158,26 +157,28 @@ public class DaoUtilsTest {
 
 	@Test
 	public void testGetFingerprint_null() {
-		assertEquals(0L, DaoUtils.getFingerprint((Iterable<?>[]) null));
+		assertEquals(List.of(), DaoUtils.getFingerprint((Iterable<?>[]) null));
 	}
 
 	@Test
 	public void testGetFingerprint_emptyVarargs() {
-		assertEquals(0L, DaoUtils.getFingerprint());
+		assertEquals(List.of(), DaoUtils.getFingerprint());
 	}
 
 	@Test
 	public void testGetFingerprint_sameInputSameResult() {
 		final var a = List.of("x", "y");
 		final var b = List.of("x", "y");
+		assertEquals(List.of("x", "y"), DaoUtils.getFingerprint(a));
 		assertEquals(DaoUtils.getFingerprint(a), DaoUtils.getFingerprint(b));
 	}
 
 	@Test
-	public void testGetFingerprint_differentOrderDifferentResult() {
+	public void testGetFingerprint_preservesOrder() {
 		final var a = List.of("x", "y");
 		final var b = List.of("y", "x");
-		assertNotEquals(DaoUtils.getFingerprint(a), DaoUtils.getFingerprint(b));
+		assertEquals(a, DaoUtils.getFingerprint(a));
+		assertEquals(b, DaoUtils.getFingerprint(b));
 	}
 
 	@Test
@@ -185,24 +186,28 @@ public class DaoUtilsTest {
 		final List<String> withNull = new ArrayList<>();
 		withNull.add(null);
 		final var fp = DaoUtils.getFingerprint(withNull);
-		// should not throw and should be deterministic
-		assertEquals(fp, DaoUtils.getFingerprint(withNull));
+		assertEquals(withNull, fp);
 	}
 
 	@Test
 	public void testGetFingerprint_nullIterable() {
-		// A null iterable inside the varargs should be handled gracefully
-		final var fp = DaoUtils.getFingerprint((Iterable<?>) null);
-		assertEquals(fp, DaoUtils.getFingerprint((Iterable<?>) null));
+		assertEquals(List.of(), DaoUtils.getFingerprint((Iterable<?>) null));
 	}
 
 	@Test
 	public void testGetFingerprint_multipleIterables() {
 		final var a = List.of(1, 2);
 		final var b = List.of(3, 4);
-		final long combined = DaoUtils.getFingerprint(a, b);
-		// reversed order of iterables must differ
-		assertNotEquals(combined, DaoUtils.getFingerprint(b, a));
+		assertEquals(List.of(1, 2, 3, 4), DaoUtils.getFingerprint(a, b));
+		assertEquals(List.of(3, 4, 1, 2), DaoUtils.getFingerprint(b, a));
+	}
+
+	@Test
+	public void testGetFingerprint_copiesValuesForStableKey() {
+		final var values = new ArrayList<>(List.of("x"));
+		final var fingerprint = DaoUtils.getFingerprint(values);
+		values.add("y");
+		assertEquals(List.of("x"), fingerprint);
 	}
 
 	// -----------------------------------------------------------------------

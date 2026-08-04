@@ -194,42 +194,6 @@ public interface IuDao {
 			Iterable<?> args);
 
 	/**
-	 * Gets an unexecuted {@code SELECT ... FOR UPDATE} query, which locks the rows
-	 * it reads for the remainder of the transaction.
-	 *
-	 * @param beanClass   entity type to select and materialize
-	 * @param where       SQL predicates, each without the {@code WHERE} keyword,
-	 *                    combined with {@code AND}
-	 * @param lockTimeout lock timeout in seconds, accepted for source compatibility
-	 *                    and not emitted into the generated SQL
-	 * @param args        bind arguments in the order the predicates' placeholders
-	 *                    appear
-	 * @param <B>         entity type
-	 * @return unexecuted locking query
-	 */
-	<B> SqlQuery<B> getLockingBeanQuery(Class<B> beanClass, Iterable<String> where, int lockTimeout,
-			Iterable<?> args);
-
-	/**
-	 * Gets an unexecuted, ordered {@code SELECT ... FOR UPDATE} query, which locks
-	 * the rows it reads for the remainder of the transaction.
-	 *
-	 * @param beanClass   entity type to select and materialize
-	 * @param where       SQL predicates, each without the {@code WHERE} keyword,
-	 *                    combined with {@code AND}
-	 * @param order       {@code ORDER BY} expressions, without the {@code ORDER BY}
-	 *                    keywords
-	 * @param lockTimeout lock timeout in seconds, accepted for source compatibility
-	 *                    and not emitted into the generated SQL
-	 * @param args        bind arguments in the order the predicates' placeholders
-	 *                    appear
-	 * @param <B>         entity type
-	 * @return unexecuted locking query
-	 */
-	<B> SqlQuery<B> getLockingBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<String> order,
-			int lockTimeout, Iterable<?> args);
-
-	/**
 	 * Loads the one entity matching a key, reading it from the transaction-scoped
 	 * cache when the same key was already loaded in the active transaction.
 	 *

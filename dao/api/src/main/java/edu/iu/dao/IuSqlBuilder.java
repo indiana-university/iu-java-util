@@ -93,27 +93,6 @@ public interface IuSqlBuilder {
 	String getOrderedSelectStatement(Class<?> entityClass, Iterable<String> where, Iterable<String> order);
 
 	/**
-	 * Builds a select-for-update statement.
-	 *
-	 * @param entityClass entity class
-	 * @param where       where conditions
-	 * @param lockTimeout ignored lock timeout retained for compatibility
-	 * @return select statement
-	 */
-	String getSelectStatement(Class<?> entityClass, Iterable<String> where, int lockTimeout);
-
-	/**
-	 * Builds an ordered select-for-update statement.
-	 *
-	 * @param entityClass entity class
-	 * @param where       where conditions
-	 * @param order       order expressions
-	 * @param lockTimeout ignored lock timeout retained for compatibility
-	 * @return select statement
-	 */
-	String getSelectStatement(Class<?> entityClass, Iterable<String> where, Iterable<String> order, int lockTimeout);
-
-	/**
 	 * Builds a select statement for explicit properties.
 	 *
 	 * @param entityClass entity class
@@ -232,6 +211,15 @@ public interface IuSqlBuilder {
 	/**
 	 * Gets a SQL literal for a value.
 	 *
+	 * <p>
+	 * <strong>Security note:</strong> The returned literal is constructed by
+	 * escaping single quotes. This method is intended for application-controlled
+	 * entity values only. Never pass raw user input as the value parameter. For
+	 * user-controlled criteria, use parameterized queries via
+	 * {@link #getBeanKeyCriteria(Class, Map)} and
+	 * {@link #getBeanKeyArgs(Class, Map)} instead.
+	 * </p>
+	 * 
 	 * @param o value
 	 * @return SQL literal
 	 */
@@ -277,13 +265,16 @@ public interface IuSqlBuilder {
 	 * Example — {@code leftHandSide=["COL1","COL2"]},
 	 * {@code matchCriteria=[["'A'","'B'"],["'X'","'Y'"]]} produces:
 	 * </p>
-	 * <pre>((COL1 = 'A' AND COL2 = 'X')
-	 *     OR (COL1 = 'B' AND COL2 = 'Y'))</pre>
+	 * 
+	 * <pre>
+	 * ((COL1 = 'A' AND COL2 = 'X')
+	 *     OR (COL1 = 'B' AND COL2 = 'Y'))
+	 * </pre>
 	 *
 	 * @param leftHandSide  left-hand column expressions
 	 * @param matchCriteria one iterable per column (column-major), each providing
-	 *                      that column's values for each matching row in order; each
-	 *                      inner iterable must be non-empty
+	 *                      that column's values for each matching row in order;
+	 *                      each inner iterable must be non-empty
 	 * @return criterion
 	 * @throws IllegalArgumentException if any inner iterable in
 	 *                                  {@code matchCriteria} is empty
@@ -498,7 +489,17 @@ public interface IuSqlBuilder {
 	 * {@code @Id} columns.
 	 * </p>
 	 *
-	 * @param entities entities; may be {@code null} or contain {@code null} elements
+	 * <p>
+	 * <strong>Security note:</strong> The returned criteria includes literals
+	 * constructed by escaping single quotes. This method is intended for
+	 * application-controlled entity values only. Never pass raw user input as the
+	 * value parameter. For user-controlled criteria, use parameterized queries via
+	 * {@link #getBeanKeyCriteria(Class, Map)} and
+	 * {@link #getBeanKeyArgs(Class, Map)} instead.
+	 * </p>
+	 * 
+	 * @param entities entities; may be {@code null} or contain {@code null}
+	 *                 elements
 	 * @return criteria without the {@code WHERE} keyword; {@code null} if no
 	 *         criteria could be derived, indicating the query would return no
 	 *         results and should be skipped

@@ -296,18 +296,6 @@ public final class JdbcDao implements IuDao {
 	}
 
 	@Override
-	public <B> SqlQuery<B> getLockingBeanQuery(Class<B> beanClass, Iterable<String> where, int lockTimeout,
-			Iterable<?> args) {
-		return getQuery(beanClass, sqlBuilder.getSelectStatement(beanClass, where, lockTimeout), args);
-	}
-
-	@Override
-	public <B> SqlQuery<B> getLockingBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<String> order,
-			int lockTimeout, Iterable<?> args) {
-		return getQuery(beanClass, sqlBuilder.getSelectStatement(beanClass, where, order, lockTimeout), args);
-	}
-
-	@Override
 	public <B> B loadBean(Class<B> beanClass, Map<String, ?> idParams) {
 		final var key = new EntityKey(beanClass, requireParameters(idParams), -1);
 		final var cached = cached(key);
