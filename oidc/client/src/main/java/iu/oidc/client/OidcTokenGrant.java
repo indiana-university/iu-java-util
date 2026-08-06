@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IuException;
@@ -98,10 +99,14 @@ public abstract class OidcTokenGrant {
 	 */
 	public OidcTokenGrant(IuOidcClientReference config, IuOidcTokenResponse tokenResponse, Instant notAfter)
 			throws IOException {
-		this.notAfter = notAfter;
 		this.config = config;
-		this.tokenResponse = tokenResponse;
-		this.idToken = validateTokenResponse(tokenResponse);
+		try {
+			idToken = validateTokenResponse(tokenResponse);
+			this.notAfter = notAfter;
+			this.tokenResponse = tokenResponse;
+		} catch (RuntimeException e) {
+			LOG.log(Level.INFO, e, () -> "initial token response invalid");
+		}
 	}
 
 	/**

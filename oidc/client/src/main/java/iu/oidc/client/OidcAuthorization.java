@@ -39,6 +39,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
@@ -53,12 +55,15 @@ import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
+import edu.iu.oidc.IuOidcTokenResponse;
 import iu.oidc.client.config.IuOidcClientReference;
 
 /**
  * {@link IuOidcAuthorization} implementation resource.
  */
 public class OidcAuthorization implements IuOidcAuthorization {
+
+	private static final Logger LOG = Logger.getLogger(OidcAuthorization.class.getName());
 
 	private final IuOidcClientReference config;
 
@@ -102,7 +107,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 
 		if (delegatingPrincipal != null)
 			params.put("delegating_principal", IuIterable.iter(delegatingPrincipal));
-		
+
 		if (backdoorId != null)
 			params.put("impersonated_principal", IuIterable.iter(backdoorId));
 
@@ -157,10 +162,12 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		postAuth.setNotAfter(
 				IuObject.require(now.plusSeconds(response.getExpiresIn()), now::isBefore, "non-positive expires_in"));
 
+		session.setStrict(false);
+		final var setCookie = sessionHandler.store(session);
 		return new IuStatefulRedirect() {
 			@Override
 			public String getSetCookie() {
-				return sessionHandler.store(session);
+				return setCookie;
 			}
 
 			@Override
@@ -185,17 +192,27 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var grant = new RefreshTokenGrant(config, postAuth.getTokenResponse(), postAuth.getNotAfter());
 
 		final String setCookie;
-		final var response = grant.getTokenResponse();
-		
+		final IuOidcTokenResponse response;
+		try {
+			response = grant.getTokenResponse();
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, "refresh token failed after ID token expired", e);
+			return null;
+		}
+
 		if (!response.equals(postAuth.getTokenResponse())) {
 			postAuth.setTokenResponse(response);
 			postAuth.setNotAfter(grant.getNotAfter());
+			setCookie = sessionHandler.store(session);
+		} else if (!postAuth.isStrict()) {
+			postAuth.setStrict(true);
+			session.setStrict(true);
 			setCookie = sessionHandler.store(session);
 		} else
 			setCookie = null;
 
 		final var accessToken = response.getAccessToken();
-		final var idToken = grant.getIdToken();	
+		final var idToken = grant.getIdToken();
 
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
 		final var client = config.getClient();

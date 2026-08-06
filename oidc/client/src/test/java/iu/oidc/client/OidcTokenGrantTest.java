@@ -78,6 +78,7 @@ import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.WebToken;
+import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.test.IuTestLogger;
 import iu.jwt.spi.Init;
@@ -153,6 +154,47 @@ public class OidcTokenGrantTest {
 				.build());
 		assertEquals(accessToken2, grant.getTokenResponse().getAccessToken());
 		assertEquals(accessToken2, grant2.getTokenResponse().getAccessToken());
+	}
+
+	@Test
+	void testInvalidInitialTokenResponse() throws IOException {
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getTokenEndpoint()).thenReturn(tokenEndpoint);
+		final var provider = mock(IuOidcProvider.class);
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
+				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		final var accessToken = IdGenerator.generateId();
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+				eq(IuHttp.READ_JSON_OBJECT))).thenReturn(IuJson.object() //
+					.add("access_token", accessToken) //
+					.add("expires_in", 60L) //
+					.build());
+
+		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO, "initial token response invalid",
+				IllegalArgumentException.class);
+		final var initialResponse = mock(IuOidcTokenResponse.class);
+		final var grant = new OidcTokenGrant(config, initialResponse, Instant.now().plusSeconds(60L)) {
+			private int validationCount;
+
+			@Override
+			public WebToken validateTokenResponse(IuOidcTokenResponse response) {
+				if (validationCount++ == 0)
+					throw new IllegalArgumentException("invalid initial response");
+				return null;
+			}
+
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+		};
+
+		assertEquals(accessToken, grant.getTokenResponse().getAccessToken());
 	}
 
 	@SuppressWarnings("unchecked")

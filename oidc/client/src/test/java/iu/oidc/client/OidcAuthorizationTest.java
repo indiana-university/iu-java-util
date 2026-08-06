@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -554,6 +555,47 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
+	void testGetPrincipalAfterInvalidInitialTokenAndFailedRefresh() throws IOException {
+		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var initialResponse = mock(IuOidcTokenResponse.class);
+		when(initialResponse.getIdToken()).thenThrow(new IllegalArgumentException("invalid initial token"));
+		final var notAfter = Instant.now().plusSeconds(60L);
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(postAuth.getTokenResponse()).thenReturn(initialResponse);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getTokenEndpoint()).thenReturn(tokenEndpoint);
+		final var provider = mock(IuOidcProvider.class);
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+		when(config.getProvider()).thenReturn(provider);
+
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var refreshFailure = new IOException("refresh failed");
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+				eq(IuHttp.READ_JSON_OBJECT))).thenThrow(refreshFailure);
+		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO, "initial token response invalid",
+				IllegalArgumentException.class);
+		IuTestLogger.expect(OidcAuthorization.class.getName(), Level.INFO,
+				"refresh token failed after ID token expired", IOException.class);
+
+		final var authorization = new OidcAuthorization(config);
+		assertNull(authorization.getAuthorizedPrincipal(requestAttributes));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
 	void testGetPrincipal() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
@@ -658,6 +700,11 @@ public class OidcAuthorizationTest {
 			assertEquals(sub, principal.getName());
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
 
+			assertNotNull(principal.getSetCookie());
+
+			when(postAuth.isStrict()).thenReturn(true);
+			assertNull(authorization.getAuthorizedPrincipal(requestAttributes).getSetCookie());
+			
 			final var wrongUri = URI.create(IdGenerator.generateId());
 			assertThrows(NullPointerException.class, () -> principal.getAccessToken(wrongUri));
 
@@ -761,6 +808,8 @@ public class OidcAuthorizationTest {
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
+			
+			assertNotNull(principal.getSetCookie());
 		}
 	}
 

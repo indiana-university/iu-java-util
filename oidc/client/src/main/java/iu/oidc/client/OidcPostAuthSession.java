@@ -68,4 +68,18 @@ public interface OidcPostAuthSession {
 	 */
 	void setNotAfter(Instant notAfter);
 
+	/**
+	 * Determines if the session has converted to strict.
+	 * 
+	 * @return true if converted to strict; else false
+	 */
+	boolean isStrict();
+
+	/**
+	 * Sets if the session has converted to strict.
+	 * 
+	 * @param strict true if strict; else false
+	 */
+	void setStrict(boolean strict);
+
 }
