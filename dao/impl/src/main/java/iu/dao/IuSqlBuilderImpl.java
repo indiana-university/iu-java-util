@@ -92,38 +92,31 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	}
 
 	@Override
-	public Iterable<String> getBeanKeyCriteria(Class<?> entityClass, Map<String, ?> idprops) {
+	public Iterable<String> getBeanKeyCriteria(Class<?> entityClass, Map<String, ?> properties) {
 		final var entity = EntityMetaData.of(entityClass);
-		final Queue<String> criteria = new ArrayDeque<>();
-		for (final var idColumn : entity.idColumns) {
-			final Object value;
-			if (idprops.containsKey(idColumn.propertyName))
-				value = idprops.get(idColumn.propertyName);
-			else if (idprops.containsKey(idColumn.columnName))
-				value = idprops.get(idColumn.columnName);
+		return IuIterable.map(properties.entrySet(), entry -> {
+			final var column = entity.columns.get(entry.getKey());
+
+			final String reference;
+			if (column != null)
+				reference = column.reference();
 			else
-				continue;
-			criteria.offer(value == null ? idColumn.reference() + " IS NULL" : idColumn.reference() + " = ?");
-		}
-		return criteria::iterator;
+				reference = DaoUtils.normalizeName(entry.getKey());
+
+			if (entry.getValue() == null)
+				if (column != null //
+						&& column.spaceForNull)
+					return reference + " = ' '";
+				else
+					return reference + " IS NULL";
+			else
+				return reference + " = ?";
+		});
 	}
 
 	@Override
-	public Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> idprops) {
-		final var entity = EntityMetaData.of(entityClass);
-		final Queue<Object> args = new ArrayDeque<>();
-		for (final var idColumn : entity.idColumns) {
-			final Object value;
-			if (idprops.containsKey(idColumn.propertyName))
-				value = idprops.get(idColumn.propertyName);
-			else if (idprops.containsKey(idColumn.columnName))
-				value = idprops.get(idColumn.columnName);
-			else
-				continue;
-			if (value != null)
-				args.add(value);
-		}
-		return args::iterator;
+	public Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> properties) {
+		return IuIterable.filter(properties.values(), Objects::nonNull);
 	}
 
 	@Override
@@ -415,7 +408,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		return EntityMetaData.of(entityClass).getSelectStatement(null, whereClauses, null, true);
 	}
 
-	@Override
+	@Override // TODO: remove?
 	public Map<String, Object> mapIdColumnsToSqlTypes(Object entity) {
 		final var entityClass = entity instanceof Class<?> clazz ? clazz : entity.getClass();
 		final var meta = EntityMetaData.of(entityClass);

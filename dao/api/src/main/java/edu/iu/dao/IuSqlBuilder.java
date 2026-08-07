@@ -103,23 +103,37 @@ public interface IuSqlBuilder {
 	String getSelectStatement(Class<?> entityClass, Iterable<String> props, Iterable<String> where);
 
 	/**
-	 * Builds key criteria using bean properties.
+	 * Builds one key criterion for each supplied property.
+	 *
+	 * <p>
+	 * Keys matching mapped bean property names use the mapped, qualified column
+	 * reference. Other keys are normalized and used as SQL identifiers. Each
+	 * non-null value produces an equality placeholder; null produces
+	 * {@code IS NULL}, except mapped {@link SpaceForNull} properties produce an
+	 * equality comparison to a single space.
+	 * </p>
 	 *
 	 * @param entityClass entity class
-	 * @param idprops     id property values by property or column name
-	 * @return key criteria fragments
+	 * @param properties  property or column values in criterion order
+	 * @return one key criterion fragment for every map entry
 	 */
-	Iterable<String> getBeanKeyCriteria(Class<?> entityClass, Map<String, ?> idprops);
+	Iterable<String> getBeanKeyCriteria(Class<?> entityClass, Map<String, ?> properties);
 
 	/**
 	 * Gets arguments for the key criteria built by
 	 * {@link #getBeanKeyCriteria(Class, Map)}.
 	 *
+	 * <p>
+	 * Returns every non-null map value in map iteration order, matching the
+	 * placeholders emitted by {@link #getBeanKeyCriteria(Class, Map)}. Properties
+	 * are not restricted to those annotated with {@code @Id}.
+	 * </p>
+	 *
 	 * @param entityClass entity class
-	 * @param idprops     id property values by property or column name
-	 * @return bind arguments
+	 * @param properties  property or column values in criterion order
+	 * @return non-null bind arguments in map iteration order
 	 */
-	Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> idprops);
+	Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> properties);
 
 	/**
 	 * Gets updateable properties for an entity, treating all primary-table non-id

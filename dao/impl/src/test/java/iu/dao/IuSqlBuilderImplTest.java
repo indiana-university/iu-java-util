@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -309,7 +310,14 @@ public class IuSqlBuilderImplTest {
 		final var criteria = IuIterable.stream(
 				sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, Map.of("ID", 42L))).toList();
 		assertEquals(1, criteria.size());
-		assertEquals("a.ID = ?", criteria.get(0));
+		assertEquals("ID = ?", criteria.get(0));
+	}
+
+	@Test
+	public void testGetBeanKeyCriteria_nonIdProperty_producesEquality() {
+		final var criteria = IuIterable.stream(
+				sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, Map.of("label", "foo"))).toList();
+		assertEquals(List.of("a.LABEL = ?"), criteria);
 	}
 
 	@Test
@@ -322,10 +330,28 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
-	public void testGetBeanKeyCriteria_unknownKey_producesNoCriteria() {
+	public void testGetBeanKeyCriteria_unknownKey_producesNormalizedCriteria() {
 		final var criteria = IuIterable.stream(
 				sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, Map.of("unknown", 1L))).toList();
-		assertTrue(criteria.isEmpty());
+		assertEquals(List.of("UNKNOWN = ?"), criteria);
+	}
+
+	@Test
+	public void testGetBeanKeyCriteria_unknownKeyWithNullValue_producesIsNullCriteria() {
+		final Map<String, Object> properties = new LinkedHashMap<>();
+		properties.put("unknown", null);
+		final var criteria = IuIterable.stream(
+				sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, properties)).toList();
+		assertEquals(List.of("UNKNOWN IS NULL"), criteria);
+	}
+
+	@Test
+	public void testGetBeanKeyCriteria_spaceForNullProperty_producesSpaceEquality() {
+		final Map<String, Object> properties = new LinkedHashMap<>();
+		properties.put("label", null);
+		final var criteria = IuIterable.stream(
+				sqlBuilder.getBeanKeyCriteria(SpaceForNullEntity.class, properties)).toList();
+		assertEquals(List.of("a.LABEL = ' '"), criteria);
 	}
 
 	@Test
@@ -353,11 +379,24 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
-	public void testGetBeanKeyArgs_missingIdColumn_skipsAndReturnsEmpty() {
-		// idprops has no entry for "id" / "ID" — the id column is skipped entirely
+	public void testGetBeanKeyArgs_nonIdProperty_includesArg() {
 		final var args = IuIterable.stream(
 				sqlBuilder.getBeanKeyArgs(SimpleEntity.class, Map.of("label", "foo"))).toList();
-		assertTrue(args.isEmpty());
+		assertEquals(List.of("foo"), args);
+	}
+
+	@Test
+	public void testGetBeanKeyCriteriaAndArgs_preserveMapOrderAndSkipNullArgument() {
+		final Map<String, Object> properties = new LinkedHashMap<>();
+		properties.put("label", "foo");
+		properties.put("id", null);
+		properties.put("other", 7);
+
+		final var criteria = IuIterable.stream(
+				sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, properties)).toList();
+		assertEquals(List.of("a.LABEL = ?", "a.ID IS NULL", "OTHER = ?"), criteria);
+		final var args = IuIterable.stream(sqlBuilder.getBeanKeyArgs(SimpleEntity.class, properties)).toList();
+		assertEquals(List.of("foo", 7), args);
 	}
 
 	// =======================================================================
