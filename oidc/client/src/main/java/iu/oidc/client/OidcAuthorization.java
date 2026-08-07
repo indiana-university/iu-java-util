@@ -43,6 +43,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuRequestAttributes;
@@ -132,6 +133,9 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	@Override
 	public IuStatefulRedirect authorize(IuRequestAttributes requestAttributes, String code, String state)
 			throws IOException {
+		if (!requestAttributes.getRequestUri().equals(config.getRedirectUri()))
+			throw new IuBadRequestException("redirect_uri mismatch, expected " + config.getRedirectUri());
+
 		final var sessionHandler = config.getSessionHandler();
 		final var session = sessionHandler.activate(requestAttributes.getCookies());
 		if (session == null)

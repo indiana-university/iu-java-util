@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuWebUtils;
@@ -81,6 +83,13 @@ public class OidcAuthorizationTest {
 
 	static {
 		edu.iu.crypt.Init.init();
+	}
+
+	private static URI configureRedirectUri(IuOidcClientReference config, IuRequestAttributes requestAttributes) {
+		final var redirectUri = URI.create(IdGenerator.generateId());
+		when(config.getRedirectUri()).thenReturn(redirectUri);
+		when(requestAttributes.getRequestUri()).thenReturn(redirectUri);
+		return redirectUri;
 	}
 
 	@Test
@@ -174,6 +183,26 @@ public class OidcAuthorizationTest {
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
 	}
 
+	@Test
+	void testAuthorizeRedirectUriMismatch() {
+		final var expected = URI.create(IdGenerator.generateId());
+		final var actual = URI.create(IdGenerator.generateId());
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getRedirectUri()).thenReturn(expected);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getRequestUri()).thenReturn(actual);
+
+		final var authorization = new OidcAuthorization(config);
+		assertEquals("redirect_uri mismatch, expected " + expected,
+				assertThrows(IuBadRequestException.class,
+						() -> authorization.authorize(requestAttributes, IdGenerator.generateId(),
+								IdGenerator.generateId()))
+						.getMessage());
+		verifyNoInteractions(sessionHandler);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	void testAuthorizeMissingSession() throws IOException {
@@ -185,6 +214,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -213,6 +243,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -264,6 +295,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -276,6 +308,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -326,6 +359,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -337,6 +371,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -389,6 +424,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -400,6 +436,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -448,6 +485,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -460,6 +498,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -509,6 +548,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -521,6 +561,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
