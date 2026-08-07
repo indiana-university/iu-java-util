@@ -1,5 +1,6 @@
 package iu.dao;
 
+import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -73,12 +74,22 @@ class EntityMetaData {
 	 * Returns the cached {@link EntityMetaData} for the given entity class,
 	 * constructing it on the first call.
 	 *
-	 * @param entityClass entity class to look up; must not be {@code null}
+	 * <p>
+	 * An entity read as an interface is a {@link Proxy}, whose class declares the
+	 * interface's methods but carries none of its annotations. Such a class resolves
+	 * to the first interface it implements, so that metadata is the same whether an
+	 * entity is described by its type or by an instance read from a query.
+	 * </p>
+	 *
+	 * @param entityClass entity class or interface to look up; must not be
+	 *                    {@code null}
 	 * @return singleton metadata instance for that class
 	 * @throws NullPointerException if {@code entityClass} is {@code null}
 	 */
 	static EntityMetaData of(Class<?> entityClass) {
 		Objects.requireNonNull(entityClass, "entityClass");
+		if (Proxy.isProxyClass(entityClass))
+			return CACHE.get(entityClass.getInterfaces()[0]);
 		return CACHE.get(entityClass);
 	}
 

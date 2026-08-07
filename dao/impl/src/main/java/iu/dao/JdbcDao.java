@@ -362,7 +362,7 @@ public final class JdbcDao implements IuDao {
 	public SqlStatement getBeanUpdate(Object bean) {
 		final var entity = Objects.requireNonNull(bean, "bean");
 		final var properties = snapshot(sqlBuilder.getUpdateProperties(entity));
-		return getStatement(sqlBuilder.getUpdateStatement(entity.getClass(), properties),
+		return getStatement(sqlBuilder.getUpdateStatement(entityType(entity), properties),
 				sqlBuilder.getUpdateArguments(entity, properties));
 	}
 
@@ -373,7 +373,7 @@ public final class JdbcDao implements IuDao {
 		// without eagerly resolving the original entity.
 		final var properties = snapshot(
 				sqlBuilder.getUpdateProperties(entity, passive == null ? null : () -> passive.get()));
-		return getStatement(sqlBuilder.getUpdateStatement(entity.getClass(), properties),
+		return getStatement(sqlBuilder.getUpdateStatement(entityType(entity), properties),
 				sqlBuilder.getUpdateArguments(entity, properties));
 	}
 
@@ -387,14 +387,14 @@ public final class JdbcDao implements IuDao {
 			// outcome, not a failure.
 			return;
 		} finally {
-			clear(bean.getClass());
+			clear(entityType(bean));
 		}
 	}
 
 	@Override
 	public SqlStatement getBeanInsert(Object bean) {
 		final var entity = Objects.requireNonNull(bean, "bean");
-		return getStatement(sqlBuilder.getInsertStatement(entity.getClass()), sqlBuilder.getInsertArguments(entity));
+		return getStatement(sqlBuilder.getInsertStatement(entityType(entity)), sqlBuilder.getInsertArguments(entity));
 	}
 
 	@Override
@@ -405,14 +405,14 @@ public final class JdbcDao implements IuDao {
 			// No row to update, so the entity is new. updateBean() already evicted the
 			// type, but the insert changes the data again and must evict once more.
 			assertExactlyOne(getBeanInsert(bean).execute(), "insert", bean);
-			clear(bean.getClass());
+			clear(entityType(bean));
 		}
 	}
 
 	@Override
 	public SqlStatement getBeanDelete(Object bean) {
 		final var entity = Objects.requireNonNull(bean, "bean");
-		return getStatement(sqlBuilder.getDeleteStatement(entity.getClass()), sqlBuilder.getDeleteArguments(entity));
+		return getStatement(sqlBuilder.getDeleteStatement(entityType(entity)), sqlBuilder.getDeleteArguments(entity));
 	}
 
 	@Override
@@ -421,7 +421,7 @@ public final class JdbcDao implements IuDao {
 		try {
 			assertExactlyOne(getBeanDelete(bean).execute(), "delete", bean);
 		} finally {
-			clear(bean.getClass());
+			clear(entityType(bean));
 		}
 	}
 
@@ -549,6 +549,27 @@ public final class JdbcDao implements IuDao {
 			transactionSynchronizationRegistry.putResource(CACHE_RESOURCE, cache);
 		}
 		return cache;
+	}
+
+	/**
+	 * Gets the type whose mapping describes an entity instance.
+	 *
+	 * <p>
+	 * An entity read as an interface is a {@link Proxy}, and a proxy class carries
+	 * none of the mapping annotations its interface declares — nor is it what
+	 * {@link #loadBean(Class, Map)} and {@link #searchBeans(Class, Map, boolean, int)}
+	 * key the read cache by. The interface is, so a proxy resolves to the first
+	 * interface it implements. Anything else describes itself.
+	 * </p>
+	 *
+	 * @param bean entity instance
+	 * @return type to resolve entity metadata and cache entries by
+	 */
+	private static Class<?> entityType(Object bean) {
+		final var type = bean.getClass();
+		return Proxy.isProxyClass(type) //
+				? type.getInterfaces()[0]
+				: type;
 	}
 
 	/**

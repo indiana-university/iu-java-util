@@ -485,6 +485,21 @@ public class JdbcDaoTest {
 	}
 
 	@Test
+	public void testInterfaceEntityResolvesItsMappingThroughTheProxy() {
+		final var view = daoOver(personRow("0000123", "seed")).getBeanQuery(PersonView.class, List.of())
+				.getSingleResult();
+
+		// The proxy's own class carries no mapping, so writes must resolve the
+		// interface it implements.
+		final var jdbc = new Jdbc();
+		final var dao = new JdbcDao(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION), registry());
+		final var delete = dao.getBeanDelete(view);
+		assertTrue(delete.getQuery().startsWith("DELETE FROM s.person"), delete::getQuery);
+		assertEquals(List.of("0000123"), List.copyOf((List<?>) delete.getArguments()));
+		assertTrue(dao.getBeanUpdate(view).getQuery().startsWith("UPDATE s.person"), () -> "update");
+	}
+
+	@Test
 	public void testInterfaceEntityComparesByResolvedValues() {
 		final var view = daoOver(personRow("0000123", "seed")).getBeanQuery(PersonView.class, List.of())
 				.getSingleResult();
