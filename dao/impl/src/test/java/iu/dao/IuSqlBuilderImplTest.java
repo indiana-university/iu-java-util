@@ -62,6 +62,18 @@ public class IuSqlBuilderImplTest {
 	// Test entity classes
 	// =======================================================================
 
+	/** Columns whose declared SQL type calls for a coerced bind value. */
+	@Entity
+	@Table(name = "coerced", schema = "s")
+	public static class KeyCoercedEntity {
+		@Id
+		@Column(name = "ACTIVE", columnDefinition = "CHAR(1)")
+		private boolean active;
+
+		@Column(name = "CREATED", columnDefinition = "TIMESTAMP")
+		private java.util.Date created;
+	}
+
 	/** Basic entity: one @Id column and one non-id column. */
 	@Entity
 	@Table(name = "items", schema = "s")
@@ -383,6 +395,27 @@ public class IuSqlBuilderImplTest {
 		final var args = IuIterable.stream(
 				sqlBuilder.getBeanKeyArgs(SimpleEntity.class, Map.of("label", "foo"))).toList();
 		assertEquals(List.of("foo"), args);
+	}
+
+	@Test
+	public void testGetBeanKeyArgs_coercesToTheColumnsDeclaredSqlType() {
+		// Keyed by property name and by column name alike, a key argument is bound the
+		// same way the column's own value would be.
+		assertEquals(List.of("Y"), IuIterable
+				.stream(sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("active", true))).toList());
+		assertEquals(List.of("N"), IuIterable
+				.stream(sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("ACTIVE", false))).toList());
+		assertEquals(List.of(new Timestamp(1234L)), IuIterable
+				.stream(sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("created", new java.util.Date(1234L))))
+				.toList());
+	}
+
+	@Test
+	public void testGetBeanKeyArgs_keyMatchingNoColumn_isBoundAsSupplied() {
+		// An unmapped key names raw SQL in the criteria, so its argument is passed
+		// through with nothing to coerce it against.
+		assertEquals(List.of(Boolean.TRUE), IuIterable
+				.stream(sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("UNMAPPED", true))).toList());
 	}
 
 	@Test

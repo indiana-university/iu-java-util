@@ -116,7 +116,18 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 	@Override
 	public Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> properties) {
-		return IuIterable.filter(properties.values(), Objects::nonNull);
+		final var entity = EntityMetaData.of(entityClass);
+
+		// Null entries are matched by a literal in the criteria rather than a
+		// placeholder, so skipping them here is what keeps the two aligned.
+		return IuIterable.map( //
+				IuIterable.filter(properties.entrySet(), entry -> entry.getValue() != null), //
+				entry -> {
+					final var column = entity.resolveColumn(entry.getKey());
+					return column == null //
+							? entry.getValue()
+							: column.normalizeArgument(entry.getValue());
+				});
 	}
 
 	@Override

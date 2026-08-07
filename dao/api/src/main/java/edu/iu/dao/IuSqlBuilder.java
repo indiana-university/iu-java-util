@@ -129,6 +129,13 @@ public interface IuSqlBuilder {
 	 * are not restricted to those annotated with {@code @Id}.
 	 * </p>
 	 *
+	 * <p>
+	 * A value whose key names a mapped column is prepared for binding the same way
+	 * that column's own value is by {@link #getForSql(Object, String)}. A key that
+	 * names no mapped column has nothing to prepare it against, and is bound as
+	 * supplied.
+	 * </p>
+	 *
 	 * @param entityClass entity class
 	 * @param properties  property or column values in criterion order
 	 * @return non-null bind arguments in map iteration order
@@ -224,6 +231,18 @@ public interface IuSqlBuilder {
 
 	/**
 	 * Gets a property value prepared for SQL binding.
+	 *
+	 * <p>
+	 * A value is converted to the type the column's
+	 * {@link jakarta.persistence.Column#columnDefinition() column definition}
+	 * declares, where the declared type calls for it: a {@link Boolean} bound to a
+	 * character column becomes {@code "Y"} or {@code "N"}, and a
+	 * {@link java.util.Date} bound to a timestamp column becomes a
+	 * {@link java.sql.Timestamp}. A column left to its natural type is bound
+	 * unchanged. Independently of the declared type, an
+	 * {@link java.time.Instant} is always bound as a {@link java.sql.Timestamp}, and
+	 * a {@code null} becomes a single space for a {@link SpaceForNull} column.
+	 * </p>
 	 *
 	 * @param entity       entity
 	 * @param propertyName property name

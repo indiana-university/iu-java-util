@@ -256,8 +256,21 @@ class ColumnMetaData {
 	 * and {@link #spaceForNull} is {@code true}.</li>
 	 * <li>Converts {@link java.time.Instant} to {@link java.sql.Timestamp} so that
 	 * JDBC drivers receive a type they understand.</li>
+	 * <li>Converts {@link Boolean} to {@code "Y"} or {@code "N"} when the column's
+	 * {@link #sqlType} is {@link String}, which is how a flag declared as a
+	 * character column is stored.</li>
+	 * <li>Converts {@link java.util.Date} to {@link java.sql.Timestamp} when the
+	 * column's {@link #sqlType} is {@link java.sql.Timestamp}, since a driver given
+	 * a bare {@code java.util.Date} binds it without its time component.</li>
 	 * <li>Returns {@code value} unchanged in all other cases.</li>
 	 * </ul>
+	 *
+	 * <p>
+	 * Both conversions are driven by {@link #sqlType}, so they apply only where
+	 * {@link Column#columnDefinition()} declares a type that calls for them. A
+	 * {@code boolean} column left to its natural type is bound as a boolean, not as
+	 * {@code "Y"}.
+	 * </p>
 	 *
 	 * @param value raw property value; may be {@code null}
 	 * @return normalized value suitable for a JDBC bind parameter
@@ -267,6 +280,15 @@ class ColumnMetaData {
 			return " ";
 		if (value instanceof Instant instant)
 			return Timestamp.from(instant);
+		if (sqlType == String.class //
+				&& value instanceof Boolean flag)
+			return flag ? "Y" : "N";
+		// java.sql.Timestamp is itself a java.util.Date, so only a value that is not
+		// already one needs converting.
+		if (sqlType == Timestamp.class //
+				&& !(value instanceof Timestamp) //
+				&& value instanceof java.util.Date date)
+			return new Timestamp(date.getTime());
 		return value;
 	}
 

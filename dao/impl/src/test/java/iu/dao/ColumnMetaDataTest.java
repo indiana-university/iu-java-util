@@ -375,6 +375,78 @@ public class ColumnMetaDataTest {
 	// normalizeArgument
 	// =======================================================================
 
+	/** Columns whose declared SQL type calls for a coerced bind value. */
+	@Entity
+	@Table(name = "coerced", schema = "s")
+	public static class CoercedEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		/** Flag stored as a character column. */
+		@Column(name = "ACTIVE", columnDefinition = "CHAR(1)")
+		private boolean active;
+
+		/** Character column holding something other than a flag. */
+		@Column(name = "LABEL", columnDefinition = "VARCHAR(32)")
+		private String label;
+
+		/** Timestamp column reached through the generic date type. */
+		@Column(name = "CREATED", columnDefinition = "TIMESTAMP")
+		private java.util.Date created;
+
+		/** Flag left to its natural boolean type. */
+		@Column(name = "ENABLED")
+		private boolean enabled;
+	}
+
+	@Test
+	public void testNormalizeArgument_booleanForCharacterColumn_becomesYOrN() {
+		final var active = col(CoercedEntity.class, "active");
+		assertEquals("Y", active.normalizeArgument(Boolean.TRUE));
+		assertEquals("N", active.normalizeArgument(Boolean.FALSE));
+	}
+
+	@Test
+	public void testNormalizeArgument_booleanForBooleanColumn_isUnchanged() {
+		// Only a column declared as character text stores a flag as Y/N.
+		assertSame(Boolean.TRUE, col(CoercedEntity.class, "enabled").normalizeArgument(Boolean.TRUE));
+	}
+
+	@Test
+	public void testNormalizeArgument_nonBooleanForCharacterColumn_isUnchanged() {
+		final var value = "already text";
+		assertSame(value, col(CoercedEntity.class, "label").normalizeArgument(value));
+	}
+
+	@Test
+	public void testNormalizeArgument_dateForTimestampColumn_becomesTimestamp() {
+		final var created = col(CoercedEntity.class, "created");
+		final var value = new java.util.Date(1234L);
+		final var result = created.normalizeArgument(value);
+		assertInstanceOf(Timestamp.class, result);
+		assertEquals(new Timestamp(1234L), result);
+	}
+
+	@Test
+	public void testNormalizeArgument_timestampForTimestampColumn_isUnchanged() {
+		// A Timestamp is itself a java.util.Date, and needs no second conversion.
+		final var value = new Timestamp(1234L);
+		assertSame(value, col(CoercedEntity.class, "created").normalizeArgument(value));
+	}
+
+	@Test
+	public void testNormalizeArgument_nonDateForTimestampColumn_isUnchanged() {
+		final var value = "not a date";
+		assertSame(value, col(CoercedEntity.class, "created").normalizeArgument(value));
+	}
+
+	@Test
+	public void testNormalizeArgument_dateForNonTimestampColumn_isUnchanged() {
+		final var value = new java.util.Date(1234L);
+		assertSame(value, col(CoercedEntity.class, "label").normalizeArgument(value));
+	}
+
 	@Test
 	public void testNormalizeArgument_nullWithSpaceForNullFalse_returnsNull() {
 		assertNull(col(MixedEntity.class, "namedCol").normalizeArgument(null));
