@@ -167,6 +167,48 @@ public class EntityMetaDataTest {
 	public static class LeftJoinEntity extends TableNamedEntity {
 	}
 
+	/**
+	 * Outer-joined secondary table, whose columns can be null-extended when the join
+	 * finds no match. Its alias is {@code "b"}.
+	 */
+	@Entity
+	@Table(name = "prices", schema = "pub")
+	@SqlJoinType(SqlJoinType.Type.LEFT)
+	@SecondaryTable(name = "price_hist", pkJoinColumns = @PrimaryKeyJoinColumn(name = "ID"))
+	public static class OuterJoinedEntity {
+		private long id;
+		private java.sql.Date effDate;
+		private long effSeq;
+
+		@Id
+		@Column(name = "ID")
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+
+		@Column(name = "EFF_DATE", table = "price_hist")
+		public java.sql.Date getEffDate() {
+			return effDate;
+		}
+
+		public void setEffDate(java.sql.Date effDate) {
+			this.effDate = effDate;
+		}
+
+		@Column(name = "EFF_SEQ", table = "price_hist")
+		public long getEffSeq() {
+			return effSeq;
+		}
+
+		public void setEffSeq(long effSeq) {
+			this.effSeq = effSeq;
+		}
+	}
+
 	/** @Filtered annotation is captured. */
 	@Entity
 	@Table(name = "items", schema = "pub")
@@ -1573,6 +1615,94 @@ public class EntityMetaDataTest {
 				         AND a_ed.EFFDT = a.EFFDT
 				         AND a_ed.EFFSEQ <= CURRENT_DATE)""", criteria.next());
 		assertFalse(criteria.hasNext());
+	}
+
+	// =======================================================================
+	// outer-join null extension
+	// =======================================================================
+
+	@Test
+	public void testBuildEffectiveDateCriteria_outerJoinedTableAlsoAdmitsNull() {
+		// A LEFT join keeps rows with no match in price_hist, and those rows carry a
+		// null EFF_DATE that the subquery comparison alone would discard.
+		// The subquery reads price_hist, the table EFF_DATE actually lives in, not the
+		// entity's primary table.
+		assertEquals("""
+				(b.EFF_DATE IS NULL
+				   OR b.EFF_DATE = (SELECT MAX(b_ed.EFF_DATE)
+				        FROM price_hist b_ed
+				       WHERE b_ed.ID = b.ID
+				         AND b_ed.EFF_DATE <= CURRENT_DATE))""",
+				EntityMetaData.of(OuterJoinedEntity.class).buildEffectiveDateCriteria("b", "EFF_DATE", "CURRENT_DATE",
+						false, List.of("ID")));
+	}
+
+	@Test
+	public void testBuildEffectiveDateSeqCriteria_outerJoinedTableAdmitsNullPerCondition() {
+		// Each condition is widened separately, and the sequence condition keeps its
+		// own parentheses so the OR cannot capture the AND that joins the two.
+		assertEquals("""
+				(b.EFF_DATE IS NULL
+				   OR b.EFF_DATE = (SELECT MAX(b_ed.EFF_DATE)
+				        FROM price_hist b_ed
+				       WHERE b_ed.ID = b.ID
+				         AND b_ed.EFF_DATE <= CURRENT_DATE))
+				  AND (b.EFF_SEQ IS NULL
+				   OR b.EFF_SEQ = (SELECT MAX(b_seq.EFF_SEQ)
+				        FROM price_hist b_seq
+				       WHERE b_seq.ID = b.ID
+				         AND b_seq.EFF_DATE = b.EFF_DATE))""",
+				EntityMetaData.of(OuterJoinedEntity.class).buildEffectiveDateSeqCriteria("b", "EFF_DATE", "EFF_SEQ",
+						"CURRENT_DATE", List.of("ID")));
+	}
+
+	@Test
+	public void testGetJoinedColumnCompareCriteria_outerJoinedTableAdmitsNull() {
+		final var meta = EntityMetaData.of(OuterJoinedEntity.class);
+		assertEquals("(b.EFF_SEQ IS NULL OR b.EFF_SEQ > 1)",
+				meta.getJoinedColumnCompareCriteria("price_hist", "EFF_SEQ", ">", List.of("1")));
+		assertEquals("(b.EFF_SEQ IS NULL OR (b.EFF_SEQ > 1 OR b.EFF_SEQ > 2))",
+				meta.getJoinedColumnCompareCriteria("price_hist", "EFF_SEQ", ">", List.of("1", "2")));
+	}
+
+	@Test
+	public void testGetJoinedColumnMatchCriteria_outerJoinedTableAdmitsNull() {
+		assertEquals("(b.EFF_SEQ IS NULL OR b.EFF_SEQ IN (1, 2))", EntityMetaData.of(OuterJoinedEntity.class)
+				.getJoinedColumnMatchCriteria("price_hist", "EFF_SEQ", List.of("1", "2")));
+
+		// An inner-joined secondary table cannot be null-extended.
+		assertEquals("b.DETAIL IN ('x')", EntityMetaData.of(SecondaryTableEntity.class)
+				.getJoinedColumnMatchCriteria("sec_tbl", "DETAIL", List.of("'x'")));
+
+		// A criterion with no table names the primary table implicitly.
+		assertEquals("a.LABEL IN ('x')",
+				EntityMetaData.of(LeftJoinEntity.class).getColumnMatchCriteria("label", List.of("'x'")));
+	}
+
+	@Test
+	public void testNullExtension_appliesOnlyToOuterJoinedSecondaryTables() {
+		final var outerJoined = EntityMetaData.of(OuterJoinedEntity.class);
+
+		// The primary table is never null-extended, whatever the join type.
+		assertEquals("""
+				a.EFF_DATE = (SELECT MAX(a_ed.EFF_DATE)
+				        FROM pub.prices a_ed)""",
+				outerJoined.buildEffectiveDateCriteria("a", "EFF_DATE", null, false, List.of()));
+
+		// Neither is a reference that resolves to no table at all.
+		assertEquals("""
+				zz.EFF_DATE = (SELECT MAX(zz_ed.EFF_DATE)
+				        FROM pub.prices zz_ed)""",
+				outerJoined.buildEffectiveDateCriteria("zz", "EFF_DATE", null, false, List.of()));
+
+		// A criterion with no table names the primary table implicitly.
+		assertEquals("a.LABEL = 'x'",
+				EntityMetaData.of(LeftJoinEntity.class).getColumnCompareCriteria("label", "=", List.of("'x'")));
+
+		// An INNER join discards unmatched rows, so nothing can be null-extended.
+		assertEquals("b.DETAIL = 'x'",
+				EntityMetaData.of(SecondaryTableEntity.class).getJoinedColumnCompareCriteria("sec_tbl", "DETAIL", "=",
+						List.of("'x'")));
 	}
 
 	// =======================================================================

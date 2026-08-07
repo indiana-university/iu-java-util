@@ -426,7 +426,7 @@ class EntityMetaData {
 	 *
 	 * <pre>
 	 * outerAlias.effectiveColumn = (SELECT MAX/MIN(sub_ed.effectiveColumn)
-	 *         FROM primaryTable sub_ed
+	 *         FROM outerTable sub_ed
 	 *        WHERE sub_ed.id = outerAlias.id
 	 *          AND sub_ed.effectiveColumn &lt;= / &gt; asOfDate)
 	 * </pre>
@@ -437,6 +437,16 @@ class EntityMetaData {
 	 * date. The {@code WHERE} keyword is emitted only when the subquery has at
 	 * least one condition to carry.
 	 * </p>
+	 *
+	 * <p>
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the predicate
+	 * is widened to admit an absent row:
+	 * </p>
+	 *
+	 * <pre>
+	 * (outerAlias.effectiveColumn IS NULL
+	 *    OR outerAlias.effectiveColumn = (SELECT …))
+	 * </pre>
 	 *
 	 * @param outerAlias      alias of the outer query table
 	 * @param effectiveColumn column that holds the effective date
@@ -459,11 +469,18 @@ class EntityMetaData {
 				: " <= ";
 
 		final var subAlias = outerAlias + "_ed";
+		// The subquery reads the table the criterion refers to, which is not the
+		// primary table when the criterion is written against a joined one.
+		final var table = resolveTableOrPrimary(outerAlias);
+		final var nullExtended = isNullExtended(table);
 
 		final var sb = new StringBuilder();
+		if (nullExtended)
+			sb.append('(').append(outerAlias).append('.').append(effectiveColumn).append(" IS NULL\n   OR ");
+
 		sb.append(outerAlias).append('.').append(effectiveColumn).append(" = (SELECT ").append(aggregate).append('(')
 				.append(subAlias).append('.').append(effectiveColumn).append(")\n        FROM ")
-				.append(primaryTable.fullName).append(' ').append(subAlias);
+				.append(table.fullName).append(' ').append(subAlias);
 
 		final var beforeConditions = sb.length();
 		final var correlated = DaoUtils.appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
@@ -478,6 +495,8 @@ class EntityMetaData {
 			sb.insert(beforeConditions, "\n       WHERE ");
 
 		sb.append(')');
+		if (nullExtended)
+			sb.append(')');
 		return sb.toString();
 	}
 
@@ -491,7 +510,7 @@ class EntityMetaData {
 	 *
 	 * <pre>
 	 * outerAlias.maxDateColumn = (SELECT MAX(sub_md.maxDateColumn)
-	 *         FROM primaryTable sub_md
+	 *         FROM outerTable sub_md
 	 *        WHERE sub_md.id = outerAlias.id)
 	 * </pre>
 	 *
@@ -504,8 +523,8 @@ class EntityMetaData {
 		final var subAlias = outerAlias + "_md";
 		final var sb = new StringBuilder();
 		sb.append(outerAlias).append('.').append(maxDateColumn).append(" = (SELECT MAX(").append(subAlias).append('.')
-				.append(maxDateColumn).append(")\n        FROM ").append(primaryTable.fullName).append(' ')
-				.append(subAlias);
+				.append(maxDateColumn).append(")\n        FROM ").append(resolveTableOrPrimary(outerAlias).fullName)
+				.append(' ').append(subAlias);
 
 		final var preIdCrit = sb.length();
 		if (DaoUtils.appendCorrelation(sb, outerAlias, subAlias, idColumnNames))
@@ -527,6 +546,13 @@ class EntityMetaData {
 	 * with the highest sequence number on the chosen effective date.
 	 * </p>
 	 *
+	 * <p>
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table each of the two
+	 * conditions is separately widened to admit an absent row. The sequence condition
+	 * is parenthesized in its own right, so that the {@code OR} admitting {@code NULL}
+	 * cannot capture the {@code AND} joining it to the effective-date condition.
+	 * </p>
+	 *
 	 * @param outerAlias      alias of the outer query table
 	 * @param effectiveColumn column holding the effective date
 	 * @param sequenceColumn  column holding the sequence number
@@ -540,16 +566,65 @@ class EntityMetaData {
 				buildEffectiveDateCriteria(outerAlias, effectiveColumn, asOfDate, false, idColumnNames));
 
 		final var subAlias = outerAlias + "_seq";
-		sb.append("\n  AND ").append(outerAlias).append('.').append(sequenceColumn).append(" = (SELECT MAX(")
-				.append(subAlias).append('.').append(sequenceColumn).append(")\n        FROM ")
-				.append(primaryTable.fullName).append(' ').append(subAlias).append("\n       WHERE ");
+		final var table = resolveTableOrPrimary(outerAlias);
+		final var nullExtended = isNullExtended(table);
+
+		sb.append("\n  AND ");
+		if (nullExtended)
+			sb.append('(').append(outerAlias).append('.').append(sequenceColumn).append(" IS NULL\n   OR ");
+
+		sb.append(outerAlias).append('.').append(sequenceColumn).append(" = (SELECT MAX(").append(subAlias).append('.')
+				.append(sequenceColumn).append(")\n        FROM ").append(table.fullName).append(' ').append(subAlias)
+				.append("\n       WHERE ");
 
 		if (DaoUtils.appendCorrelation(sb, outerAlias, subAlias, idColumnNames))
 			sb.append("\n         AND ");
 
 		sb.append(subAlias).append('.').append(effectiveColumn).append(" = ").append(outerAlias).append('.')
 				.append(effectiveColumn).append(')');
+		if (nullExtended)
+			sb.append(')');
 		return sb.toString();
+	}
+
+	/**
+	 * Resolves the table a criterion refers to, falling back to the primary table
+	 * for a blank reference or one that names no table this entity maps.
+	 *
+	 * @param tableOrAlias table name, qualified name, or alias; {@code null} or blank
+	 *                     for the primary table
+	 * @return the referenced table, or {@link #primaryTable} when the reference does
+	 *         not resolve
+	 */
+	private TableMetaData resolveTableOrPrimary(String tableOrAlias) {
+		if (!DaoUtils.hasValue(tableOrAlias))
+			return primaryTable;
+
+		final var table = tablesByReference.get(DaoUtils.normalizeName(tableOrAlias));
+		return table == null ? primaryTable : table;
+	}
+
+	/**
+	 * Determines whether a table can contribute {@code NULL} values to the result
+	 * because it is outer-joined into the query.
+	 *
+	 * <p>
+	 * True only for a secondary table, and only when the entity declares a
+	 * {@link SqlJoinType} other than {@link SqlJoinType.Type#INNER}: the primary
+	 * table is never null-extended, and an inner join discards the unmatched rows
+	 * that would produce nulls. A predicate over a table that is null-extended has to
+	 * admit {@code NULL} explicitly, since a comparison against {@code NULL} is
+	 * unknown rather than true and would silently drop the very rows the outer join
+	 * was written to keep.
+	 * </p>
+	 *
+	 * @param table table a criterion refers to
+	 * @return {@code true} when predicates over the table must also admit
+	 *         {@code NULL}
+	 */
+	private boolean isNullExtended(TableMetaData table) {
+		return joinType != SqlJoinType.Type.INNER //
+				&& !table.primary;
 	}
 
 	/**
@@ -591,15 +666,41 @@ class EntityMetaData {
 	}
 
 	/**
-	 * Returns a {@code alias.column IN (v1, v2, ...)} SQL predicate for the given
-	 * column and match values.
+	 * Returns a {@code alias.column IN (v1, v2, ...)} SQL predicate for a
+	 * primary-table column. Delegates to
+	 * {@link #getJoinedColumnMatchCriteria(String, String, Iterable)} with
+	 * {@code tab=null}.
 	 *
 	 * @param col       property name or physical column name
 	 * @param matchList values to include in the {@code IN} list
 	 * @return SQL {@code IN} predicate string
 	 */
 	String getColumnMatchCriteria(String col, Iterable<String> matchList) {
-		return DaoUtils.getInCriteria(columnReference(null, col), matchList);
+		return getJoinedColumnMatchCriteria(null, col, matchList);
+	}
+
+	/**
+	 * Returns a {@code alias.column IN (v1, v2, ...)} SQL predicate for a column in
+	 * the given table.
+	 *
+	 * <p>
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the
+	 * result is wrapped as {@code "(alias.COL IS NULL OR ...)"}, so that rows the
+	 * outer join kept without a match are not dropped by the {@code IN} test.
+	 * </p>
+	 *
+	 * @param tab       table name, alias, or {@code null} for the primary table
+	 * @param col       property name or physical column name
+	 * @param matchList values to include in the {@code IN} list
+	 * @return SQL {@code IN} predicate string
+	 */
+	String getJoinedColumnMatchCriteria(String tab, String col, Iterable<String> matchList) {
+		final var reference = columnReference(tab, col);
+		final var criteria = DaoUtils.getInCriteria(reference, matchList);
+
+		if (isNullExtended(resolveTableOrPrimary(tab)))
+			return "(" + reference + " IS NULL OR " + criteria + ")";
+		return criteria;
 	}
 
 	/**
@@ -629,6 +730,12 @@ class EntityMetaData {
 	 * multiple values are present.</li>
 	 * </ul>
 	 *
+	 * <p>
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the result is
+	 * wrapped as {@code "(alias.COL IS NULL OR ...)"}, so that rows the outer join
+	 * kept without a match are not dropped by the comparison.
+	 * </p>
+	 *
 	 * @param tab       table name, alias, or {@code null} for the primary table
 	 * @param col       property name or physical column name
 	 * @param comp      SQL comparison operator
@@ -645,14 +752,19 @@ class EntityMetaData {
 
 		final var reference = columnReference(tab, col);
 		final var firstMatch = i.next();
-		if (!i.hasNext())
-			return reference + " " + comp + " " + firstMatch;
+		final String criteria;
+		if (i.hasNext()) {
+			final var prefix = reference + " " + comp + " ";
+			final var sb = new StringBuilder("(").append(prefix).append(firstMatch);
+			while (i.hasNext())
+				sb.append(" OR ").append(prefix).append(i.next());
+			criteria = sb.append(")").toString();
+		} else
+			criteria = reference + " " + comp + " " + firstMatch;
 
-		final var prefix = reference + " " + comp + " ";
-		final var criteria = new StringBuilder("(").append(prefix).append(firstMatch);
-		while (i.hasNext())
-			criteria.append(" OR ").append(prefix).append(i.next());
-		return criteria.append(")").toString();
+		if (isNullExtended(resolveTableOrPrimary(tab)))
+			return "(" + reference + " IS NULL OR " + criteria + ")";
+		return criteria;
 	}
 
 	/**

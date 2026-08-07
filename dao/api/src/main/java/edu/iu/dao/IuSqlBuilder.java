@@ -325,6 +325,13 @@ public interface IuSqlBuilder {
 	/**
 	 * Builds a joined-table column match criterion.
 	 *
+	 * <p>
+	 * When the entity declares a {@link SqlJoinType} other than
+	 * {@link SqlJoinType.Type#INNER} and {@code tab} names a secondary table, the
+	 * criterion also admits {@code NULL}, so that rows the outer join kept without a
+	 * match survive it.
+	 * </p>
+	 *
 	 * @param entityClass entity class
 	 * @param tab         table name, qualified table name, or alias
 	 * @param col         column or property name
@@ -346,6 +353,13 @@ public interface IuSqlBuilder {
 
 	/**
 	 * Builds a joined-table comparison criterion.
+	 *
+	 * <p>
+	 * When the entity declares a {@link SqlJoinType} other than
+	 * {@link SqlJoinType.Type#INNER} and {@code tab} names a secondary table, the
+	 * criterion also admits {@code NULL}, so that rows the outer join kept without a
+	 * match survive it.
+	 * </p>
 	 *
 	 * @param entityClass entity class
 	 * @param tab         table name, qualified table name, or alias

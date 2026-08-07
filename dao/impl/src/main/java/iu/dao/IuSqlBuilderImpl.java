@@ -310,7 +310,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	@Override
 	public String getJoinedColumnMatchCriteria(Class<?> entityClass, String tab, String col,
 			Iterable<String> matchList) {
-		return getInCriteria(EntityMetaData.of(entityClass).columnReference(tab, col), matchList);
+		return EntityMetaData.of(entityClass).getJoinedColumnMatchCriteria(tab, col, matchList);
 	}
 
 	@Override
