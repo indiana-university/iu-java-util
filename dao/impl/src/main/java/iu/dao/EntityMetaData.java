@@ -52,11 +52,19 @@ import jakarta.persistence.Transient;
  * </ol>
  *
  * <p>
- * Only properties whose getter is annotated with {@link Column} or
- * {@link SqlColumn} (and not {@link jakarta.persistence.Transient}) are
- * included in the column maps. Properties in the primary table are further
+ * A member is included in the column maps when it is annotated with
+ * {@link Column} or {@link SqlColumn}, and not with {@link Transient}. Either
+ * annotation may be placed on a property's getter or on the field behind it, and
+ * a field with no bean property at all is mapped in its own right; where the two
+ * disagree, the bean property decides. Columns in the primary table are further
  * partitioned into {@link #idColumns}, {@link #primaryColumns}, and
  * {@link #primaryNonIdColumns}.
+ * </p>
+ *
+ * <p>
+ * A type with no mapped column cannot be described: every statement this metadata
+ * generates has to name at least one column, so a type that yields none is
+ * rejected at construction rather than left to produce invalid SQL later.
  * </p>
  */
 class EntityMetaData {
@@ -77,17 +85,50 @@ class EntityMetaData {
 	 *
 	 * <p>
 	 * An entity read as an interface is a {@link Proxy}, whose class declares the
-	 * interface's methods but carries none of its annotations. Such a class resolves
-	 * to the first interface it implements, so that metadata is the same whether an
-	 * entity is described by its type or by an instance read from a query.
+	 * interface's methods but carries none of its annotations. Such a class
+	 * resolves to the first interface it implements, so that metadata is the same
+	 * whether an entity is described by its type or by an instance read from a
+	 * query.
+	 * </p>
+	 *
+	 * <p>
+	 * A type that maps no column cannot be described as an entity: every statement
+	 * this metadata generates has to name at least one column, so such a type is
+	 * rejected here rather than left to produce invalid SQL later.
 	 * </p>
 	 *
 	 * @param entityClass entity class or interface to look up; must not be
 	 *                    {@code null}
 	 * @return singleton metadata instance for that class
-	 * @throws NullPointerException if {@code entityClass} is {@code null}
+	 * @throws IllegalArgumentException if the type maps no column
+	 * @throws NullPointerException     if {@code entityClass} is {@code null}
 	 */
 	static EntityMetaData of(Class<?> entityClass) {
+		final var metadata = resolve(entityClass);
+		if (metadata.columns.isEmpty())
+			throw new IllegalArgumentException(
+					"No @Column or @SqlColumn fields or properties found on " + metadata.entityClass);
+		return metadata;
+	}
+
+	/**
+	 * Returns the cached {@link EntityMetaData} for the given class without requiring
+	 * it to map anything.
+	 *
+	 * <p>
+	 * For callers that ask a question about a type rather than describe it as an
+	 * entity — notably {@link IuSqlBuilderImpl#getPropertyNameFromBean(Class, String)},
+	 * which is asked about every column of every query, including ad-hoc queries over
+	 * types that were never meant to be entities. For such a type the answer is
+	 * simply that nothing maps, which an empty {@link #columns} already gives.
+	 * </p>
+	 *
+	 * @param entityClass entity class or interface to look up; must not be
+	 *                    {@code null}
+	 * @return singleton metadata instance for that class, possibly mapping no column
+	 * @throws NullPointerException if {@code entityClass} is {@code null}
+	 */
+	static EntityMetaData resolve(Class<?> entityClass) {
 		Objects.requireNonNull(entityClass, "entityClass");
 		if (Proxy.isProxyClass(entityClass))
 			return CACHE.get(entityClass.getInterfaces()[0]);
@@ -477,8 +518,8 @@ class EntityMetaData {
 	 * </p>
 	 *
 	 * <p>
-	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the predicate
-	 * is widened to admit an absent row:
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the
+	 * predicate is widened to admit an absent row:
 	 * </p>
 	 *
 	 * <pre>
@@ -517,8 +558,8 @@ class EntityMetaData {
 			sb.append('(').append(outerAlias).append('.').append(effectiveColumn).append(" IS NULL\n   OR ");
 
 		sb.append(outerAlias).append('.').append(effectiveColumn).append(" = (SELECT ").append(aggregate).append('(')
-				.append(subAlias).append('.').append(effectiveColumn).append(")\n        FROM ")
-				.append(table.fullName).append(' ').append(subAlias);
+				.append(subAlias).append('.').append(effectiveColumn).append(")\n        FROM ").append(table.fullName)
+				.append(' ').append(subAlias);
 
 		final var beforeConditions = sb.length();
 		final var correlated = DaoUtils.appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
@@ -585,10 +626,11 @@ class EntityMetaData {
 	 * </p>
 	 *
 	 * <p>
-	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table each of the two
-	 * conditions is separately widened to admit an absent row. The sequence condition
-	 * is parenthesized in its own right, so that the {@code OR} admitting {@code NULL}
-	 * cannot capture the {@code AND} joining it to the effective-date condition.
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table each
+	 * of the two conditions is separately widened to admit an absent row. The
+	 * sequence condition is parenthesized in its own right, so that the {@code OR}
+	 * admitting {@code NULL} cannot capture the {@code AND} joining it to the
+	 * effective-date condition.
 	 * </p>
 	 *
 	 * @param outerAlias      alias of the outer query table
@@ -629,10 +671,10 @@ class EntityMetaData {
 	 * Resolves the table a criterion refers to, falling back to the primary table
 	 * for a blank reference or one that names no table this entity maps.
 	 *
-	 * @param tableOrAlias table name, qualified name, or alias; {@code null} or blank
-	 *                     for the primary table
-	 * @return the referenced table, or {@link #primaryTable} when the reference does
-	 *         not resolve
+	 * @param tableOrAlias table name, qualified name, or alias; {@code null} or
+	 *                     blank for the primary table
+	 * @return the referenced table, or {@link #primaryTable} when the reference
+	 *         does not resolve
 	 */
 	private TableMetaData resolveTableOrPrimary(String tableOrAlias) {
 		if (!DaoUtils.hasValue(tableOrAlias))
@@ -650,8 +692,8 @@ class EntityMetaData {
 	 * True only for a secondary table, and only when the entity declares a
 	 * {@link SqlJoinType} other than {@link SqlJoinType.Type#INNER}: the primary
 	 * table is never null-extended, and an inner join discards the unmatched rows
-	 * that would produce nulls. A predicate over a table that is null-extended has to
-	 * admit {@code NULL} explicitly, since a comparison against {@code NULL} is
+	 * that would produce nulls. A predicate over a table that is null-extended has
+	 * to admit {@code NULL} explicitly, since a comparison against {@code NULL} is
 	 * unknown rather than true and would silently drop the very rows the outer join
 	 * was written to keep.
 	 * </p>
@@ -769,9 +811,9 @@ class EntityMetaData {
 	 * </ul>
 	 *
 	 * <p>
-	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the result is
-	 * wrapped as {@code "(alias.COL IS NULL OR ...)"}, so that rows the outer join
-	 * kept without a match are not dropped by the comparison.
+	 * Over a {@linkplain #isNullExtended(TableMetaData) null-extended} table the
+	 * result is wrapped as {@code "(alias.COL IS NULL OR ...)"}, so that rows the
+	 * outer join kept without a match are not dropped by the comparison.
 	 * </p>
 	 *
 	 * @param tab       table name, alias, or {@code null} for the primary table
@@ -1236,11 +1278,11 @@ class EntityMetaData {
 	 * annotation.
 	 *
 	 * <p>
-	 * An effective-dated entity always resolves to one row per key, so a predicate is
-	 * produced for every {@link EffectiveDated#effectiveDatedColumns()} entry whenever
-	 * the annotation is present. {@link EffectiveDated#currentOnly()} decides which
-	 * row that is: bounded to {@link EffectiveDated#asOfDate()} when {@code true}, or
-	 * the outright latest row when {@code false}. Returns
+	 * An effective-dated entity always resolves to one row per key, so a predicate
+	 * is produced for every {@link EffectiveDated#effectiveDatedColumns()} entry
+	 * whenever the annotation is present. {@link EffectiveDated#currentOnly()}
+	 * decides which row that is: bounded to {@link EffectiveDated#asOfDate()} when
+	 * {@code true}, or the outright latest row when {@code false}. Returns
 	 * {@link IuIterable#empty()} only when the annotation is absent.
 	 * </p>
 	 *
@@ -1276,11 +1318,11 @@ class EntityMetaData {
 		final var datedColumns = effectiveDated.effectiveDatedColumns();
 		final var criteria = new ArrayList<String>(datedColumns.length);
 		for (int i = 0; i < datedColumns.length; i++)
-			criteria.add(buildEffectiveDateCriteria(primaryTable.alias, datedColumns[i], asOfDate, false,
-					IuIterable.cat(
-							effectiveDateKeyColumns(datedColumns[i], effectiveDated.additionalKeyColumns(),
-									unmappedKeyColumns),
-							Arrays.asList(datedColumns).subList(0, i))));
+			criteria.add(
+					buildEffectiveDateCriteria(primaryTable.alias, datedColumns[i], asOfDate, false,
+							IuIterable.cat(effectiveDateKeyColumns(datedColumns[i],
+									effectiveDated.additionalKeyColumns(), unmappedKeyColumns),
+									Arrays.asList(datedColumns).subList(0, i))));
 		return criteria;
 	}
 

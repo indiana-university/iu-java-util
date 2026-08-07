@@ -465,6 +465,8 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 	@Override
 	public String getPropertyNameFromBean(Class<?> entityClass, String columnName) {
-		return EntityMetaData.of(entityClass).columnToPropertyNames.get(DaoUtils.normalizeName(columnName));
+		// Resolved leniently: this asks whether a column maps, and "nothing maps" is a
+		// valid answer for a type that was never meant to be an entity.
+		return EntityMetaData.resolve(entityClass).columnToPropertyNames.get(DaoUtils.normalizeName(columnName));
 	}
 }

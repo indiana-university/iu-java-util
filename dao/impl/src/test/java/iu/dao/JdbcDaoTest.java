@@ -534,6 +534,15 @@ public class JdbcDaoTest {
 	}
 
 	@Test
+	public void testAdHocQueryOverAnUnmappedTypeUsesTheDefaultBuilder() {
+		// getQuery documents that the target type need not be a mapped entity.
+		final var jdbc = new Jdbc();
+		final var dao = new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of(Map.of("FIRST_NAME", "Ada")))),
+				transactionManager(Status.STATUS_NO_TRANSACTION), registry());
+		assertEquals("Ada", dao.getQuery(Bean.class, "select first_name").getFirstRecord().getFirstName());
+	}
+
+	@Test
 	public void testFieldOnlyEntityIsPopulatedAndBoundThroughItsFields() {
 		final var person = daoOver(personRow("0000123", "seed")).getBeanQuery(FieldOnlyPerson.class, List.of())
 				.getSingleResult();
@@ -808,6 +817,7 @@ public class JdbcDaoTest {
 
 		private DatabaseMetaData metadata() {
 			return proxy(DatabaseMetaData.class, (method, args) -> switch (method.getName()) {
+			case "getSearchStringEscape" -> "\\";
 			case "getTables" -> resultSet("missing".equalsIgnoreCase((String) args[2]) ? List.of()
 					: List.of(Map.of("TABLE_NAME", "THING", "TABLE_TYPE", "TABLE")));
 			case "getColumns" -> resultSet(List.of(Map.of("COLUMN_NAME", "ID", "DATA_TYPE", 4, "TYPE_NAME", "INTEGER",

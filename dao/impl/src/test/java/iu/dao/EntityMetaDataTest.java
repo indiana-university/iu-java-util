@@ -68,8 +68,21 @@ public class EntityMetaDataTest {
 	// Test entity classes
 	// =======================================================================
 
-	/** No annotations at all — table name falls back to the simple class name. */
-	public static class BareEntity {
+	/**
+	 * Base for the fixtures that exercise table-name resolution. An entity needs at
+	 * least one mapped column to be constructed at all; which column it is does not
+	 * matter to them, so they inherit one rather than each declaring its own.
+	 */
+	public static class NameResolutionBase {
+		@Id
+		@Column(name = "ID")
+		private long id;
+	}
+
+	/**
+	 * No class-level annotations — table name falls back to the simple class name.
+	 */
+	public static class BareEntity extends NameResolutionBase {
 	}
 
 	/** @Table with explicit name and schema. */
@@ -117,7 +130,7 @@ public class EntityMetaDataTest {
 
 	/** @Entity with a name but no @Table — table name comes from @Entity.name(). */
 	@Entity(name = "ent_name")
-	public static class EntityNamedEntity {
+	public static class EntityNamedEntity extends NameResolutionBase {
 	}
 
 	/**
@@ -126,7 +139,7 @@ public class EntityMetaDataTest {
 	 */
 	@Entity(name = "from_entity")
 	@Table
-	public static class BlankTableNameWithEntityNameEntity {
+	public static class BlankTableNameWithEntityNameEntity extends NameResolutionBase {
 	}
 
 	/**
@@ -135,7 +148,7 @@ public class EntityMetaDataTest {
 	 */
 	@Entity
 	@Table
-	public static class BlankTableNameBlankEntityNameEntity {
+	public static class BlankTableNameBlankEntityNameEntity extends NameResolutionBase {
 	}
 
 	/**
@@ -143,7 +156,7 @@ public class EntityMetaDataTest {
 	 *         the simple class name.
 	 */
 	@Entity
-	public static class BlankEntityNameNoTableEntity {
+	public static class BlankEntityNameNoTableEntity extends NameResolutionBase {
 	}
 
 	/** @Distinct flag on a subclass of TableNamedEntity. */
@@ -1821,6 +1834,47 @@ public class EntityMetaDataTest {
 	@Test
 	public void testGetterAnnotationWinsOverFieldAnnotation() {
 		assertEquals("FROM_GETTER", EntityMetaData.of(GetterOverridesFieldEntity.class).columns.get("label").columnName);
+	}
+
+	/** Annotated as an entity, but with nothing mapped to a column. */
+	@Entity
+	@Table(name = "items", schema = "pub")
+	public static class NoColumnsEntity {
+		@Transient
+		private String ignored;
+
+		private String unmapped;
+
+		public String getUnmapped() {
+			return unmapped;
+		}
+
+		public void setUnmapped(String unmapped) {
+			this.unmapped = unmapped;
+		}
+	}
+
+	@Test
+	public void testEntityWithNoMappedColumns_isRejected() {
+		// Every generated statement needs at least one column to name; a type with none
+		// would otherwise fail later, as invalid SQL.
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> EntityMetaData.of(NoColumnsEntity.class));
+		assertEquals("No @Column or @SqlColumn fields or properties found on " + NoColumnsEntity.class,
+				error.getMessage());
+	}
+
+	@Test
+	public void testEntityWithNoMappedColumns_isRejectedOnEveryLookup() {
+		// Caching the metadata does not make it usable as an entity.
+		assertThrows(IllegalArgumentException.class, () -> EntityMetaData.of(NoColumnsEntity.class));
+		assertThrows(IllegalArgumentException.class, () -> EntityMetaData.of(NoColumnsEntity.class));
+	}
+
+	@Test
+	public void testTypeWithNoMappedColumns_resolvesLenientlyAsMappingNothing() {
+		// Asking whether a column maps is a question any type can answer.
+		assertTrue(EntityMetaData.resolve(NoColumnsEntity.class).columns.isEmpty());
 	}
 
 	@Test

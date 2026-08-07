@@ -207,7 +207,10 @@ public final class JdbcDao implements IuDao {
 	 * @throws SQLException if the metadata query fails
 	 */
 	private static TableMeta findTable(DatabaseMetaData metadata, String tableName) throws SQLException {
-		try (var results = metadata.getTables(null, null, tableName, null)) {
+		final var esc = metadata.getSearchStringEscape();
+		final var pattern = tableName.replace(esc, esc + esc)
+		        .replace("_", esc + "_").replace("%", esc + "%");
+		try (var results = metadata.getTables(null, null, pattern, null)) {
 			return results.next() ? new TableMeta(results, List.of()) : null;
 		}
 	}
