@@ -278,6 +278,8 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 			boolean firstColumn = true;
 			Iterator<Iterator<String>> valueIterator = valueQueue.iterator();
 			for (String left : leftHandSides) {
+				if (!valueIterator.hasNext())
+					throw new IllegalArgumentException("Match criteria column count does not match left-hand sides");
 				Iterator<String> rightValues = valueIterator.next();
 
 				if (firstColumn) {
@@ -471,7 +473,9 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 			disjuncts.add("(" + String.join(" AND ", criteria) + ")");
 		}
 
-		return String.join(" OR ", disjuncts);
+		return disjuncts.size() > 1 //
+				? "(" + String.join(" OR ", disjuncts) + ")"
+				: String.join(" OR ", disjuncts);
 	}
 
 	@Override

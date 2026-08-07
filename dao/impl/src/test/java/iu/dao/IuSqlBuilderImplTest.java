@@ -704,7 +704,14 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
-	public void testGetMultipartKeyListMatch_columnCountDoesNotMatchLeftHandSides() {
+	public void testGetMultipartKeyListMatch_columnCountDoesNotMatchLeftHandSidesLess() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> sqlBuilder
+				.getMultipartKeyListMatch(List.of("COL1", "COL2"), List.of(List.of("'A'"))));
+		assertEquals("Match criteria column count does not match left-hand sides", error.getMessage());
+	}
+
+	@Test
+	public void testGetMultipartKeyListMatch_columnCountDoesNotMatchLeftHandSidesMore() {
 		final var error = assertThrows(IllegalArgumentException.class, () -> sqlBuilder
 				.getMultipartKeyListMatch(List.of("COL1"), List.of(List.of("'A'"), List.of("'B'"))));
 		assertEquals("Match criteria column count does not match left-hand sides", error.getMessage());
@@ -947,7 +954,7 @@ public class IuSqlBuilderImplTest {
 		final var e2 = new SimpleEntity();
 		e2.setId(2L);
 		final var result = sqlBuilder.buildWhereClause(List.of(e1, e2));
-		assertEquals("(a.ID = 1) OR (a.ID = 2)", result);
+		assertEquals("((a.ID = 1) OR (a.ID = 2))", result);
 	}
 
 	@Test
