@@ -212,6 +212,47 @@ public class SamlResponseValidatorTest {
 		assertEquals("authnAssertion expiration time must be no later than " + maxExpires, error.getMessage());
 	}
 
+	@Test
+	void testValidateExpiresAtConfiguredMaximumWhenAssertionDeclaresNoNotOnOrAfter() throws Exception {
+		final var trustEngine = mock(ExplicitKeySignatureTrustEngine.class);
+		final var name = IdGenerator.generateId();
+		final var authnInstant = Instant.now();
+		final var maxExpires = authnInstant.plus(config.getAuthenticatedSessionTimeout());
+		final var authnAssertion = mock(IuSamlAssertion.class);
+		when(authnAssertion.getAuthnInstant()).thenReturn(authnInstant);
+		when(authnAssertion.getAuthnAuthority()).thenReturn(entityId);
+		when(authnAssertion.getAttributes()).thenReturn(Map.of(nameAttribute, name));
+		// An assertion that sets no expiry of its own is bounded by configuration
+		// rather than rejected.
+		when(authnAssertion.getNotOnOrAfter()).thenReturn(null);
+
+		IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE, "SamlResponseValidator spEntityId: "
+				+ spEntityId + "; postUri: " + postUri + "; allowedRange: \\[\\]; staticParams: .*");
+		final var validator = spy(
+				new SamlResponseValidator(postUri, entityId, sessionId, remoteAddr, config, trustEngine));
+		final var response = mock(Response.class);
+		final var responseXml = "<Response>" + IdGenerator.generateId() + "</Response>";
+		when(response.getDOM()).thenReturn(XmlDomUtil.parse(responseXml).getDocumentElement());
+		final var issuer = mock(Issuer.class);
+		when(issuer.getValue()).thenReturn(entityId);
+		when(response.getIssuer()).thenReturn(issuer);
+		final var issueInstant = Instant.now();
+		when(response.getIssueInstant()).thenReturn(issueInstant);
+
+		doNothing().when(validator).validateSignature(response);
+		doReturn(IuIterable.iter(authnAssertion)).when(validator).validateAssertions(response);
+		doNothing().when(validator).verifySubjectConfirmation();
+		IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE, "saml:pre-validate\n" + responseXml);
+		IuTestLogger.expect(SamlResponseValidator.class.getName(), Level.FINE,
+				"saml:post-validate:" + name + ":" + entityId + " @" + authnInstant + "; issuer: " + entityId + " @"
+						+ issueInstant + ", expires " + maxExpires + "; assertions: .*");
+
+		final var principal = validator.validate(response);
+		assertEquals(maxExpires, principal.getExpires());
+		assertEquals(authnInstant, principal.getAuthnInstant());
+		assertEquals(name, principal.getName());
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	void testValidate() {

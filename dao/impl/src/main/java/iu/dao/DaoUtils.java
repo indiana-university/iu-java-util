@@ -64,10 +64,7 @@ final class DaoUtils {
 	 * @return SQL {@code TIMESTAMP} literal string
 	 */
 	static String literalFromDate(java.util.Date date) {
-		synchronized (TIMESTAMP_FORMAT) {
-			return "TIMESTAMP '" + TIMESTAMP_FORMAT.format(date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime())
-					+ "'";
-		}
+		return "TIMESTAMP '" + TIMESTAMP_FORMAT.format(date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime()) + "'";
 	}
 
 	/**
@@ -347,9 +344,9 @@ final class DaoUtils {
 	 *
 	 * <p>
 	 * Collected from the top of the hierarchy downward, so that a subclass field
-	 * shadows one of the same name it hides. Static fields are constants rather than
-	 * state, and synthetic fields are compiler bookkeeping, so neither is included.
-	 * An interface declares no instance fields at all.
+	 * shadows one of the same name it hides. Static fields are constants rather
+	 * than state, and synthetic fields are compiler bookkeeping, so neither is
+	 * included. An interface declares no instance fields at all.
 	 * </p>
 	 *
 	 * @param entityClass entity class or interface; must not be {@code null}
@@ -378,8 +375,8 @@ final class DaoUtils {
 	 * regardless of its declared visibility.
 	 *
 	 * <p>
-	 * A field-mapped column is normally private with no accessor, which is the point
-	 * of mapping it directly; reaching it requires the same suppression a JPA
+	 * A field-mapped column is normally private with no accessor, which is the
+	 * point of mapping it directly; reaching it requires the same suppression a JPA
 	 * provider performs, and the same {@code opens} directive from a modular
 	 * application.
 	 * </p>
@@ -446,7 +443,8 @@ final class DaoUtils {
 	 *
 	 * @param <A>            annotation type
 	 * @param entityClass    entity class or interface declaring the property
-	 * @param property       property to read the annotation from; must have a getter
+	 * @param property       property to read the annotation from; must have a
+	 *                       getter
 	 * @param annotationType annotation to look for
 	 * @return the annotation from the getter, else from the backing field, else
 	 *         {@code null}
