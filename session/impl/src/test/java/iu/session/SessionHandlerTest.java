@@ -172,7 +172,7 @@ public class SessionHandlerTest {
 		when(store.get(SessionHandler.hashKey(secretKey))).thenReturn(IuText.utf8(activated));
 		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
 		final var error = new Error();
-		IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Purging invalid sesison", Error.class,
+		IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Purging invalid session", Error.class,
 				thrown -> thrown == error);
 
 		try (final var mockWebCryptoHeader = mockStatic(WebCryptoHeader.class)) {
@@ -194,7 +194,7 @@ public class SessionHandlerTest {
 		final var setCookie = handler.store(session);
 		final var prefix = handler.getSessionCookieName() + "=";
 		assertTrue(setCookie.startsWith(prefix), setCookie);
-		final var suffix = "; Path=" + resourceUri.getPath() + "; HttpOnly";
+		final var suffix = "; Path=" + resourceUri.getPath() + "; HttpOnly; SameSite=Lax";
 		assertTrue(setCookie.endsWith(suffix), setCookie);
 		final var secretKey = IuText
 				.base64Url(setCookie.substring(prefix.length(), setCookie.length() - suffix.length()));
