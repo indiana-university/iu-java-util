@@ -319,7 +319,8 @@ public abstract class OidcTokenGrant {
 			}
 
 			final var tokenResponse = config.adaptJson(IuOidcTokenResponse.class).fromJson(httpResponse);
-			LOG.fine(() -> "OIDC token response " + tokenResponse);
+			LOG.fine(() -> "OIDC token response type=" + tokenResponse.getTokenType() + " expires_in="
+					+ tokenResponse.getExpiresIn() + " scope=" + tokenResponse.getScope());
 
 			idToken = validateTokenResponse(tokenResponse);
 
