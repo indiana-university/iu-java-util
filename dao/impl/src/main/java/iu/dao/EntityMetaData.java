@@ -30,6 +30,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.SecondaryTable;
 import jakarta.persistence.SecondaryTables;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 /**
  * Holds all reflection- and annotation-derived metadata for a JPA entity class.
@@ -309,16 +310,42 @@ class EntityMetaData {
 		final Queue<ColumnMetaData> primaryColumns = new ArrayDeque<>();
 		final Queue<ColumnMetaData> primaryNonIdColumns = new ArrayDeque<>();
 
+		final Queue<ColumnMetaData> mappedColumns = new ArrayDeque<>();
+		final Set<String> propertyNames = new LinkedHashSet<>();
+
 		for (final var property : DaoUtils.getAllBeanProperties(entityClass)) {
-			if (DaoUtils.isTransient(property))
+			// Recorded before any skip, so that a field of the same name cannot revive a
+			// property this entity deliberately leaves unmapped.
+			propertyNames.add(property.getName());
+
+			if (DaoUtils.isTransient(entityClass, property))
 				continue;
 
-			final var readMethod = property.getReadMethod();
-			if (!readMethod.isAnnotationPresent(Column.class) //
-					&& !readMethod.isAnnotationPresent(SqlColumn.class))
+			// Mapped either way round: the annotation may sit on the getter or on the
+			// field behind it.
+			if (DaoUtils.getPropertyAnnotation(entityClass, property, Column.class) == null //
+					&& DaoUtils.getPropertyAnnotation(entityClass, property, SqlColumn.class) == null)
 				continue;
 
-			final var columnMetaData = new ColumnMetaData(property, this);
+			mappedColumns.add(new ColumnMetaData(this, property, //
+					DaoUtils.getPropertyField(entityClass, property.getName())));
+		}
+
+		// A field with no bean property is mapped on its own. One that does have a bean
+		// property was already decided by the loop above, whose annotations win.
+		for (final var field : DaoUtils.getAllDeclaredFields(entityClass)) {
+			if (propertyNames.contains(field.getName()) //
+					|| field.isAnnotationPresent(Transient.class))
+				continue;
+
+			if (!field.isAnnotationPresent(Column.class) //
+					&& !field.isAnnotationPresent(SqlColumn.class))
+				continue;
+
+			mappedColumns.add(new ColumnMetaData(this, null, field));
+		}
+
+		for (final var columnMetaData : mappedColumns) {
 			columns.put(columnMetaData.propertyName, columnMetaData);
 			if (columnMetaData.columnName != null) {
 				columnsByNormalizedColumn.put(DaoUtils.normalizeName(columnMetaData.columnName), columnMetaData);

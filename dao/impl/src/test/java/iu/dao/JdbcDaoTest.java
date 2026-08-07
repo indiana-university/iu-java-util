@@ -363,17 +363,20 @@ public class JdbcDaoTest {
 		assertEquals(1, unmapped.size());
 		assertEquals(null, unmapped.get(0).getFirstName());
 
-		final var property = java.util.Arrays.stream(Introspector.getBeanInfo(Bean.class).getPropertyDescriptors())
-				.filter(p -> "age".equals(p.getName())).findFirst().orElseThrow();
-		invoke("setProperty", new Class<?>[] { Object.class, java.beans.PropertyDescriptor.class, Object.class },
-				new Bean(), property, null);
-		final var throwing = java.util.Arrays
-				.stream(Introspector.getBeanInfo(ThrowingBean.class).getPropertyDescriptors())
-				.filter(p -> "value".equals(p.getName())).findFirst().orElseThrow();
+		// A null column leaves a primitive member at its default rather than failing.
+		final var nullAge = new LinkedHashMap<String, Object>();
+		nullAge.put("FIRST_NAME", "Ada");
+		nullAge.put("AGE", null);
+		final var withNull = new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of(nullAge))),
+				transactionManager(0), registry(), builder()).getQuery(Bean.class, "select").getFirstRecord();
+		assertEquals("Ada", withNull.getFirstName());
+		assertEquals(0, withNull.getAge());
+
+		// A setter that throws is reported against the member it was assigning.
 		assertThrows(IllegalArgumentException.class,
-				() -> invoke("setProperty",
-						new Class<?>[] { Object.class, java.beans.PropertyDescriptor.class, Object.class },
-						new ThrowingBean(), throwing, "x"));
+				() -> new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of(Map.of("VALUE", "x")))),
+						transactionManager(0), registry(), builder()).getQuery(ThrowingBean.class, "select")
+						.getFirstRecord());
 
 		jdbc.updateAbsent = true;
 		new JdbcDao(jdbc.dataSource(), transactionManager(0), registry(), builder()).saveBean(new Bean());
@@ -516,6 +519,35 @@ public class JdbcDaoTest {
 		assertNotEquals(view, "not a proxy");
 		// A proxy backed by some other handler is never equal.
 		assertNotEquals(view, registry());
+	}
+
+	/** Mapped entirely on fields, with no accessors for the DAO to use. */
+	@Entity
+	@Table(name = "person", schema = "s")
+	public static class FieldOnlyPerson {
+		@Id
+		@Column(name = "EMPLID")
+		private String employeeId;
+
+		@Column
+		private String label;
+	}
+
+	@Test
+	public void testFieldOnlyEntityIsPopulatedAndBoundThroughItsFields() {
+		final var person = daoOver(personRow("0000123", "seed")).getBeanQuery(FieldOnlyPerson.class, List.of())
+				.getSingleResult();
+
+		// Read: the result set is written straight into the fields.
+		assertEquals("0000123", person.employeeId);
+		assertEquals("seed", person.label);
+
+		// Write: the same fields supply the bind arguments.
+		final var jdbc = new Jdbc();
+		final var dao = new JdbcDao(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION), registry());
+		assertEquals(List.of("seed", "0000123"),
+				List.copyOf((List<?>) dao.getBeanUpdate(person).getArguments()));
+		assertEquals(List.of("0000123"), List.copyOf((List<?>) dao.getBeanDelete(person).getArguments()));
 	}
 
 	@Test

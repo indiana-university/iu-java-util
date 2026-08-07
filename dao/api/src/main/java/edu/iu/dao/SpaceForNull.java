@@ -39,9 +39,15 @@ import java.lang.annotation.Target;
 
 /**
  * Indicates that {@code null} values should be normalized to a single space when bound.
+ *
+ * <p>
+ * On a type, applies to every mapped column of the entity. On a property, applies
+ * to that column alone and may be placed on either the getter or the backing
+ * field.
+ * </p>
  */
 @Documented
-@Target({ ElementType.TYPE, ElementType.METHOD })
+@Target({ ElementType.TYPE, ElementType.METHOD, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface SpaceForNull {
 }

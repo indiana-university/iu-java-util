@@ -209,6 +209,173 @@ public class EntityMetaDataTest {
 		}
 	}
 
+	/**
+	 * Entity mapped entirely through field annotations, with plain accessors — the
+	 * common JPA field-access style.
+	 */
+	@Entity
+	@Table(name = "items", schema = "pub")
+	public static class FieldMappedEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "LABEL")
+		@SpaceForNull
+		private String label;
+
+		@SqlColumn("UPPER(a.LABEL)")
+		private String upperLabel;
+
+		@Transient
+		private String ignored;
+
+		private String unmapped;
+
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+
+		public String getUpperLabel() {
+			return upperLabel;
+		}
+
+		public void setUpperLabel(String upperLabel) {
+			this.upperLabel = upperLabel;
+		}
+
+		public String getIgnored() {
+			return ignored;
+		}
+
+		public void setIgnored(String ignored) {
+			this.ignored = ignored;
+		}
+
+		public String getUnmapped() {
+			return unmapped;
+		}
+
+		public void setUnmapped(String unmapped) {
+			this.unmapped = unmapped;
+		}
+	}
+
+	/**
+	 * Entity with no accessors at all: every column is mapped and reached through
+	 * its field.
+	 */
+	@Entity
+	@Table(name = "items", schema = "pub")
+	public static class FieldOnlyEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "LABEL")
+		private String label;
+
+		@Transient
+		private String ignored;
+
+		private String unmapped;
+	}
+
+	/**
+	 * Entity whose {@code label} field is annotated but whose getter is
+	 * {@code @Transient}, so the property's decision not to map it stands.
+	 */
+	@Entity
+	@Table(name = "items", schema = "pub")
+	public static class TransientGetterOverFieldEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "LABEL")
+		private String label;
+
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+
+		@Transient
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+	}
+
+	/** Computed column with a getter but neither setter nor field. */
+	@Entity
+	@Table(name = "items", schema = "pub")
+	public static class ComputedColumnEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+
+		@SqlColumn("UPPER(a.LABEL)")
+		public String getUpperLabel() {
+			return "computed";
+		}
+	}
+
+	/** Field and getter disagree, so the getter decides. */
+	@Entity
+	@Table(name = "items", schema = "pub")
+	public static class GetterOverridesFieldEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "FROM_FIELD")
+		private String label;
+
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+
+		@Column(name = "FROM_GETTER")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+	}
+
 	/** @Filtered annotation is captured. */
 	@Entity
 	@Table(name = "items", schema = "pub")
@@ -1615,6 +1782,76 @@ public class EntityMetaDataTest {
 				         AND a_ed.EFFDT = a.EFFDT
 				         AND a_ed.EFFSEQ <= CURRENT_DATE)""", criteria.next());
 		assertFalse(criteria.hasNext());
+	}
+
+	// =======================================================================
+	// field-mapped entities
+	// =======================================================================
+
+	@Test
+	public void testFieldAnnotations_mapTheSameAsGetterAnnotations() {
+		final var meta = EntityMetaData.of(FieldMappedEntity.class);
+
+		// @Column, @Id, @SqlColumn and @Transient are all honored on the field.
+		assertEquals(List.of("id", "label", "upperLabel"), List.copyOf(meta.columns.keySet()));
+		assertEquals("ID", meta.columns.get("id").columnName);
+		assertEquals("LABEL", meta.columns.get("label").columnName);
+		assertEquals("UPPER(a.LABEL)", meta.columns.get("upperLabel").sql);
+		assertEquals("UPPER_LABEL", meta.columns.get("upperLabel").selectAlias);
+
+		final var idColumns = meta.idColumns.iterator();
+		assertEquals("ID", idColumns.next().columnName);
+		assertFalse(idColumns.hasNext());
+
+		// @SpaceForNull is honored on the field too, and only for the field it is on.
+		assertTrue(meta.columns.get("label").spaceForNull);
+		assertFalse(meta.columns.get("id").spaceForNull);
+	}
+
+	@Test
+	public void testFieldMappedEntity_generatesTheSameSqlAsAGetterMappedOne() {
+		assertEquals("""
+				SELECT
+				    a.ID,
+				    a.LABEL,
+				    UPPER(a.LABEL) AS UPPER_LABEL
+				FROM pub.items a""", EntityMetaData.of(FieldMappedEntity.class).getSelectAndFromClause(null));
+	}
+
+	@Test
+	public void testGetterAnnotationWinsOverFieldAnnotation() {
+		assertEquals("FROM_GETTER", EntityMetaData.of(GetterOverridesFieldEntity.class).columns.get("label").columnName);
+	}
+
+	@Test
+	public void testFieldOnlyEntity_mapsColumnsWithNoBeanPropertyAtAll() throws Throwable {
+		final var meta = EntityMetaData.of(FieldOnlyEntity.class);
+
+		assertEquals(List.of("id", "label"), List.copyOf(meta.columns.keySet()));
+		final var label = meta.columns.get("label");
+		assertEquals("LABEL", label.columnName);
+		assertEquals(String.class, label.javaType);
+		// No bean property backs it, so the field is what the column is reached through.
+		assertEquals(null, label.property);
+		assertEquals("label", label.field.getName());
+
+		final var entity = new FieldOnlyEntity();
+		entity.label = "read through the field";
+		assertEquals("read through the field", label.getter.invoke(entity));
+	}
+
+	@Test
+	public void testTransientOnGetterKeepsAnAnnotatedFieldUnmapped() {
+		// The bean property decides, and it declares the column not to exist.
+		assertEquals(List.of("id"),
+				List.copyOf(EntityMetaData.of(TransientGetterOverFieldEntity.class).columns.keySet()));
+	}
+
+	@Test
+	public void testComputedColumn_hasNoBackingField() {
+		final var column = EntityMetaData.of(ComputedColumnEntity.class).columns.get("upperLabel");
+		assertEquals("UPPER(a.LABEL)", column.sql);
+		assertEquals(null, column.field);
 	}
 
 	// =======================================================================

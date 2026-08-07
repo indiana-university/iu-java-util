@@ -3,6 +3,7 @@ package iu.dao;
 import java.beans.PropertyDescriptor;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Field;
 import java.sql.Timestamp;
 import java.time.Instant;
 
@@ -40,15 +41,29 @@ class ColumnMetaData {
 
 	/**
 	 * The {@link PropertyDescriptor} from bean introspection that this metadata
-	 * describes.
+	 * describes, or {@code null} when the column is mapped on a field that has no
+	 * bean property.
 	 */
 	final PropertyDescriptor property;
 
 	/**
-	 * The bean property name derived from the getter, e.g. {@code "myColumn"} for
-	 * {@code getMyColumn()}.
+	 * The field backing this column, or {@code null} when the property is computed
+	 * rather than stored. Present for both field-mapped and property-mapped columns,
+	 * since a property-mapped column may still need its field to write through.
+	 */
+	final Field field;
+
+	/**
+	 * The name this column is known by: the bean property name derived from the
+	 * getter, e.g. {@code "myColumn"} for {@code getMyColumn()}, or the field name
+	 * for a column mapped on a field alone.
 	 */
 	final String propertyName;
+
+	/**
+	 * The declared Java type of the mapped property or field.
+	 */
+	final Class<?> javaType;
 
 	/**
 	 * The physical database column name used in {@code INSERT}, {@code UPDATE}, and
@@ -114,34 +129,49 @@ class ColumnMetaData {
 	final Class<?> sqlType;
 
 	/**
-	 * Resolved read method getter for fast reflective access.
+	 * Reads this column's value from an entity, through the getter when there is one
+	 * and through the field otherwise.
 	 */
 	final MethodHandle getter;
 
 	/**
-	 * Constructs metadata for a single bean property.
+	 * Constructs metadata for a single mapped column.
 	 *
 	 * <p>
-	 * The property's read method must carry either {@link Column} or
-	 * {@link SqlColumn}. When {@link Column} is present it takes precedence and the
-	 * {@link SqlColumn} branch is not entered.
+	 * The column must carry either {@link Column} or {@link SqlColumn}, on the getter
+	 * or on the field; the getter is consulted first, so a property annotated in both
+	 * places is described by its getter. When {@link Column} is present it takes
+	 * precedence and the {@link SqlColumn} branch is not entered.
 	 * </p>
 	 *
-	 * @param property the {@link PropertyDescriptor} to describe; must have a
-	 *                 readable getter annotated with {@link Column} or
-	 *                 {@link SqlColumn}
+	 * <p>
+	 * Access is resolved independently of the annotation: values are read through the
+	 * getter when one exists and through the field otherwise.
+	 * </p>
+	 *
 	 * @param entity   the owning entity metadata, used to resolve the
 	 *                 {@link TableMetaData} and inherit the entity-level
 	 *                 {@link SpaceForNull} flag
+	 * @param property the bean property to describe, or {@code null} for a column
+	 *                 mapped on a field with no bean property
+	 * @param field    the field backing the column; must be non-{@code null} when
+	 *                 {@code property} is {@code null}
 	 */
-	ColumnMetaData(PropertyDescriptor property, EntityMetaData entity) {
+	ColumnMetaData(EntityMetaData entity, PropertyDescriptor property, Field field) {
 		this.property = property;
-		this.propertyName = property.getName();
-		final var readMethod = property.getReadMethod();
-		this.id = readMethod.getAnnotation(Id.class);
-		this.column = readMethod.getAnnotation(Column.class);
-		this.sqlColumn = readMethod.getAnnotation(SqlColumn.class);
-		this.spaceForNull = entity.spaceForNull || readMethod.isAnnotationPresent(SpaceForNull.class);
+		this.field = field;
+
+		final var readMethod = property == null ? null : property.getReadMethod();
+
+		this.propertyName = property == null ? field.getName() : property.getName();
+		this.javaType = property == null ? field.getType() : property.getPropertyType();
+
+		this.id = DaoUtils.getAnnotation(Id.class, readMethod, field);
+		this.column = DaoUtils.getAnnotation(Column.class, readMethod, field);
+		this.sqlColumn = DaoUtils.getAnnotation(SqlColumn.class, readMethod, field);
+		this.spaceForNull = entity.spaceForNull //
+				|| DaoUtils.getAnnotation(SpaceForNull.class, readMethod, field) != null;
+
 		if (column == null) {
 			this.table = null;
 			this.columnName = null;
@@ -154,8 +184,11 @@ class ColumnMetaData {
 			this.sql = this.columnName;
 			this.selectAlias = null;
 		}
-		this.sqlType = DaoUtils.resolveSqlType(property, column);
-		this.getter = IuException.unchecked(() -> MethodHandles.lookup().unreflect(readMethod));
+
+		this.sqlType = DaoUtils.resolveSqlType(javaType, column);
+		this.getter = IuException.unchecked(() -> readMethod == null //
+				? MethodHandles.lookup().unreflectGetter(DaoUtils.accessible(field))
+				: MethodHandles.lookup().unreflect(readMethod));
 	}
 
 	/**

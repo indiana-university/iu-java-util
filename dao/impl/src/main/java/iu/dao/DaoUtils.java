@@ -3,6 +3,9 @@ package iu.dao;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.ZoneOffset;
@@ -309,12 +312,11 @@ final class DaoUtils {
 	 * autoboxing any primitive via {@link #autobox(Class)}.
 	 * </p>
 	 *
-	 * @param property property descriptor
+	 * @param javaType declared type of the mapped property or field
 	 * @param column   column
 	 * @return Java type to use for the SQL column
-	 * @throws NoSuchElementException if the property is not found
 	 */
-	static Class<?> resolveSqlType(PropertyDescriptor property, Column column) {
+	static Class<?> resolveSqlType(Class<?> javaType, Column column) {
 		if (column != null //
 				&& hasValue(column.columnDefinition())) {
 			final var sqlType = column.columnDefinition().toUpperCase(Locale.ROOT);
@@ -337,20 +339,136 @@ final class DaoUtils {
 				return char[].class;
 			return Object.class;
 		}
-		return autobox(property.getPropertyType());
+		return autobox(javaType);
 	}
 
 	/**
-	 * Determines if {@link Transient} is present on a property's read method.
-	 * 
-	 * @param property {@link PropertyDescriptor}
-	 * @return true if property is non-null, has a non-null read method, and
-	 *         {@link Transient} is present on the read method
+	 * Returns every instance field declared by an entity type and its superclasses.
+	 *
+	 * <p>
+	 * Collected from the top of the hierarchy downward, so that a subclass field
+	 * shadows one of the same name it hides. Static fields are constants rather than
+	 * state, and synthetic fields are compiler bookkeeping, so neither is included.
+	 * An interface declares no instance fields at all.
+	 * </p>
+	 *
+	 * @param entityClass entity class or interface; must not be {@code null}
+	 * @return ordered instance fields, superclass declarations first
 	 */
-	static boolean isTransient(PropertyDescriptor property) {
-		final var readMethod = property.getReadMethod();
-		return readMethod == null //
-				|| readMethod.isAnnotationPresent(Transient.class);
+	static Iterable<Field> getAllDeclaredFields(Class<?> entityClass) {
+		final var fields = new LinkedHashMap<String, Field>();
+
+		final Deque<Class<?>> hierarchy = new ArrayDeque<>();
+		for (var current = entityClass; //
+				current != null && current != Object.class; //
+				current = current.getSuperclass())
+			hierarchy.push(current);
+
+		for (final var type : hierarchy)
+			for (final var field : type.getDeclaredFields())
+				if (!Modifier.isStatic(field.getModifiers()) //
+						&& !field.isSynthetic())
+					fields.put(field.getName(), field);
+
+		return Collections.unmodifiableCollection(fields.values());
+	}
+
+	/**
+	 * Suppresses access checks on a field so that it can be read and written
+	 * regardless of its declared visibility.
+	 *
+	 * <p>
+	 * A field-mapped column is normally private with no accessor, which is the point
+	 * of mapping it directly; reaching it requires the same suppression a JPA
+	 * provider performs, and the same {@code opens} directive from a modular
+	 * application.
+	 * </p>
+	 *
+	 * @param field field to make accessible
+	 * @return the same field
+	 */
+	static Field accessible(Field field) {
+		field.setAccessible(true);
+		return field;
+	}
+
+	/**
+	 * Finds the field that backs a bean property.
+	 *
+	 * @param entityClass  entity class or interface to search; must not be
+	 *                     {@code null}
+	 * @param propertyName property name to match
+	 * @return the backing field, or {@code null} when the property has none
+	 */
+	static Field getPropertyField(Class<?> entityClass, String propertyName) {
+		for (final var field : getAllDeclaredFields(entityClass))
+			if (field.getName().equals(propertyName))
+				return field;
+		return null;
+	}
+
+	/**
+	 * Reads an annotation from the first of several elements that carries it.
+	 *
+	 * <p>
+	 * Lets a mapping be declared on a getter or on the field behind it, resolved in
+	 * the order the caller considers authoritative. {@code null} elements are
+	 * skipped, so a caller need not know which of them exist.
+	 * </p>
+	 *
+	 * @param <A>            annotation type
+	 * @param annotationType annotation to look for
+	 * @param elements       elements to search, in precedence order; entries may be
+	 *                       {@code null}
+	 * @return the annotation from the first element carrying it, or {@code null}
+	 */
+	@SafeVarargs
+	static <A extends Annotation> A getAnnotation(Class<A> annotationType, AnnotatedElement... elements) {
+		for (final var element : elements)
+			if (element != null) {
+				final var annotation = element.getAnnotation(annotationType);
+				if (annotation != null)
+					return annotation;
+			}
+		return null;
+	}
+
+	/**
+	 * Reads a mapping annotation from a property, accepting it on either the getter
+	 * or the backing field.
+	 *
+	 * <p>
+	 * The getter is consulted first, so that a property whose field and getter are
+	 * both annotated is described by the one nearer the accessor this DAO reads
+	 * values through. Annotating the field is the more common style: it keeps the
+	 * mapping beside the state it describes and leaves plain accessors uncluttered.
+	 * </p>
+	 *
+	 * @param <A>            annotation type
+	 * @param entityClass    entity class or interface declaring the property
+	 * @param property       property to read the annotation from; must have a getter
+	 * @param annotationType annotation to look for
+	 * @return the annotation from the getter, else from the backing field, else
+	 *         {@code null}
+	 */
+	static <A extends Annotation> A getPropertyAnnotation(Class<?> entityClass, PropertyDescriptor property,
+			Class<A> annotationType) {
+		return getAnnotation(annotationType, property.getReadMethod(),
+				getPropertyField(entityClass, property.getName()));
+	}
+
+	/**
+	 * Determines if {@link Transient} is present on a property's getter or backing
+	 * field.
+	 *
+	 * @param entityClass entity class or interface declaring the property
+	 * @param property    {@link PropertyDescriptor}
+	 * @return true if the property has no read method, or {@link Transient} is
+	 *         present on its getter or backing field
+	 */
+	static boolean isTransient(Class<?> entityClass, PropertyDescriptor property) {
+		return property.getReadMethod() == null //
+				|| getPropertyAnnotation(entityClass, property, Transient.class) != null;
 	}
 
 	/**

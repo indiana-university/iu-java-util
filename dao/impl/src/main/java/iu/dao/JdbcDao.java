@@ -33,10 +33,10 @@ package iu.dao;
 
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
-import java.beans.PropertyDescriptor;
 import java.io.CharArrayReader;
 import java.io.Reader;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -229,21 +229,21 @@ public final class JdbcDao implements IuDao {
 	 * from, which every accessor that accumulates rows depends on.
 	 * </p>
 	 *
-	 * @param entityClass      entity type to materialize
-	 * @param columnProperties property each column supplies, in column order,
-	 *                         {@code null} where the column maps to nothing
-	 * @param resultSet        result set positioned at the row to materialize
-	 * @param <B>              entity type
+	 * @param entityClass   entity type to materialize
+	 * @param columnMembers member each column supplies, in column order,
+	 *                      {@code null} where the column maps to nothing
+	 * @param resultSet     result set positioned at the row to materialize
+	 * @param <B>           entity type
 	 * @return the materialized row
 	 * @throws IllegalArgumentException if {@code entityClass} is a class that cannot
 	 *                                  be instantiated
 	 * @throws SQLException             if a column cannot be read
 	 */
-	private static <B> B getEntityInstance(Class<B> entityClass, PropertyDescriptor[] columnProperties,
-			ResultSet resultSet) throws SQLException {
+	private static <B> B getEntityInstance(Class<B> entityClass, ColumnMember[] columnMembers, ResultSet resultSet)
+			throws SQLException {
 		if (entityClass.isInterface())
 			return entityClass.cast(Proxy.newProxyInstance(entityClass.getClassLoader(),
-					new Class<?>[] { entityClass }, new ResolvedRow(entityClass, resolvedValues(columnProperties, resultSet))));
+					new Class<?>[] { entityClass }, new ResolvedRow(entityClass, resolvedValues(columnMembers, resultSet))));
 
 		final B bean;
 		try {
@@ -255,33 +255,78 @@ public final class JdbcDao implements IuDao {
 			throw new IllegalArgumentException("Cannot instantiate " + entityClass.getName(), e);
 		}
 
-		for (int i = 0; i < columnProperties.length; i++) {
-			final var property = columnProperties[i];
-			if (property != null)
-				setProperty(bean, property, columnValue(resultSet, i + 1, property.getPropertyType()));
+		for (int i = 0; i < columnMembers.length; i++) {
+			final var member = columnMembers[i];
+			if (member != null)
+				member.set(bean, columnValue(resultSet, i + 1, member.type()));
 		}
 		return bean;
 	}
 
 	/**
 	 * Reads every mapped column of the current row into an immutable map keyed by
-	 * property name.
+	 * member name.
 	 *
-	 * @param columnProperties property each column writes to, in column order,
-	 *                         {@code null} where the column maps to nothing
-	 * @param resultSet        result set positioned at the row to read
-	 * @return resolved values by property name, retaining {@code null} column values
+	 * @param columnMembers member each column supplies, in column order,
+	 *                      {@code null} where the column maps to nothing
+	 * @param resultSet     result set positioned at the row to read
+	 * @return resolved values by member name, retaining {@code null} column values
 	 * @throws SQLException if a column cannot be read
 	 */
-	private static Map<String, Object> resolvedValues(PropertyDescriptor[] columnProperties, ResultSet resultSet)
+	private static Map<String, Object> resolvedValues(ColumnMember[] columnMembers, ResultSet resultSet)
 			throws SQLException {
 		final Map<String, Object> values = new LinkedHashMap<>();
-		for (int i = 0; i < columnProperties.length; i++) {
-			final var property = columnProperties[i];
-			if (property != null)
-				values.put(property.getName(), columnValue(resultSet, i + 1, property.getPropertyType()));
+		for (int i = 0; i < columnMembers.length; i++) {
+			final var member = columnMembers[i];
+			if (member != null)
+				values.put(member.name(), columnValue(resultSet, i + 1, member.type()));
 		}
 		return Collections.unmodifiableMap(values);
+	}
+
+	/**
+	 * One entity member a result-set column can be assigned to.
+	 *
+	 * <p>
+	 * A member is normally a bean property, written through its setter. A column
+	 * mapped on a field with no setter — either a field with no bean property at all,
+	 * or a read-only property — is written through the field instead.
+	 * </p>
+	 *
+	 * @param name   property or field name
+	 * @param type   declared type of the member, which the column value is read as
+	 * @param setter setter to write through, or {@code null} to write the field
+	 * @param field  field to write through when there is no setter
+	 */
+	private record ColumnMember(String name, Class<?> type, Method setter, Field field) {
+
+		/**
+		 * Assigns one column value to this member.
+		 *
+		 * <p>
+		 * A null column targeting a primitive is skipped rather than rejected, leaving
+		 * the member at its default: SQL nullability and Java primitiveness are
+		 * independent, and a nullable column mapped to {@code int} is common enough that
+		 * failing would be unhelpful.
+		 * </p>
+		 *
+		 * @param entity entity being populated
+		 * @param value  value to assign; may be {@code null}
+		 * @throws IllegalArgumentException if the member is inaccessible or the write
+		 *                                  throws
+		 */
+		private void set(Object entity, Object value) {
+			if (value == null && type.isPrimitive())
+				return;
+			try {
+				if (setter == null)
+					field.set(entity, value);
+				else
+					setter.invoke(entity, value);
+			} catch (IllegalAccessException | InvocationTargetException e) {
+				throw new IllegalArgumentException("Unable to set " + name + " on " + entity.getClass().getName(), e);
+			}
+		}
 	}
 
 	@Override
@@ -844,7 +889,7 @@ public final class JdbcDao implements IuDao {
 	 */
 	private final class BeanRowMapper<B> implements Function<ResultSet, B> {
 		private final Class<B> beanClass;
-		private PropertyDescriptor[] columnProperties;
+		private ColumnMember[] columnMembers;
 
 		/**
 		 * Creates a mapper for one bean type.
@@ -858,57 +903,82 @@ public final class JdbcDao implements IuDao {
 		@Override
 		public B apply(ResultSet resultSet) {
 			try {
-				if (columnProperties == null)
-					columnProperties = resolveColumnProperties(resultSet.getMetaData());
-				return getEntityInstance(beanClass, columnProperties, resultSet);
+				if (columnMembers == null)
+					columnMembers = resolveColumnMembers(resultSet.getMetaData());
+				return getEntityInstance(beanClass, columnMembers, resultSet);
 			} catch (SQLException | IntrospectionException e) {
 				throw new IllegalStateException("Unable to map SQL result to " + beanClass.getName(), e);
 			}
 		}
 
 		/**
-		 * Determines which property, if any, each result-set column supplies.
+		 * Determines which entity member, if any, each result-set column supplies.
 		 *
 		 * <p>
 		 * A column label is first resolved through the entity's
 		 * {@link jakarta.persistence.Column @Column} mappings, which is the only way to
-		 * reach a property whose name does not resemble its column name. Labels that
+		 * reach a member whose name does not resemble its column name. Labels that
 		 * resolve to no mapping — every label of an unmapped type, and the
-		 * property-derived aliases generated for {@link edu.iu.dao.SqlColumn @SqlColumn}
-		 * expressions — fall back to matching the property name ignoring case and
+		 * name-derived aliases generated for {@link edu.iu.dao.SqlColumn @SqlColumn}
+		 * expressions — fall back to matching the member name ignoring case and
 		 * underscores.
 		 * </p>
 		 *
 		 * <p>
-		 * A class's candidate properties are the ones it can be populated through, so
-		 * they must be writable. An interface's are the ones it exposes, so they need
-		 * only be readable.
+		 * A class is populated through its setters, and through its declared fields for
+		 * whatever has no setter — a column mapped on a field alone, or on a read-only
+		 * property. An interface is not populated at all, only read from, so its members
+		 * are its readable properties and it has no fields to consider.
 		 * </p>
 		 *
 		 * @param metadata metadata of the executing query
 		 * @return one entry per column, in column order, {@code null} where the column
-		 *         maps to no usable property
+		 *         maps to no usable member
 		 * @throws SQLException           if the metadata cannot be read
 		 * @throws IntrospectionException if the bean type cannot be introspected
 		 */
-		private PropertyDescriptor[] resolveColumnProperties(ResultSetMetaData metadata)
+		private ColumnMember[] resolveColumnMembers(ResultSetMetaData metadata)
 				throws SQLException, IntrospectionException {
 			final var readOnly = beanClass.isInterface();
-			final Map<String, PropertyDescriptor> byName = new HashMap<>();
-			final Map<String, PropertyDescriptor> byNormalizedName = new HashMap<>();
-			for (final var property : Introspector.getBeanInfo(beanClass).getPropertyDescriptors())
-				if (readOnly ? property.getReadMethod() != null : property.getWriteMethod() != null) {
-					byName.put(property.getName(), property);
-					byNormalizedName.put(normalize(property.getName()), property);
-				}
+			final Map<String, ColumnMember> byName = new HashMap<>();
+			final Map<String, ColumnMember> byNormalizedName = new HashMap<>();
 
-			final var resolved = new PropertyDescriptor[metadata.getColumnCount()];
+			for (final var property : Introspector.getBeanInfo(beanClass).getPropertyDescriptors())
+				if (readOnly ? property.getReadMethod() != null : property.getWriteMethod() != null)
+					register(byName, byNormalizedName, new ColumnMember(property.getName(),
+							property.getPropertyType(), property.getWriteMethod(), null));
+
+			if (!readOnly)
+				for (final var field : DaoUtils.getAllDeclaredFields(beanClass))
+					if (!byName.containsKey(field.getName()))
+						register(byName, byNormalizedName, new ColumnMember(field.getName(), field.getType(), null,
+								DaoUtils.accessible(field)));
+
+			final var resolved = new ColumnMember[metadata.getColumnCount()];
 			for (int i = 0; i < resolved.length; i++) {
 				final var label = metadata.getColumnLabel(i + 1);
 				final var mapped = sqlBuilder.getPropertyNameFromBean(beanClass, label);
 				resolved[i] = mapped == null ? byNormalizedName.get(normalize(label)) : byName.get(mapped);
 			}
 			return resolved;
+		}
+
+		/**
+		 * Indexes one member by its name and by its normalized name.
+		 *
+		 * <p>
+		 * Only the first member to claim a normalized name keeps it, so that a field
+		 * cannot displace the property a label already resolves to.
+		 * </p>
+		 *
+		 * @param byName           index by exact name
+		 * @param byNormalizedName index by normalized name
+		 * @param member           member to index
+		 */
+		private void register(Map<String, ColumnMember> byName, Map<String, ColumnMember> byNormalizedName,
+				ColumnMember member) {
+			byName.put(member.name(), member);
+			byNormalizedName.putIfAbsent(normalize(member.name()), member);
 		}
 	}
 
@@ -1124,32 +1194,6 @@ public final class JdbcDao implements IuDao {
 		if (type == Double.class || type == double.class)
 			return value.doubleValue();
 		return value;
-	}
-
-	/**
-	 * Assigns one column value to a bean property.
-	 *
-	 * <p>
-	 * A null column targeting a primitive property is skipped rather than rejected,
-	 * leaving the property at its default: SQL nullability and Java primitiveness
-	 * are independent, and a nullable column mapped to {@code int} is common enough
-	 * that failing would be unhelpful.
-	 * </p>
-	 *
-	 * @param bean     bean being populated
-	 * @param property property to assign
-	 * @param value    value to assign; may be {@code null}
-	 * @throws IllegalArgumentException if the setter is inaccessible or throws
-	 */
-	private static void setProperty(Object bean, PropertyDescriptor property, Object value) {
-		if (value == null && property.getPropertyType().isPrimitive())
-			return;
-		try {
-			property.getWriteMethod().invoke(bean, value);
-		} catch (IllegalAccessException | InvocationTargetException e) {
-			throw new IllegalArgumentException(
-					"Unable to set " + property.getName() + " on " + bean.getClass().getName(), e);
-		}
 	}
 
 	/**

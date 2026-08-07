@@ -50,6 +50,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IuIterable;
 import jakarta.persistence.Column;
+import jakarta.persistence.Transient;
 
 @SuppressWarnings("javadoc")
 public class DaoUtilsTest {
@@ -508,7 +509,7 @@ public class DaoUtilsTest {
 	private static Class<?> resolveSqlType(String propertyName) {
 		final var property = DaoUtils.findProperty(SqlTypeBean.class, propertyName);
 		final var column = property.getReadMethod().getAnnotation(Column.class);
-		return DaoUtils.resolveSqlType(property, column);
+		return DaoUtils.resolveSqlType(property.getPropertyType(), column);
 	}
 
 	@Test
@@ -590,7 +591,74 @@ public class DaoUtilsTest {
 	@Test
 	public void testIsTransient_nonTransientProperty() {
 		final var prop = DaoUtils.findProperty(SqlTypeBean.class, "noValueProp");
-		assertFalse(DaoUtils.isTransient(prop));
+		assertFalse(DaoUtils.isTransient(SqlTypeBean.class, prop));
+	}
+
+	// -----------------------------------------------------------------------
+	// getPropertyField / getPropertyAnnotation
+	// -----------------------------------------------------------------------
+
+	/** Superclass holding a field the subclass inherits. */
+	public static class InheritedFieldBean {
+		@Transient
+		private String inherited;
+
+		public String getInherited() {
+			return inherited;
+		}
+	}
+
+	/** Annotations on fields, on a getter, and on neither. */
+	public static class FieldAnnotatedBean extends InheritedFieldBean {
+		@Column(name = "ON_FIELD")
+		private String onField;
+		@Column(name = "ON_FIELD_TOO")
+		private String onBoth;
+		private String onNeither;
+
+		public String getOnField() {
+			return onField;
+		}
+
+		@Column(name = "ON_GETTER")
+		public String getOnBoth() {
+			return onBoth;
+		}
+
+		public String getOnNeither() {
+			return onNeither;
+		}
+
+		public String getComputed() {
+			return "computed";
+		}
+	}
+
+	@Test
+	public void testGetPropertyField_searchesTheClassHierarchy() {
+		assertEquals("onField", DaoUtils.getPropertyField(FieldAnnotatedBean.class, "onField").getName());
+		assertEquals(InheritedFieldBean.class,
+				DaoUtils.getPropertyField(FieldAnnotatedBean.class, "inherited").getDeclaringClass());
+		assertEquals(null, DaoUtils.getPropertyField(FieldAnnotatedBean.class, "computed"));
+	}
+
+	@Test
+	public void testGetPropertyAnnotation_prefersTheGetterThenTheField() {
+		assertEquals("ON_FIELD", propertyColumn("onField").name());
+		assertEquals("ON_GETTER", propertyColumn("onBoth").name());
+		assertEquals(null, propertyColumn("onNeither"));
+		assertEquals(null, propertyColumn("computed"));
+	}
+
+	@Test
+	public void testIsTransient_readsTheAnnotationFromAnInheritedField() {
+		assertTrue(DaoUtils.isTransient(FieldAnnotatedBean.class,
+				DaoUtils.findProperty(FieldAnnotatedBean.class, "inherited")));
+	}
+
+	private static Column propertyColumn(String propertyName) {
+		return DaoUtils.getPropertyAnnotation(FieldAnnotatedBean.class,
+				DaoUtils.findProperty(FieldAnnotatedBean.class, propertyName), Column.class);
 	}
 
 	// -----------------------------------------------------------------------
