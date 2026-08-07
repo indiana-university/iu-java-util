@@ -261,6 +261,14 @@ public class EntityMetaDataTest {
 	}
 
 	/**
+	 * Like {@link EffectiveDatedEntity} but with {@code currentOnly = false}, so its
+	 * criteria select the outright latest row instead of the one effective today.
+	 */
+	@EffectiveDated(effectiveDatedColumns = "EFF_DATE", currentOnly = false)
+	public static class NotCurrentOnlyEffectiveDatedEntity extends EffectiveDatedEntity {
+	}
+
+	/**
 	 * Compound-key entity where {@code EFF_DATE} is itself an {@code @Id} column,
 	 * so {@link EntityMetaData#effectiveDateKeyColumns} must exclude it from the
 	 * key set when it is passed as the effective-date column.
@@ -290,6 +298,107 @@ public class EntityMetaDataTest {
 
 		public void setEffDate(java.sql.Date effDate) {
 			this.effDate = effDate;
+		}
+	}
+
+	/**
+	 * Effective-dated entity with a column to change, an unmapped column to carry
+	 * forward, and an effective-dated column named in lower case so that dedupe
+	 * against the mapped {@code EFFDT} column must ignore case.
+	 */
+	@Entity
+	@Table(name = "salary", schema = "pub")
+	@EffectiveDated(unmappedColumns = "AUDIT_STAMP", effectiveDatedColumns = "effdt")
+	public static class EffectiveDatedSalary {
+		private long id;
+		private String label;
+		private java.sql.Date effdt;
+
+		@Id
+		@Column(name = "ID")
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
+		}
+
+		@Column(name = "LABEL")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+
+		@Column(name = "EFFDT")
+		public java.sql.Date getEffdt() {
+			return effdt;
+		}
+
+		public void setEffdt(java.sql.Date effdt) {
+			this.effdt = effdt;
+		}
+	}
+
+	/** Two effective-dated columns, so their subqueries chain. */
+	@Entity
+	@Table(name = "salary", schema = "pub")
+	@EffectiveDated(effectiveDatedColumns = { "EFFDT", "EFFSEQ" }, initialValues = { "CURRENT_DATE", "0" })
+	public static class TwoColumnEffectiveDated extends EffectiveDatedSalary {
+	}
+
+	/** Declares more effective-dated columns than initial values. */
+	@Entity
+	@Table(name = "salary", schema = "pub")
+	@EffectiveDated(effectiveDatedColumns = { "EFFDT", "EFFSEQ" }, initialValues = "CURRENT_DATE")
+	public static class MissingInitialValueEffectiveDated extends EffectiveDatedSalary {
+	}
+
+	/** Effective-dated entity whose only @Id column is the effective-dated one. */
+	@Entity
+	@Table(name = "rates", schema = "pub")
+	@EffectiveDated(effectiveDatedColumns = "EFFDT")
+	public static class EffectiveDateKeyedOnly {
+		private java.sql.Date effdt;
+		private String label;
+
+		@Id
+		@Column(name = "EFFDT")
+		public java.sql.Date getEffdt() {
+			return effdt;
+		}
+
+		public void setEffdt(java.sql.Date effdt) {
+			this.effdt = effdt;
+		}
+
+		@Column(name = "LABEL")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+	}
+
+	/** Effective-dated entity with no @Id column at all. */
+	@Entity
+	@Table(name = "rates", schema = "pub")
+	@EffectiveDated(effectiveDatedColumns = "EFFDT")
+	public static class NoIdEffectiveDated {
+		private String label;
+
+		@Column(name = "LABEL")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
 		}
 	}
 
@@ -1063,6 +1172,96 @@ public class EntityMetaDataTest {
 	}
 
 	@Test
+	public void testGetUpdateStatement_effectiveDatedSupersedesRatherThanUpdates() {
+		final var meta = EntityMetaData.of(EffectiveDatedSalary.class);
+		final var sql = meta.getUpdateStatement(List.of("label"));
+
+		// The changed column is bound and the unchanged ones are copied from the row
+		// being superseded, but the effective date takes its initial value: carrying
+		// the old one forward would just duplicate that row. The annotation spells the
+		// column "effdt" and the mapping "EFFDT", so it must appear once, as mapped.
+		assertEquals("""
+				INSERT INTO pub.salary (LABEL, ID, AUDIT_STAMP, EFFDT)
+				SELECT
+				    ?, -- LABEL
+				    a.ID, -- ID
+				    a.AUDIT_STAMP, -- AUDIT_STAMP
+				    CURRENT_DATE -- EFFDT
+				FROM pub.salary a
+				WHERE a.ID = ?
+				  AND a.effdt = (SELECT MAX(a_ed.effdt)
+				        FROM pub.salary a_ed
+				       WHERE a_ed.ID = a.ID)""", sql);
+	}
+
+	@Test
+	public void testGetUpdateStatement_effectiveDatedColumnAmongChangesKeepsItsBoundValue() {
+		// Changing the effective date explicitly means the caller is dating the new
+		// row, so the initial value expression is not applied.
+		final var sql = EntityMetaData.of(EffectiveDatedSalary.class).getUpdateStatement(List.of("effdt", "label"));
+		assertTrue(sql.startsWith("INSERT INTO pub.salary (EFFDT, LABEL, ID, AUDIT_STAMP)"), sql);
+		assertTrue(sql.contains("    ?, -- EFFDT"), sql);
+		assertFalse(sql.contains("CURRENT_DATE"), sql);
+	}
+
+	@Test
+	public void testGetUpdateStatement_effectiveDatedChainsSubqueriesAcrossColumns() {
+		final var sql = EntityMetaData.of(TwoColumnEffectiveDated.class).getUpdateStatement(List.of("label"));
+
+		// Both dated columns take their initial values, positionally paired; EFFSEQ has
+		// no mapping, so it keeps the name the annotation gives it. The second subquery
+		// is additionally correlated on the first dated column, so the two together
+		// narrow to a single source row.
+		assertEquals("""
+				INSERT INTO pub.salary (LABEL, ID, EFFDT, EFFSEQ)
+				SELECT
+				    ?, -- LABEL
+				    a.ID, -- ID
+				    CURRENT_DATE, -- EFFDT
+				    0 -- EFFSEQ
+				FROM pub.salary a
+				WHERE a.ID = ?
+				  AND a.EFFDT = (SELECT MAX(a_ed.EFFDT)
+				        FROM pub.salary a_ed
+				       WHERE a_ed.ID = a.ID)
+				  AND a.EFFSEQ = (SELECT MAX(a_ed.EFFSEQ)
+				        FROM pub.salary a_ed
+				       WHERE a_ed.ID = a.ID
+				         AND a_ed.EFFDT = a.EFFDT)""", sql);
+	}
+
+	@Test
+	public void testGetUpdateStatement_effectiveDatedRequiresAnInitialValuePerColumn() {
+		final var meta = EntityMetaData.of(MissingInitialValueEffectiveDated.class);
+		final var error = assertThrows(IllegalArgumentException.class, () -> meta.getUpdateStatement(List.of("label")));
+		assertEquals("No @EffectiveDated initialValues entry for column EFFSEQ on "
+				+ MissingInitialValueEffectiveDated.class, error.getMessage());
+	}
+
+	@Test
+	public void testGetUpdateStatement_effectiveDatedWithNoCorrelatingKeyIsUnqualified() {
+		// The only @Id column is the effective-dated one, leaving the subquery with
+		// nothing to correlate on and therefore no WHERE clause of its own.
+		final var sql = EntityMetaData.of(EffectiveDateKeyedOnly.class).getUpdateStatement(List.of("label"));
+		assertEquals("""
+				INSERT INTO pub.rates (LABEL, EFFDT)
+				SELECT
+				    ?, -- LABEL
+				    CURRENT_DATE -- EFFDT
+				FROM pub.rates a
+				WHERE a.EFFDT = ?
+				  AND a.EFFDT = (SELECT MAX(a_ed.EFFDT)
+				        FROM pub.rates a_ed)""", sql);
+	}
+
+	@Test
+	public void testGetUpdateStatement_effectiveDatedThrowsWithoutIdProperty() {
+		final var meta = EntityMetaData.of(NoIdEffectiveDated.class);
+		final var error = assertThrows(IllegalArgumentException.class, () -> meta.getUpdateStatement(List.of("label")));
+		assertEquals("No @Id criteria defined for " + NoIdEffectiveDated.class, error.getMessage());
+	}
+
+	@Test
 	public void testGetUpdateStatement_repeatCallReturnsSameStringInstance() {
 		final var meta = EntityMetaData.of(TableNamedEntity.class);
 		final var props = List.of("label");
@@ -1337,10 +1536,43 @@ public class EntityMetaDataTest {
 	}
 
 	@Test
-	public void testResolveEffectiveDatedCriteria_emptyWhenCurrentOnlyFalse() {
-		// EffectiveDatedEntity uses default currentOnly() which is false
-		assertFalse(
-				EntityMetaData.of(EffectiveDatedEntity.class).resolveEffectiveDatedCriteria().iterator().hasNext());
+	public void testResolveEffectiveDatedCriteria_currentOnlyBoundsToAsOfDate() {
+		// An effective-dated entity always resolves to one row per key; currentOnly
+		// decides only which row that is.
+		final var criteria = EntityMetaData.of(EffectiveDatedEntity.class).resolveEffectiveDatedCriteria().iterator();
+		assertEquals("""
+				a.EFF_DATE = (SELECT MAX(a_ed.EFF_DATE)
+				        FROM pub.prices a_ed
+				       WHERE a_ed.ID = a.ID
+				         AND a_ed.EFF_DATE <= CURRENT_DATE)""", criteria.next());
+		assertFalse(criteria.hasNext());
+	}
+
+	@Test
+	public void testResolveEffectiveDatedCriteria_withoutCurrentOnlySelectsLatestRow() {
+		final var criteria = EntityMetaData.of(NotCurrentOnlyEffectiveDatedEntity.class).resolveEffectiveDatedCriteria()
+				.iterator();
+		assertEquals("""
+				a.EFF_DATE = (SELECT MAX(a_ed.EFF_DATE)
+				        FROM pub.prices a_ed
+				       WHERE a_ed.ID = a.ID)""", criteria.next());
+		assertFalse(criteria.hasNext());
+	}
+
+	@Test
+	public void testResolveEffectiveDatedCriteria_chainsSubqueriesAcrossColumns() {
+		// The second column's subquery is correlated on the first, so the pair narrows
+		// to one row rather than to one row per column independently.
+		final var criteria = EntityMetaData.of(TwoColumnEffectiveDated.class).resolveEffectiveDatedCriteria()
+				.iterator();
+		criteria.next();
+		assertEquals("""
+				a.EFFSEQ = (SELECT MAX(a_ed.EFFSEQ)
+				        FROM pub.salary a_ed
+				       WHERE a_ed.ID = a.ID
+				         AND a_ed.EFFDT = a.EFFDT
+				         AND a_ed.EFFSEQ <= CURRENT_DATE)""", criteria.next());
+		assertFalse(criteria.hasNext());
 	}
 
 	// =======================================================================

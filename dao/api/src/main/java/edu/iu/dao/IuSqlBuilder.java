@@ -173,11 +173,20 @@ public interface IuSqlBuilder {
 	Iterable<?> getUpdateArguments(Object entity, Iterable<String> properties);
 
 	/**
-	 * Builds an update statement for the supplied properties.
+	 * Builds the statement that applies a change to the supplied properties.
+	 *
+	 * <p>
+	 * An ordinary entity yields an {@code UPDATE}. An {@link EffectiveDated} entity
+	 * yields an {@code INSERT INTO … SELECT} that supersedes its current row with a
+	 * new one instead, since its rows are history and are never modified in place.
+	 * Both forms take the same arguments from
+	 * {@link #getUpdateArguments(Object, Iterable)}.
+	 * </p>
 	 *
 	 * @param entityClass entity class
 	 * @param properties  properties being updated
-	 * @return update statement
+	 * @return update statement, or superseding insert statement for an
+	 *         {@link EffectiveDated} entity
 	 */
 	String getUpdateStatement(Class<?> entityClass, Iterable<String> properties);
 

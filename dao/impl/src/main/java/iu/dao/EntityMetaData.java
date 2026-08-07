@@ -2,6 +2,7 @@ package iu.dao;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -12,7 +13,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.WeakHashMap;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuIterable;
@@ -60,12 +60,12 @@ import jakarta.persistence.Table;
 class EntityMetaData {
 
 	private static final ClassValue<EntityMetaData> CACHE = new ClassValue<>() {
-	    @Override
-	    protected EntityMetaData computeValue(Class<?> type) {
-	        return new EntityMetaData(type);
-	    }
+		@Override
+		protected EntityMetaData computeValue(Class<?> type) {
+			return new EntityMetaData(type);
+		}
 	};
-	
+
 	private static final Set<String> ALLOWED_COMPARATORS = Set.of("=", "<>", "!=", "<", ">", "<=", ">=", "LIKE",
 			"NOT LIKE", "IS", "IS NOT");
 
@@ -79,7 +79,7 @@ class EntityMetaData {
 	 */
 	static EntityMetaData of(Class<?> entityClass) {
 		Objects.requireNonNull(entityClass, "entityClass");
-	    return CACHE.get(entityClass);
+		return CACHE.get(entityClass);
 	}
 
 	/**
@@ -431,10 +431,18 @@ class EntityMetaData {
 	 *          AND sub_ed.effectiveColumn &lt;= / &gt; asOfDate)
 	 * </pre>
 	 *
+	 * <p>
+	 * A {@code null} {@code asOfDate} leaves the subquery unbounded, selecting the
+	 * outright latest (or earliest) row rather than the one effective on a given
+	 * date. The {@code WHERE} keyword is emitted only when the subquery has at
+	 * least one condition to carry.
+	 * </p>
+	 *
 	 * @param outerAlias      alias of the outer query table
 	 * @param effectiveColumn column that holds the effective date
 	 * @param asOfDate        SQL expression for the as-of date (e.g.
-	 *                        {@code "CURRENT_DATE"})
+	 *                        {@code "CURRENT_DATE"}), or {@code null} to leave the
+	 *                        subquery unbounded
 	 * @param future          {@code true} to select the minimum future date;
 	 *                        {@code false} for the maximum past date
 	 * @param idColumnNames   column names used to correlate the subquery
@@ -455,12 +463,21 @@ class EntityMetaData {
 		final var sb = new StringBuilder();
 		sb.append(outerAlias).append('.').append(effectiveColumn).append(" = (SELECT ").append(aggregate).append('(')
 				.append(subAlias).append('.').append(effectiveColumn).append(")\n        FROM ")
-				.append(primaryTable.fullName).append(' ').append(subAlias).append("\n       WHERE ");
+				.append(primaryTable.fullName).append(' ').append(subAlias);
 
-		if (DaoUtils.appendCorrelation(sb, outerAlias, subAlias, idColumnNames))
-			sb.append("\n         AND ");
+		final var beforeConditions = sb.length();
+		final var correlated = DaoUtils.appendCorrelation(sb, outerAlias, subAlias, idColumnNames);
 
-		sb.append(subAlias).append('.').append(effectiveColumn).append(comparator).append(asOfDate).append(')');
+		if (asOfDate != null) {
+			if (correlated)
+				sb.append("\n         AND ");
+			sb.append(subAlias).append('.').append(effectiveColumn).append(comparator).append(asOfDate);
+		}
+
+		if (correlated || asOfDate != null)
+			sb.insert(beforeConditions, "\n       WHERE ");
+
+		sb.append(')');
 		return sb.toString();
 	}
 
@@ -738,24 +755,35 @@ class EntityMetaData {
 	}
 
 	/**
-	 * Returns an {@code UPDATE … SET … WHERE} statement for the given primary-table
+	 * Returns the statement that applies a change to the given primary-table
 	 * properties.
 	 *
 	 * <p>
-	 * Results are cached by fingerprint of {@code properties}. Throws
-	 * {@link edu.iu.dao.IuSqlUnchangedException} when {@code properties} is empty.
+	 * An ordinary entity yields an {@code UPDATE … SET … WHERE} statement. An
+	 * {@link EffectiveDated} entity is never modified in place — its rows are
+	 * history — so it yields an {@code INSERT INTO … SELECT … FROM … WHERE}
+	 * statement that supersedes the current row instead; see
+	 * {@link #buildEffectiveDatedUpdateStatement(Iterable)}. Both forms bind the
+	 * changed values first and the {@code @Id} values last, so
+	 * {@link IuSqlBuilderImpl#getUpdateArguments(Object, Iterable)} supplies
+	 * arguments for either without knowing which was generated.
 	 * </p>
 	 *
-	 * @param properties property names to include in the {@code SET} clause; must
-	 *                   not be empty
-	 * @return SQL {@code UPDATE} statement
+	 * <p>
+	 * Results are cached by fingerprint of {@code properties}.
+	 * </p>
+	 *
+	 * @param properties property names being changed; must not be empty
+	 * @return SQL {@code UPDATE} statement, or {@code INSERT INTO … SELECT}
+	 *         statement for an {@link EffectiveDated} entity
 	 * @throws edu.iu.dao.IuSqlUnchangedException if {@code properties} is empty
 	 * @throws IllegalArgumentException           if any property is unknown or maps
-	 *                                            to a secondary table
+	 *                                            to a secondary table, or if the
+	 *                                            entity declares no {@code @Id}
+	 *                                            columns
 	 */
 	String getUpdateStatement(Iterable<String> properties) {
-		final var i = properties.iterator();
-		if (!i.hasNext())
+		if (!properties.iterator().hasNext())
 			throw new IuSqlUnchangedException();
 
 		final var fingerprint = DaoUtils.getFingerprint(properties);
@@ -763,9 +791,28 @@ class EntityMetaData {
 		if (cached != null)
 			return cached;
 
+		final var sql = effectiveDated == null //
+				? buildUpdateStatement(properties)
+				: buildEffectiveDatedUpdateStatement(properties);
+
+		updateStatementCache.put(fingerprint, sql);
+		return sql;
+	}
+
+	/**
+	 * Builds the {@code UPDATE … SET … WHERE} statement that modifies the current
+	 * row in place.
+	 *
+	 * @param properties property names to include in the {@code SET} clause
+	 * @return SQL {@code UPDATE} statement
+	 * @throws IllegalArgumentException if any property is unknown or maps to a
+	 *                                  secondary table, or if the entity declares
+	 *                                  no {@code @Id} columns
+	 */
+	private String buildUpdateStatement(Iterable<String> properties) {
 		final var sb = new StringBuilder("UPDATE ").append(primaryTable.fullName).append("\nSET");
-		while (i.hasNext()) {
-			final var column = requirePrimaryColumn(i.next());
+		for (final var property : properties) {
+			final var column = requirePrimaryColumn(property);
 			sb.append("\n    ").append(column.columnName).append(" = ?,");
 		}
 		sb.setLength(sb.length() - 1); // trim last comma
@@ -773,12 +820,144 @@ class EntityMetaData {
 		final var where = DaoUtils.buildWhere(DaoUtils.idCriteria(idColumns, "?"));
 		if (where.isEmpty())
 			throw new IllegalArgumentException("No @Id criteria defined for " + entityClass);
-		else
-			sb.append(where);
 
-		final var sql = sb.toString();
-		updateStatementCache.put(fingerprint, sql);
-		return sql;
+		return sb.append(where).toString();
+	}
+
+	/**
+	 * Builds the {@code INSERT INTO … SELECT … FROM … WHERE} statement that
+	 * supersedes an {@link EffectiveDated} entity's current row with a new one.
+	 *
+	 * <p>
+	 * The inserted row takes its changed values from bind parameters and every
+	 * other value from the row being superseded, so the new row is complete without
+	 * the caller having to supply columns it did not change. Each effective-dated
+	 * column not among the changed properties takes the matching
+	 * {@link EffectiveDated#initialValues() initial value} expression, which is
+	 * what dates the new row.
+	 * </p>
+	 *
+	 * <p>
+	 * The generated SQL has the form:
+	 * </p>
+	 *
+	 * <pre>
+	 * INSERT INTO schema.table (CHANGED, CARRIED, EFFDT)
+	 * SELECT
+	 *     ?, -- CHANGED
+	 *     a.CARRIED, -- CARRIED
+	 *     CURRENT_DATE -- EFFDT
+	 * FROM schema.table a
+	 * WHERE a.ID = ?
+	 *   AND a.EFFDT = (SELECT MAX(a_ed.EFFDT)
+	 *         FROM schema.table a_ed
+	 *        WHERE a_ed.ID = a.ID)
+	 * </pre>
+	 *
+	 * <p>
+	 * The effective-date subquery is deliberately unbounded, so the row copied from
+	 * is the outright latest rather than the one effective today. Where more than
+	 * one effective-dated column is declared, each subquery is additionally
+	 * correlated on the columns preceding it, narrowing to a single source row.
+	 * {@link EffectiveDated#unmappedColumns() Unmapped columns} are carried forward
+	 * here rather than correlated on, since in this statement they name values the
+	 * new row must keep rather than the key it is selected by.
+	 * </p>
+	 *
+	 * @param properties property names carrying changed values
+	 * @return SQL {@code INSERT INTO … SELECT} statement
+	 * @throws IllegalArgumentException if any property is unknown or maps to a
+	 *                                  secondary table, if the entity declares no
+	 *                                  {@code @Id} columns, or if an
+	 *                                  effective-dated column has no corresponding
+	 *                                  initial value
+	 */
+	private String buildEffectiveDatedUpdateStatement(Iterable<String> properties) {
+		final var datedColumns = effectiveDated.effectiveDatedColumns();
+		final var initialValues = effectiveDated.initialValues();
+
+		// All keyed by normalized column name, so that a column the annotation spells
+		// differently from its mapping cannot be emitted twice.
+		final Map<String, String> primaryColumnNames = new LinkedHashMap<>();
+		for (final var column : primaryColumns)
+			primaryColumnNames.put(DaoUtils.normalizeName(column.columnName), column.columnName);
+
+		final var columns = new LinkedHashMap<String, InsertColumn>();
+		for (final var property : properties) {
+			final var column = requirePrimaryColumn(property);
+			columns.put(DaoUtils.normalizeName(column.columnName), new InsertColumn(column.columnName, "?"));
+		}
+
+		// An effective-dated column the caller did not change is what dates the new
+		// row, so it takes its initial value. Carrying the old value forward instead
+		// would insert a duplicate of the row being superseded.
+		final var dated = new LinkedHashMap<String, InsertColumn>();
+		for (int i = 0; i < datedColumns.length; i++) {
+			final var normalized = DaoUtils.normalizeName(datedColumns[i]);
+			if (columns.containsKey(normalized))
+				continue; // the caller is dating the new row itself
+			if (i >= initialValues.length)
+				throw new IllegalArgumentException(
+						"No @EffectiveDated initialValues entry for column " + datedColumns[i] + " on " + entityClass);
+			dated.put(normalized,
+					new InsertColumn(primaryColumnNames.getOrDefault(normalized, datedColumns[i]), initialValues[i]));
+		}
+
+		// Everything the caller did not change and that does not date the row is
+		// copied from the row being superseded, so the new row is complete.
+		for (final var column : primaryColumns) {
+			final var normalized = DaoUtils.normalizeName(column.columnName);
+			if (!dated.containsKey(normalized))
+				columns.putIfAbsent(normalized, new InsertColumn(column.columnName, column.reference()));
+		}
+		for (final var unmappedColumn : effectiveDated.unmappedColumns())
+			columns.putIfAbsent(DaoUtils.normalizeName(unmappedColumn),
+					new InsertColumn(unmappedColumn, primaryTable.alias + '.' + unmappedColumn));
+		columns.putAll(dated);
+
+		final var criteria = new ArrayList<String>();
+		DaoUtils.idCriteria(primaryTable.alias, idColumns, "?").forEach(criteria::add);
+		if (criteria.isEmpty())
+			throw new IllegalArgumentException("No @Id criteria defined for " + entityClass);
+		// Unbounded, so the row superseded is the outright latest, and with no unmapped
+		// key columns, since here those name values to carry forward rather than keys.
+		criteria.addAll(effectiveDatedCriteria(null, new String[0]));
+
+		final var sb = new StringBuilder("INSERT INTO ").append(primaryTable.fullName).append(" (");
+		var first = true;
+		for (final var column : columns.values()) {
+			if (first)
+				first = false;
+			else
+				sb.append(", ");
+			sb.append(column.columnName());
+		}
+
+		// Each value is labelled with the column it fills, because the bind
+		// placeholders are otherwise indistinguishable in a generated statement.
+		sb.append(")\nSELECT");
+		final var i = columns.values().iterator();
+		while (i.hasNext()) {
+			final var column = i.next();
+			sb.append("\n    ").append(column.expression());
+			if (i.hasNext())
+				sb.append(',');
+			sb.append(" -- ").append(column.columnName());
+		}
+
+		sb.append("\nFROM ").append(primaryTable.fullName).append(' ').append(primaryTable.alias);
+		return sb.append(DaoUtils.buildWhere(criteria)).toString();
+	}
+
+	/**
+	 * One column of a generated {@code INSERT INTO … SELECT} statement.
+	 *
+	 * @param columnName column being inserted into
+	 * @param expression SQL that supplies its value, either a bind placeholder, a
+	 *                   reference to the row being superseded, or a literal
+	 *                   expression
+	 */
+	private record InsertColumn(String columnName, String expression) {
 	}
 
 	/**
@@ -907,23 +1086,52 @@ class EntityMetaData {
 	 * annotation.
 	 *
 	 * <p>
-	 * Returns {@link IuIterable#empty()} when no {@link EffectiveDated} annotation
-	 * is present or when {@link EffectiveDated#currentOnly()} is {@code false}.
-	 * Otherwise produces one predicate per
-	 * {@link EffectiveDated#effectiveDatedColumns()} entry.
+	 * An effective-dated entity always resolves to one row per key, so a predicate is
+	 * produced for every {@link EffectiveDated#effectiveDatedColumns()} entry whenever
+	 * the annotation is present. {@link EffectiveDated#currentOnly()} decides which
+	 * row that is: bounded to {@link EffectiveDated#asOfDate()} when {@code true}, or
+	 * the outright latest row when {@code false}. Returns
+	 * {@link IuIterable#empty()} only when the annotation is absent.
 	 * </p>
 	 *
-	 * @return lazy iterable of SQL effective-date predicates
+	 * @return SQL effective-date predicates, one per declared column
 	 */
 	Iterable<String> resolveEffectiveDatedCriteria() {
-		if (effectiveDated == null //
-				|| !effectiveDated.currentOnly())
+		if (effectiveDated == null)
 			return IuIterable.empty();
 
-		return IuIterable.map(IuIterable.iter(effectiveDated.effectiveDatedColumns()),
-				effectiveColumn -> buildEffectiveDateCriteria(primaryTable.alias, effectiveColumn,
-						effectiveDated.asOfDate(), false, effectiveDateKeyColumns(effectiveColumn,
-								effectiveDated.additionalKeyColumns(), effectiveDated.unmappedColumns())));
+		// currentOnly bounds the subquery to the row effective on the as-of date;
+		// otherwise it is unbounded and selects the outright latest row.
+		return effectiveDatedCriteria(effectiveDated.currentOnly() ? effectiveDated.asOfDate() : null,
+				effectiveDated.unmappedColumns());
+	}
+
+	/**
+	 * Builds one correlated effective-date predicate per column declared by
+	 * {@link EffectiveDated#effectiveDatedColumns()}.
+	 *
+	 * <p>
+	 * Each predicate after the first is additionally correlated on the columns
+	 * preceding it, so that a multi-column declaration such as
+	 * {@code {"EFFDT", "EFFSEQ"}} narrows to one row — the highest sequence within
+	 * the latest date — rather than to one row per column independently.
+	 * </p>
+	 *
+	 * @param asOfDate           SQL expression bounding each subquery, or
+	 *                           {@code null} to leave it unbounded
+	 * @param unmappedKeyColumns unmapped column names to correlate on
+	 * @return one predicate per effective-dated column, in declaration order
+	 */
+	private List<String> effectiveDatedCriteria(String asOfDate, String[] unmappedKeyColumns) {
+		final var datedColumns = effectiveDated.effectiveDatedColumns();
+		final var criteria = new ArrayList<String>(datedColumns.length);
+		for (int i = 0; i < datedColumns.length; i++)
+			criteria.add(buildEffectiveDateCriteria(primaryTable.alias, datedColumns[i], asOfDate, false,
+					IuIterable.cat(
+							effectiveDateKeyColumns(datedColumns[i], effectiveDated.additionalKeyColumns(),
+									unmappedKeyColumns),
+							Arrays.asList(datedColumns).subList(0, i))));
+		return criteria;
 	}
 
 	/**

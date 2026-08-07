@@ -85,5 +85,5 @@ public @interface EffectiveDated {
 	 *
 	 * @return {@code true} to apply current-row filtering automatically
 	 */
-	boolean currentOnly() default false;
+	boolean currentOnly() default true;
 }

@@ -331,6 +331,14 @@ public interface IuDao {
 	 * than reported as an error.
 	 * </p>
 	 *
+	 * <p>
+	 * An {@link EffectiveDated} entity is not modified in place: a new row
+	 * superseding its current one is inserted instead, carrying the changed values
+	 * and copying the rest. Nothing matching the entity's key means there is no row
+	 * to supersede, which is reported as an error the same way it is for an ordinary
+	 * entity.
+	 * </p>
+	 *
 	 * @param bean entity carrying both the new values and the key to match
 	 * @throws jakarta.persistence.EntityNotFoundException  if no row matches the
 	 *                                                      entity's key
