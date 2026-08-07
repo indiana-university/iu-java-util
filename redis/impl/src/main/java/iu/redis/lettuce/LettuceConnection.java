@@ -66,10 +66,9 @@ public class LettuceConnection implements IuRedis {
 	private static final Duration EVICTION_INTERVAL = Duration.ofSeconds(30);
 
 	/**
-	 * Bound on how long a health-check {@code PING} may take before the
-	 * connection under test is treated as unusable, so a half-open socket --
-	 * exactly the case this check exists to catch -- cannot itself hang the
-	 * sweep.
+	 * Bound on how long a health-check {@code PING} may take before the connection
+	 * under test is treated as unusable, so a half-open socket -- exactly the case
+	 * this check exists to catch -- cannot itself hang the sweep.
 	 */
 	private static final Duration PING_TIMEOUT = Duration.ofSeconds(2);
 
@@ -206,8 +205,9 @@ public class LettuceConnection implements IuRedis {
 				LOG.fine(() -> "redis:del:" + b64key + ":" + config.getHost() + ":" + config.getPort());
 			} else {
 				if (ttl != null && !ttl.isZero() && !ttl.isNegative())
-					commands.setex(key.toString(), ttl.toSeconds(), IuText.utf8(value));
-				commands.set(textkey, IuText.utf8(value));
+					commands.setex(textkey, ttl.toSeconds(), IuText.utf8(value));
+				else
+					commands.set(textkey, IuText.utf8(value));
 				LOG.fine(() -> "redis:put:" + b64key + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl + " "
 						+ value.length);
 			}
