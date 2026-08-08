@@ -34,6 +34,8 @@ package iu.dao;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -161,7 +163,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	@Override
 	public Iterable<?> getUpdateArguments(Object entity, Iterable<String> properties) {
 		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
-		final Queue<Object> args = new ArrayDeque<>();
+		final Collection<Object> args = new ArrayList<>();
 
 		for (final var property : properties) {
 			final var column = meta.requirePrimaryColumn(property);
@@ -182,7 +184,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	@Override
 	public Iterable<?> getDeleteArguments(Object entity) {
 		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
-		final Queue<Object> args = new ArrayDeque<>();
+		final Collection<Object> args = new ArrayList<>();
 
 		for (final var idColumn : meta.idColumns)
 			args.add(idColumn.normalizeArgument(DaoUtils.getPropertyValue(entity, idColumn)));
@@ -203,7 +205,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	@Override
 	public Iterable<?> getInsertArguments(Object entity) {
 		final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
-		final Queue<Object> args = new ArrayDeque<>();
+		final Collection<Object> args = new ArrayList<>();
 
 		for (final var column : meta.primaryColumns)
 			args.add(column.normalizeArgument(DaoUtils.getPropertyValue(entity, column)));
@@ -421,7 +423,7 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		return EntityMetaData.of(entityClass).getSelectStatement(null, whereClauses, null, true);
 	}
 
-	@Override // TODO: remove?
+	@Override
 	public Map<String, Object> mapIdColumnsToSqlTypes(Object entity) {
 		final var entityClass = entity instanceof Class<?> clazz ? clazz : entity.getClass();
 		final var meta = EntityMetaData.of(entityClass);

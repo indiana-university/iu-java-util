@@ -261,7 +261,7 @@ public final class JdbcDao implements IuDao {
 		for (int i = 0; i < columnMembers.length; i++) {
 			final var member = columnMembers[i];
 			if (member != null)
-				member.set(bean, columnValue(resultSet, i + 1, member.type()));
+				member.set(bean, member.fromSql(columnValue(resultSet, i + 1, member.sqlType())));
 		}
 		return bean;
 	}
@@ -282,7 +282,7 @@ public final class JdbcDao implements IuDao {
 		for (int i = 0; i < columnMembers.length; i++) {
 			final var member = columnMembers[i];
 			if (member != null)
-				values.put(member.name(), columnValue(resultSet, i + 1, member.type()));
+				values.put(member.name(), member.fromSql(columnValue(resultSet, i + 1, member.sqlType())));
 		}
 		return Collections.unmodifiableMap(values);
 	}
@@ -301,7 +301,38 @@ public final class JdbcDao implements IuDao {
 	 * @param setter setter to write through, or {@code null} to write the field
 	 * @param field  field to write through when there is no setter
 	 */
-	private record ColumnMember(String name, Class<?> type, Method setter, Field field) {
+	private record ColumnMember(String name, Class<?> type, Method setter, Field field, ColumnMetaData column) {
+
+		/**
+		 * Gets the type this member's column value is read from the result set as.
+		 *
+		 * <p>
+		 * For a mapped column that is its declared SQL type, which is not always the
+		 * member's own type — a flag stored in a character column reads as text and is
+		 * converted afterwards by {@link #fromSql(Object)}. Reading it as a boolean
+		 * instead would parse {@code "Y"} as {@code false}, leaving nothing to convert.
+		 * </p>
+		 *
+		 * @return type to read the column as
+		 */
+		private Class<?> sqlType() {
+			return column == null //
+					? type
+					: column.sqlType;
+		}
+
+		/**
+		 * Converts a value read from the database to the type this member expects.
+		 *
+		 * @param value value read as {@link #sqlType()}
+		 * @return value converted for this member, unchanged when the member belongs to
+		 *         no mapped column and so has no declared SQL type to convert from
+		 */
+		private Object fromSql(Object value) {
+			return column == null //
+					? value
+					: column.normalizeResult(value);
+		}
 
 		/**
 		 * Assigns one column value to this member.
@@ -943,19 +974,23 @@ public final class JdbcDao implements IuDao {
 		private ColumnMember[] resolveColumnMembers(ResultSetMetaData metadata)
 				throws SQLException, IntrospectionException {
 			final var readOnly = beanClass.isInterface();
+			// Resolved leniently: a type that maps nothing simply contributes no
+			// conversions, which is what an ad-hoc query over a plain bean wants.
+			final var mappedColumns = EntityMetaData.resolve(beanClass).columns;
 			final Map<String, ColumnMember> byName = new HashMap<>();
 			final Map<String, ColumnMember> byNormalizedName = new HashMap<>();
 
 			for (final var property : Introspector.getBeanInfo(beanClass).getPropertyDescriptors())
 				if (readOnly ? property.getReadMethod() != null : property.getWriteMethod() != null)
-					register(byName, byNormalizedName, new ColumnMember(property.getName(),
-							property.getPropertyType(), property.getWriteMethod(), null));
+					register(byName, byNormalizedName,
+							new ColumnMember(property.getName(), property.getPropertyType(),
+									property.getWriteMethod(), null, mappedColumns.get(property.getName())));
 
 			if (!readOnly)
 				for (final var field : DaoUtils.getAllDeclaredFields(beanClass))
 					if (!byName.containsKey(field.getName()))
 						register(byName, byNormalizedName, new ColumnMember(field.getName(), field.getType(), null,
-								DaoUtils.accessible(field)));
+								DaoUtils.accessible(field), mappedColumns.get(field.getName())));
 
 			final var resolved = new ColumnMember[metadata.getColumnCount()];
 			for (int i = 0; i < resolved.length; i++) {

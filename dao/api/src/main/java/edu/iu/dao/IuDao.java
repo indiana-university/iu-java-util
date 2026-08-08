@@ -421,6 +421,16 @@ public interface IuDao {
 	 * </p>
 	 *
 	 * <p>
+	 * A value is read as the type its column stores and converted to the type its
+	 * member declares, reversing what {@link IuSqlBuilder#getForSql(Object, String)}
+	 * does when binding the same member: a character column mapped to a boolean reads
+	 * back {@code "Y"} as {@code true}, a timestamp column mapped to an
+	 * {@link java.time.Instant} reads back as an {@code Instant}, and the single
+	 * space standing in for null on a {@link SpaceForNull} column reads back as
+	 * {@code null}. A member belonging to no mapped column is read as its own type.
+	 * </p>
+	 *
+	 * <p>
 	 * A class is instantiated through its no-argument constructor and populated
 	 * through its setters, skipping values that would assign {@code null} to a
 	 * primitive property. An interface is instead materialized as an immutable view

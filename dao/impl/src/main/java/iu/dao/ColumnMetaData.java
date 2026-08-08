@@ -48,8 +48,9 @@ class ColumnMetaData {
 
 	/**
 	 * The field backing this column, or {@code null} when the property is computed
-	 * rather than stored. Present for both field-mapped and property-mapped columns,
-	 * since a property-mapped column may still need its field to write through.
+	 * rather than stored. Present for both field-mapped and property-mapped
+	 * columns, since a property-mapped column may still need its field to write
+	 * through.
 	 */
 	final Field field;
 
@@ -129,8 +130,8 @@ class ColumnMetaData {
 	final Class<?> sqlType;
 
 	/**
-	 * Reads this column's value from an entity, through the getter when there is one
-	 * and through the field otherwise.
+	 * Reads this column's value from an entity, through the getter when there is
+	 * one and through the field otherwise.
 	 */
 	final MethodHandle getter;
 
@@ -138,15 +139,15 @@ class ColumnMetaData {
 	 * Constructs metadata for a single mapped column.
 	 *
 	 * <p>
-	 * The column must carry either {@link Column} or {@link SqlColumn}, on the getter
-	 * or on the field; the getter is consulted first, so a property annotated in both
-	 * places is described by its getter. When {@link Column} is present it takes
-	 * precedence and the {@link SqlColumn} branch is not entered.
+	 * The column must carry either {@link Column} or {@link SqlColumn}, on the
+	 * getter or on the field; the getter is consulted first, so a property
+	 * annotated in both places is described by its getter. When {@link Column} is
+	 * present it takes precedence and the {@link SqlColumn} branch is not entered.
 	 * </p>
 	 *
 	 * <p>
-	 * Access is resolved independently of the annotation: values are read through the
-	 * getter when one exists and through the field otherwise.
+	 * Access is resolved independently of the annotation: values are read through
+	 * the getter when one exists and through the field otherwise.
 	 * </p>
 	 *
 	 * @param entity   the owning entity metadata, used to resolve the
@@ -186,9 +187,14 @@ class ColumnMetaData {
 		}
 
 		this.sqlType = DaoUtils.resolveSqlType(javaType, column);
-		this.getter = IuException.unchecked(() -> readMethod == null //
-				? MethodHandles.lookup().unreflectGetter(DaoUtils.accessible(field))
-				: MethodHandles.lookup().unreflect(readMethod));
+
+		if (readMethod == null)
+			this.getter = IuException
+					.unchecked(() -> MethodHandles.lookup().unreflectGetter(DaoUtils.accessible(field)));
+		else {
+			readMethod.setAccessible(true);
+			this.getter = IuException.unchecked(() -> MethodHandles.lookup().unreflect(readMethod));
+		}
 	}
 
 	/**
@@ -289,6 +295,54 @@ class ColumnMetaData {
 				&& !(value instanceof Timestamp) //
 				&& value instanceof java.util.Date date)
 			return new Timestamp(date.getTime());
+		return value;
+	}
+
+	/**
+	 * Converts a value read from the database back to the type this column's member
+	 * expects, reversing {@link #normalizeArgument(Object)}.
+	 *
+	 * <ul>
+	 * <li>Returns {@code null} for a single space ({@code " "}) when
+	 * {@link #spaceForNull} is {@code true}.</li>
+	 * <li>Converts {@link java.sql.Timestamp} to {@link java.time.Instant} for a
+	 * member declared as an {@code Instant}.</li>
+	 * <li>Converts {@code "Y"} to {@code true} and any other text to {@code false}
+	 * for a member declared as a boolean, which is how a flag stored in a character
+	 * column reads back.</li>
+	 * <li>Returns {@code value} unchanged in all other cases, including whenever it
+	 * already is an instance of {@link #javaType}.</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * The value must have been read as {@link #sqlType}, the type the column
+	 * actually holds, rather than as {@link #javaType}. Reading a character column
+	 * as a boolean would have parsed {@code "Y"} as {@code false} long before this
+	 * had anything to reverse.
+	 * </p>
+	 *
+	 * @param value value read from the database; may be {@code null}
+	 * @return value converted to {@link #javaType}
+	 */
+	Object normalizeResult(Object value) {
+		if (spaceForNull //
+				&& " ".equals(value))
+			return null;
+
+		// A primitive javaType is never an instance of its own boxed value, so this
+		// deliberately does not short-circuit the conversions below for primitives.
+		if (value == null //
+				|| javaType.isInstance(value))
+			return value;
+
+		if (javaType == Instant.class //
+				&& value instanceof Timestamp timestamp)
+			return timestamp.toInstant();
+
+		if ((javaType == Boolean.class || javaType == boolean.class) //
+				&& value instanceof String flag)
+			return "Y".equalsIgnoreCase(flag);
+
 		return value;
 	}
 

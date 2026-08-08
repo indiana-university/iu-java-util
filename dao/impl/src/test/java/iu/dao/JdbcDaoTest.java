@@ -533,6 +533,45 @@ public class JdbcDaoTest {
 		private String label;
 	}
 
+	/** Members whose stored form differs from the type they are declared as. */
+	@Entity
+	@Table(name = "person", schema = "s")
+	public static class CoercedPerson {
+		@Id
+		@Column(name = "EMPLID")
+		private String employeeId;
+
+		@Column(name = "ACTIVE", columnDefinition = "CHAR(1)")
+		private boolean active;
+
+		@Column(name = "CREATED")
+		private java.time.Instant created;
+
+		@Column(name = "LABEL")
+		@edu.iu.dao.SpaceForNull
+		private String label;
+	}
+
+	@Test
+	public void testStoredValuesAreConvertedBackToTheirDeclaredTypes() {
+		final var created = java.time.Instant.ofEpochMilli(1234L);
+		final var row = new LinkedHashMap<String, Object>();
+		row.put("EMPLID", "0000123");
+		row.put("ACTIVE", "Y");
+		row.put("CREATED", Timestamp.from(created));
+		row.put("LABEL", " ");
+
+		final var person = daoOver(row).getBeanQuery(CoercedPerson.class, List.of()).getSingleResult();
+
+		// Each is the reverse of what binding the same member would have written: a
+		// character flag reads back as a boolean, a timestamp as an Instant, and the
+		// single space standing in for null reads back as null.
+		assertEquals("0000123", person.employeeId);
+		assertEquals(true, person.active);
+		assertEquals(created, person.created);
+		assertEquals(null, person.label);
+	}
+
 	@Test
 	public void testAdHocQueryOverAnUnmappedTypeUsesTheDefaultBuilder() {
 		// getQuery documents that the target type need not be a mapped entity.

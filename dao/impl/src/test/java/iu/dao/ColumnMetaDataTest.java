@@ -447,6 +447,76 @@ public class ColumnMetaDataTest {
 		assertSame(value, col(CoercedEntity.class, "label").normalizeArgument(value));
 	}
 
+	// =======================================================================
+	// normalizeResult
+	// =======================================================================
+
+	/** Member declared as an Instant, which no JDBC driver returns natively. */
+	@Entity
+	@Table(name = "coerced", schema = "s")
+	public static class InstantEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "CREATED")
+		private Instant created;
+
+		@Column(name = "LABEL")
+		@SpaceForNull
+		private String label;
+	}
+
+	@Test
+	public void testNormalizeResult_characterFlagBecomesBoolean() {
+		final var active = col(CoercedEntity.class, "active");
+		assertEquals(Boolean.TRUE, active.normalizeResult("Y"));
+		assertEquals(Boolean.FALSE, active.normalizeResult("N"));
+	}
+
+	@Test
+	public void testNormalizeResult_timestampBecomesInstantForAnInstantMember() {
+		final var created = col(InstantEntity.class, "created");
+		final var now = Instant.ofEpochMilli(1234L);
+		assertEquals(now, created.normalizeResult(Timestamp.from(now)));
+	}
+
+	@Test
+	public void testNormalizeResult_singleSpaceBecomesNullForASpaceForNullColumn() {
+		assertNull(col(InstantEntity.class, "label").normalizeResult(" "));
+		// Only where the column asked for it.
+		assertEquals(" ", col(CoercedEntity.class, "label").normalizeResult(" "));
+	}
+
+	@Test
+	public void testNormalizeResult_valueAlreadyOfTheMembersType_isUnchanged() {
+		final var value = "already text";
+		assertSame(value, col(CoercedEntity.class, "label").normalizeResult(value));
+	}
+
+	@Test
+	public void testNormalizeResult_nullAndUnconvertibleValues_areUnchanged() {
+		assertNull(col(CoercedEntity.class, "label").normalizeResult(null));
+		// An Instant member handed something that is not a Timestamp, and a boolean
+		// member handed something that is not text, are both left alone.
+		assertEquals(1234L, col(InstantEntity.class, "created").normalizeResult(1234L));
+		assertEquals(1234L, col(CoercedEntity.class, "active").normalizeResult(1234L));
+	}
+
+	@Test
+	public void testNormalizeArgumentAndResult_roundTripEachOther() {
+		final var active = col(CoercedEntity.class, "active");
+		assertEquals(Boolean.TRUE, active.normalizeResult(active.normalizeArgument(true)));
+		assertEquals(Boolean.FALSE, active.normalizeResult(active.normalizeArgument(false)));
+
+		final var created = col(InstantEntity.class, "created");
+		final var now = Instant.ofEpochMilli(1234L);
+		assertEquals(now, created.normalizeResult(created.normalizeArgument(now)));
+
+		final var label = col(InstantEntity.class, "label");
+		assertNull(label.normalizeResult(label.normalizeArgument(null)));
+	}
+
 	@Test
 	public void testNormalizeArgument_nullWithSpaceForNullFalse_returnsNull() {
 		assertNull(col(MixedEntity.class, "namedCol").normalizeArgument(null));
