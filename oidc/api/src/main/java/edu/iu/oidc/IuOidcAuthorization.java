@@ -32,9 +32,11 @@
 package edu.iu.oidc;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
+import edu.iu.session.IuSession;
 
 /**
  * Client application resource interface for OIDC authorization code flow.
@@ -43,7 +45,7 @@ public interface IuOidcAuthorization {
 
 	/**
 	 * Initialized a new authorization session.
-	 * 
+	 *
 	 * @param delegatingPrincipal       required delegating principal name; null to
 	 *                                  authorize on behalf of the authenticated
 	 *                                  user
@@ -54,7 +56,40 @@ public interface IuOidcAuthorization {
 	 * @return authorization redirect
 	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName) throws IOException;
+	default IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName) throws IOException {
+		return init(delegatingPrincipal, impersonatedPrincipalName, null);
+	}
+
+	/**
+	 * Initializes a new authorization session, allowing the caller to record its
+	 * own detail on the pre-authentication session.
+	 *
+	 * <p>
+	 * The session is created and stored by this method, so a caller that needs
+	 * state to survive the round trip to the authorization server has no other
+	 * opportunity to write it: {@code preAuthDetail} is invoked after this
+	 * implementation's own pre-authentication detail is set and before the session
+	 * is stored, so one store carries both. Whatever it writes is readable from the
+	 * session the caller activates on return, and is carried onto the authenticated
+	 * session by
+	 * {@link #authorize(IuRequestAttributes, String, String) authorize}.
+	 * </p>
+	 *
+	 * @param delegatingPrincipal       required delegating principal name; null to
+	 *                                  authorize on behalf of the authenticated
+	 *                                  user
+	 * @param impersonatedPrincipalName requested impersonated principal name; null
+	 *                                  if not requesting impersonation, SHOULD be
+	 *                                  null in production environments
+	 * @param preAuthDetail             receives the pre-authentication session
+	 *                                  before it is stored; null to record no
+	 *                                  additional detail
+	 *
+	 * @return authorization redirect
+	 * @throws IOException if communication with an upstream provider is interrupted
+	 */
+	IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName,
+			Consumer<IuSession> preAuthDetail) throws IOException;
 
 	/**
 	 * Resumes an authorization session upon return from the authorization server.

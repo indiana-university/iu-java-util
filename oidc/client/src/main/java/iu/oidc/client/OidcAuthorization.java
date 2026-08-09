@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -57,6 +58,7 @@ import edu.iu.crypt.WebEncryption;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
 import edu.iu.oidc.IuOidcTokenResponse;
+import edu.iu.session.IuSession;
 import iu.oidc.client.config.IuOidcClientReference;
 
 /**
@@ -78,7 +80,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuStatefulRedirect init(String delegatingPrincipal, String backdoorId) throws IOException {
+	public IuStatefulRedirect init(String delegatingPrincipal, String backdoorId, Consumer<IuSession> preAuthDetail)
+			throws IOException {
 		final var state = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
 		final var oidcClient = config.getClient();
@@ -88,6 +91,11 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
 		preAuth.setState(state);
 		preAuth.setNonce(nonce);
+
+		// after this flow's own detail and before the store, so one write carries both
+		if (preAuthDetail != null)
+			preAuthDetail.accept(session);
+
 		session.setStrict(false);
 		final var setCookie = sessionHandler.store(session);
 
@@ -265,7 +273,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		};
 
 		return new OidcPrincipal(idToken, IuJson.parse(userinfoResponse).asJsonObject(), setCookie, accessTokenLookup,
-				config::adaptJson);
+				config::adaptJson, client.getPrincipalNameClaimName());
 	}
 
 }

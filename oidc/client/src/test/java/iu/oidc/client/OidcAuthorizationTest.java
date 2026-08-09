@@ -35,11 +35,13 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
@@ -51,6 +53,7 @@ import java.net.HttpCookie;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
@@ -130,6 +133,47 @@ public class OidcAuthorizationTest {
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
+	}
+
+	@Test
+	void testInitRecordsCallerDetailBeforeStoringTheSession() throws IOException {
+		// a caller has no other opportunity to write state that must survive the round
+		// trip: the session is created and stored entirely within init
+		final var setCookie = IdGenerator.generateId();
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+		when(sessionHandler.create()).thenReturn(session);
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var client = mock(IuOidcClient.class);
+		when(client.getClientId()).thenReturn(IdGenerator.generateId());
+
+		final var provider = mock(IuOidcProvider.class);
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getAuthorizationEndpoint()).thenReturn(URI.create(IdGenerator.generateId()));
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getRedirectUri()).thenReturn(URI.create(IdGenerator.generateId()));
+		when(config.getClient()).thenReturn(client);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+
+		final var received = new ArrayDeque<IuSession>();
+		assertEquals(setCookie,
+				new OidcAuthorization(config).init(null, null, received::push).getSetCookie());
+
+		// the session it receives is the one about to be stored, and it is handed over
+		// before the store, so one write carries both this flow's detail and the
+		// caller's
+		assertEquals(1, received.size());
+		assertSame(session, received.peek());
+
+		final var order = inOrder(preAuth, sessionHandler);
+		order.verify(preAuth).setNonce(any());
+		order.verify(sessionHandler).store(session);
 	}
 
 	@Test
@@ -849,9 +893,10 @@ public class OidcAuthorizationTest {
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
-			
+
 			assertNotNull(principal.getSetCookie());
 		}
 	}
+
 
 }

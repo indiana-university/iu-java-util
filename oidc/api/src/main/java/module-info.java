@@ -37,4 +37,6 @@ module iu.util.oidc {
 
 	requires transitive iu.util;
 	requires transitive iu.util.jwt.api;
+	// IuSession appears in IuOidcAuthorization#init's signature
+	requires transitive iu.util.session;
 }

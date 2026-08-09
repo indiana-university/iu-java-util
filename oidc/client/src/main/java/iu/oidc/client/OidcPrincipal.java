@@ -53,10 +53,11 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	private final String setCookie;
 	private final UnsafeFunction<URI, String> accessTokenLookup;
 	private final Function<Type, IuJsonAdapter<?>> adapterFactory;
+	private final String principalNameClaimName;
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param idToken           ID token
 	 * @param userinfoClaims    Claims provided by the userinfo endpoint
 	 * @param setCookie         set-cookie header value to pass back to the user
@@ -68,6 +69,25 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
 			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory) {
+		this(idToken, userinfoClaims, setCookie, accessTokenLookup, adapterFactory, null);
+	}
+
+	/**
+	 * Constructor.
+	 *
+	 * @param idToken                      ID token
+	 * @param userinfoClaims               Claims provided by the userinfo endpoint
+	 * @param setCookie                    set-cookie header value to pass back to the user
+	 *                                     agent if session state changed assembling the
+	 *                                     principal
+	 * @param accessTokenLookup            finds access tokens by URI; <em>may</em> interact
+	 *                                     with the OpenID Provider's token endpoint
+	 * @param adapterFactory               JSON type adapter factory
+	 * @param principalNameClaimName       claim name for principal name; null to use "sub"
+	 */
+	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
+			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory,
+			String principalNameClaimName) {
 		this.idToken = idToken;
 
 		if (!userinfoClaims.containsKey("sub"))
@@ -80,10 +100,19 @@ public class OidcPrincipal implements IuOidcPrincipal {
 
 		this.accessTokenLookup = accessTokenLookup;
 		this.adapterFactory = adapterFactory;
+		this.principalNameClaimName = principalNameClaimName;
 	}
 
 	@Override
 	public String getName() {
+		if (principalNameClaimName != null) {
+			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
+			if (userinfoValue != null)
+				return (String) adapterFactory.apply(String.class).fromJson(userinfoValue);
+			final var idTokenValue = idToken.getClaim(principalNameClaimName, String.class);
+			if (idTokenValue != null)
+				return idTokenValue;
+		}
 		return idToken.getSubject();
 	}
 

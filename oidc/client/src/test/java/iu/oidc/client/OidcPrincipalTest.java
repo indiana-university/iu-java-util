@@ -138,4 +138,75 @@ public class OidcPrincipalTest {
 
 	}
 
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAlternativePrincipalNameFromUserinfo() throws Throwable {
+		final var sub = IdGenerator.generateId();
+		final var principalName = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).add("preferred_username", principalName).build();
+
+		final var accessTokenLookup = mock(UnsafeFunction.class);
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null,
+				accessTokenLookup,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+				"preferred_username");
+
+		assertEquals(principalName, principal.getName());
+		assertEquals(sub, principal.getIdToken().getSubject());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAlternativePrincipalNameFromIdToken() throws Throwable {
+		final var sub = IdGenerator.generateId();
+		final var principalName = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).claim("preferred_username", principalName, String.class).build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).build();
+
+		final var accessTokenLookup = mock(UnsafeFunction.class);
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null,
+				accessTokenLookup,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+				"preferred_username");
+
+		assertEquals(principalName, principal.getName());
+		assertEquals(sub, principal.getIdToken().getSubject());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAlternativePrincipalNameFallbackToSub() throws Throwable {
+		final var sub = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).build();
+
+		final var accessTokenLookup = mock(UnsafeFunction.class);
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null,
+				accessTokenLookup,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+				"preferred_username");
+
+		assertEquals(sub, principal.getName());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAlternativePrincipalNameUserinfoPriority() throws Throwable {
+		final var sub = IdGenerator.generateId();
+		final var userinfoUsername = IdGenerator.generateId();
+		final var idTokenUsername = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).claim("preferred_username", idTokenUsername, String.class)
+				.build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).add("preferred_username", userinfoUsername).build();
+
+		final var accessTokenLookup = mock(UnsafeFunction.class);
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null,
+				accessTokenLookup,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+				"preferred_username");
+
+		assertEquals(userinfoUsername, principal.getName());
+	}
+
 }
