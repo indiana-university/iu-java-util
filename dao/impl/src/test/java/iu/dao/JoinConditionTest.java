@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.dao.SqlColumn;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -226,6 +227,62 @@ public class JoinConditionTest {
 		final var sb = new StringBuilder();
 		join.appendTo(sb);
 		assertEquals("a.ID = b.ID", sb.toString());
+	}
+
+	// -----------------------------------------------------------------------
+	// Entities with no single named @Id column to fall back on
+	// -----------------------------------------------------------------------
+
+	/** Mapped, but with no @Id column at all. */
+	@Entity
+	@Table(name = "no_pk")
+	public static class NoPkEntity {
+		private String label;
+
+		@Column(name = "LABEL")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+	}
+
+	/** Sole @Id is a raw SQL expression, which has no physical column name. */
+	@Entity
+	@Table(name = "expr_pk")
+	public static class SqlColumnPkEntity {
+		private String id;
+
+		@Id
+		@SqlColumn("UPPER(a.LABEL)")
+		public String getId() {
+			return id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
+	}
+
+	@Test
+	public void testFromPkJoinColumn_noIdColumnUsesTheJoinColumnName() {
+		final var join = new JoinCondition("b", PkJoinNameOnly.class.getAnnotation(PrimaryKeyJoinColumn.class),
+				EntityMetaData.of(NoPkEntity.class));
+		final var sb = new StringBuilder();
+		join.appendTo(sb);
+		assertEquals("a.FK_ID = b.FK_ID", sb.toString());
+	}
+
+	@Test
+	public void testFromPkJoinColumn_idColumnWithoutAPhysicalNameUsesTheJoinColumnName() {
+		// An @Id mapped to a SQL expression has no column name to join on.
+		final var join = new JoinCondition("b", PkJoinNameOnly.class.getAnnotation(PrimaryKeyJoinColumn.class),
+				EntityMetaData.of(SqlColumnPkEntity.class));
+		final var sb = new StringBuilder();
+		join.appendTo(sb);
+		assertEquals("a.FK_ID = b.FK_ID", sb.toString());
 	}
 
 }

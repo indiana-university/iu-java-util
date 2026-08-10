@@ -346,10 +346,6 @@ public class JdbcDaoTest {
 				nullValueResultSet(), 1, String.class));
 		assertEquals(null, invoke("columnValue", new Class<?>[] { ResultSet.class, int.class, Class.class },
 				nullValueResultSet(), 1, int.class));
-		for (final var numberType : List.of(Byte.class, Short.class, Integer.class, Long.class, Float.class,
-				Double.class, Number.class))
-			assertInstanceOf(Number.class,
-					invoke("number", new Class<?>[] { Class.class, Number.class }, numberType, Integer.valueOf(4)));
 		assertThrows(EntityNotFoundException.class, () -> invoke("assertExactlyOne",
 				new Class<?>[] { int.class, String.class, Object.class }, 0, "x", "b"));
 		assertThrows(NonUniqueResultException.class, () -> invoke("assertExactlyOne",
@@ -447,6 +443,9 @@ public class JdbcDaoTest {
 
 		void setLabel(String label);
 
+		/** Writable but not readable, so an immutable view exposes nothing for it. */
+		void setWriteOnly(String writeOnly);
+
 		default String describe() {
 			return "person:" + getEmployeeId();
 		}
@@ -463,6 +462,15 @@ public class JdbcDaoTest {
 		row.put("EMPLID", employeeId);
 		row.put("LABEL", label);
 		return row;
+	}
+
+	@Test
+	public void testInterfaceEntityIgnoresColumnsItExposesNothingFor() {
+		// A label the view has no readable member for is simply not carried.
+		final var row = personRow("0000123", "seed");
+		row.put("NOT_A_MEMBER", "ignored");
+		final var view = daoOver(row).getBeanQuery(PersonView.class, List.of()).getSingleResult();
+		assertEquals("PersonView{employeeId=0000123, label=seed}", view.toString());
 	}
 
 	@Test
@@ -550,6 +558,14 @@ public class JdbcDaoTest {
 		@Column(name = "LABEL")
 		@edu.iu.dao.SpaceForNull
 		private String label;
+
+		/** Numeric column whose declared SQL type is wider than the member. */
+		@Column(name = "RANK", columnDefinition = "NUMBER(4)")
+		private Integer rank;
+
+		/** Character column mapped to a single char rather than a flag. */
+		@Column(name = "GRADE", columnDefinition = "CHAR(1)")
+		private char grade;
 	}
 
 	@Test
@@ -560,6 +576,8 @@ public class JdbcDaoTest {
 		row.put("ACTIVE", "Y");
 		row.put("CREATED", Timestamp.from(created));
 		row.put("LABEL", " ");
+		row.put("RANK", new java.math.BigDecimal("7"));
+		row.put("GRADE", "A");
 
 		final var person = daoOver(row).getBeanQuery(CoercedPerson.class, List.of()).getSingleResult();
 
@@ -570,6 +588,11 @@ public class JdbcDaoTest {
 		assertEquals(true, person.active);
 		assertEquals(created, person.created);
 		assertEquals(null, person.label);
+
+		// A column read as its wider declared SQL type still has to reach the member's
+		// own type, or the write fails on a type mismatch.
+		assertEquals(Integer.valueOf(7), person.rank);
+		assertEquals('A', person.grade);
 	}
 
 	@Test

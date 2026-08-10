@@ -33,6 +33,7 @@ package iu.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -299,6 +300,9 @@ public class EntityMetaDataTest {
 
 		@Column(name = "LABEL")
 		private String label;
+
+		@SqlColumn("UPPER(a.LABEL)")
+		private String upperLabel;
 
 		@Transient
 		private String ignored;
@@ -1797,6 +1801,28 @@ public class EntityMetaDataTest {
 		assertFalse(criteria.hasNext());
 	}
 
+	@Test
+	public void testGetSelectStatement_cacheKeyDistinguishesOneGroupFromAnother() {
+		final var meta = EntityMetaData.of(TableNamedEntity.class);
+
+		// The same strings grouped two different ways are two different statements, and
+		// caching one must not answer for the other.
+		final var asCriterion = meta.getSelectStatement(List.of("label"), List.of("a.ID = ?"), List.of(), false);
+		final var asProperty = meta.getSelectStatement(List.of("label", "a.ID = ?"), List.of(), List.of(), false);
+		assertNotEquals(asCriterion, asProperty);
+
+		assertEquals("""
+				SELECT
+				    a.LABEL
+				FROM pub.items a
+				WHERE a.ID = ?""", asCriterion);
+		assertEquals("""
+				SELECT
+				    a.LABEL,
+				    a.ID = ?
+				FROM pub.items a""", asProperty);
+	}
+
 	// =======================================================================
 	// field-mapped entities
 	// =======================================================================
@@ -1881,7 +1907,11 @@ public class EntityMetaDataTest {
 	public void testFieldOnlyEntity_mapsColumnsWithNoBeanPropertyAtAll() throws Throwable {
 		final var meta = EntityMetaData.of(FieldOnlyEntity.class);
 
-		assertEquals(List.of("id", "label"), List.copyOf(meta.columns.keySet()));
+		// @SqlColumn binds to a field with no bean property just as @Column does.
+		assertEquals(List.of("id", "label", "upperLabel"), List.copyOf(meta.columns.keySet()));
+		assertEquals("UPPER(a.LABEL)", meta.columns.get("upperLabel").sql);
+		assertEquals("UPPER_LABEL", meta.columns.get("upperLabel").selectAlias);
+
 		final var label = meta.columns.get("label");
 		assertEquals("LABEL", label.columnName);
 		assertEquals(String.class, label.javaType);

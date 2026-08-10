@@ -1190,48 +1190,7 @@ public final class JdbcDao implements IuDao {
 		if (type == java.sql.Timestamp.class || type == java.util.Date.class)
 			return resultSet.getTimestamp(index);
 
-		final var value = resultSet.getObject(index);
-		if (value == null || type.isInstance(value))
-			return value;
-		if (type.isEnum())
-			return Enum.valueOf(type.asSubclass(Enum.class), value.toString());
-		if (value instanceof Number number)
-			return number(type, number);
-		if (type == Boolean.class || type == boolean.class)
-			return value instanceof Boolean ? value : Boolean.valueOf(value.toString());
-		if (type == Character.class || type == char.class)
-			return value.toString().isEmpty() ? null : value.toString().charAt(0);
-		return value;
-	}
-
-	/**
-	 * Narrows or widens a numeric column value to the target property's numeric
-	 * type.
-	 *
-	 * <p>
-	 * Drivers are free to return any {@link Number} subtype for a numeric column, so
-	 * a property declared {@code int} may be handed a {@code BigDecimal}.
-	 * </p>
-	 *
-	 * @param type  target property type
-	 * @param value value read from the column
-	 * @return {@code value} converted to {@code type}, or unchanged when the type is
-	 *         not a recognized numeric type
-	 */
-	private static Object number(Class<?> type, Number value) {
-		if (type == Byte.class || type == byte.class)
-			return value.byteValue();
-		if (type == Short.class || type == short.class)
-			return value.shortValue();
-		if (type == Integer.class || type == int.class)
-			return value.intValue();
-		if (type == Long.class || type == long.class)
-			return value.longValue();
-		if (type == Float.class || type == float.class)
-			return value.floatValue();
-		if (type == Double.class || type == double.class)
-			return value.doubleValue();
-		return value;
+		return DaoUtils.coerce(type, resultSet.getObject(index));
 	}
 
 	/**

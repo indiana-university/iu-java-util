@@ -161,17 +161,81 @@ final class DaoUtils {
 	 * Copies one or more ordered sequences of values into a stable List suitable
 	 * for use as a hash key.
 	 *
+	 * <p>
+	 * Each sequence becomes one element of the result rather than being flattened
+	 * into it, so that a key records which sequence every value came from. Flattening
+	 * would let different groupings of the same values collide — a property list of
+	 * {@code ["a"]} with criteria {@code ["b"]} against a property list of
+	 * {@code ["a", "b"]} with no criteria — and a cache keyed that way would answer
+	 * one with a statement generated for the other.
+	 * </p>
+	 *
 	 * @param values zero or more iterables whose contents form the fingerprint
-	 * @return a flattened list of all iterated values
+	 * @return one list per sequence, in order, each holding that sequence's values
 	 */
 	static List<?> getFingerprint(Iterable<?>... values) {
-		final var fingerprint = new ArrayList<>();
+		final var fingerprint = new ArrayList<List<?>>();
 		if (values != null)
-			for (final var iterable : values)
+			for (final var iterable : values) {
+				final var group = new ArrayList<>();
 				if (iterable != null)
-					for (final var value : iterable)
-						fingerprint.add(value);
+					iterable.forEach(group::add);
+				fingerprint.add(group);
+			}
 		return fingerprint;
+	}
+
+	/**
+	 * Converts a value read from the database to a target Java type.
+	 *
+	 * <p>
+	 * Drivers are free to return whatever representation they please for a column —
+	 * any {@link Number} subtype for a numeric column, text for a character one — so
+	 * a value that already fits its target is returned untouched and anything else is
+	 * narrowed to it.
+	 * </p>
+	 *
+	 * @param type  target type; may be primitive
+	 * @param value value to convert; may be {@code null}
+	 * @return value as {@code type}, or unchanged when no conversion applies
+	 */
+	static Object coerce(Class<?> type, Object value) {
+		if (value == null //
+				|| type.isInstance(value))
+			return value;
+		if (type.isEnum())
+			return Enum.valueOf(type.asSubclass(Enum.class), value.toString());
+		if (value instanceof Number number)
+			return number(type, number);
+		if (type == Boolean.class || type == boolean.class)
+			return value instanceof Boolean ? value : Boolean.valueOf(value.toString());
+		if (type == Character.class || type == char.class)
+			return value.toString().isEmpty() ? null : value.toString().charAt(0);
+		return value;
+	}
+
+	/**
+	 * Narrows or widens a numeric value to a target numeric type.
+	 *
+	 * @param type  target type; may be primitive
+	 * @param value value to convert
+	 * @return {@code value} converted to {@code type}, or unchanged when the type is
+	 *         not a recognized numeric type
+	 */
+	private static Object number(Class<?> type, Number value) {
+		if (type == Byte.class || type == byte.class)
+			return value.byteValue();
+		if (type == Short.class || type == short.class)
+			return value.shortValue();
+		if (type == Integer.class || type == int.class)
+			return value.intValue();
+		if (type == Long.class || type == long.class)
+			return value.longValue();
+		if (type == Float.class || type == float.class)
+			return value.floatValue();
+		if (type == Double.class || type == double.class)
+			return value.doubleValue();
+		return value;
 	}
 
 	/**

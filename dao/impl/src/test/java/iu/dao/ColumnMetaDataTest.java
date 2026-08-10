@@ -398,6 +398,10 @@ public class ColumnMetaDataTest {
 		/** Flag left to its natural boolean type. */
 		@Column(name = "ENABLED")
 		private boolean enabled;
+
+		/** Flag stored as a character column, declared as the boxed type. */
+		@Column(name = "FLAGGED", columnDefinition = "CHAR(1)")
+		private Boolean flagged;
 	}
 
 	@Test
@@ -472,6 +476,9 @@ public class ColumnMetaDataTest {
 		final var active = col(CoercedEntity.class, "active");
 		assertEquals(Boolean.TRUE, active.normalizeResult("Y"));
 		assertEquals(Boolean.FALSE, active.normalizeResult("N"));
+
+		// Declared as the boxed type rather than the primitive.
+		assertEquals(Boolean.TRUE, col(CoercedEntity.class, "flagged").normalizeResult("Y"));
 	}
 
 	@Test
@@ -484,7 +491,8 @@ public class ColumnMetaDataTest {
 	@Test
 	public void testNormalizeResult_singleSpaceBecomesNullForASpaceForNullColumn() {
 		assertNull(col(InstantEntity.class, "label").normalizeResult(" "));
-		// Only where the column asked for it.
+		// Only the single space, and only where the column asked for it.
+		assertEquals("text", col(InstantEntity.class, "label").normalizeResult("text"));
 		assertEquals(" ", col(CoercedEntity.class, "label").normalizeResult(" "));
 	}
 

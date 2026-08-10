@@ -341,8 +341,14 @@ class ColumnMetaData {
 	 * <li>Converts {@code "Y"} to {@code true} and any other text to {@code false}
 	 * for a member declared as a boolean, which is how a flag stored in a character
 	 * column reads back.</li>
-	 * <li>Returns {@code value} unchanged in all other cases, including whenever it
-	 * already is an instance of {@link #javaType}.</li>
+	 * <li>Narrows anything else to {@link #javaType} as
+	 * {@link DaoUtils#coerce(Class, Object)} does, so that a value read as the
+	 * column's declared SQL type still reaches the member's own type — a
+	 * {@code NUMBER} column read as the driver's {@link java.math.BigDecimal}
+	 * reaching an {@link Integer} member, or a {@code CHAR} column read as text
+	 * reaching a {@code char} one.</li>
+	 * <li>Returns {@code value} unchanged whenever it already is an instance of
+	 * {@link #javaType}.</li>
 	 * </ul>
 	 *
 	 * <p>
@@ -374,7 +380,11 @@ class ColumnMetaData {
 				&& value instanceof String flag)
 			return "Y".equalsIgnoreCase(flag);
 
-		return value;
+		// Reading as the declared SQL type leaves whatever it produced still to be
+		// narrowed to the member's own type: a NUMBER column read as the driver's
+		// BigDecimal has to reach an Integer member, and a CHAR column read as text
+		// has to reach a char one.
+		return DaoUtils.coerce(javaType, value);
 	}
 
 }

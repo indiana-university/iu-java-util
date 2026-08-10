@@ -34,7 +34,9 @@ package iu.dao;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,6 +50,7 @@ import java.util.NoSuchElementException;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuException;
 import edu.iu.IuIterable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Transient;
@@ -170,7 +173,7 @@ public class DaoUtilsTest {
 	public void testGetFingerprint_sameInputSameResult() {
 		final var a = List.of("x", "y");
 		final var b = List.of("x", "y");
-		assertEquals(List.of("x", "y"), DaoUtils.getFingerprint(a));
+		assertEquals(List.of(List.of("x", "y")), DaoUtils.getFingerprint(a));
 		assertEquals(DaoUtils.getFingerprint(a), DaoUtils.getFingerprint(b));
 	}
 
@@ -178,29 +181,36 @@ public class DaoUtilsTest {
 	public void testGetFingerprint_preservesOrder() {
 		final var a = List.of("x", "y");
 		final var b = List.of("y", "x");
-		assertEquals(a, DaoUtils.getFingerprint(a));
-		assertEquals(b, DaoUtils.getFingerprint(b));
+		assertEquals(List.of(a), DaoUtils.getFingerprint(a));
+		assertEquals(List.of(b), DaoUtils.getFingerprint(b));
 	}
 
 	@Test
 	public void testGetFingerprint_nullElement() {
 		final List<String> withNull = new ArrayList<>();
 		withNull.add(null);
-		final var fp = DaoUtils.getFingerprint(withNull);
-		assertEquals(withNull, fp);
+		assertEquals(List.of(withNull), DaoUtils.getFingerprint(withNull));
 	}
 
 	@Test
 	public void testGetFingerprint_nullIterable() {
-		assertEquals(List.of(), DaoUtils.getFingerprint((Iterable<?>) null));
+		assertEquals(List.of(List.of()), DaoUtils.getFingerprint((Iterable<?>) null));
 	}
 
 	@Test
 	public void testGetFingerprint_multipleIterables() {
 		final var a = List.of(1, 2);
 		final var b = List.of(3, 4);
-		assertEquals(List.of(1, 2, 3, 4), DaoUtils.getFingerprint(a, b));
-		assertEquals(List.of(3, 4, 1, 2), DaoUtils.getFingerprint(b, a));
+		assertEquals(List.of(a, b), DaoUtils.getFingerprint(a, b));
+		assertEquals(List.of(b, a), DaoUtils.getFingerprint(b, a));
+	}
+
+	@Test
+	public void testGetFingerprint_groupingIsPartOfTheKey() {
+		// Same values, different grouping, different key — a cache keyed on the
+		// flattened values alone would answer one call with the other's result.
+		assertNotEquals(DaoUtils.getFingerprint(List.of("a"), List.of("b")),
+				DaoUtils.getFingerprint(List.of("a", "b"), List.of()));
 	}
 
 	@Test
@@ -208,7 +218,7 @@ public class DaoUtilsTest {
 		final var values = new ArrayList<>(List.of("x"));
 		final var fingerprint = DaoUtils.getFingerprint(values);
 		values.add("y");
-		assertEquals(List.of("x"), fingerprint);
+		assertEquals(List.of(List.of("x")), fingerprint);
 	}
 
 	// -----------------------------------------------------------------------
@@ -632,6 +642,77 @@ public class DaoUtilsTest {
 		public String getComputed() {
 			return "computed";
 		}
+	}
+
+	/** Holds state alongside a constant and, in its inner class, a synthetic field. */
+	public static class DeclaredFieldsBean {
+		static final String CONSTANT = "not state";
+		private String instanceField;
+
+		/** Non-static, so the compiler gives it a synthetic reference to its owner. */
+		public class Inner {
+			private String innerField;
+		}
+	}
+
+	/** Property that can be written but not read. */
+	public static class WriteOnlyBean {
+		public void setValue(String value) {
+			assertNotNull(value);
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// coerce
+	// -----------------------------------------------------------------------
+
+	@Test
+	public void testCoerce_narrowsToEveryNumericType() {
+		// A driver may return any Number subtype for a numeric column, and a member may
+		// be declared in either the primitive or the boxed form of any of these.
+		final var read = new java.math.BigDecimal("4");
+		assertEquals((byte) 4, DaoUtils.coerce(byte.class, read));
+		assertEquals((byte) 4, DaoUtils.coerce(Byte.class, read));
+		assertEquals((short) 4, DaoUtils.coerce(short.class, read));
+		assertEquals((short) 4, DaoUtils.coerce(Short.class, read));
+		assertEquals(4, DaoUtils.coerce(int.class, read));
+		assertEquals(4, DaoUtils.coerce(Integer.class, read));
+		assertEquals(4L, DaoUtils.coerce(long.class, read));
+		assertEquals(4L, DaoUtils.coerce(Long.class, read));
+		assertEquals(4f, DaoUtils.coerce(float.class, read));
+		assertEquals(4f, DaoUtils.coerce(Float.class, read));
+		assertEquals(4d, DaoUtils.coerce(double.class, read));
+		assertEquals(4d, DaoUtils.coerce(Double.class, read));
+		// Not a type worth narrowing to, so left as the driver returned it.
+		assertSame(read, DaoUtils.coerce(Number.class, read));
+	}
+
+	@Test
+	public void testCoerce_leavesValuesThatAlreadyFit() {
+		assertNull(DaoUtils.coerce(String.class, null));
+		final var value = "x";
+		assertSame(value, DaoUtils.coerce(String.class, value));
+	}
+
+	@Test
+	public void testGetAllDeclaredFields_excludesStaticAndSyntheticFields() {
+		assertEquals(List.of("instanceField"), fieldNames(DeclaredFieldsBean.class));
+		assertEquals(List.of("innerField"), fieldNames(DeclaredFieldsBean.Inner.class));
+	}
+
+	@Test
+	public void testIsTransient_propertyWithNoGetter() {
+		// Nothing to read means nothing to map, whatever the annotations say.
+		final var writeOnly = IuException.unchecked(() -> java.beans.Introspector.getBeanInfo(WriteOnlyBean.class))
+				.getPropertyDescriptors();
+		final var value = java.util.Arrays.stream(writeOnly).filter(p -> "value".equals(p.getName())).findFirst()
+				.orElseThrow();
+		assertNull(value.getReadMethod());
+		assertTrue(DaoUtils.isTransient(WriteOnlyBean.class, value));
+	}
+
+	private static List<String> fieldNames(Class<?> type) {
+		return IuIterable.stream(DaoUtils.getAllDeclaredFields(type)).map(java.lang.reflect.Field::getName).toList();
 	}
 
 	@Test

@@ -38,15 +38,21 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Supplies a raw SQL expression for a bean property.
- * 
+ * Supplies a raw SQL expression for a mapped member.
+ *
+ * <p>
+ * May be placed on a property's getter or on the field behind it, and on a field
+ * with no bean property at all; where a getter and its field disagree, the getter
+ * decides.
+ * </p>
+ *
  * <p>
  * <strong>Security:</strong> This expression is emitted verbatim in SELECT
  * clauses. It must not contain user-controlled content.
  * </p>
  */
 @Documented
-@Target(ElementType.METHOD)
+@Target({ ElementType.FIELD, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface SqlColumn {
 
