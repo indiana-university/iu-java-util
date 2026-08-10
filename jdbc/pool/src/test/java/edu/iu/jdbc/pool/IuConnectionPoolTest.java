@@ -241,28 +241,57 @@ public class IuConnectionPoolTest {
 		when(factory.createPooledConnection()).then(i -> TestDatabase.dataSource.getPooledConnection());
 		IuTestLogger.allow(IuConnectionPool.class.getName(), Level.FINE);
 		final var pc = connectionPool.checkOut();
-		final var t = new Thread() {
+		final var checkout = new Thread() {
+			PooledConnection result;
 			Throwable error;
 
 			@Override
 			public void run() {
 				try {
-					Thread.sleep(1000L);
-					connectionPool.reuseOrClose(pc);
+					result = connectionPool.checkOut();
+				} catch (Throwable e) {
+					error = e;
+				}
+			}
+		};
+		checkout.start();
+		awaitParked(checkout);
+
+		final var close = new Thread() {
+			Throwable error;
+
+			@Override
+			public void run() {
+				try {
 					connectionPool.close();
 				} catch (Throwable e) {
 					error = e;
 				}
 			}
 		};
-		t.start();
-		final var error = assertThrows(SQLException.class, connectionPool::checkOut);
+		close.start();
+		awaitParked(close);
+
+		connectionPool.reuseOrClose(pc);
+		checkout.join(10_000L);
+		close.join(10_000L);
+		assertFalse(checkout.isAlive());
+		assertFalse(close.isAlive());
+		assertNull(checkout.result);
+		final var error = assertInstanceOf(SQLException.class, checkout.error);
 		assertTrue(error.getMessage().startsWith("jdbc-pool-fail: attempt=1, "), error::getMessage);
-		t.join(1000L);
-		assertNull(t.error, () -> {
-			throw IuException.unchecked(t.error);
+		assertNull(close.error, () -> {
+			throw IuException.unchecked(close.error);
 		});
-		assertFalse(t.isAlive());
+	}
+
+	private static void awaitParked(Thread thread) {
+		final var expires = System.nanoTime() + Duration.ofSeconds(10L).toNanos();
+		while (thread.getState() != Thread.State.WAITING //
+				&& thread.getState() != Thread.State.TIMED_WAITING) {
+			assertTrue(System.nanoTime() < expires, () -> thread + " did not park");
+			Thread.onSpinWait();
+		}
 	}
 
 	@Test
