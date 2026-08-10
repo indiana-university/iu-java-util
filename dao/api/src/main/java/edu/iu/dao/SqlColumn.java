@@ -46,7 +46,7 @@ import java.lang.annotation.Target;
  * </p>
  */
 @Documented
-@Target({ ElementType.FIELD, ElementType.METHOD })
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface SqlColumn {
 

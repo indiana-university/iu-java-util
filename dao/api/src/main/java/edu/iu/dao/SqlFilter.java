@@ -32,8 +32,10 @@
 package edu.iu.dao;
 
 import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Defines a SQL filter fragment or a named filter pattern.
@@ -44,6 +46,7 @@ import java.lang.annotation.RetentionPolicy;
  * </p>
  */
 @Documented
+@Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface SqlFilter {
 

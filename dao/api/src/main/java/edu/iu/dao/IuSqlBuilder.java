@@ -76,6 +76,13 @@ public interface IuSqlBuilder {
 	/**
 	 * Builds a select statement.
 	 *
+	 * <p>
+	 * <strong>Security:</strong> {@code where} entries are incorporated verbatim in
+	 * the generated SQL. Callers MUST ensure each entry is application-controlled
+	 * SQL or a predicate built from bind placeholders rather than unsanitized user
+	 * input.
+	 * </p>
+	 *
 	 * @param entityClass entity class
 	 * @param where       where conditions
 	 * @return select statement
@@ -84,6 +91,12 @@ public interface IuSqlBuilder {
 
 	/**
 	 * Builds an ordered select statement.
+	 *
+	 * <p>
+	 * <strong>Security:</strong> {@code where} and {@code order} entries are
+	 * incorporated verbatim in the generated SQL. Callers MUST ensure each entry
+	 * is application-controlled SQL and never unsanitized user input.
+	 * </p>
 	 *
 	 * @param entityClass entity class
 	 * @param where       where conditions
@@ -94,6 +107,12 @@ public interface IuSqlBuilder {
 
 	/**
 	 * Builds a select statement for explicit properties.
+	 *
+	 * <p>
+	 * <strong>Security:</strong> {@code props} and {@code where} entries are
+	 * incorporated verbatim in the generated SQL. Callers MUST ensure each entry
+	 * is application-controlled SQL and never unsanitized user input.
+	 * </p>
 	 *
 	 * @param entityClass entity class
 	 * @param props       selected properties
@@ -321,6 +340,13 @@ public interface IuSqlBuilder {
 	 *     OR (COL1 = 'B' AND COL2 = 'Y'))
 	 * </pre>
 	 *
+	 * <p>
+	 * <strong>Security:</strong> every value in {@code matchCriteria} is embedded
+	 * verbatim in the generated SQL. Callers MUST ensure each value is either a
+	 * bind-parameter placeholder ({@code "?"}) or the output of
+	 * {@link #getLiteral(Object)}.
+	 * </p>
+	 *
 	 * @param leftHandSide  left-hand column expressions
 	 * @param matchCriteria one iterable per column (column-major), each providing
 	 *                      that column's values for each matching row in order;
@@ -362,6 +388,13 @@ public interface IuSqlBuilder {
 	/**
 	 * Builds a primary-table comparison criterion.
 	 *
+	 * <p>
+	 * <strong>Security:</strong> {@code matchList} values are embedded verbatim in
+	 * the generated SQL. Callers MUST ensure each value is either a
+	 * bind-parameter placeholder ({@code "?"}) or the output of
+	 * {@link #getLiteral(Object)}.
+	 * </p>
+	 *
 	 * @param entityClass entity class
 	 * @param col         column or property name
 	 * @param comp        comparison operator
@@ -378,6 +411,13 @@ public interface IuSqlBuilder {
 	 * {@link SqlJoinType.Type#INNER} and {@code tab} names a secondary table, the
 	 * criterion also admits {@code NULL}, so that rows the outer join kept without a
 	 * match survive it.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Security:</strong> {@code matchList} values are embedded verbatim in
+	 * the generated SQL. Callers MUST ensure each value is either a
+	 * bind-parameter placeholder ({@code "?"}) or the output of
+	 * {@link #getLiteral(Object)}.
 	 * </p>
 	 *
 	 * @param entityClass entity class
