@@ -33,6 +33,7 @@ package iu;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -42,7 +43,13 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Queue;
 import java.util.ServiceLoader;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -94,12 +101,46 @@ public class ListenerSpiTest {
 		final var event = mock(IuObservableEvent.class);
 		final var first = mock(IuListener.class);
 		final var second = mock(IuListener.class);
-		doThrow(new RuntimeException("listener failure")).when(first).accept(event);
+		final var failure = new RuntimeException("listener failure");
+		doThrow(failure).when(first).accept(event);
 		setServiceLoader(first, second);
 
-		assertDoesNotThrow(() -> ListenerSpi.observe(event));
+		// Reporting the failure is the behavior under test, so the record is captured
+		// and asserted rather than left to the console, where it reads as a build error.
+		final var logger = Logger.getLogger(IuListener.class.getName());
+		final Queue<LogRecord> reported = new ConcurrentLinkedQueue<>();
+		final var handler = new Handler() {
+			@Override
+			public void publish(LogRecord record) {
+				reported.add(record);
+			}
+
+			@Override
+			public void flush() {
+			}
+
+			@Override
+			public void close() {
+			}
+		};
+
+		final var useParentHandlers = logger.getUseParentHandlers();
+		logger.addHandler(handler);
+		logger.setUseParentHandlers(false);
+		try {
+			assertDoesNotThrow(() -> ListenerSpi.observe(event));
+		} finally {
+			logger.setUseParentHandlers(useParentHandlers);
+			logger.removeHandler(handler);
+		}
 
 		verify(second).accept(event);
+
+		assertEquals(1, reported.size());
+		final var record = reported.poll();
+		assertEquals(Level.WARNING, record.getLevel());
+		assertEquals("event listener failure; " + event, record.getMessage());
+		assertSame(failure, record.getThrown());
 	}
 
 	@SuppressWarnings("unchecked")

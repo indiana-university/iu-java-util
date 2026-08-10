@@ -59,7 +59,9 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
@@ -414,8 +416,10 @@ public class AsynchronousSubjectTest {
 		final List<Object> control = Collections.synchronizedList(new ArrayList<>());
 		final var q = new ConcurrentLinkedQueue<Object>();
 		try (final var subject = new IuAsynchronousSubject<>(q::spliterator)) {
+			final var subscribersReady = new CountDownLatch(1);
 			final var generator = new Async(() -> {
 				try {
+					assertTrue(subscribersReady.await(10L, TimeUnit.SECONDS));
 					for (var i = 0; i < 1000; i++) {
 						Thread.sleep(0, ThreadLocalRandom.current().nextInt(100_000));
 						final var o = new Object();
@@ -445,6 +449,7 @@ public class AsynchronousSubjectTest {
 					assertTrue(control.containsAll(parList));
 				});
 			}
+			subscribersReady.countDown();
 
 			generator.await();
 			subject.close();

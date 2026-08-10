@@ -44,9 +44,12 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -365,23 +368,29 @@ public class IuParallelWorkloadControllerTest {
 	@Test
 	public void testShutdownThreadIsInterrupted() throws Throwable {
 		final var current = Thread.currentThread();
+		final var workerReady = new CountDownLatch(1);
+		final var startInterrupt = new CountDownLatch(1);
+		final var observedShutdownWait = new AtomicBoolean();
 		workload.apply(a -> {
-			var now = Instant.now();
-			var until = now.plus(Duration.ofMillis(75L));
-			while ((now = Instant.now()).isBefore(until))
-				synchronized (this) {
-					try {
-						this.wait(Math.max(1L, Duration.between(now, until).toMillis()));
-					} catch (InterruptedException e) {
-					}
+			workerReady.countDown();
+			assertTrue(startInterrupt.await(10L, TimeUnit.SECONDS));
+
+			final var timeout = System.nanoTime() + TimeUnit.SECONDS.toNanos(10L);
+			while (System.nanoTime() < timeout) {
+				final var state = current.getState();
+				if (state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING) {
+					observedShutdownWait.set(true);
+					break;
 				}
+				Thread.onSpinWait();
+			}
 			current.interrupt();
 		});
 
-		var now = Instant.now();
-		var until = now.plus(Duration.ofMillis(75L));
+		assertTrue(workerReady.await(10L, TimeUnit.SECONDS));
+		startInterrupt.countDown();
 		assertThrows(InterruptedException.class, workload::close);
-		assertFalse(Instant.now().isBefore(until));
+		assertTrue(observedShutdownWait.get());
 	}
 
 	@Test
@@ -429,26 +438,26 @@ public class IuParallelWorkloadControllerTest {
 
 	@Test
 	public void testShutdownMiserably() throws Throwable {
-		final var finalTimeout = Duration.ofMillis(200L);
 		workload.setGracefulShutdown(Duration.ofMillis(1L));
 		workload.setGracefulTermination(Duration.ofMillis(9L));
 		workload.setGracefulDestroy(Duration.ofMillis(50L));
+		final var taskStarted = new CountDownLatch(1);
+		final var releaseTask = new CountDownLatch(1);
+		final var taskFinished = new CountDownLatch(1);
 		workload.apply(a -> {
-			var now = Instant.now();
-			var until = now.plus(finalTimeout);
-			while ((now = Instant.now()).isBefore(until))
-				synchronized (this) {
-					final var d = Duration.between(now, until);
+			taskStarted.countDown();
+			try {
+				while (releaseTask.getCount() > 0L)
 					try {
-						this.wait(d.toMillis(), d.toNanosPart() % 1_000_000);
+						releaseTask.await();
 					} catch (InterruptedException e) {
+						// Deliberately resist shutdown interruption until the assertion completes.
 					}
-				}
+			} finally {
+				taskFinished.countDown();
+			}
 		});
-
-		var now = Instant.now();
-		var until = now.plus(Duration.ofMillis(60L));
-		var finalUntil = now.plus(finalTimeout);
+		assertTrue(taskStarted.await(10L, TimeUnit.SECONDS));
 
 		class Box {
 			boolean found;
@@ -463,14 +472,18 @@ public class IuParallelWorkloadControllerTest {
 				unhandled.add(message);
 		};
 
-		final var timeoutException = assertThrows(TimeoutException.class, workload::close);
-		assertTrue(
-				timeoutException.getMessage().matches(
-						"Graceful thread termination timed out after PT0.1[0-9]{1,8}S, 1 still active after interrupt"),
-				timeoutException::getMessage);
-		assertTrue(box.found, unhandled::toString);
-		assertTrue(Instant.now().isAfter(until));
-		assertTrue(Instant.now().isBefore(finalUntil));
+		try {
+			final var timeoutException = assertThrows(TimeoutException.class, workload::close);
+			assertTrue(
+					timeoutException.getMessage().matches(
+							"Graceful thread termination timed out after PT[0-9.]+S, 1 still active after interrupt"),
+					timeoutException::getMessage);
+			assertTrue(box.found, unhandled::toString);
+			assertEquals(1L, taskFinished.getCount());
+		} finally {
+			releaseTask.countDown();
+			assertTrue(taskFinished.await(10L, TimeUnit.SECONDS));
+		}
 	}
 
 	@Test

@@ -125,6 +125,7 @@ public class RemoteInvocationExceptionTest {
 	public void testFromWithTrace() {
 		final var failure = mock(RemoteInvocationFailure.class);
 		when(failure.getExceptionType()).thenReturn(IllegalStateException.class.getName());
+		when(failure.getStackTrace()).thenReturn(null);
 
 		final var message = IdGenerator.generateId();
 		when(failure.getMessage()).thenReturn(message);

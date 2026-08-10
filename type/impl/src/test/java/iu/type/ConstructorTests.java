@@ -34,6 +34,7 @@ package iu.type;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.logging.Level;
 
@@ -43,10 +44,11 @@ import org.junit.jupiter.api.Test;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuType;
 import edu.iu.type.testresources.ConstructorTestSupport;
+import edu.iu.type.testresources.HasAroundConstruct;
+import edu.iu.type.testresources.HasConstructorInterceptors;
 
 @SuppressWarnings("javadoc")
 public class ConstructorTests {
-
 	@BeforeEach
 	public void setup() {
 		IuTestLogger.allow("iu.type.ParameterizedElement", Level.FINEST, "replaced type argument .*");
@@ -68,6 +70,20 @@ public class ConstructorTests {
 		var con = type.constructor(Class.class);
 		assertEquals("ConstructorTestSupport(Class<A>)", con.toString());
 		assertSame(Number.class, con.parameter(0).type().referTo(Class.class).typeParameter("T").erasedClass());
+	}
+
+	@Test
+	public void testConstructorInterceptorsNotSupported() {
+		final var error = assertThrows(UnsupportedOperationException.class,
+				() -> IuType.of(HasConstructorInterceptors.class).constructor().exec());
+		assertEquals("@AroundConstruct not supported in this version", error.getMessage());
+	}
+
+	@Test
+	public void testAroundConstructNotSupported() {
+		final var error = assertThrows(UnsupportedOperationException.class,
+				() -> IuType.of(HasAroundConstruct.class).constructor().exec());
+		assertEquals("@AroundConstruct not supported in this version", error.getMessage());
 	}
 
 }

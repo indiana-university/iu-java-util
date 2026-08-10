@@ -333,7 +333,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			var total = 0;
 			for (final var countByLevelEntry : countByLevel.entrySet()) {
 				total += countByLevelEntry.getValue();
-				if (total <= maxEvents - toPurge)
+				if (total <= maxEvents)
 					level = countByLevelEntry.getKey();
 			}
 		}

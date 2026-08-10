@@ -529,6 +529,20 @@ public class TypeApiTest {
 	}
 
 	@Test
+	public void testPropertyDoesNotHaveAnnotation() {
+		final var read = mock(IuMethod.class);
+		final var write = mock(IuMethod.class);
+		final var prop = mock(IuProperty.class, CALLS_REAL_METHODS);
+		when(prop.read()).thenReturn(read);
+		when(prop.write()).thenReturn(write);
+
+		assertFalse(prop.hasAnnotation(Transient.class));
+
+		when(prop.read()).thenReturn(null);
+		assertFalse(prop.hasAnnotation(Transient.class));
+	}
+
+	@Test
 	@SuppressWarnings("unchecked")
 	public void testMethods() {
 		var m1 = mock(IuMethod.class);

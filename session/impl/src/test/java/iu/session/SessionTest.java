@@ -61,6 +61,7 @@ import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.jwt.WebToken;
 import edu.iu.test.IuTest;
 import edu.iu.test.IuTestLogger;
 import iu.jwt.spi.Init;
@@ -227,6 +228,30 @@ public class SessionTest {
 
 		final var fromToken = new Session(resourceUri, token, secretKey, configuration);
 		assertEquals(foo, fromToken.getDetail(SessionDetailInterface.class).getFoo());
+	}
+
+	@Test
+	public void testTokenWithoutDetails() {
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+
+		final var secretKey = WebKey.ephemeral(Encryption.AES_192_CBC_HMAC_SHA_384);
+		final var issuerKey = WebKey.builder(Algorithm.PS384).ephemeral().build();
+		when(configuration.getJwk()).thenReturn(issuerKey);
+		when(configuration.getEnc()).thenReturn(Encryption.AES_192_CBC_HMAC_SHA_384);
+
+		final var token = WebToken.builder() //
+				.iss(resourceUri) //
+				.sub(resourceUri.toString()) //
+				.aud(resourceUri) //
+				.iat() //
+				.exp(session.getExpires()) //
+				.build() //
+				.signAndEncrypt("session+jwt", issuerKey.getAlgorithm(), issuerKey, Algorithm.DIRECT,
+						configuration.getEnc(), secretKey);
+
+		final var fromToken = new Session(resourceUri, token, secretKey, configuration);
+		assertEquals("Session [resourceUri=" + resourceUri + ", expires=" + session.getExpires()
+				+ ", changed=false, details={}]", fromToken.toString());
 	}
 
 	@Test

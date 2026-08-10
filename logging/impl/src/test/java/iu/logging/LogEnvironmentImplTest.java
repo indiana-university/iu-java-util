@@ -37,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mockStatic;
 
 import java.net.InetAddress;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
@@ -74,7 +73,7 @@ public class LogEnvironmentImplTest {
 	@Test
 	public void testDefaults() {
 		final var nodeId = IdGenerator.generateId();
-		final var development = ThreadLocalRandom.current().nextBoolean();
+		final var development = false;
 		final var endpoint = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
@@ -102,7 +101,7 @@ public class LogEnvironmentImplTest {
 	@Test
 	public void testSystemDefaults() {
 		final var nodeId = IuException.unchecked(() -> InetAddress.getLocalHost().getHostName());
-		final var development = ThreadLocalRandom.current().nextBoolean();
+		final var development = true;
 		final var endpoint = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
@@ -143,7 +142,7 @@ public class LogEnvironmentImplTest {
 	@Test
 	public void testInherits() {
 		final var nodeId = IdGenerator.generateId();
-		final var development = ThreadLocalRandom.current().nextBoolean();
+		final var development = true;
 		final var endpoint = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
@@ -171,7 +170,7 @@ public class LogEnvironmentImplTest {
 	@Test
 	public void testOverrides() {
 		final var nodeId = IdGenerator.generateId();
-		final var development = ThreadLocalRandom.current().nextBoolean();
+		final var development = false;
 		final var endpoint = IdGenerator.generateId();
 		final var application = IdGenerator.generateId();
 		final var environment = IdGenerator.generateId();
@@ -183,7 +182,7 @@ public class LogEnvironmentImplTest {
 				runtime, component);
 
 		final var nodeId2 = IdGenerator.generateId();
-		final var development2 = ThreadLocalRandom.current().nextBoolean();
+		final var development2 = true;
 		final var endpoint2 = IdGenerator.generateId();
 		final var application2 = IdGenerator.generateId();
 		final var environment2 = IdGenerator.generateId();

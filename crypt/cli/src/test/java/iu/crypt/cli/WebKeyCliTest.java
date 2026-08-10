@@ -44,7 +44,10 @@ import java.io.PrintStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.security.interfaces.RSAPrivateKey;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
@@ -57,6 +60,7 @@ import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.crypt.X509CertificateAuthority;
 import edu.iu.crypt.X500Utils;
 import edu.iu.test.CliTestSupport;
 import edu.iu.test.IuTestLogger;
@@ -384,6 +388,37 @@ public class WebKeyCliTest {
 						+ kid + System.lineSeparator() + "Update Due: " + crl.getNextUpdate() + System.lineSeparator()
 						+ "** no certificates revoked **" + System.lineSeparator() + System.lineSeparator(),
 				CliTestSupport.OUT.toString());
+	}
+
+	@Test
+	void testPrintCAWithoutDatabaseOrIssuedCertificates() {
+		final var jwk = WebKey.builder(WebKey.Type.ED25519).ephemeral().build();
+		final var ca = new X509CertificateAuthority() {
+			@Override
+			public WebKey getJwk() {
+				return jwk;
+			}
+
+			@Override
+			public byte[] getDatabase() {
+				return null;
+			}
+
+			@Override
+			public Iterable<X509Certificate> getCertificates() {
+				return null;
+			}
+
+			@Override
+			public Iterable<X509CRL> getCrl() {
+				return List.of();
+			}
+		};
+
+		final var output = new ByteArrayOutputStream();
+		WebKeyCli.print(new PrintStream(output), ca);
+		assertFalse(output.toString().contains("Database:"));
+		assertFalse(output.toString().contains("Issued Certificates:"));
 	}
 
 	@Test

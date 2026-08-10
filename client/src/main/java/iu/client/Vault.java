@@ -389,6 +389,7 @@ public final class Vault implements IuVault {
 
 	private void kubeauth(HttpRequest.Builder requestBuilder) {
 		final String jwt = IuException.unchecked(() -> Files.readString(Path.of(tokenInfo), StandardCharsets.UTF_8));
+		LOG.fine(roleInfo + " jwt length " + jwt.length());
 		final var payload = IuJson.object();
 		payload.add("jwt", jwt);
 		payload.add("role", roleInfo);

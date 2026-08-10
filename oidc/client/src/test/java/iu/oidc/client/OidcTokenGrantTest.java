@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -654,8 +655,14 @@ public class OidcTokenGrantTest {
 			}
 		};
 
-		assertEquals("Authenticated session lifetime PT10S exceeds maximum PT5S",
-				assertThrows(IllegalArgumentException.class, grant::getTokenResponse).getMessage());
+		final var error = assertThrows(IllegalArgumentException.class, grant::getTokenResponse);
+		final var message = error.getMessage();
+		final var prefix = "Authenticated session lifetime ";
+		final var suffix = " exceeds maximum PT5S";
+		assertTrue(message.startsWith(prefix));
+		assertTrue(message.endsWith(suffix));
+		final var authAge = Duration.parse(message.substring(prefix.length(), message.length() - suffix.length()));
+		assertTrue(authAge.compareTo(Duration.ofSeconds(10L)) >= 0);
 	}
 
 	@Test

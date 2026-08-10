@@ -175,6 +175,7 @@ public class LettuceConnection implements IuRedis {
 	@Override
 	public byte[] get(byte[] key) {
 		Objects.requireNonNull(key, "key is required");
+		final byte[] result;
 		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
 			final var textkey = IuText.utf8(key);
 			final var b64key = IuText.base64(key);
@@ -183,14 +184,15 @@ public class LettuceConnection implements IuRedis {
 
 			if (value == null) {
 				LOG.fine(() -> "redis:get:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " (empty)");
-				return null;
+				result = null;
 			} else {
 				final var bytes = IuText.utf8(value);
 				LOG.fine(() -> "redis:get:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " "
 						+ bytes.length);
-				return bytes;
+				result = bytes;
 			}
 		}
+		return result;
 	}
 
 	@Override

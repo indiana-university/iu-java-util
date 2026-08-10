@@ -32,6 +32,7 @@
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Spliterator;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
@@ -120,6 +122,48 @@ public class IuVisitorTest {
 		visitor.visit(f);
 		verify(f, never()).apply(notNull());
 		verify(f).apply(null);
+	}
+
+	@Test
+	public void testSubjectInitialSpliterator() throws Throwable {
+		final var visitor = new IuVisitor<Object>();
+
+		// A null referent deterministically represents a reference already cleared by
+		// the collector. Retain the remaining objects so collection cannot influence
+		// the initial split while it is exercised.
+		visitor.accept(null);
+		final List<Object> retained = new ArrayList<>();
+		for (var i = 0; i < 8; i++) {
+			final var element = new Object();
+			retained.add(element);
+			visitor.accept(element);
+		}
+
+		try (final var subject = visitor.subject()) {
+			final var subscription = subject.subscribe();
+			// The queue's source spliterator is not SIZED, so available() exercises the
+			// ElementSplitter fallback estimate, which includes the cleared reference.
+			assertEquals(retained.size() + 1L, subscription.available());
+
+			final var root = subscription.stream().spliterator();
+			final List<Spliterator<Object>> splits = new ArrayList<>();
+			Spliterator<Object> split;
+			while ((split = root.trySplit()) != null) {
+				assertTrue(split.hasCharacteristics(Spliterator.SIZED));
+				assertTrue(split.estimateSize() >= 0L);
+				splits.add(split);
+			}
+			assertFalse(splits.isEmpty());
+
+			// Closing prevents the root from transitioning to a blocking pipe after its
+			// initial values have been exhausted.
+			subscription.close();
+			final List<Object> collected = new ArrayList<>();
+			splits.forEach(s -> s.forEachRemaining(collected::add));
+			root.forEachRemaining(collected::add);
+			assertEquals(retained.size(), collected.size());
+			assertTrue(collected.containsAll(retained));
+		}
 	}
 
 	@Test
