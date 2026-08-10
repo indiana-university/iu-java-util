@@ -31,8 +31,10 @@
  */
 package edu.iu.client;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -46,23 +48,37 @@ public class IuHttpTestCase {
 	static final URI TEST_INSECURE_URI = URI.create("test://localhost/" + IdGenerator.generateId());
 	static final URI TEST_URI = URI
 			.create("https://" + IdGenerator.generateId() + "/" + IdGenerator.generateId());
-	
+	static final URI TEST_HTTP_PROXY_URL = URI.create("http://127.0.0.1:8080");
+	static final URI TEST_HTTPS_PROXY_URL = URI.create("http://127.0.0.2:8443");
+	static final String TEST_NO_PROXY_DOMAIN = "iu.edu";
+	static final String TEST_NO_PROXY_DOMAIN_2 = "example.edu";
+
 	static HttpClient http;
+	static HttpClient.Builder httpBuilder;
 
 	static {
 		try {
 			System.setProperty("iu.http.allowedUri", TEST_URI.toString());
 			System.setProperty("iu.http.allowedInsecureUri", TEST_INSECURE_URI.toString());
+			System.setProperty("iu.http.proxy", TEST_HTTP_PROXY_URL.toString());
+			System.setProperty("iu.https.proxy", TEST_HTTPS_PROXY_URL.toString());
+			System.setProperty("iu.http.no.proxy", TEST_NO_PROXY_DOMAIN_2 + ", IU.EDU");
 
 			http = mock(HttpClient.class);
+			httpBuilder = mock(HttpClient.Builder.class);
+			when(httpBuilder.proxy(any())).thenReturn(httpBuilder);
+			when(httpBuilder.build()).thenReturn(http);
 			try (final var mockHttpClient = mockStatic(HttpClient.class)) {
-				mockHttpClient.when(() -> HttpClient.newHttpClient()).thenReturn(http);
+				mockHttpClient.when(() -> HttpClient.newBuilder()).thenReturn(httpBuilder);
 				IuException.unchecked(() -> Class.forName(IuHttp.class.getName()));
 			}
 
 		} finally {
 			System.getProperties().remove("iu.http.allowedUri");
 			System.getProperties().remove("iu.http.allowedInsecureUri");
+			System.getProperties().remove("iu.http.proxy");
+			System.getProperties().remove("iu.https.proxy");
+			System.getProperties().remove("iu.http.no.proxy");
 		}
 	}
 

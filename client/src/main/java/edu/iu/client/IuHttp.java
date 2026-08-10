@@ -31,13 +31,22 @@
  */
 package edu.iu.client;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -63,7 +72,11 @@ import jakarta.json.JsonValue;
  * 
  * <p>
  * All requests are handled via a cached {@link HttpClient} instance configured
- * with {@link HttpClient#newHttpClient default settings}.
+ * with default settings. {@code iu.http.proxy} and {@code iu.https.proxy} may
+ * specify proxy server URLs, including port, for HTTP and HTTPS requests,
+ * respectively. If {@code iu.http.no.proxy} is set, requests whose domain is
+ * equal to or a subdomain of an entry in its comma-separated value bypass the
+ * proxy.
  * </p>
  */
 public class IuHttp {
@@ -81,7 +94,54 @@ public class IuHttp {
 			"iu.http.allowedInsecureUri",
 			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
 
-	private static final HttpClient HTTP = HttpClient.newHttpClient();
+	private static final Collection<String> NO_PROXY = IuRuntimeEnvironment.envOptional("iu.http.no.proxy",
+			a -> Stream.of(a.split(",")).map(String::strip).map(s -> s.toLowerCase(Locale.ROOT))
+					.collect(Collectors.toUnmodifiableList()));
+
+	private static final HttpClient HTTP = buildHttpClient(HttpClient.newBuilder(),
+			IuRuntimeEnvironment.envOptional("iu.http.proxy", URI::create),
+			IuRuntimeEnvironment.envOptional("iu.https.proxy", URI::create), NO_PROXY);
+
+	/**
+	 * Builds the shared HTTP client, optionally configuring scheme-specific proxies
+	 * with domain exclusions.
+	 *
+	 * @param builder       HTTP client builder
+	 * @param httpProxyUrl  HTTP proxy server URL
+	 * @param httpsProxyUrl HTTPS proxy server URL
+	 * @param noProxy       domains that bypass both proxies
+	 * @return configured HTTP client
+	 */
+	static HttpClient buildHttpClient(HttpClient.Builder builder, URI httpProxyUrl, URI httpsProxyUrl,
+			Collection<String> noProxy) {
+		final Map<String, Proxy> proxies = new HashMap<>();
+		if (httpProxyUrl != null)
+			proxies.put("http", proxy(httpProxyUrl));
+		if (httpsProxyUrl != null)
+			proxies.put("https", proxy(httpsProxyUrl));
+
+		if (!proxies.isEmpty())
+			builder.proxy(new ProxySelector() {
+				@Override
+				public List<Proxy> select(URI uri) {
+					final var scheme = uri.getScheme();
+					final var proxy = proxies.get(scheme == null ? null : scheme.toLowerCase(Locale.ROOT));
+					return List.of(proxy == null || isNoProxy(noProxy, uri) ? Proxy.NO_PROXY : proxy);
+				}
+
+				@Override
+				public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
+				}
+			});
+		return builder.build();
+	}
+
+	private static Proxy proxy(URI proxyUrl) {
+		if (!proxyUrl.isAbsolute() || proxyUrl.getHost() == null || proxyUrl.getPort() < 0)
+			throw new IllegalArgumentException("Proxy URL must include scheme, host, and port: " + proxyUrl);
+		return new Proxy(Proxy.Type.HTTP,
+				InetSocketAddress.createUnresolved(proxyUrl.getHost(), proxyUrl.getPort()));
+	}
 	
 	/**
 	 * Validates a 200 OK response.
@@ -225,6 +285,24 @@ public class IuHttp {
 			return false;
 		else
 			return allowList.stream().anyMatch(allowedUri -> IuWebUtils.isRootOf(allowedUri, uri));
+	}
+
+	/**
+	 * Determines whether a URI's host matches a domain exclusion.
+	 *
+	 * @param noProxy excluded domains
+	 * @param uri     URI to check
+	 * @return true if the URI host equals or is a subdomain of an excluded domain
+	 */
+	static boolean isNoProxy(Collection<String> noProxy, URI uri) {
+		if (noProxy == null)
+			return false;
+		final var host = uri.getHost();
+		if (host == null)
+			return false;
+		final var normalizedHost = host.toLowerCase(Locale.ROOT);
+		return noProxy.stream()
+				.anyMatch(domain -> normalizedHost.equals(domain) || normalizedHost.endsWith('.' + domain));
 	}
 
 	/**

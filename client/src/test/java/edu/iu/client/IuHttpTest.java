@@ -34,6 +34,7 @@ package edu.iu.client;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -43,13 +44,18 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -64,6 +70,7 @@ import java.util.logging.LogManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuListener;
@@ -140,6 +147,63 @@ public class IuHttpTest extends IuHttpTestCase {
 	@Test
 	public void testAllowNull() {
 		assertFalse(IuHttp.isAllowed(null, TEST_URI));
+	}
+
+	@Test
+	public void testNoProxyDomains() {
+		assertFalse(IuHttp.isNoProxy(null, URI.create("https://www.iu.edu/")));
+		assertFalse(IuHttp.isNoProxy(List.of(TEST_NO_PROXY_DOMAIN), URI.create("relative")));
+		assertTrue(IuHttp.isNoProxy(List.of(TEST_NO_PROXY_DOMAIN), URI.create("https://iu.edu/")));
+		assertTrue(IuHttp.isNoProxy(List.of(TEST_NO_PROXY_DOMAIN), URI.create("https://www.IU.edu/")));
+		assertFalse(IuHttp.isNoProxy(List.of(TEST_NO_PROXY_DOMAIN), URI.create("https://notiu.edu/")));
+	}
+
+	@Test
+	public void testProxyConfiguration() {
+		final var selectorCaptor = ArgumentCaptor.forClass(ProxySelector.class);
+		verify(httpBuilder).proxy(selectorCaptor.capture());
+		final var selector = selectorCaptor.getValue();
+
+		assertEquals(List.of(Proxy.NO_PROXY), selector.select(URI.create("https://www.iu.edu/resource")));
+		assertEquals(List.of(Proxy.NO_PROXY), selector.select(URI.create("https://iu.edu/resource")));
+		assertEquals(List.of(Proxy.NO_PROXY), selector.select(URI.create("ftp://example.com/resource")));
+		assertEquals(List.of(Proxy.NO_PROXY), selector.select(URI.create("relative")));
+
+		assertProxy(selector, URI.create("http://notiu.edu/resource"), TEST_HTTP_PROXY_URL);
+		final var httpsProxyAddress = assertProxy(selector, TEST_URI, TEST_HTTPS_PROXY_URL);
+		selector.connectFailed(TEST_URI, httpsProxyAddress, new IOException());
+	}
+
+	@Test
+	public void testDefaultClientConfiguration() {
+		final var builder = mock(HttpClient.Builder.class);
+		final var client = mock(HttpClient.class);
+		when(builder.build()).thenReturn(client);
+
+		assertSame(client, IuHttp.buildHttpClient(builder, null, null, null));
+		verify(builder, never()).proxy(any());
+	}
+
+	@Test
+	public void testInvalidProxyUrls() {
+		final var builder = mock(HttpClient.Builder.class);
+		assertThrows(IllegalArgumentException.class,
+				() -> IuHttp.buildHttpClient(builder, URI.create("proxy"), null, null));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuHttp.buildHttpClient(builder, URI.create("test:/proxy"), null, null));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuHttp.buildHttpClient(builder, URI.create("http://proxy.example"), null, null));
+	}
+
+	private static InetSocketAddress assertProxy(ProxySelector selector, URI requestUri, URI proxyUrl) {
+		final var proxies = selector.select(requestUri);
+		assertEquals(1, proxies.size());
+		final var proxy = proxies.get(0);
+		assertEquals(Proxy.Type.HTTP, proxy.type());
+		final var address = assertInstanceOf(InetSocketAddress.class, proxy.address());
+		assertEquals(proxyUrl.getHost(), address.getHostString());
+		assertEquals(proxyUrl.getPort(), address.getPort());
+		return address;
 	}
 
 	@SuppressWarnings("unchecked")
