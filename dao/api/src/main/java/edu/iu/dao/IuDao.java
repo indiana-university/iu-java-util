@@ -361,7 +361,9 @@ public interface IuDao {
 
 	/**
 	 * Updates the row matching an entity's key, inserting it instead when no row
-	 * matches, and evicts that entity type from the transaction-scoped cache.
+	 * matches, and evicts that entity type from the transaction-scoped cache. For an
+	 * entity with only primary-key columns, verifies that the row exists rather than
+	 * issuing an empty update.
 	 *
 	 * @param bean entity to update or insert
 	 * @throws jakarta.persistence.NonUniqueResultException if more than one row was

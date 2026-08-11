@@ -149,10 +149,14 @@ public class JdbcDaoTest {
 		}
 	}
 
+	@Entity
+	@Table(name = "bean", schema = "s")
 	public static class Bean {
 		private String firstName;
 		private int age;
 
+		@Id
+		@Column(name = "FIRST_NAME")
 		public String getFirstName() {
 			return firstName;
 		}
@@ -161,12 +165,30 @@ public class JdbcDaoTest {
 			this.firstName = firstName;
 		}
 
+		@Column(name = "AGE")
 		public int getAge() {
 			return age;
 		}
 
 		public void setAge(int age) {
 			this.age = age;
+		}
+	}
+
+	/** An entity with no non-key columns to update. */
+	@Entity
+	@Table(name = "key_only", schema = "s")
+	public static class KeyOnlyBean {
+		private long id;
+
+		@Id
+		@Column(name = "ID")
+		public long getId() {
+			return id;
+		}
+
+		public void setId(long id) {
+			this.id = id;
 		}
 	}
 
@@ -214,6 +236,45 @@ public class JdbcDaoTest {
 		dao.updateBeans(List.of(bean));
 		dao.saveBeans(List.of(bean));
 		assertTrue(jdbc.closed.get() > 0);
+	}
+
+	@Test
+	public void testSaveBean_keyOnlyEntityLoadsExistingRowWithoutIssuingUpdate() {
+		final var jdbc = new Jdbc();
+		final var statements = new ArrayList<String>();
+		final var bean = new KeyOnlyBean();
+		bean.setId(1L);
+
+		new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of(Map.of("ID", 1L))), statements),
+				transactionManager(Status.STATUS_NO_TRANSACTION), registry(), new IuSqlBuilderImpl()).saveBean(bean);
+
+		assertEquals(1, statements.size());
+		assertTrue(statements.get(0).startsWith("SELECT"));
+	}
+
+	@Test
+	public void testSaveBean_keyOnlyEntityInsertsWhenNoRowExists() {
+		final var jdbc = new Jdbc();
+		final var statements = new ArrayList<String>();
+		final var bean = new KeyOnlyBean();
+		bean.setId(1L);
+
+		new JdbcDao(dataSourceReturning(jdbc.resultSet(List.of()), statements), transactionManager(Status.STATUS_NO_TRANSACTION),
+				registry(), new IuSqlBuilderImpl()).saveBean(bean);
+
+		assertEquals(2, statements.size());
+		assertTrue(statements.get(0).startsWith("SELECT"));
+		assertTrue(statements.get(1).startsWith("INSERT"));
+	}
+
+	@Test
+	public void testSaveBean_mappedEntityWithNoChangedPropertiesDoesNotLoadOrInsert() {
+		final var jdbc = new Jdbc();
+
+		assertDoesNotThrow(() -> new JdbcDao(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION),
+				registry(), unchangedBuilder()).saveBean(new Person()));
+
+		assertEquals(0, jdbc.prepared.get(), "an entity with a non-key @Column must not be treated as key-only");
 	}
 
 	@Test
@@ -741,10 +802,23 @@ public class JdbcDaoTest {
 
 	/** Minimal JDBC chain whose every query returns the supplied result set. */
 	private static DataSource dataSourceReturning(ResultSet resultSet) {
+		return dataSourceReturning(resultSet, null);
+	}
+
+	private static DataSource dataSourceReturning(ResultSet resultSet, List<String> statements) {
 		final var statement = proxy(PreparedStatement.class,
-				(method, args) -> "executeQuery".equals(method.getName()) ? resultSet : null);
-		final var connection = proxy(Connection.class,
-				(method, args) -> "prepareStatement".equals(method.getName()) ? statement : null);
+				(method, args) -> switch (method.getName()) {
+				case "executeQuery" -> resultSet;
+				case "executeUpdate" -> 1;
+				default -> null;
+				});
+		final var connection = proxy(Connection.class, (method, args) -> {
+			if (!"prepareStatement".equals(method.getName()))
+				return null;
+			if (statements != null)
+				statements.add((String) args[0]);
+			return statement;
+		});
 		return proxy(DataSource.class, (method, args) -> "getConnection".equals(method.getName()) ? connection : null);
 	}
 

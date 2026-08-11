@@ -700,18 +700,19 @@ public class OidcAuthorizationTest {
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
 
+		final var resourceUri = URI.create(IdGenerator.generateId());
+
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
 		when(client.getDecryptJwk()).thenReturn(null);
+		when(client.getResourceUri()).thenReturn(resourceUri);
 
 		final var provider = mock(IuOidcProvider.class);
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(provider.getMetadata()).thenReturn(metadata);
-
-		final var resourceUri = URI.create(IdGenerator.generateId());
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);
@@ -823,9 +824,12 @@ public class OidcAuthorizationTest {
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
 
+		final var resourceUri = URI.create(IdGenerator.generateId());
+
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
+		when(client.getResourceUri()).thenReturn(resourceUri);
 		final var dkid = IdGenerator.generateId();
 		final var decryptJwk = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES).keyId(dkid).ephemeral()
 				.build();
@@ -837,7 +841,6 @@ public class OidcAuthorizationTest {
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(provider.getMetadata()).thenReturn(metadata);
 
-		final var resourceUri = URI.create(IdGenerator.generateId());
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);

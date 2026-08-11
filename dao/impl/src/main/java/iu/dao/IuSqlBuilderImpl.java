@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -46,6 +47,7 @@ import java.util.function.Supplier;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.dao.IuSqlBuilder;
+import jakarta.persistence.EntityNotFoundException;
 
 /**
  * Default {@link IuSqlBuilder} implementation.
@@ -111,7 +113,27 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 					return reference + " = ' '";
 				else
 					return reference + " IS NULL";
-			else
+			else if (entry.getValue() instanceof Iterable i) {
+				final var sb = new StringBuilder(reference).append(" IN (");
+
+				var first = true;
+				final var iter = i.iterator();
+				if (!iter.hasNext())
+					throw new EntityNotFoundException("empty iterator in criteria for " + entry.getKey());
+
+				while (iter.hasNext()) {
+					if (first)
+						first = false;
+					else
+						sb.append(',');
+					sb.append('?');
+
+					iter.next();
+				}
+
+				sb.append(')');
+				return sb.toString();
+			} else
 				return reference + " = ?";
 		});
 	}
@@ -120,16 +142,28 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 	public Iterable<?> getBeanKeyArgs(Class<?> entityClass, Map<String, ?> properties) {
 		final var entity = EntityMetaData.of(entityClass);
 
-		// Null entries are matched by a literal in the criteria rather than a
-		// placeholder, so skipping them here is what keeps the two aligned.
-		return IuIterable.map( //
-				IuIterable.filter(properties.entrySet(), entry -> entry.getValue() != null), //
-				entry -> {
-					final var column = entity.resolveColumn(entry.getKey());
-					return column == null //
-							? entry.getValue()
-							: column.normalizeArgument(entry.getValue());
-				});
+		final List<Object> args = new ArrayList<>();
+		for (final var entry : properties.entrySet()) {
+			// Null entries are matched by a literal in the criteria rather than a
+			// placeholder, so skipping them here is what keeps the two aligned.
+			final var value = entry.getValue();
+			if (value == null)
+				continue;
+
+			final var column = entity.resolveColumn(entry.getKey());
+			if (value instanceof Iterable i)
+				for (final var v : i)
+					if (column == null)
+						args.add(v);
+					else
+						args.add(column.normalizeArgument(v));
+			else if (column == null)
+				args.add(value);
+			else
+				args.add(column.normalizeArgument(value));
+		}
+
+		return args::iterator;
 	}
 
 	@Override
@@ -449,20 +483,19 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 		if (entities == null)
 			return null;
 
-		final var i = IuIterable.filter(entities, Objects::nonNull).iterator();
-		if (!i.hasNext())
-			return null;
-
-		final var firstEntity = i.next();
-		final var entityClass = firstEntity.getClass();
-		final var meta = EntityMetaData.of(entityClass);
-		if (!meta.idColumns.iterator().hasNext())
-			return null;
-
 		final Queue<String> disjuncts = new ArrayDeque<>();
+		Class<?> entityClass = null;
+		EntityMetaData meta = null;
 		for (final var entity : entities) {
 			if (entity == null)
 				continue;
+
+			if (meta == null) {
+				entityClass = entity.getClass();
+				meta = EntityMetaData.of(entityClass);
+				if (!meta.idColumns.iterator().hasNext())
+					return null;
+			}
 
 			entityClass.cast(entity);
 
@@ -474,6 +507,9 @@ public class IuSqlBuilderImpl implements IuSqlBuilder {
 
 			disjuncts.add("(" + String.join(" AND ", criteria) + ")");
 		}
+
+		if (disjuncts.isEmpty())
+			return null;
 
 		return disjuncts.size() > 1 //
 				? "(" + String.join(" OR ", disjuncts) + ")"

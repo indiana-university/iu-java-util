@@ -153,7 +153,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (!IuObject.equals(preAuth.getState(), state))
 			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
 
-		final var grant = new AuthorizationGrant(config, code, requestAttributes.getRequestUri());
+		final var grant = new AuthorizationGrant(config, code, config.getRedirectUri());
 		final var response = grant.getTokenResponse();
 		final var idToken = Objects.requireNonNull(grant.getIdToken(), "missing verified ID token");
 
@@ -248,7 +248,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			@Override
 			public String apply(URI uri) throws IOException {
 				final var accessToken = grant.getTokenResponse().getAccessToken();
-				if (IuWebUtils.isRootOf(config.getResourceUri(), uri))
+				if (IuWebUtils.isRootOf(config.getClient().getResourceUri(), uri))
 					return accessToken;
 
 				URI apiResource = null;

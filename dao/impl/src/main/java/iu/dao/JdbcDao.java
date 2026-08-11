@@ -47,6 +47,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -441,6 +443,11 @@ public final class JdbcDao implements IuDao {
 	public SqlStatement getBeanUpdate(Object bean) {
 		final var entity = Objects.requireNonNull(bean, "bean");
 		final var properties = snapshot(sqlBuilder.getUpdateProperties(entity));
+		return getBeanUpdate(entity, properties);
+	}
+
+	/** Builds an update statement from an already-resolved set of changed properties. */
+	private SqlStatement getBeanUpdate(Object entity, Iterable<String> properties) {
 		return getStatement(sqlBuilder.getUpdateStatement(entityType(entity), properties),
 				sqlBuilder.getUpdateArguments(entity, properties));
 	}
@@ -458,15 +465,16 @@ public final class JdbcDao implements IuDao {
 
 	@Override
 	public void updateBean(Object bean) {
-		Objects.requireNonNull(bean, "bean");
+		final var entity = Objects.requireNonNull(bean, "bean");
 		try {
-			assertExactlyOne(getBeanUpdate(bean).execute(), "update", bean);
+			final var properties = snapshot(sqlBuilder.getUpdateProperties(entity));
+			assertExactlyOne(getBeanUpdate(entity, properties).execute(), "update", entity);
 		} catch (IuSqlUnchangedException e) {
 			// An entity that matches the database needs no statement; this is a normal
 			// outcome, not a failure.
 			return;
 		} finally {
-			clear(entityType(bean));
+			clear(entityType(entity));
 		}
 	}
 
@@ -478,14 +486,35 @@ public final class JdbcDao implements IuDao {
 
 	@Override
 	public void saveBean(Object bean) {
+		final var entity = Objects.requireNonNull(bean, "bean");
+		final var type = entityType(entity);
 		try {
-			updateBean(bean);
+			final var meta = EntityMetaData.of(Objects.requireNonNull(entity, "entity").getClass());
+			if (!meta.primaryNonIdColumns.iterator().hasNext())
+				loadBean(type, primaryKeyParameters(entity, type));
+			else
+				try {
+					final var properties = snapshot(sqlBuilder.getUpdateProperties(entity));
+					assertExactlyOne(getBeanUpdate(entity, properties).execute(), "update", entity);
+				} catch (IuSqlUnchangedException e) {
+					// A custom builder may determine that no update is needed after all.
+					return;
+				}
 		} catch (EntityNotFoundException e) {
-			// No row to update, so the entity is new. updateBean() already evicted the
-			// type, but the insert changes the data again and must evict once more.
-			assertExactlyOne(getBeanInsert(bean).execute(), "insert", bean);
-			clear(entityType(bean));
+			// A missing row is new. This also covers a key-only entity, for which
+			// loading by primary key is the only way to determine whether it exists.
+			assertExactlyOne(getBeanInsert(entity).execute(), "insert", entity);
+		} finally {
+			clear(type);
 		}
+	}
+
+	/** Reads an entity's mapped primary-key values into a query-parameter map. */
+	private Map<String, Object> primaryKeyParameters(Object entity, Class<?> type) {
+		final Map<String, Object> parameters = new LinkedHashMap<>();
+		for (final var property : sqlBuilder.getPrimaryKeyProperties(type))
+			parameters.put(property, sqlBuilder.getForSql(entity, property));
+		return parameters;
 	}
 
 	@Override

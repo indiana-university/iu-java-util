@@ -50,6 +50,7 @@ import edu.iu.dao.EffectiveDated;
 import edu.iu.dao.SpaceForNull;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.SecondaryTable;
@@ -333,6 +334,19 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
+	public void testGetBeanKeyCriteria_iterableProperty_producesInCriteria() {
+		final var criteria = IuIterable.stream(
+				sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, Map.of("id", List.of(42L, 99L)))).toList();
+		assertEquals(List.of("a.ID IN (?,?)"), criteria);
+	}
+
+	@Test
+	public void testGetBeanKeyCriteria_emptyIterableProperty_isRejected() {
+		assertThrows(EntityNotFoundException.class,
+				() -> sqlBuilder.getBeanKeyCriteria(SimpleEntity.class, Map.of("id", List.of())).iterator().next());
+	}
+
+	@Test
 	public void testGetBeanKeyCriteria_nullValue_producesIsNull() {
 		final var map = new java.util.HashMap<String, Object>();
 		map.put("id", null);
@@ -398,6 +412,12 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
+	public void testGetBeanKeyArgs_iterableProperty_expandsAndCoercesEachArgument() {
+		assertEquals(List.of("Y", "N"), IuIterable.stream(
+				sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("active", List.of(true, false)))).toList());
+	}
+
+	@Test
 	public void testGetBeanKeyArgs_coercesToTheColumnsDeclaredSqlType() {
 		// Keyed by property name and by column name alike, a key argument is bound the
 		// same way the column's own value would be.
@@ -416,6 +436,14 @@ public class IuSqlBuilderImplTest {
 		// through with nothing to coerce it against.
 		assertEquals(List.of(Boolean.TRUE), IuIterable
 				.stream(sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("UNMAPPED", true))).toList());
+	}
+
+	@Test
+	public void testGetBeanKeyArgs_iterableKeyMatchingNoColumn_expandsValuesAsSupplied() {
+		// An unmapped key has no column metadata, so every iterable value is passed
+		// through unchanged after being expanded into the bind argument sequence.
+		assertEquals(List.of(Boolean.TRUE, Boolean.FALSE), IuIterable.stream(
+				sqlBuilder.getBeanKeyArgs(KeyCoercedEntity.class, Map.of("UNMAPPED", List.of(true, false)))).toList());
 	}
 
 	@Test
@@ -921,8 +949,9 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
-	public void testBuildWhereClause_allNullElements_returnsNull() {
-		assertNull(sqlBuilder.buildWhereClause(java.util.Arrays.asList(null, null)));
+	public void testBuildWhereClause_allNullIteratorEntries_returnsNull() {
+		final Iterable<SimpleEntity> entities = () -> java.util.Arrays.<SimpleEntity>asList(null, null).iterator();
+		assertNull(sqlBuilder.buildWhereClause(entities));
 	}
 
 	@Test
@@ -958,11 +987,14 @@ public class IuSqlBuilderImplTest {
 	}
 
 	@Test
-	public void testBuildWhereClause_nullElementsSkipped() {
-		final var e = new SimpleEntity();
-		e.setId(3L);
-		final var list = java.util.Arrays.asList(null, e, null);
-		assertEquals("(a.ID = 3)", sqlBuilder.buildWhereClause(list));
+	public void testBuildWhereClause_nullEntityAfterFirstIteratorEntryIsSkipped() {
+		final var first = new SimpleEntity();
+		first.setId(3L);
+		final var second = new SimpleEntity();
+		second.setId(4L);
+		final Iterable<SimpleEntity> entities = () -> java.util.Arrays.asList(first, null, second).iterator();
+
+		assertEquals("((a.ID = 3) OR (a.ID = 4))", sqlBuilder.buildWhereClause(entities));
 	}
 
 	// =======================================================================
