@@ -93,7 +93,9 @@ public class IuParallelWorkloadControllerTest {
 
 		final var name = testInfo.getTestMethod().get().getName();
 		if (!name.startsWith("testRequiresPositive") && !name.equals("testRunsALotOfTasks")) {
-			workload = new IuParallelWorkloadController(name, 5, Duration.ofMillis(100L));
+			final var timeout = name.equals("testShutdownThreadIsInterrupted") ? Duration.ofSeconds(10L)
+					: Duration.ofMillis(100L);
+			workload = new IuParallelWorkloadController(name, 5, timeout);
 			workload.setLog(log);
 		}
 	}
@@ -370,27 +372,45 @@ public class IuParallelWorkloadControllerTest {
 		final var current = Thread.currentThread();
 		final var workerReady = new CountDownLatch(1);
 		final var startInterrupt = new CountDownLatch(1);
+		final var releaseWorker = new CountDownLatch(1);
+		final var workerFinished = new CountDownLatch(1);
 		final var observedShutdownWait = new AtomicBoolean();
 		workload.apply(a -> {
-			workerReady.countDown();
-			assertTrue(startInterrupt.await(10L, TimeUnit.SECONDS));
+			try {
+				workerReady.countDown();
+				assertTrue(startInterrupt.await(10L, TimeUnit.SECONDS));
 
-			final var timeout = System.nanoTime() + TimeUnit.SECONDS.toNanos(10L);
-			while (System.nanoTime() < timeout) {
-				final var state = current.getState();
-				if (state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING) {
-					observedShutdownWait.set(true);
-					break;
+				final var timeout = System.nanoTime() + TimeUnit.SECONDS.toNanos(10L);
+				while (System.nanoTime() < timeout) {
+					final var state = current.getState();
+					if (state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING) {
+						observedShutdownWait.set(true);
+						break;
+					}
+					Thread.onSpinWait();
 				}
-				Thread.onSpinWait();
+				current.interrupt();
+
+				while (releaseWorker.getCount() > 0L)
+					try {
+						releaseWorker.await();
+					} catch (InterruptedException e) {
+						// Keep pending until the shutdown thread observes its interruption.
+					}
+			} finally {
+				workerFinished.countDown();
 			}
-			current.interrupt();
 		});
 
 		assertTrue(workerReady.await(10L, TimeUnit.SECONDS));
 		startInterrupt.countDown();
-		assertThrows(InterruptedException.class, workload::close);
+		try {
+			assertThrows(InterruptedException.class, workload::close);
+		} finally {
+			releaseWorker.countDown();
+		}
 		assertTrue(observedShutdownWait.get());
+		assertTrue(workerFinished.await(10L, TimeUnit.SECONDS));
 	}
 
 	@Test
