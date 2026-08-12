@@ -13,16 +13,12 @@
 	<artifactId>iu-java-jdbc-pool</artifactId>
 	<name>IU Database Connection Pools</name>
 
-	<properties>
-		<postgresql.version>42.7.8</postgresql.version>
-		<liquibase.version>5.0.1</liquibase.version>
-	</properties>
-
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>
 			<version>${project.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>jakarta.transaction</groupId>

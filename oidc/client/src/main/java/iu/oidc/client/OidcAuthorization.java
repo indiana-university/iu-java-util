@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -38,27 +39,34 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuException;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
 import edu.iu.IuWebUtils;
+import edu.iu.UnsafeFunction;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
+import edu.iu.oidc.IuOidcTokenResponse;
+import edu.iu.session.IuSession;
 import iu.oidc.client.config.IuOidcClientReference;
 
 /**
  * {@link IuOidcAuthorization} implementation resource.
  */
 public class OidcAuthorization implements IuOidcAuthorization {
+
+	private static final Logger LOG = Logger.getLogger(OidcAuthorization.class.getName());
 
 	private final IuOidcClientReference config;
 
@@ -72,7 +80,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuStatefulRedirect init(String delegatingPrincipal, String backdoorId) {
+	public IuStatefulRedirect init(String delegatingPrincipal, String backdoorId, Consumer<IuSession> preAuthDetail)
+			throws IOException {
 		final var state = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
 		final var oidcClient = config.getClient();
@@ -82,6 +91,11 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
 		preAuth.setState(state);
 		preAuth.setNonce(nonce);
+
+		// after this flow's own detail and before the store, so one write carries both
+		if (preAuthDetail != null)
+			preAuthDetail.accept(session);
+
 		session.setStrict(false);
 		final var setCookie = sessionHandler.store(session);
 
@@ -96,13 +110,13 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
 
-		final var resource = config.getResourceUri();
+		final var resource = oidcClient.getResourceUri();
 		if (resource != null)
 			params.put("resource", IuIterable.iter(resource.toString()));
 
 		if (delegatingPrincipal != null)
 			params.put("delegating_principal", IuIterable.iter(delegatingPrincipal));
-		
+
 		if (backdoorId != null)
 			params.put("impersonated_principal", IuIterable.iter(backdoorId));
 
@@ -125,7 +139,11 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuStatefulRedirect authorize(IuRequestAttributes requestAttributes, String code, String state) {
+	public IuStatefulRedirect authorize(IuRequestAttributes requestAttributes, String code, String state)
+			throws IOException {
+		if (!requestAttributes.getRequestUri().equals(config.getRedirectUri()))
+			throw new IuBadRequestException("redirect_uri mismatch, expected " + config.getRedirectUri());
+
 		final var sessionHandler = config.getSessionHandler();
 		final var session = sessionHandler.activate(requestAttributes.getCookies());
 		if (session == null)
@@ -135,7 +153,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (!IuObject.equals(preAuth.getState(), state))
 			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
 
-		final var grant = new AuthorizationGrant(config, code);
+		final var grant = new AuthorizationGrant(config, code, config.getRedirectUri());
 		final var response = grant.getTokenResponse();
 		final var idToken = Objects.requireNonNull(grant.getIdToken(), "missing verified ID token");
 
@@ -156,10 +174,12 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		postAuth.setNotAfter(
 				IuObject.require(now.plusSeconds(response.getExpiresIn()), now::isBefore, "non-positive expires_in"));
 
+		session.setStrict(false);
+		final var setCookie = sessionHandler.store(session);
 		return new IuStatefulRedirect() {
 			@Override
 			public String getSetCookie() {
-				return sessionHandler.store(session);
+				return setCookie;
 			}
 
 			@Override
@@ -170,11 +190,11 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes requestAttributes) {
+	public IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes requestAttributes) throws IOException {
 		final var sessionHandler = config.getSessionHandler();
 		final var session = sessionHandler.activate(requestAttributes.getCookies());
 		if (session == null)
-			throw new IllegalStateException("missing or expired authorization session");
+			return null;
 
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
 		final var notAfter = postAuth.getNotAfter();
@@ -184,10 +204,21 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var grant = new RefreshTokenGrant(config, postAuth.getTokenResponse(), postAuth.getNotAfter());
 
 		final String setCookie;
-		final var response = grant.getTokenResponse();
+		final IuOidcTokenResponse response;
+		try {
+			response = grant.getTokenResponse();
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, "refresh token failed after ID token expired", e);
+			return null;
+		}
+
 		if (!response.equals(postAuth.getTokenResponse())) {
 			postAuth.setTokenResponse(response);
 			postAuth.setNotAfter(grant.getNotAfter());
+			setCookie = sessionHandler.store(session);
+		} else if (!postAuth.isStrict()) {
+			postAuth.setStrict(true);
+			session.setStrict(true);
 			setCookie = sessionHandler.store(session);
 		} else
 			setCookie = null;
@@ -198,8 +229,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
 		final var client = config.getClient();
 
-		final var encryptedUserinfoResponse = IuException.unchecked(() -> IuHttp.send(metadata.getUserinfoEndpoint(),
-				rb -> rb.header("Authorization", "Bearer " + accessToken), IuHttp.READ_UTF8));
+		final var encryptedUserinfoResponse = IuHttp.send(metadata.getUserinfoEndpoint(),
+				rb -> rb.header("Authorization", "Bearer " + accessToken), IuHttp.READ_UTF8);
 		final String userinfoResponse;
 		final var decryptKeys = client.getDecryptJwk();
 		if (decryptKeys != null) {
@@ -211,13 +242,13 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		} else
 			userinfoResponse = encryptedUserinfoResponse; // not encrypted
 
-		final var accessTokenLookup = new Function<URI, String>() {
-			private Map<URI, OidcTokenGrant> grants = new HashMap<>();
+		final var accessTokenLookup = new UnsafeFunction<URI, String>() {
+			private final Map<URI, OidcTokenGrant> grants = new HashMap<>();
 
 			@Override
-			public String apply(URI uri) {
+			public String apply(URI uri) throws IOException {
 				final var accessToken = grant.getTokenResponse().getAccessToken();
-				if (IuWebUtils.isRootOf(config.getResourceUri(), uri))
+				if (IuWebUtils.isRootOf(config.getClient().getResourceUri(), uri))
 					return accessToken;
 
 				URI apiResource = null;
@@ -228,12 +259,13 @@ public class OidcAuthorization implements IuOidcAuthorization {
 						apiResource = u;
 				Objects.requireNonNull(apiResource, "invalid resource URI " + uri);
 
-				var obo = grants.get(apiResource);
-				if (obo == null) {
-					obo = new OnBehalfOfGrant(config, apiResource, accessToken);
-					synchronized (grants) {
-						grants.put(apiResource, obo);
-					}
+				final OidcTokenGrant obo;
+				synchronized (grants) {
+					final var cached = grants.get(apiResource);
+					if (cached == null)
+						grants.put(apiResource, obo = new OnBehalfOfGrant(config, apiResource, accessToken));
+					else
+						obo = cached;
 				}
 
 				return obo.getTokenResponse().getAccessToken();
@@ -241,7 +273,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		};
 
 		return new OidcPrincipal(idToken, IuJson.parse(userinfoResponse).asJsonObject(), setCookie, accessTokenLookup,
-				config::adaptJson);
+				config::adaptJson, client.getPrincipalNameClaimName());
 	}
 
 }

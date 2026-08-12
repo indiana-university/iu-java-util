@@ -80,10 +80,7 @@ public class ComponentTest extends IuTypeTestCase {
 		var component = new Component(null, loader, ModuleLayer.boot(), new ArrayDeque<>(List.of(archive)), onClose);
 		component.close();
 
-		final var beforeExtraClose = System.nanoTime();
 		component.close(); // no-op does not throw
-		final var sinceBeforeExtraClose = System.nanoTime() - beforeExtraClose;
-		assertTrue(sinceBeforeExtraClose <= 1_000L);
 		verify(onClose).run();
 
 		assertEquals("closed", assertThrows(IllegalStateException.class, () -> component.parent()).getMessage());

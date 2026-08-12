@@ -47,7 +47,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
-import edu.iu.config.IuConfig;
 import edu.iu.jwt.IuAuthorizationDetails;
 import jakarta.json.JsonString;
 
@@ -115,7 +114,7 @@ public class JwtBuilderTest {
 	@Test
 	public void testDetails() {
 		Details.class.getModule().addOpens("iu.jwt", IuJson.class.getModule());
-		IuConfig.registerInterface(Details.class);
+//		IuConfig.registerInterface(Details.class);
 		final var type = IdGenerator.generateId();
 		final var foo = IdGenerator.generateId();
 		final var foo2 = IdGenerator.generateId();

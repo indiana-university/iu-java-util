@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
@@ -85,8 +86,12 @@ public class InMemoryDataStoreTest {
 		ThreadLocalRandom.current().nextBytes(key1);
 		final var val1 = new byte[32];
 		ThreadLocalRandom.current().nextBytes(val1);
-		ds.put(key1, val1, Duration.ofSeconds(1L));
-		Thread.sleep(1000L);
+		// Expiry is strictly after the purge time, so sleeping exactly the TTL leaves
+		// the entry unexpired whenever the sleep returns on the deadline itself. The
+		// margin sits well inside the 1500ms purge timer's first run, keeping the read
+		// the thing that removes the entry.
+		ds.put(key1, val1, Duration.ofMillis(250L));
+		Thread.sleep(500L);
 		assertNull(ds.get(key1));
 		assertFalse(ds.list().iterator().hasNext());
 	}
@@ -98,10 +103,25 @@ public class InMemoryDataStoreTest {
 		ThreadLocalRandom.current().nextBytes(key1);
 		final var val1 = new byte[32];
 		ThreadLocalRandom.current().nextBytes(val1);
-		ds.put(key1, val1, Duration.ofSeconds(2L));
-		Thread.sleep(4000L);
+		ds.put(key1, val1, Duration.ofMillis(250L));
+
+		final var key2 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key2);
+		final var val2 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val2);
+		ds.put(key2, val2, Duration.ofSeconds(30L));
+
+		final var timeout = System.nanoTime() + TimeUnit.SECONDS.toNanos(10L);
+		while (IuIterable.stream(ds.list()).count() > 1L && System.nanoTime() < timeout)
+			Thread.sleep(25L);
+
+		// Listed before being read: list() does no purging of its own, so an empty
+		// expired entry shows the timer removed it. The retained entry covers the
+		// timer's non-expired branch in the same deterministic pass.
+		assertEquals(1L, IuIterable.stream(ds.list()).count());
+		assertArrayEquals(key2, (byte[]) ds.list().iterator().next());
 		assertNull(ds.get(key1));
-		assertFalse(ds.list().iterator().hasNext());
+		assertArrayEquals(val2, ds.get(key2));
 	}
 
 }

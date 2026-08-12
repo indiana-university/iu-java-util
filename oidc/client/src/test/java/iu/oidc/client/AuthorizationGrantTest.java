@@ -36,6 +36,7 @@ import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -62,7 +63,7 @@ public class AuthorizationGrantTest {
 	}
 
 	@Test
-	public void testGrantType() {
+	public void testGrantType() throws IOException {
 		final var clientId = IdGenerator.generateId();
 		final var assertionJwk = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).ephemeral().build();
 		final var client = mock(IuOidcClient.class, CALLS_REAL_METHODS);
@@ -80,12 +81,14 @@ public class AuthorizationGrantTest {
 		when(config.getProvider()).thenReturn(provider);
 
 		final var code = IdGenerator.generateId();
-		final var grant = new AuthorizationGrant(config, code);
+		final var uri = URI.create(IdGenerator.generateId());
+		final var grant = new AuthorizationGrant(config, code, uri);
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		final var rb = mock(HttpRequest.Builder.class);
 		grant.tokenAuth(rb, params);
 		assertEquals("authorization_code", params.get("grant_type").iterator().next());
 		assertEquals(code, params.get("code").iterator().next());
+		assertEquals(uri.toString(), params.get("redirect_uri").iterator().next());
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		final var assertion = WebToken.verify(params.get("client_assertion").iterator().next(), assertionJwk);
 		assertion.validateClaims(URI.create(clientId), tokenEndpoint, Duration.ofMinutes(15L));

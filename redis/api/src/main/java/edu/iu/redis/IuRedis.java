@@ -31,6 +31,9 @@
  */
 package edu.iu.redis;
 
+import java.util.NoSuchElementException;
+import java.util.Objects;
+
 import edu.iu.IuDataStore;
 import edu.iu.redis.spi.IuRedisSpi;
 import iu.redis.IuRedisSpiFactory;
@@ -43,6 +46,20 @@ import iu.redis.IuRedisSpiFactory;
  * </p>
  */
 public interface IuRedis extends IuDataStore, AutoCloseable {
+
+	/**
+	 * Initializes and verifies the Redis SPI provider.
+	 *
+	 * <p>
+	 * Invoke this method while the current thread's context class loader can
+	 * resolve the Redis implementation, before using other Redis API methods.
+	 * </p>
+	 *
+	 * @throws NoSuchElementException if no Redis SPI provider is available
+	 */
+	static void init() {
+		Objects.requireNonNull(IuRedisSpiFactory.get(IuRedisSpi.class));
+	}
 
 	/**
 	 * Create a connection to Redis.

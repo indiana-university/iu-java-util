@@ -124,11 +124,20 @@ public interface IuOidcClient {
 
 	/**
 	 * Gets the maximum length of time to allow since user authentication.
-	 * 
+	 *
 	 * @return {@link Duration}; default is PT12H
 	 */
 	default Duration getMaxAge() {
 		return Duration.ofHours(12L);
+	}
+
+	/**
+	 * Gets the claim name to use for designating the principal name.
+	 *
+	 * @return claim name; null (default) to use the subject ("sub") claim
+	 */
+	default String getPrincipalNameClaimName() {
+		return null;
 	}
 
 }

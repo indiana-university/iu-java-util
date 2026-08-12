@@ -55,6 +55,12 @@ import edu.iu.type.testresources.HasStringListParam;
 
 @SuppressWarnings("javadoc")
 public class TypeTemplateTest extends IuTypeTestCase {
+	private enum StaticEnum {
+		VALUE
+	}
+
+	private record StaticRecord() {
+	}
 
 	@BeforeEach
 	public void setup() {
@@ -104,6 +110,19 @@ public class TypeTemplateTest extends IuTypeTestCase {
 		});
 		raw.sealHierarchy(List.of());
 		assertRaw(int.class, raw);
+	}
+
+	@Test
+	public void testStaticEnumAndRecordBuildersAreValid() {
+		var enumTemplate = new TypeTemplate<>(StaticEnum.class, a -> {
+		});
+		enumTemplate.sealHierarchy(List.of());
+		assertRaw(StaticEnum.class, enumTemplate);
+
+		var recordTemplate = new TypeTemplate<>(StaticRecord.class, a -> {
+		});
+		recordTemplate.sealHierarchy(List.of());
+		assertRaw(StaticRecord.class, recordTemplate);
 	}
 
 	@Test

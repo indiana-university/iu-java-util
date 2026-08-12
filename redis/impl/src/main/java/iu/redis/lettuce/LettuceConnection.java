@@ -35,6 +35,7 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -49,6 +50,7 @@ import edu.iu.redis.IuRedisConfiguration;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.SocketOptions;
 import io.lettuce.core.SslOptions;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.support.ConnectionPoolSupport;
@@ -59,6 +61,56 @@ import io.lettuce.core.support.ConnectionPoolSupport;
 public class LettuceConnection implements IuRedis {
 
 	private static final Logger LOG = Logger.getLogger(LettuceConnection.class.getName());
+
+	/** Interval between idle-connection health sweeps. */
+	private static final Duration EVICTION_INTERVAL = Duration.ofSeconds(30);
+
+	/**
+	 * Bound on how long a health-check {@code PING} may take before the connection
+	 * under test is treated as unusable, so a half-open socket -- exactly the case
+	 * this check exists to catch -- cannot itself hang the sweep.
+	 */
+	private static final Duration PING_TIMEOUT = Duration.ofSeconds(2);
+
+	/**
+	 * Validates a pooled connection with a real, bounded-time {@code PING}, run by
+	 * the pool's idle-connection sweep rather than on every borrow, since
+	 * validating on every borrow would double the Redis round trips a session-bound
+	 * request already makes.
+	 *
+	 * <p>
+	 * The default validation {@link ConnectionPoolSupport} would otherwise use is
+	 * {@link StatefulRedisConnection#isOpen()}, which only reflects that nothing
+	 * has yet observed the socket as closed -- exactly the state a connection an
+	 * intermediary (firewall, load balancer, or Kubernetes conntrack) silently
+	 * dropped while idle is left in. A real command is the only way to find out.
+	 * </p>
+	 *
+	 * <p>
+	 * Package-private for direct unit testing.
+	 * </p>
+	 *
+	 * @param connection pooled connection under test; {@code null} if the pool's
+	 *                   factory could not create one
+	 * @return {@code true} if the connection answers {@code PING} within
+	 *         {@link #PING_TIMEOUT}
+	 */
+	static boolean isHealthy(StatefulRedisConnection<String, String> connection) {
+		if (connection == null)
+			return false;
+
+		final var ping = connection.async().ping();
+		try {
+			return "PONG".equals(ping.get(PING_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return false;
+		} catch (Exception e) {
+			return false;
+		} finally {
+			ping.cancel(true);
+		}
+	}
 
 	private final GenericObjectPool<StatefulRedisConnection<String, String>> genericPool;
 	private final RedisClient redisClient;
@@ -82,6 +134,13 @@ public class LettuceConnection implements IuRedis {
 		this.config = config;
 		this.redisClient = RedisClient.create(redisUri);
 
+		// TCP keepalive is defense in depth: it lets the OS eventually notice a
+		// connection an intermediary dropped while idle, but OS keepalive timers
+		// default to hours, far past the pool's own eviction sweep below -- which is
+		// what actually catches this within the few minutes the failure allows
+		final var clientOptions = ClientOptions.builder() //
+				.socketOptions(SocketOptions.builder().keepAlive(true).build());
+
 		final var cert = config.getTrustedCert();
 		if (cert != null) {
 			final var caCertFile = IuProcess.createTempFile();
@@ -91,12 +150,20 @@ public class LettuceConnection implements IuRedis {
 					PemEncoded.print(out, cert);
 				}
 			});
-			redisClient.setOptions(ClientOptions.builder()
-					.sslOptions(SslOptions.builder().trustManager(caCertFile.toFile()).build()).build());
+			clientOptions.sslOptions(SslOptions.builder().trustManager(caCertFile.toFile()).build());
 		}
+		redisClient.setOptions(clientOptions.build());
 
-		this.genericPool = ConnectionPoolSupport.createGenericObjectPool(() -> redisClient.connect(),
-				new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>());
+		final var poolConfig = new GenericObjectPoolConfig<StatefulRedisConnection<String, String>>();
+		// a connection an intermediary silently drops while idle looks healthy until
+		// something tries to use it; testWhileIdle runs a real PING against every idle
+		// connection each EVICTION_INTERVAL, so a stale one is replaced before a
+		// request ever borrows it, instead of hanging that request for a minute
+		poolConfig.setTestWhileIdle(true);
+		poolConfig.setTimeBetweenEvictionRuns(EVICTION_INTERVAL);
+
+		this.genericPool = ConnectionPoolSupport.createGenericObjectPool(() -> redisClient.connect(), poolConfig,
+				LettuceConnection::isHealthy);
 		closed = false;
 	}
 
@@ -108,6 +175,7 @@ public class LettuceConnection implements IuRedis {
 	@Override
 	public byte[] get(byte[] key) {
 		Objects.requireNonNull(key, "key is required");
+		final byte[] result;
 		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
 			final var textkey = IuText.utf8(key);
 			final var b64key = IuText.base64(key);
@@ -116,14 +184,15 @@ public class LettuceConnection implements IuRedis {
 
 			if (value == null) {
 				LOG.fine(() -> "redis:get:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " (empty)");
-				return null;
+				result = null;
 			} else {
 				final var bytes = IuText.utf8(value);
 				LOG.fine(() -> "redis:get:" + b64key + ":" + config.getHost() + ":" + config.getPort() + " "
 						+ bytes.length);
-				return bytes;
+				result = bytes;
 			}
 		}
+		return result;
 	}
 
 	@Override
@@ -138,8 +207,9 @@ public class LettuceConnection implements IuRedis {
 				LOG.fine(() -> "redis:del:" + b64key + ":" + config.getHost() + ":" + config.getPort());
 			} else {
 				if (ttl != null && !ttl.isZero() && !ttl.isNegative())
-					commands.setex(key.toString(), ttl.toSeconds(), IuText.utf8(value));
-				commands.set(textkey, IuText.utf8(value));
+					commands.setex(textkey, ttl.toSeconds(), IuText.utf8(value));
+				else
+					commands.set(textkey, IuText.utf8(value));
 				LOG.fine(() -> "redis:put:" + b64key + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl + " "
 						+ value.length);
 			}

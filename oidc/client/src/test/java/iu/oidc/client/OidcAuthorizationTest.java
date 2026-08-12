@@ -33,26 +33,34 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.HttpCookie;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuWebUtils;
@@ -80,8 +88,15 @@ public class OidcAuthorizationTest {
 		edu.iu.crypt.Init.init();
 	}
 
+	private static URI configureRedirectUri(IuOidcClientReference config, IuRequestAttributes requestAttributes) {
+		final var redirectUri = URI.create(IdGenerator.generateId());
+		when(config.getRedirectUri()).thenReturn(redirectUri);
+		when(requestAttributes.getRequestUri()).thenReturn(redirectUri);
+		return redirectUri;
+	}
+
 	@Test
-	void testInit() {
+	void testInit() throws IOException {
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -121,7 +136,9 @@ public class OidcAuthorizationTest {
 	}
 
 	@Test
-	void testInitWithExtras() {
+	void testInitRecordsCallerDetailBeforeStoringTheSession() throws IOException {
+		// a caller has no other opportunity to write state that must survive the round
+		// trip: the session is created and stored entirely within init
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -130,6 +147,46 @@ public class OidcAuthorizationTest {
 		when(sessionHandler.create()).thenReturn(session);
 		when(sessionHandler.store(session)).thenReturn(setCookie);
 
+		final var client = mock(IuOidcClient.class);
+		when(client.getClientId()).thenReturn(IdGenerator.generateId());
+
+		final var provider = mock(IuOidcProvider.class);
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getAuthorizationEndpoint()).thenReturn(URI.create(IdGenerator.generateId()));
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getRedirectUri()).thenReturn(URI.create(IdGenerator.generateId()));
+		when(config.getClient()).thenReturn(client);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+
+		final var received = new ArrayDeque<IuSession>();
+		assertEquals(setCookie,
+				new OidcAuthorization(config).init(null, null, received::push).getSetCookie());
+
+		// the session it receives is the one about to be stored, and it is handed over
+		// before the store, so one write carries both this flow's detail and the
+		// caller's
+		assertEquals(1, received.size());
+		assertSame(session, received.peek());
+
+		final var order = inOrder(preAuth, sessionHandler);
+		order.verify(preAuth).setNonce(any());
+		order.verify(sessionHandler).store(session);
+	}
+
+	@Test
+	void testInitWithExtras() throws IOException {
+		final var setCookie = IdGenerator.generateId();
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+		when(sessionHandler.create()).thenReturn(session);
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var appUri = URI.create(IdGenerator.generateId());
 		final var redirectUri = URI.create(IdGenerator.generateId());
 		final var resourceUri = URI.create(IdGenerator.generateId());
 		final var scope = IdGenerator.generateId();
@@ -137,6 +194,7 @@ public class OidcAuthorizationTest {
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
+		when(client.getResourceUri()).thenReturn(resourceUri);
 
 		final var provider = mock(IuOidcProvider.class);
 		final var authorizationEndpoint = URI.create(IdGenerator.generateId());
@@ -146,7 +204,7 @@ public class OidcAuthorizationTest {
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getRedirectUri()).thenReturn(redirectUri);
-		when(config.getResourceUri()).thenReturn(resourceUri);
+		when(config.getResourceUri()).thenReturn(appUri);
 		when(config.getScope()).thenReturn(scope);
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
@@ -169,9 +227,29 @@ public class OidcAuthorizationTest {
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
 	}
 
+	@Test
+	void testAuthorizeRedirectUriMismatch() {
+		final var expected = URI.create(IdGenerator.generateId());
+		final var actual = URI.create(IdGenerator.generateId());
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getRedirectUri()).thenReturn(expected);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getRequestUri()).thenReturn(actual);
+
+		final var authorization = new OidcAuthorization(config);
+		assertEquals("redirect_uri mismatch, expected " + expected,
+				assertThrows(IuBadRequestException.class,
+						() -> authorization.authorize(requestAttributes, IdGenerator.generateId(),
+								IdGenerator.generateId()))
+						.getMessage());
+		verifyNoInteractions(sessionHandler);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAuthorizeMissingSession() {
+	void testAuthorizeMissingSession() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var sessionHandler = mock(IuSessionHandler.class);
 
@@ -180,15 +258,14 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
 		final var authorization = new OidcAuthorization(config);
 		assertEquals("missing or expired preAuth session", assertThrows(IllegalStateException.class,
 				() -> authorization.authorize(requestAttributes, code, IdGenerator.generateId())).getMessage());
-		assertEquals("missing or expired authorization session",
-				assertThrows(IllegalStateException.class, () -> authorization.getAuthorizedPrincipal(requestAttributes))
-						.getMessage());
+		assertNull(authorization.getAuthorizedPrincipal(requestAttributes));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -210,6 +287,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -222,7 +300,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAuthorize() {
+	void testAuthorize() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -261,6 +339,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -273,6 +352,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -286,7 +366,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAuthorizeNoNonce() {
+	void testAuthorizeNoNonce() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -323,6 +403,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -334,6 +415,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -386,6 +468,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -397,6 +480,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -445,6 +529,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -457,6 +542,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -506,6 +592,7 @@ public class OidcAuthorizationTest {
 
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
+		final var redirectUri = configureRedirectUri(config, requestAttributes);
 
 		final var code = IdGenerator.generateId();
 
@@ -518,6 +605,7 @@ public class OidcAuthorizationTest {
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(code, ctx.arguments().get(1));
+			assertEquals(redirectUri, ctx.arguments().get(2));
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
@@ -552,7 +640,48 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testGetPrincipal() {
+	void testGetPrincipalAfterInvalidInitialTokenAndFailedRefresh() throws IOException {
+		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var initialResponse = mock(IuOidcTokenResponse.class);
+		when(initialResponse.getIdToken()).thenThrow(new IllegalArgumentException("invalid initial token"));
+		final var notAfter = Instant.now().plusSeconds(60L);
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(postAuth.getTokenResponse()).thenReturn(initialResponse);
+		when(postAuth.getNotAfter()).thenReturn(notAfter);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getTokenEndpoint()).thenReturn(tokenEndpoint);
+		final var provider = mock(IuOidcProvider.class);
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+		when(config.getProvider()).thenReturn(provider);
+
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var refreshFailure = new IOException("refresh failed");
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+				eq(IuHttp.READ_JSON_OBJECT))).thenThrow(refreshFailure);
+		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO, "initial token response invalid",
+				IllegalArgumentException.class);
+		IuTestLogger.expect(OidcAuthorization.class.getName(), Level.INFO,
+				"refresh token failed after ID token expired", IOException.class);
+
+		final var authorization = new OidcAuthorization(config);
+		assertNull(authorization.getAuthorizedPrincipal(requestAttributes));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipal() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -571,18 +700,19 @@ public class OidcAuthorizationTest {
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
 
+		final var resourceUri = URI.create(IdGenerator.generateId());
+
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
 		when(client.getDecryptJwk()).thenReturn(null);
+		when(client.getResourceUri()).thenReturn(resourceUri);
 
 		final var provider = mock(IuOidcProvider.class);
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(provider.getMetadata()).thenReturn(metadata);
-
-		final var resourceUri = URI.create(IdGenerator.generateId());
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);
@@ -656,6 +786,11 @@ public class OidcAuthorizationTest {
 			assertEquals(sub, principal.getName());
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
 
+			assertNotNull(principal.getSetCookie());
+
+			when(postAuth.isStrict()).thenReturn(true);
+			assertNull(authorization.getAuthorizedPrincipal(requestAttributes).getSetCookie());
+			
 			final var wrongUri = URI.create(IdGenerator.generateId());
 			assertThrows(NullPointerException.class, () -> principal.getAccessToken(wrongUri));
 
@@ -670,7 +805,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testGetPrincipalWithRefreshAndEncrypted() {
+	void testGetPrincipalWithRefreshAndEncrypted() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -689,9 +824,12 @@ public class OidcAuthorizationTest {
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
 
+		final var resourceUri = URI.create(IdGenerator.generateId());
+
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
+		when(client.getResourceUri()).thenReturn(resourceUri);
 		final var dkid = IdGenerator.generateId();
 		final var decryptJwk = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES).keyId(dkid).ephemeral()
 				.build();
@@ -703,7 +841,6 @@ public class OidcAuthorizationTest {
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(provider.getMetadata()).thenReturn(metadata);
 
-		final var resourceUri = URI.create(IdGenerator.generateId());
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);
@@ -759,7 +896,10 @@ public class OidcAuthorizationTest {
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
+
+			assertNotNull(principal.getSetCookie());
 		}
 	}
+
 
 }

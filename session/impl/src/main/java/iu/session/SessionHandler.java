@@ -105,8 +105,14 @@ public class SessionHandler implements IuSessionHandler {
 		if (activatedSession == null)
 			return null;
 
-		return new Session(resourceUri, activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
-				configuration.get());
+		try {
+			return new Session(resourceUri, activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
+					configuration.get());
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, "Purging invalid session", e);
+			dataStore.put(hashKey(secretKey), null);
+			return null;
+		}
 	}
 
 	@Override
@@ -137,6 +143,8 @@ public class SessionHandler implements IuSessionHandler {
 
 		if (s.isStrict())
 			cookieBuilder.append("; SameSite=Strict");
+		else
+			cookieBuilder.append("; SameSite=Lax");
 		return cookieBuilder.toString();
 	}
 

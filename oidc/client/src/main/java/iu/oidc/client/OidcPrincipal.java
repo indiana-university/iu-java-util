@@ -31,10 +31,13 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.function.Function;
 
+import edu.iu.IuException;
+import edu.iu.UnsafeFunction;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
@@ -48,22 +51,43 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
 	private final String setCookie;
-	private final Function<URI, String> accessTokenLookup;
+	private final UnsafeFunction<URI, String> accessTokenLookup;
 	private final Function<Type, IuJsonAdapter<?>> adapterFactory;
+	private final String principalNameClaimName;
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param idToken           ID token
 	 * @param userinfoClaims    Claims provided by the userinfo endpoint
 	 * @param setCookie         set-cookie header value to pass back to the user
 	 *                          agent if session state changed assembling the
 	 *                          principal
-	 * @param accessTokenLookup finds access tokens by URI
+	 * @param accessTokenLookup finds access tokens by URI; <em>may</em> interact
+	 *                          with the OpenID Provider's token endpoint
 	 * @param adapterFactory    JSON type adapter factory
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
-			Function<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory) {
+			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory) {
+		this(idToken, userinfoClaims, setCookie, accessTokenLookup, adapterFactory, null);
+	}
+
+	/**
+	 * Constructor.
+	 *
+	 * @param idToken                      ID token
+	 * @param userinfoClaims               Claims provided by the userinfo endpoint
+	 * @param setCookie                    set-cookie header value to pass back to the user
+	 *                                     agent if session state changed assembling the
+	 *                                     principal
+	 * @param accessTokenLookup            finds access tokens by URI; <em>may</em> interact
+	 *                                     with the OpenID Provider's token endpoint
+	 * @param adapterFactory               JSON type adapter factory
+	 * @param principalNameClaimName       claim name for principal name; null to use "sub"
+	 */
+	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
+			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory,
+			String principalNameClaimName) {
 		this.idToken = idToken;
 
 		if (!userinfoClaims.containsKey("sub"))
@@ -76,10 +100,19 @@ public class OidcPrincipal implements IuOidcPrincipal {
 
 		this.accessTokenLookup = accessTokenLookup;
 		this.adapterFactory = adapterFactory;
+		this.principalNameClaimName = principalNameClaimName;
 	}
 
 	@Override
 	public String getName() {
+		if (principalNameClaimName != null) {
+			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
+			if (userinfoValue != null)
+				return (String) adapterFactory.apply(String.class).fromJson(userinfoValue);
+			final var idTokenValue = idToken.getClaim(principalNameClaimName, String.class);
+			if (idTokenValue != null)
+				return idTokenValue;
+		}
 		return idToken.getSubject();
 	}
 
@@ -103,8 +136,13 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	}
 
 	@Override
-	public String getAccessToken(URI resourceUri) {
-		return accessTokenLookup.apply(resourceUri);
+	public String getAccessToken(URI resourceUri) throws IOException {
+		return IuException.checked(IOException.class, resourceUri, accessTokenLookup);
+	}
+
+	@Override
+	public String toString() {
+		return "OidcPrincipal [idToken=" + idToken + ", userinfoClaims=" + userinfoClaims + "]";
 	}
 
 }

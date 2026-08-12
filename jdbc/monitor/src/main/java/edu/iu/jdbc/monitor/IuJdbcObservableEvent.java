@@ -144,4 +144,10 @@ public class IuJdbcObservableEvent implements IuObservableEvent {
 		return action;
 	}
 
+	@Override
+	public String toString() {
+		return "IuJdbcObservableEvent [id=" + id + ", startTime=" + startTime + ", uri=" + uri + ", context=" + context
+				+ ", closeTime=" + closeTime + ", type=" + type + ", action=" + action + "]";
+	}
+
 }

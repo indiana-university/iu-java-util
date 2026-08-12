@@ -1,8 +1,10 @@
-package edu.iu.jdbc.pool;
+package iu.jdbc.pool.config;
 
 import java.time.Duration;
 
 import javax.sql.CommonDataSource;
+
+import edu.iu.jdbc.pool.IuConnectionPool;
 
 /**
  * Provides application-facing configuration to {@link IuConnectionPool}

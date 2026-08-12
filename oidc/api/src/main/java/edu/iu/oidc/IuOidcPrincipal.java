@@ -31,6 +31,7 @@
  */
 package edu.iu.oidc;
 
+import java.io.IOException;
 import java.net.URI;
 import java.security.Principal;
 
@@ -70,10 +71,16 @@ public interface IuOidcPrincipal extends Principal {
 	/**
 	 * Gets an access token issued to this principal for use with a given remote
 	 * resource.
-	 * 
+	 *
+	 * <p>
+	 * May require an on-behalf-of exchange with the OpenID Provider's token
+	 * endpoint.
+	 * </p>
+	 *
 	 * @param resourceUri root resource URI for the API to get an access token for
 	 * @return access token for use at the indicated resource URI
+	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	String getAccessToken(URI resourceUri);
+	String getAccessToken(URI resourceUri) throws IOException;
 
 }

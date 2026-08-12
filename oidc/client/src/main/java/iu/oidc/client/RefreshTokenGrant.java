@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.http.HttpRequest.Builder;
 import java.time.Instant;
 import java.util.Map;
@@ -53,21 +54,24 @@ public class RefreshTokenGrant extends OidcTokenGrant {
 	 * @param config        {@link IuOidcClientReference}
 	 * @param tokenResponse {@link IuOidcTokenResponse} that supplied the refresh token
 	 * @param notAfter      expiration time
+	 * @throws IOException if communication with the OpenID Provider is interrupted
+	 *                     while validating tokenResponse
 	 */
-	public RefreshTokenGrant(IuOidcClientReference config, IuOidcTokenResponse tokenResponse, Instant notAfter) {
+	public RefreshTokenGrant(IuOidcClientReference config, IuOidcTokenResponse tokenResponse, Instant notAfter)
+			throws IOException {
 		super(config, tokenResponse, notAfter);
 		this.refreshToken = tokenResponse.getRefreshToken();
 	}
 
 	@Override
-	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 		params.put("grant_type", IuIterable.iter("refresh_token"));
 		params.put("refresh_token", IuIterable.iter(refreshToken));
 		addClientAuth(requestBuilder, params);
 	}
 
 	@Override
-	public WebToken validateTokenResponse(IuOidcTokenResponse response) {
+	public WebToken validateTokenResponse(IuOidcTokenResponse response) throws IOException {
 		final var idToken = super.validateTokenResponse(response);
 		refreshToken = response.getRefreshToken();
 		return idToken;

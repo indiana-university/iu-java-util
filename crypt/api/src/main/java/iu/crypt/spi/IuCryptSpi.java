@@ -31,6 +31,7 @@
  */
 package iu.crypt.spi;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
@@ -87,16 +88,18 @@ public interface IuCryptSpi {
 	 * 
 	 * @param jwks {@link WebKey} set {@link URI}
 	 * @return {@link Iterable} of {@link WebKey}
+	 * @throws IOException if an error occurs reading the URI
 	 */
-	Iterable<? extends WebKey> readJwks(URI jwks);
+	Iterable<? extends WebKey> readJwks(URI jwks) throws IOException;
 
 	/**
 	 * Implements {@link WebKey#readJwks(InputStream)}
 	 * 
 	 * @param jwks {@link InputStream}
 	 * @return {@link Iterable} of {@link WebKey}
+	 * @throws IOException if an error occurs reading the stream
 	 */
-	Iterable<? extends WebKey> readJwks(InputStream jwks);
+	Iterable<? extends WebKey> readJwks(InputStream jwks) throws IOException;
 
 	/**
 	 * Implements {@link WebKey#asJwks(Iterable)}

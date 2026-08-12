@@ -53,6 +53,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -316,25 +318,51 @@ public class IuAsynchronousPipeTest {
 		final var e = new RuntimeException();
 
 		class Box {
-			Throwable error;
+			volatile Thread receiver;
+			volatile Throwable error;
+			final CountDownLatch pausing = new CountDownLatch(1);
+			final CountDownLatch resumed = new CountDownLatch(1);
 		}
 		final var box = new Box();
 
 		workload.apply(task -> {
+			box.receiver = Thread.currentThread();
+			box.pausing.countDown();
 			try {
 				box.error = assertThrows(RuntimeException.class, () -> pipe.pauseReceiver(workload.getExpires()));
 			} catch (Throwable e2) {
 				box.error = e2;
+			} finally {
+				box.resumed.countDown();
 			}
 		});
-		Thread.sleep(250L);
+
+		// pauseReceiver returns without throwing if the pipe is already closed, so the
+		// error only reaches the receiver while it is genuinely parked. Waiting for it
+		// to park — rather than assuming a fixed delay covers thread start plus
+		// scheduling — is what makes the handoff reliable on a loaded build agent.
+		assertTrue(box.pausing.await(10L, TimeUnit.SECONDS));
+		final var parkedBy = Instant.now().plusSeconds(10L);
+		while (!isParked(box.receiver)) {
+			assertTrue(Instant.now().isBefore(parkedBy), "receiver never parked");
+			Thread.onSpinWait();
+		}
+
 		pipe.error(e);
-		Thread.sleep(250L);
+
+		assertTrue(box.resumed.await(10L, TimeUnit.SECONDS));
 		assertNotNull(box.error);
 		if (box.error instanceof RuntimeException)
 			assertSame(e, box.error, box.error::toString);
 		else
 			throw box.error;
+	}
+
+	/** Determines whether a thread is parked in {@link Object#wait}. */
+	private static boolean isParked(Thread thread) {
+		final var state = thread.getState();
+		return state == Thread.State.WAITING //
+				|| state == Thread.State.TIMED_WAITING;
 	}
 
 	@Test
@@ -485,7 +513,7 @@ public class IuAsynchronousPipeTest {
 		log.info("closed");
 		pipe.pauseController(workload.getExpires());
 		log.info("unpaused after close " + pipe);
-		assertTrue(pipe.isCompleted());
+		assertTrue(pipe.isCompleted(), pipe::toString);
 		assertEquals(100, pipe.getReceivedCount());
 	}
 

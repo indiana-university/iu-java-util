@@ -267,6 +267,18 @@ public class ComponentArchiveTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testIgnoresNonWebDirectory() throws IOException {
+		final Map<String, byte[]> entries = new LinkedHashMap<>();
+		entries.put("a.class", B0);
+		entries.put("directory/", B0);
+		entries.put("META-INF/maven/a/pom.properties", "artifactId=a\nversion=1.0.0".getBytes());
+		try (final var source = createSource(null, entries)) {
+			assertReadsArchive("non-web directory", source, archive -> assertEquals(Kind.JAR, archive.kind()),
+					Map.of("directory/", -1));
+		}
+	}
+
+	@Test
 	public void testReadsTestComponent() throws IOException {
 		assertReadsArchive("testcomponent", archive -> {
 			assertEquals(Kind.JAR, archive.kind());

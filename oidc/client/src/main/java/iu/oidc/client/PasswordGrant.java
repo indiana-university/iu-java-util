@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.http.HttpRequest.Builder;
 import java.util.Map;
 import java.util.Objects;
@@ -54,7 +55,7 @@ public class PasswordGrant extends OidcTokenGrant {
 	}
 
 	@Override
-	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 		final var client = config.getClient();
 		final var username = Objects.requireNonNull(client.getUsername(), "missing username");
 		final var password = Objects.requireNonNull(client.getPassword(), "missing password");

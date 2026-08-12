@@ -346,7 +346,9 @@ public final class Vault implements IuVault {
 			try {
 				return IuHttp.send(dataUri(secret), this::authorize, IuHttp.READ_JSON_OBJECT).getJsonObject("data");
 			} catch (HttpException e) {
-				if (e.getResponse().statusCode() == 404)
+				final var errorResponse = e.getResponse();
+				if (errorResponse != null //
+						&& errorResponse.statusCode() == 404)
 					if (cubbyhole)
 						return IuJson.object().build();
 					else
@@ -387,6 +389,7 @@ public final class Vault implements IuVault {
 
 	private void kubeauth(HttpRequest.Builder requestBuilder) {
 		final String jwt = IuException.unchecked(() -> Files.readString(Path.of(tokenInfo), StandardCharsets.UTF_8));
+		LOG.fine(roleInfo + " jwt length " + jwt.length());
 		final var payload = IuJson.object();
 		payload.add("jwt", jwt);
 		payload.add("role", roleInfo);

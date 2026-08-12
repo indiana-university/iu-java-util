@@ -35,14 +35,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 import java.util.Set;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 import org.junit.jupiter.api.Test;
 
@@ -104,6 +112,19 @@ public class PathEntryScannerTest {
 	public void testMissingFromJar() throws IOException {
 		final var entry = Path.of("target/dependency/iu-java-type-testruntime.jar");
 		assertThrows(NoSuchFileException.class, () -> PathEntryScanner.read(entry, "missing resource"));
+	}
+
+	@Test
+	public void testNullJarInputStream() throws IOException {
+		final var entry = Path.of("target/dependency/iu-java-type-testruntime.jar").toRealPath();
+		try (final var mockFiles = mockStatic(Files.class, CALLS_REAL_METHODS);
+				final var mockJar = mockConstruction(JarInputStream.class, (jar, context) -> {
+					when(jar.getNextJarEntry()).thenReturn(new JarEntry("resource"));
+					when(jar.read(any(byte[].class))).thenReturn(-1);
+				})) {
+			mockFiles.when(() -> Files.newInputStream(entry)).thenReturn(null);
+			assertEquals(0, PathEntryScanner.read(entry, "resource").length);
+		}
 	}
 
 	@Test

@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,6 +52,7 @@ import java.lang.reflect.Type;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -88,6 +90,9 @@ public class IuConfigTest {
 	}
 
 	interface VerifiableConfig {
+	}
+
+	static class UnregisteredClass {
 	}
 
 	@BeforeEach
@@ -159,6 +164,38 @@ public class IuConfigTest {
 			mockJsonAdapter.verify(() -> IuJsonAdapter.of(eq((Type) String.class), any()));
 		}
 		assertThrows(IllegalArgumentException.class, () -> IuConfig.registerAdapter(WebKey.class, null));
+	}
+
+	@Test
+	public void testAdaptJsonSkipsPlatformInterface() {
+		final var adapter = mock(IuJsonAdapter.class);
+		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
+			mockJsonAdapter.when(() -> IuJsonAdapter.of(eq((Type) List.class), any())).thenReturn(adapter);
+			assertSame(adapter, IuConfig.adaptJson(List.class));
+			mockJsonAdapter.verify(() -> IuJsonAdapter.of(eq((Type) List.class), any()));
+		}
+	}
+
+	@Test
+	public void testAdaptJsonUsesLowerCaseForUnregisteredInterface() {
+		final var adapter = mock(IuJsonAdapter.class);
+		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
+			mockJsonAdapter
+					.when(() -> IuJsonAdapter.from(eq(UnloadableConfig.class),
+							eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()))
+					.thenReturn(adapter);
+			assertSame(adapter, IuConfig.adaptJson(UnloadableConfig.class));
+			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(UnloadableConfig.class),
+					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
+		}
+	}
+
+	@Test
+	public void testAdaptJsonUnregisteredNonPlatformClass() {
+		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
+			IuConfig.adaptJson(UnregisteredClass.class);
+			mockJsonAdapter.verify(() -> IuJsonAdapter.of(eq((Type) UnregisteredClass.class), any()));
+		}
 	}
 
 	@Test
@@ -278,7 +315,7 @@ public class IuConfigTest {
 		assertEquals(value, IuConfig.load(LoadableRef.class, key).getConfig().getValue());
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "deprecation" })
 	@Test
 	public void testLoadableNoVault() {
 		final var vault = mock(IuVault.class);

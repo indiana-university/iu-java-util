@@ -32,10 +32,14 @@
 package iu.redis.lettuce;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -46,11 +50,18 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import edu.iu.IuProcess;
@@ -59,10 +70,13 @@ import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.test.IuTestLogger;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.RedisURI.Builder;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.api.sync.RedisCommands;
+import io.lettuce.core.support.ConnectionPoolSupport;
 
 @SuppressWarnings("javadoc")
 public class LettuceConnectionTest {
@@ -268,6 +282,133 @@ public class LettuceConnectionTest {
 		} finally {
 			Files.deleteIfExists(tempFile);
 		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testEnablesKeepAliveWithoutATrustedCert() {
+		// the socket option is defense in depth against a silently dropped
+		// connection, and unlike sslOptions must apply whether or not a cert is
+		// configured, so setOptions can no longer be conditional on one being present
+		IuTestLogger.allow("", Level.FINE);
+		final var config = mock(IuRedisConfiguration.class);
+		when(config.getHost()).thenReturn("localhost");
+		when(config.getPort()).thenReturn("6379");
+		when(config.getPassword()).thenReturn("securePassword");
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final var mockClient = mock(RedisClient.class);
+			when(mockClient.connect()).thenReturn(mock(StatefulRedisConnection.class));
+			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
+
+			final var lettuceConnection = new LettuceConnection(config);
+			assertNotNull(lettuceConnection);
+
+			final var optionsCaptor = ArgumentCaptor.forClass(ClientOptions.class);
+			verify(mockClient).setOptions(optionsCaptor.capture());
+			assertTrue(optionsCaptor.getValue().getSocketOptions().isKeepAlive());
+
+			assertDoesNotThrow(() -> lettuceConnection.close());
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testConfiguresAnIdleValidationSweepInsteadOfTrustingIsOpen() {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = mock(IuRedisConfiguration.class);
+		when(config.getHost()).thenReturn("localhost");
+		when(config.getPort()).thenReturn("6379");
+		when(config.getPassword()).thenReturn("securePassword");
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class);
+				final var poolSupportMock = mockStatic(ConnectionPoolSupport.class)) {
+			final var mockClient = mock(RedisClient.class);
+			redisClientStaticMock.when(() -> RedisClient.create(redisURI)).thenReturn(mockClient);
+
+			final var mockPool = mock(GenericObjectPool.class);
+			final ArgumentCaptor<GenericObjectPoolConfig<StatefulRedisConnection<String, String>>> poolConfigCaptor = //
+					ArgumentCaptor.forClass(GenericObjectPoolConfig.class);
+			final ArgumentCaptor<Predicate<StatefulRedisConnection<String, String>>> validatorCaptor = //
+					ArgumentCaptor.forClass(Predicate.class);
+			poolSupportMock.when(() -> ConnectionPoolSupport.createGenericObjectPool(any(Supplier.class),
+					poolConfigCaptor.capture(), validatorCaptor.capture())).thenReturn(mockPool);
+
+			assertNotNull(new LettuceConnection(config));
+
+			final var poolConfig = poolConfigCaptor.getValue();
+			assertTrue(poolConfig.getTestWhileIdle());
+			assertEquals(Duration.ofSeconds(30), poolConfig.getTimeBetweenEvictionRuns());
+
+			// delegates to isHealthy rather than the default isOpen() check, which would
+			// report a silently dropped connection as healthy
+			assertFalse(validatorCaptor.getValue().test(null));
+		}
+	}
+
+	@Test
+	public void testIsHealthyRejectsAMissingConnection() {
+		assertFalse(LettuceConnection.isHealthy(null));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testIsHealthyAcceptsAPromptPong() throws Exception {
+		final var connection = mock(StatefulRedisConnection.class);
+		final var async = mock(RedisAsyncCommands.class);
+		final var future = mock(RedisFuture.class);
+		when(connection.async()).thenReturn(async);
+		when(async.ping()).thenReturn(future);
+		when(future.get(anyLong(), any(TimeUnit.class))).thenReturn("PONG");
+
+		assertTrue(LettuceConnection.isHealthy(connection));
+
+		// the future is always retired, even after a successful reply, so nothing is
+		// left registered against a connection the pool may hand out again
+		verify(future).cancel(true);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testIsHealthyRejectsAnUnexpectedReply() throws Exception {
+		final var connection = mock(StatefulRedisConnection.class);
+		final var async = mock(RedisAsyncCommands.class);
+		final var future = mock(RedisFuture.class);
+		when(connection.async()).thenReturn(async);
+		when(async.ping()).thenReturn(future);
+		when(future.get(anyLong(), any(TimeUnit.class))).thenReturn("not PONG");
+
+		assertFalse(LettuceConnection.isHealthy(connection));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testIsHealthyTreatsATimeoutAsUnhealthy() throws Exception {
+		// exactly the case this check exists for: a half-open socket a silently
+		// dropped connection leaves behind never answers at all
+		final var connection = mock(StatefulRedisConnection.class);
+		final var async = mock(RedisAsyncCommands.class);
+		final var future = mock(RedisFuture.class);
+		when(connection.async()).thenReturn(async);
+		when(async.ping()).thenReturn(future);
+		when(future.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException());
+
+		assertFalse(LettuceConnection.isHealthy(connection));
+		verify(future).cancel(true);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testIsHealthyTreatsAnInterruptionAsUnhealthyAndRestoresTheFlag() throws Exception {
+		final var connection = mock(StatefulRedisConnection.class);
+		final var async = mock(RedisAsyncCommands.class);
+		final var future = mock(RedisFuture.class);
+		when(connection.async()).thenReturn(async);
+		when(async.ping()).thenReturn(future);
+		when(future.get(anyLong(), any(TimeUnit.class))).thenThrow(new InterruptedException());
+
+		assertFalse(LettuceConnection.isHealthy(connection));
+		assertTrue(Thread.interrupted());
 	}
 
 	@Test

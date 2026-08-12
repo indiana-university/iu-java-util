@@ -33,6 +33,7 @@ package iu.oidc.client.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 
@@ -50,6 +51,7 @@ public class IuOidcClientTest {
 		assertEquals(Duration.ofMinutes(2L), client.getAssertionTtl());
 		assertEquals(Duration.ofMinutes(15L), client.getTokenTtl());
 		assertEquals(Duration.ofHours(12L), client.getMaxAge());
+		assertNull(client.getPrincipalNameClaimName());
 	}
 
 }

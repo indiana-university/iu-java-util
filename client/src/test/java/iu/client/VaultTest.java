@@ -251,6 +251,28 @@ public class VaultTest extends IuHttpTestCase {
 	}
 
 	@Test
+	public void testReadSecretConnectionFailure() {
+		final var secret = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.token", token);
+		props.setProperty("iu.vault.secrets", secret);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			// a pre-response HttpException reports no status code to inspect
+			final var e = mock(HttpException.class);
+			when(e.getResponse()).thenReturn(null);
+			mockHttp.when(() -> IuHttp.send(any(URI.class), any(), any())).thenThrow(e);
+
+			assertSame(e, assertThrows(IllegalStateException.class, () -> vault.readSecret(secret)).getCause());
+		}
+	}
+
+	@Test
 	public void testOfPropertiesWithNoAuthConfig() {
 		final var endpoint = URI.create("test:" + IdGenerator.generateId());
 		final var props = new Properties();
@@ -767,6 +789,46 @@ public class VaultTest extends IuHttpTestCase {
 
 		final var vault = Vault.of(props, IuJsonAdapter::of);
 		assertThrows(UnsupportedOperationException.class, vault::list);
+	}
+
+	@Test
+	public void testListKeepsFirstValueForDuplicateKey() {
+		final var key = IdGenerator.generateId();
+		final var firstValue = IdGenerator.generateId();
+		final var secondValue = IdGenerator.generateId();
+		final var firstSecret = IdGenerator.generateId();
+		final var secondSecret = IdGenerator.generateId();
+		final var token = IdGenerator.generateId();
+		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", endpoint.toString());
+		props.setProperty("iu.vault.token", token);
+		props.setProperty("iu.vault.secrets", firstSecret + "," + secondSecret);
+
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		try (final var mockHttp = mockStatic(IuHttp.class)) {
+			final Verification readFirst = () -> IuHttp.send(
+					eq(URI.create(endpoint + "/" + URLEncoder.encode(firstSecret, StandardCharsets.UTF_8))),
+					withToken(token), eq(IuHttp.READ_JSON_OBJECT));
+			final Verification readSecond = () -> IuHttp.send(
+					eq(URI.create(endpoint + "/" + URLEncoder.encode(secondSecret, StandardCharsets.UTF_8))),
+					withToken(token), eq(IuHttp.READ_JSON_OBJECT));
+
+			mockHttp.when(readFirst).thenReturn(IuJson.object() //
+					.add("data", IuJson.object().add("data", IuJson.object().add(key, firstValue))) //
+					.build());
+			mockHttp.when(readSecond).thenReturn(IuJson.object() //
+					.add("data", IuJson.object().add("data", IuJson.object().add(key, secondValue))) //
+					.build());
+
+			final var values = vault.list().iterator();
+			assertTrue(values.hasNext());
+			assertEquals(firstValue, values.next().getValue());
+			assertFalse(values.hasNext());
+			mockHttp.verify(readFirst);
+			mockHttp.verify(readSecond);
+		}
 	}
 
 	@SuppressWarnings("unchecked")

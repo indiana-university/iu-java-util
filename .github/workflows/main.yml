@@ -24,28 +24,51 @@ jobs:
       volumes:
         - /opt/actions/cache/m2/repository:/root/.m2/repository
 
-    steps:
-       - name: Create gitconfig
-         run: echo -n '${{ secrets.GITCONFIG }}' > /tmp/.gitconfig
+    services:
+      postgres:
+        image: postgres
+        command: -c max_prepared_transactions=10
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PGTZ: America/Indiana/Indianapolis
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-       - name: Clone GitHub repository
-         uses: actions/checkout@v7
-         env:
+    steps:
+      - name: Create gitconfig
+        run: echo -n '${{ secrets.GITCONFIG }}' > /tmp/.gitconfig
+
+      - name: Clone GitHub repository
+        uses: actions/checkout@v7
+        env:
           GIT_CONFIG_GLOBAL: /tmp/.gitconfig
 
-       - name: Create maven settings.xml
-         run: echo -n '${{ secrets.MAVEN_SETTINGS }}' > /root/.m2/settings.xml
+      - name: Create maven settings.xml
+        run: echo -n '${{ secrets.MAVEN_SETTINGS }}' > /root/.m2/settings.xml
 
-       - name: Compile, Verify, and Build Javadoc
-         id: verify
-         run: |
-          mvn clean verify -U --batch-mode
+      - name: Compile and Build Javadoc
+        id: compile
+        run: |
+          mvn clean verify -DskipTests -U --batch-mode
+
+      - name: Verify Test Coverage
+        env:
+          POSTGRES_HOST: postgres
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          TZ: America/Indiana/Indianapolis
+        run: |
+          mvn verify -Dmaven.javadoc.skip --batch-mode
           
-       - name: Deploy Artifacts
-         run: |
+      - name: Deploy Artifacts
+        run: |
           mvn deploy -DskipTests --batch-mode
 
-       - name: Publish Documentation
-         if: steps.verify.outcome == 'success'
-         run: |
+      - name: Publish Documentation
+        if: steps.compile.outcome == 'success'
+        run: |
           publish_docs

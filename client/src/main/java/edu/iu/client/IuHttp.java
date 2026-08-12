@@ -31,13 +31,22 @@
  */
 package edu.iu.client;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -63,7 +72,11 @@ import jakarta.json.JsonValue;
  * 
  * <p>
  * All requests are handled via a cached {@link HttpClient} instance configured
- * with {@link HttpClient#newHttpClient default settings}.
+ * with default settings. {@code iu.http.proxy} and {@code iu.https.proxy} may
+ * specify proxy server URLs, including port, for HTTP and HTTPS requests,
+ * respectively. If {@code iu.http.no.proxy} is set, requests whose domain is
+ * equal to or a subdomain of an entry in its comma-separated value bypass the
+ * proxy.
  * </p>
  */
 public class IuHttp {
@@ -81,7 +94,54 @@ public class IuHttp {
 			"iu.http.allowedInsecureUri",
 			a -> Stream.of(a.split(",")).map(URI::create).collect(Collectors.toUnmodifiableList()));
 
-	private static final HttpClient HTTP = HttpClient.newHttpClient();
+	private static final Collection<String> NO_PROXY = IuRuntimeEnvironment.envOptional("iu.http.no.proxy",
+			a -> Stream.of(a.split(",")).map(String::strip).map(s -> s.toLowerCase(Locale.ROOT))
+					.collect(Collectors.toUnmodifiableList()));
+
+	private static final HttpClient HTTP = buildHttpClient(HttpClient.newBuilder(),
+			IuRuntimeEnvironment.envOptional("iu.http.proxy", URI::create),
+			IuRuntimeEnvironment.envOptional("iu.https.proxy", URI::create), NO_PROXY);
+
+	/**
+	 * Builds the shared HTTP client, optionally configuring scheme-specific proxies
+	 * with domain exclusions.
+	 *
+	 * @param builder       HTTP client builder
+	 * @param httpProxyUrl  HTTP proxy server URL
+	 * @param httpsProxyUrl HTTPS proxy server URL
+	 * @param noProxy       domains that bypass both proxies
+	 * @return configured HTTP client
+	 */
+	static HttpClient buildHttpClient(HttpClient.Builder builder, URI httpProxyUrl, URI httpsProxyUrl,
+			Collection<String> noProxy) {
+		final Map<String, Proxy> proxies = new HashMap<>();
+		if (httpProxyUrl != null)
+			proxies.put("http", proxy(httpProxyUrl));
+		if (httpsProxyUrl != null)
+			proxies.put("https", proxy(httpsProxyUrl));
+
+		if (!proxies.isEmpty())
+			builder.proxy(new ProxySelector() {
+				@Override
+				public List<Proxy> select(URI uri) {
+					final var scheme = uri.getScheme();
+					final var proxy = proxies.get(scheme == null ? null : scheme.toLowerCase(Locale.ROOT));
+					return List.of(proxy == null || isNoProxy(noProxy, uri) ? Proxy.NO_PROXY : proxy);
+				}
+
+				@Override
+				public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
+				}
+			});
+		return builder.build();
+	}
+
+	private static Proxy proxy(URI proxyUrl) {
+		if (!proxyUrl.isAbsolute() || proxyUrl.getHost() == null || proxyUrl.getPort() < 0)
+			throw new IllegalArgumentException("Proxy URL must include scheme, host, and port: " + proxyUrl);
+		return new Proxy(Proxy.Type.HTTP,
+				InetSocketAddress.createUnresolved(proxyUrl.getHost(), proxyUrl.getPort()));
+	}
 	
 	/**
 	 * Validates a 200 OK response.
@@ -166,7 +226,10 @@ public class IuHttp {
 	 * @param uri public URI
 	 * 
 	 * @return {@link HttpResponse}
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static HttpResponse<InputStream> get(URI uri) throws HttpException {
 		return send(uri, null);
@@ -182,7 +245,10 @@ public class IuHttp {
 	 *                        response type.
 	 * 
 	 * @return response value
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static <T> T get(URI uri, HttpResponseHandler<T> responseHandler) throws HttpException {
 		return responseHandler.apply(send(uri, null));
@@ -196,7 +262,10 @@ public class IuHttp {
 	 *                        sending to the server.
 	 * 
 	 * @return {@link HttpResponse}
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static HttpResponse<InputStream> send(URI uri, UnsafeConsumer<HttpRequest.Builder> requestConsumer)
 			throws HttpException {
@@ -219,6 +288,24 @@ public class IuHttp {
 	}
 
 	/**
+	 * Determines whether a URI's host matches a domain exclusion.
+	 *
+	 * @param noProxy excluded domains
+	 * @param uri     URI to check
+	 * @return true if the URI host equals or is a subdomain of an excluded domain
+	 */
+	static boolean isNoProxy(Collection<String> noProxy, URI uri) {
+		if (noProxy == null)
+			return false;
+		final var host = uri.getHost();
+		if (host == null)
+			return false;
+		final var normalizedHost = host.toLowerCase(Locale.ROOT);
+		return noProxy.stream()
+				.anyMatch(domain -> normalizedHost.equals(domain) || normalizedHost.endsWith('.' + domain));
+	}
+
+	/**
 	 * Sends a synchronous HTTP request.
 	 * 
 	 * @param <E>             additional exception type
@@ -230,7 +317,10 @@ public class IuHttp {
 	 *                        requestConsumer
 	 * 
 	 * @return {@link HttpResponse}
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 * @throws E             from requestConsumer
 	 */
 	public static <E extends Exception> HttpResponse<InputStream> send(Class<E> exceptionClass, URI uri,
@@ -267,10 +357,13 @@ public class IuHttp {
 			} catch (Throwable e) {
 				final var m = "HTTP connection failed " + sb;
 				LOG.log(Level.INFO, e, () -> m);
-				
+
 				IuListener.observe(event.received(0));
-				
-				throw new IllegalStateException(m, e);
+
+				if (e instanceof InterruptedException)
+					Thread.currentThread().interrupt();
+
+				throw new HttpException(m, e);
 			}
 
 			final var status = response.statusCode();
@@ -308,7 +401,10 @@ public class IuHttp {
 	 *                        response type.
 	 * 
 	 * @return response value
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 */
 	public static <T> T send(URI uri, UnsafeConsumer<HttpRequest.Builder> requestConsumer,
 			HttpResponseHandler<T> responseHandler) throws HttpException {
@@ -331,7 +427,10 @@ public class IuHttp {
 	 *                        response type.
 	 * 
 	 * @return response value
-	 * @throws HttpException If the response has error status code.
+	 * @throws HttpException If the request could not be completed: either the
+	 *                      connection failed, leaving
+	 *                      {@link HttpException#getResponse()} null, or the response
+	 *                      has an error status code.
 	 * @throws E             from requestConsumer
 	 */
 	public static <T, E extends Exception> T send(Class<E> exceptionClass, URI uri,

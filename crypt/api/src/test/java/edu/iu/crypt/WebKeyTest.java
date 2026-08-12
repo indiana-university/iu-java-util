@@ -44,6 +44,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
@@ -774,14 +775,14 @@ public class WebKeyTest extends IuCryptApiTestCase {
 	}
 
 	@Test
-	public void testReadJwksUri() {
+	public void testReadJwksUri() throws IOException {
 		final var jwks = mock(URI.class);
 		WebKey.readJwks(jwks);
 		verify(Init.SPI).readJwks(jwks);
 	}
 
 	@Test
-	public void testReadJwksInputStream() {
+	public void testReadJwksInputStream() throws IOException {
 		final var jwks = mock(InputStream.class);
 		WebKey.readJwks(jwks);
 		verify(Init.SPI).readJwks(jwks);

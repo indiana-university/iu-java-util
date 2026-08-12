@@ -45,8 +45,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.lang.reflect.UndeclaredThrowableException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
@@ -72,6 +74,10 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		void b();
 
 		String echo(String message);
+	}
+
+	interface IoAware {
+		void b() throws IOException;
 	}
 
 	private MockedStatic<IuHttp> mockIuHttp;
@@ -266,6 +272,78 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			assertEquals("<!doctype html>\n" + errorMessage, error.getMessage());
 			assertSame(ex, error.getCause());
 			assertInstanceOf(JsonParsingException.class, error.getSuppressed()[0]);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testConnectionFailurePropagates() {
+		final var uri = URI.create(TEST_URI + "/" + IdGenerator.generateId());
+		final var check = mock(Consumer.class);
+		final var handler = new RemoteInvocationHandler() {
+			@Override
+			protected void authorize(Builder requestBuilder) {
+				check.accept(requestBuilder);
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return URI.create(uri + "/" + method.getName());
+			}
+		};
+		final var a = (IoAware) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(),
+				new Class<?>[] { IoAware.class }, handler);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
+			final var p = mock(BodyPublisher.class);
+			mockBodyPublishers.when(() -> BodyPublishers.ofString("[]")).thenReturn(p);
+
+			// a pre-response HttpException carries no response body to adapt
+			final var ex = new HttpException(IdGenerator.generateId(), new IOException());
+			mockIuHttp.when(() -> IuHttp.send(eq(URI.create(uri + "/b")), argThat(c -> {
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> c.accept(rb));
+				verify(check).accept(rb);
+				verify(rb).POST(p);
+				return true;
+			}), eq(IuHttp.NO_CONTENT))).thenThrow(ex);
+
+			assertSame(ex, assertThrows(HttpException.class, a::b));
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testConnectionFailureUndeclared() {
+		final var uri = URI.create(TEST_URI + "/" + IdGenerator.generateId());
+		final var check = mock(Consumer.class);
+		final var handler = new RemoteInvocationHandler() {
+			@Override
+			protected void authorize(Builder requestBuilder) {
+				check.accept(requestBuilder);
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return URI.create(uri + "/" + method.getName());
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
+			final var p = mock(BodyPublisher.class);
+			mockBodyPublishers.when(() -> BodyPublishers.ofString("[]")).thenReturn(p);
+
+			final var ex = new HttpException(IdGenerator.generateId(), new IOException());
+			mockIuHttp.when(() -> IuHttp.send(eq(URI.create(uri + "/b")), argThat(c -> {
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> c.accept(rb));
+				verify(check).accept(rb);
+				verify(rb).POST(p);
+				return true;
+			}), eq(IuHttp.NO_CONTENT))).thenThrow(ex);
+
+			// A#b() doesn't declare IOException, so the proxy wraps it
+			assertSame(ex, assertThrows(UndeclaredThrowableException.class, a::b).getCause());
 		}
 	}
 

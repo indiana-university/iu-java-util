@@ -62,6 +62,13 @@ public class ComponentVersionTest extends IuTypeTestCase {
 	}
 
 	@Test
+	public void testSpecRequiresValidName() {
+		assertEquals(
+				"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("1invalid", 0, 0)).getMessage());
+	}
+
+	@Test
 	public void testSpecMustUseNonNegativeMajor() {
 		assertEquals("Component major version number must be non-negative",
 				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("my.component", -1, 0))
@@ -89,6 +96,14 @@ public class ComponentVersionTest extends IuTypeTestCase {
 		assertEquals(
 				"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'",
 				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion(null, (String) null))
+						.getMessage());
+	}
+
+	@Test
+	public void testImplRequiresValidName() {
+		assertEquals(
+				"Component name must be non-null, start with a letter, and contain only letters, numbers, dots '.', and hyphens '-'",
+				assertThrows(IllegalArgumentException.class, () -> new ComponentVersion("1invalid", "1.0.0"))
 						.getMessage());
 	}
 

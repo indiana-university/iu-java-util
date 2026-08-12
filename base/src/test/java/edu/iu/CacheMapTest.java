@@ -48,6 +48,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +64,12 @@ public class CacheMapTest {
 	@SuppressWarnings("unchecked")
 	@BeforeEach
 	public void setup() throws Exception {
-		cache = new IuCacheMap<>(Duration.ofMillis(250L));
+		setupCache(Duration.ofMillis(250L));
+	}
+
+	@SuppressWarnings("unchecked")
+	private void setupCache(Duration timeToLive) throws Exception {
+		cache = new IuCacheMap<>(timeToLive);
 		final var f = IuCacheMap.class.getDeclaredField("cache");
 		f.setAccessible(true);
 		internal = (Map<String, IuCachedValue<String>>) f.get(cache);
@@ -141,6 +149,10 @@ public class CacheMapTest {
 	@SuppressWarnings("unlikely-arg-type")
 	@Test
 	public void testEntrySet() throws Throwable {
+		// This test exercises iterator mutation and cleared-reference behavior, not
+		// expiration. A short TTL made the remaining entries disappear mid-iteration
+		// on slower build agents.
+		setupCache(Duration.ofSeconds(30L));
 		assertNull(cache.get("foo"));
 		cache.put("foo", "bar");
 		cache.put("bar", "baz");
@@ -256,27 +268,58 @@ public class CacheMapTest {
 
 	@Test
 	public void testValues() throws InterruptedException {
-		new Thread(() -> {
-			long until = System.currentTimeMillis() + 1000L;
-			while (System.currentTimeMillis() < until) {
+		final var populated = new CountDownLatch(1);
+		final var stop = new AtomicBoolean();
+		final var writer = new Thread(() -> {
+			while (!stop.get()) {
 				cache.put(IdGenerator.generateId(), "foo");
 				cache.put(IdGenerator.generateId(), "bar");
 				cache.put(IdGenerator.generateId(), "baz");
+				populated.countDown();
 			}
-		}).start();
+		});
+
 		final var values = cache.values();
 		assertSame(values, cache.values());
-		Thread.sleep(100L);
-		assertTrue(cache.containsValue("foo"));
-		assertTrue(values.retainAll(Set.of("bar", "baz")));
-		while (values.parallelStream().anyMatch(a -> "bar".equals(a)))
-			values.removeAll(Set.of("foo", "baz"));
-		values.isEmpty();
+
+		writer.start();
+		try {
+			// Waiting for the writer's first pass, rather than guessing how long one
+			// takes, is what keeps this from failing on a loaded build agent.
+			assertTrue(populated.await(10L, TimeUnit.SECONDS));
+			assertTrue(cache.containsValue("foo"));
+			assertTrue(values.retainAll(Set.of("bar", "baz")));
+		} finally {
+			// Joined before the test ends: the writer reads the cache field on every
+			// pass, so one left running would keep writing into the next test's cache.
+			stop.set(true);
+			writer.join();
+		}
+
+		// Mutate only after the writer has stopped, so new entries cannot race the
+		// collection operation. Remove the value being asserted instead of waiting
+		// for its cache entry to expire as the former loop implicitly did.
+		while (values.contains("bar"))
+			assertTrue(values.removeAll(Set.of("bar")));
+		assertFalse(values.parallelStream().anyMatch(a -> "bar".equals(a)));
+		values.clear();
+		assertTrue(values.isEmpty());
 	}
 
 	@Test
 	public void testEmptySplit() throws InterruptedException {
 		assertNull(cache.values().spliterator().trySplit());
+	}
+
+	@Test
+	public void testSpliteratorSkipsClearedValue() throws Exception {
+		cache.put("foo", "bar");
+		final var reference = IuCachedValue.class.getDeclaredField("reference");
+		reference.setAccessible(true);
+		((Reference<?>) reference.get(internal.get("foo"))).clear();
+
+		assertFalse(cache.values().spliterator().tryAdvance(value -> {
+		}));
 	}
 
 	@Test

@@ -38,7 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import edu.iu.IuIterable;
+import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
@@ -370,9 +370,18 @@ public interface WebCryptoHeader extends WebKeyReference {
 
 	/**
 	 * Verifies all parameters in a {@link WebCryptoHeader}.
-	 * 
+	 *
+	 * <p>
+	 * When the header includes a "jku" parameter, the referenced key set is
+	 * retrieved via {@link WebKey#readJwks(URI)}. Since header verification is
+	 * driven by message deserialization, which cannot propagate an
+	 * {@link java.io.IOException}, a key set retrieval failure is reported as an
+	 * unchecked exception.
+	 * </p>
+	 *
 	 * @param header {@link WebCryptoHeader}
 	 * @return Well-known key referred to by the header; null if not known
+	 * @throws IllegalStateException if the "jku" key set cannot be retrieved
 	 */
 	static WebKey verify(WebCryptoHeader header) {
 		final var algorithm = Objects.requireNonNull(header.getAlgorithm(),
@@ -404,10 +413,17 @@ public interface WebCryptoHeader extends WebKeyReference {
 
 		var wellKnown = IuObject.convert(key, WebKey::wellKnown);
 		if (wellKnown == null //
-				&& keyId != null)
-			wellKnown = IuObject.convert(header.getKeySetUri(), //
-					uri -> IuIterable.filter(WebKey.readJwks(uri), //
-							k -> keyId.equals(k.getKeyId())).iterator().next());
+				&& keyId != null) {
+			final var uri = header.getKeySetUri();
+			if (uri != null) {
+				final var jwks = IuException.unchecked(() -> WebKey.readJwks(uri));
+				for (final var jwk : jwks)
+					if (keyId.equals(jwk.getKeyId())) {
+						wellKnown = jwk;
+						break;
+					}
+			}
+		}
 		if (wellKnown == null //
 				&& certChain != null)
 			wellKnown = WebKey.builder(algorithm.type[0]).cert(certChain).build().wellKnown();

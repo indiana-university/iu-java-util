@@ -31,6 +31,7 @@
  */
 package edu.iu.jdbc.monitor;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -68,6 +69,7 @@ public class IuJdbcObservableEventTest {
 		assertEquals("open", event.getAction());
 		assertNotNull(event.getContext());
 		assertFalse(event.getContext().isBlank());
+		assertDoesNotThrow(event::toString);
 	}
 
 	@Test

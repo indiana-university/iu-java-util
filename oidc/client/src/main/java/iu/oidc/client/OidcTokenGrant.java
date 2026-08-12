@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -42,12 +43,16 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
+import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
+import edu.iu.client.HttpException;
 import edu.iu.client.IuHttp;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
@@ -55,12 +60,15 @@ import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcTokenResponse;
 import iu.oidc.client.config.IuOidcClientReference;
+import jakarta.json.JsonObject;
 
 /**
  * Authenticates to a token endpoint, verifies and holds token response until
  * expired.
  */
 public abstract class OidcTokenGrant {
+
+	private static final Logger LOG = Logger.getLogger(OidcTokenGrant.class.getName());
 
 	/**
 	 * Client configuration reference.
@@ -86,29 +94,41 @@ public abstract class OidcTokenGrant {
 	 * @param config        {@link IuOidcClientReference}
 	 * @param tokenResponse {@link IuOidcTokenResponse}
 	 * @param notAfter      point in time expiration of tokenResponse
+	 * @throws IOException if communication with the OpenID Provider is interrupted
+	 *                     while validating tokenResponse
 	 */
-	public OidcTokenGrant(IuOidcClientReference config, IuOidcTokenResponse tokenResponse, Instant notAfter) {
-		this.notAfter = notAfter;
+	public OidcTokenGrant(IuOidcClientReference config, IuOidcTokenResponse tokenResponse, Instant notAfter)
+			throws IOException {
 		this.config = config;
-		this.tokenResponse = tokenResponse;
-		this.idToken = validateTokenResponse(tokenResponse);
+		try {
+			idToken = validateTokenResponse(tokenResponse);
+			this.notAfter = notAfter;
+			this.tokenResponse = tokenResponse;
+		} catch (RuntimeException e) {
+			LOG.log(Level.INFO, e, () -> "initial token response invalid");
+		}
 	}
 
 	/**
 	 * Prepares an {@link HttpRequest.Builder} for the token endpoint.
-	 * 
+	 *
 	 * @param requestBuilder {@link HttpRequest.Builder}
 	 * @param params         in-progress POST params
+	 * @throws IOException if communication with the OpenID Provider is interrupted
+	 *                     while establishing client authentication
 	 */
-	protected abstract void tokenAuth(HttpRequest.Builder requestBuilder, Map<String, Iterable<String>> params);
+	protected abstract void tokenAuth(HttpRequest.Builder requestBuilder, Map<String, Iterable<String>> params)
+			throws IOException;
 
 	/**
 	 * Creates POST params and passes to
 	 * {@link #tokenAuth(java.net.http.HttpRequest.Builder, Map)}.
-	 * 
+	 *
 	 * @param requestBuilder {@link HttpRequest.Builder}
+	 * @throws IOException if communication with the OpenID Provider is interrupted
+	 *                     while establishing client authentication
 	 */
-	final void tokenAuth(HttpRequest.Builder requestBuilder) {
+	final void tokenAuth(HttpRequest.Builder requestBuilder) throws IOException {
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		tokenAuth(requestBuilder, params);
 
@@ -124,8 +144,9 @@ public abstract class OidcTokenGrant {
 	 * Creates a client or bearer assertion.
 	 * 
 	 * @return JWT signed by the client's assertion key
+	 * @throws IOException if OP metadata lookup fails
 	 */
-	protected String createAssertion() {
+	protected String createAssertion() throws IOException {
 		final var oidcClient = config.getClient();
 		final var clientId = oidcClient.getClientId();
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
@@ -148,8 +169,10 @@ public abstract class OidcTokenGrant {
 	 * @param params         POST params in progress; client authn params will be
 	 *                       added
 	 * @param requestBuilder {@link HttpRequest.Builder}
+	 * @throws IOException if OP metadata lookup fails
 	 */
-	protected void addClientAuth(HttpRequest.Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void addClientAuth(HttpRequest.Builder requestBuilder, Map<String, Iterable<String>> params)
+			throws IOException {
 		final var oidcClient = config.getClient();
 		final var clientId = oidcClient.getClientId();
 		params.put("client_id", IuIterable.iter(clientId));
@@ -176,8 +199,10 @@ public abstract class OidcTokenGrant {
 	 * 
 	 * @return ID token; null if token endpoint interactions succeeded, but an ID
 	 *         token was not returned
+	 * @throws IOException if OP metadata and jwks interactions fail due to a
+	 *                     communication error
 	 */
-	public WebToken getIdToken() {
+	public WebToken getIdToken() throws IOException {
 		getTokenResponse();
 		return idToken;
 	}
@@ -186,8 +211,10 @@ public abstract class OidcTokenGrant {
 	 * Gets the point in time the current response expires.
 	 * 
 	 * @return point in time the current token response expires
+	 * @throws IOException if OP metadata and jwks interactions fail due to a
+	 *                     communication error
 	 */
-	public Instant getNotAfter() {
+	public Instant getNotAfter() throws IOException {
 		getTokenResponse();
 		return notAfter;
 	}
@@ -197,8 +224,9 @@ public abstract class OidcTokenGrant {
 	 * 
 	 * @param response token response
 	 * @return fully verified ID token; null if no ID token was sent
+	 * @throws IOException if OP metadata lookup fails
 	 */
-	public WebToken validateTokenResponse(IuOidcTokenResponse response) {
+	public WebToken validateTokenResponse(IuOidcTokenResponse response) throws IOException {
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
 
 		final String encryptedIdToken = response.getIdToken();
@@ -244,10 +272,10 @@ public abstract class OidcTokenGrant {
 						"Authenticated session lifetime " + authAge + " exceeds maximum " + maxAge);
 		}
 
-		final var accessToken = response.getAccessToken();
-		if (accessToken != null) {
-			final var atHash = Objects.requireNonNull(verifiedIdToken.getClaim("at_hash", String.class),
-					"Missing at_hash claim");
+		final var atHash = verifiedIdToken.getClaim("at_hash", String.class);
+		if (atHash != null) {
+			final var accessToken = Objects.requireNonNull(response.getAccessToken(),
+					"missing access token for validating at_hash");
 			final var sha = IuException.unchecked(() -> MessageDigest.getInstance("SHA-" + alg.size));
 			final var hash = sha.digest(IuText.ascii(accessToken));
 			final var halfHash = Arrays.copyOfRange(hash, 0, alg.size / 16);
@@ -260,18 +288,39 @@ public abstract class OidcTokenGrant {
 
 	/**
 	 * Gets the most recently verified token response.
-	 * 
+	 *
+	 * <p>
+	 * When the token endpoint responds in error, the response body is logged to aid
+	 * diagnosis and the {@link HttpException} is thrown as-is. Since logging
+	 * consumes {@link HttpException#getResponse() the error response} body, callers
+	 * <em>should not</em> expect to read it a second time.
+	 * </p>
+	 *
 	 * @return token response
+	 * @throws IOException if OP metadata or token endpoint interactions fail
 	 */
-	public IuOidcTokenResponse getTokenResponse() {
+	public IuOidcTokenResponse getTokenResponse() throws IOException {
 		if (tokenResponse == null //
 				|| Instant.now().isAfter(notAfter)) {
 
 			final var metadata = OidcProviders.getMetadata(config.getProvider());
 			final var tokenEndpoint = metadata.getTokenEndpoint();
 
-			final var tokenResponse = config.adaptJson(IuOidcTokenResponse.class).fromJson(
-					IuException.unchecked(() -> IuHttp.send(tokenEndpoint, this::tokenAuth, IuHttp.READ_JSON_OBJECT)));
+			final JsonObject httpResponse;
+			try {
+				httpResponse = IuHttp.send(IOException.class, tokenEndpoint, this::tokenAuth, IuHttp.READ_JSON_OBJECT);
+			} catch (HttpException e) {
+				final var errorResponse = e.getResponse();
+				if (errorResponse != null)
+					IuException.suppress(e,
+							() -> LOG.info("OIDC token error " + IuWebUtils.describeStatus(errorResponse.statusCode())
+									+ "; body =" + IuText.utf8(IuStream.read(errorResponse.body()))));
+				throw e;
+			}
+
+			final var tokenResponse = config.adaptJson(IuOidcTokenResponse.class).fromJson(httpResponse);
+			LOG.fine(() -> "OIDC token response type=" + tokenResponse.getTokenType() + " expires_in="
+					+ tokenResponse.getExpiresIn() + " scope=" + tokenResponse.getScope());
 
 			idToken = validateTokenResponse(tokenResponse);
 

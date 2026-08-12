@@ -47,6 +47,17 @@ import edu.iu.UnsafeConsumer;
 /**
  * May be extended for synchronous client=side remote invocation of a Java
  * interface via HTTP POST.
+ *
+ * <p>
+ * A remote error response is adapted to a {@link RemoteInvocationException}. A
+ * failure that occurs before a response is received has no remote failure
+ * payload to adapt, so the underlying {@link HttpException} is propagated
+ * as-is. Remote interface methods <em>should</em> therefore declare
+ * {@code throws java.io.IOException}; otherwise the proxy wraps the propagated
+ * {@link HttpException} in a
+ * {@link java.lang.reflect.UndeclaredThrowableException}, per the
+ * {@link InvocationHandler#invoke(Object, Method, Object[])} contract.
+ * </p>
  */
 public abstract class RemoteInvocationHandler implements InvocationHandler {
 
@@ -162,10 +173,15 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 				return adapt(type).fromJson(responseJson);
 			}
 		} catch (HttpException e) {
+			final var errorResponse = e.getResponse();
+			if (errorResponse == null)
+				// the request failed before a response was received; nothing to adapt
+				throw e;
+
 			Throwable remoteError;
 			String body = null;
 			try {
-				body = IuText.utf8(IuStream.read(e.getResponse().body()));
+				body = IuText.utf8(IuStream.read(errorResponse.body()));
 				remoteError = new RemoteInvocationException(
 						(RemoteInvocationFailure) adapt(RemoteInvocationFailure.class).fromJson(IuJson.parse(body)));
 				remoteError.addSuppressed(e);

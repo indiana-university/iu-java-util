@@ -40,7 +40,6 @@ module iu.util.saml.impl {
 	requires iu.util;
 	requires iu.util.client;
 	requires transitive iu.util.crypt;
-	requires iu.util.crypt.impl;
 	requires transitive iu.util.saml;
 	requires transitive iu.util.session;
 	requires java.xml;

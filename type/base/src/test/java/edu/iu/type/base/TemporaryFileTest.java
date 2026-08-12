@@ -37,8 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +50,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.jar.JarEntry;
+import java.util.jar.JarInputStream;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -156,6 +160,21 @@ public class TemporaryFileTest {
 	@Test
 	public void testRejectsNonFileJarURL() throws Throwable {
 		assertThrows(IllegalArgumentException.class, () -> TemporaryFile.of(new URL("jar:http://localhost/!/foo")));
+	}
+
+	@Test
+	public void testNullJarInputStream() throws Throwable {
+		final var bundleUrl = getClass().getClassLoader().getResource("iu-java-type-testruntime-bundle.jar");
+		final var bundlePath = Path.of(bundleUrl.toURI()).toRealPath();
+		final var entryUrl = new URL("jar:" + bundleUrl.toExternalForm() + "!/iu-java-type-testruntime.jar");
+		try (final var mockFiles = mockStatic(Files.class, CALLS_REAL_METHODS);
+				final var mockJar = mockConstruction(JarInputStream.class, (jar, context) -> {
+					when(jar.getNextJarEntry()).thenReturn(new JarEntry("iu-java-type-testruntime.jar"));
+					when(jar.read(any(byte[].class))).thenReturn(-1);
+				})) {
+			mockFiles.when(() -> Files.newInputStream(bundlePath)).thenReturn(null);
+			TemporaryFile.init(() -> assertNotNull(TemporaryFile.of(entryUrl))).run();
+		}
 	}
 
 	@Test

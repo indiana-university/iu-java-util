@@ -31,7 +31,9 @@
  */
 package edu.iu.redis;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -43,6 +45,24 @@ import iu.redis.IuRedisSpiFactory;
 
 @SuppressWarnings("javadoc")
 public class IuRedisConnectionTest {
+
+	@Test
+	public void testInit() {
+		try (final var mockSpiFactory = mockStatic(IuRedisSpiFactory.class)) {
+			final var mockSpi = mock(IuRedisSpi.class);
+			mockSpiFactory.when(() -> IuRedisSpiFactory.get(IuRedisSpi.class)).thenReturn(mockSpi);
+			assertDoesNotThrow(IuRedis::init);
+			mockSpiFactory.verify(() -> IuRedisSpiFactory.get(IuRedisSpi.class));
+		}
+	}
+
+	@Test
+	public void testInitFailsForNullProvider() {
+		try (final var mockSpiFactory = mockStatic(IuRedisSpiFactory.class)) {
+			assertThrows(NullPointerException.class, IuRedis::init);
+			mockSpiFactory.verify(() -> IuRedisSpiFactory.get(IuRedisSpi.class));
+		}
+	}
 
 	@Test
 	public void testGetStandAloneConnection() {

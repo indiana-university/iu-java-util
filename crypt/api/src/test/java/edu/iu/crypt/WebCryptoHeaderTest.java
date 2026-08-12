@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -339,6 +340,61 @@ public class WebCryptoHeaderTest extends IuCryptApiTestCase {
 			mockWebKey.when(() -> WebKey.readJwks(keySetUri)).thenReturn(IuIterable.iter(key));
 			assertDoesNotThrow(() -> WebCryptoHeader.verify(header));
 		}
+	}
+
+	@Test
+	public void testVerifyKeyIdWithoutKeySetUri() {
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ES256);
+		when(header.getKeyId()).thenReturn(IdGenerator.generateId());
+
+		assertNull(WebCryptoHeader.verify(header));
+		verify(header).getKeySetUri();
+	}
+
+	@Test
+	public void testVerifyKeySetUriSkipsNonMatchingKey() {
+		final var keyId = IdGenerator.generateId();
+		final var keySetUri = mock(URI.class);
+		final var nonMatchingKey = mock(WebKey.class);
+		when(nonMatchingKey.getKeyId()).thenReturn(IdGenerator.generateId());
+		final var matchingKey = mock(WebKey.class);
+		when(matchingKey.getKeyId()).thenReturn(keyId);
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ES256);
+		when(header.getKeyId()).thenReturn(keyId);
+		when(header.getKeySetUri()).thenReturn(keySetUri);
+
+		try (final var mockWebKey = mockStatic(WebKey.class)) {
+			mockWebKey.when(() -> WebKey.readJwks(keySetUri))
+					.thenReturn(IuIterable.iter(nonMatchingKey, matchingKey));
+			assertSame(matchingKey, WebCryptoHeader.verify(header));
+		}
+
+		verify(nonMatchingKey).getKeyId();
+		verify(matchingKey).getKeyId();
+	}
+
+	@Test
+	public void testVerifyKeySetUriWithoutMatchingKey() {
+		final var keyId = IdGenerator.generateId();
+		final var keySetUri = mock(URI.class);
+		final var firstKey = mock(WebKey.class);
+		when(firstKey.getKeyId()).thenReturn(IdGenerator.generateId());
+		final var secondKey = mock(WebKey.class);
+		when(secondKey.getKeyId()).thenReturn(IdGenerator.generateId());
+		final var header = mock(WebCryptoHeader.class);
+		when(header.getAlgorithm()).thenReturn(Algorithm.ES256);
+		when(header.getKeyId()).thenReturn(keyId);
+		when(header.getKeySetUri()).thenReturn(keySetUri);
+
+		try (final var mockWebKey = mockStatic(WebKey.class)) {
+			mockWebKey.when(() -> WebKey.readJwks(keySetUri)).thenReturn(IuIterable.iter(firstKey, secondKey));
+			assertNull(WebCryptoHeader.verify(header));
+		}
+
+		verify(firstKey).getKeyId();
+		verify(secondKey).getKeyId();
 	}
 
 	@Test

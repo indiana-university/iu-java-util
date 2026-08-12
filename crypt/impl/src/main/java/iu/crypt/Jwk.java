@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
@@ -88,13 +89,13 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * 
 	 * @param uri Key set URI
 	 * @return key set
+	 * @throws IOException if an error occurs reading the URI
 	 */
-	public static Iterable<Jwk> readJwks(URI uri) {
+	public static Iterable<Jwk> readJwks(URI uri) throws IOException {
 		var jwks = JWKS_CACHE.get(uri);
 		if (jwks == null)
-			JWKS_CACHE.put(uri, jwks = IuException.unchecked(() -> IuJsonAdapter
-					.<Stream<Jwk>>of(Stream.class, CryptJsonAdapters.WEBKEY)
-					.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray("keys")).toArray(Jwk[]::new)));
+			JWKS_CACHE.put(uri, jwks = IuJsonAdapter.<Stream<Jwk>>of(Stream.class, CryptJsonAdapters.WEBKEY)
+					.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray("keys")).toArray(Jwk[]::new));
 		return IuIterable.iter(jwks);
 	}
 
@@ -103,12 +104,11 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * 
 	 * @param in input stream
 	 * @return {@link WebKey}
+	 * @throws IOException if an error occurs reading the stream
 	 */
-	public static Iterable<Jwk> readJwks(InputStream in) {
-		return IuException.unchecked(() -> {
-			return IuJsonAdapter.<Iterable<Jwk>>of(Iterable.class, CryptJsonAdapters.WEBKEY)
-					.fromJson(IuJson.parse(in).asJsonObject().getJsonArray("keys"));
-		});
+	public static Iterable<Jwk> readJwks(InputStream in) throws IOException {
+		return IuJsonAdapter.<Iterable<Jwk>>of(Iterable.class, CryptJsonAdapters.WEBKEY)
+				.fromJson(IuJson.parse(in).asJsonObject().getJsonArray("keys"));
 	}
 
 	/**

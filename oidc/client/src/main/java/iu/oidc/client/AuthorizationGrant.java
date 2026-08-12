@@ -31,6 +31,8 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
+import java.net.URI;
 import java.net.http.HttpRequest.Builder;
 import java.util.Map;
 import java.util.Objects;
@@ -48,26 +50,31 @@ import iu.oidc.client.config.IuOidcClientReference;
  */
 public class AuthorizationGrant extends OidcTokenGrant {
 
+	private final URI redirectUri;
 	private String code;
 
 	/**
 	 * Constructor.
 	 * 
-	 * @param config {@link IuOidcClientReference}
-	 * @param code   authorization code received at the client's redirect URI
+	 * @param config      {@link IuOidcClientReference}
+	 * @param code        authorization code received at the client's redirect URI
+	 * @param redirectUri the URI of the redirect endpoint handling the
+	 *                    authorization response
 	 */
-	public AuthorizationGrant(IuOidcClientReference config, String code) {
+	public AuthorizationGrant(IuOidcClientReference config, String code, URI redirectUri) {
 		super(config);
 		this.code = code;
+		this.redirectUri = redirectUri;
 	}
 
 	@Override
-	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 		final var code = Objects.requireNonNull(this.code, "already used");
 		this.code = null;
 
 		params.put("grant_type", IuIterable.iter("authorization_code"));
 		params.put("code", IuIterable.iter(code));
+		params.put("redirect_uri", IuIterable.iter(redirectUri.toString()));
 		addClientAuth(requestBuilder, params);
 	}
 

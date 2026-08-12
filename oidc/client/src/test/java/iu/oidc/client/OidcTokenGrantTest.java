@@ -34,7 +34,9 @@ package iu.oidc.client;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -43,11 +45,15 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpRequest.Builder;
+import java.net.http.HttpResponse;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -55,6 +61,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -63,6 +70,7 @@ import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.IuWebUtils;
+import edu.iu.client.HttpException;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -71,6 +79,7 @@ import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.WebToken;
+import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.test.IuTestLogger;
 import iu.jwt.spi.Init;
@@ -86,9 +95,14 @@ public class OidcTokenGrantTest {
 		edu.iu.crypt.Init.init();
 		Init.init();
 	}
+	
+	@BeforeEach
+	void setup() {
+		IuTestLogger.allow(OidcTokenGrant.class.getName(), Level.FINE, "OIDC token response .*");
+	}
 
 	@Test
-	void testTokenResponse() {
+	void testTokenResponse() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
@@ -106,7 +120,7 @@ public class OidcTokenGrantTest {
 				.build());
 
 		final var accessToken = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var rb = mock(HttpRequest.Builder.class);
 			assertDoesNotThrow(() -> a.accept(rb));
 			return true;
@@ -131,7 +145,7 @@ public class OidcTokenGrantTest {
 
 		assertDoesNotThrow(() -> Thread.sleep(1000L));
 		final var accessToken2 = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var rb = mock(HttpRequest.Builder.class);
 			assertDoesNotThrow(() -> a.accept(rb));
 			return true;
@@ -144,7 +158,119 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testTokenAuth() {
+	void testInvalidInitialTokenResponse() throws IOException {
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getTokenEndpoint()).thenReturn(tokenEndpoint);
+		final var provider = mock(IuOidcProvider.class);
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
+				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		final var accessToken = IdGenerator.generateId();
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+				eq(IuHttp.READ_JSON_OBJECT))).thenReturn(IuJson.object() //
+					.add("access_token", accessToken) //
+					.add("expires_in", 60L) //
+					.build());
+
+		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO, "initial token response invalid",
+				IllegalArgumentException.class);
+		final var initialResponse = mock(IuOidcTokenResponse.class);
+		final var grant = new OidcTokenGrant(config, initialResponse, Instant.now().plusSeconds(60L)) {
+			private int validationCount;
+
+			@Override
+			public WebToken validateTokenResponse(IuOidcTokenResponse response) {
+				if (validationCount++ == 0)
+					throw new IllegalArgumentException("invalid initial response");
+				return null;
+			}
+
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+		};
+
+		assertEquals(accessToken, grant.getTokenResponse().getAccessToken());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testTokenErrorResponseBodyLogging() throws IOException {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
+		when(provider.getIssuer()).thenReturn(issuer);
+		final var metadataUri = provider.getMetadataUri();
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getProvider()).thenReturn(provider);
+
+		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.build());
+
+		final var body = "invalid_grant";
+		final HttpResponse<InputStream> response = mock(HttpResponse.class);
+		when(response.statusCode()).thenReturn(400);
+		when(response.body()).thenReturn(new ByteArrayInputStream(IuText.utf8(body)));
+		final var error = new HttpException(response, "token request failed");
+		IuHttpAware.mock
+				.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+						eq(IuHttp.READ_JSON_OBJECT)))
+				.thenThrow(error);
+
+		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO,
+				"OIDC token error 400 BAD REQUEST; body =" + body);
+
+		final var grant = new OidcTokenGrant(config) {
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+		};
+
+		// the error response propagates as-is, so callers can handle it as an IOException
+		assertSame(error, assertThrows(HttpException.class, grant::getTokenResponse));
+	}
+
+	@Test
+	void testTokenErrorWithoutResponse() throws IOException {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
+		when(provider.getIssuer()).thenReturn(issuer);
+		final var metadataUri = provider.getMetadataUri();
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getProvider()).thenReturn(provider);
+
+		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.build());
+
+		// a connection failure carries no response, so there is no body to log
+		final var error = new HttpException("HTTP connection failed", new IOException());
+		IuHttpAware.mock
+				.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+						eq(IuHttp.READ_JSON_OBJECT)))
+				.thenThrow(error);
+
+		final var grant = new OidcTokenGrant(config) {
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+		};
+
+		assertSame(error, assertThrows(HttpException.class, grant::getTokenResponse));
+		assertEquals(0, error.getSuppressed().length);
+	}
+
+	@Test
+	void testTokenAuth() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
@@ -164,7 +290,7 @@ public class OidcTokenGrantTest {
 				.build());
 
 		final var accessToken = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -190,7 +316,7 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testClientAuthBasic() {
+	void testClientAuthBasic() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
@@ -218,7 +344,7 @@ public class OidcTokenGrantTest {
 				.build());
 
 		final var accessToken = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -239,7 +365,7 @@ public class OidcTokenGrantTest {
 
 		final var grant = new OidcTokenGrant(config) {
 			@Override
-			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 				addClientAuth(requestBuilder, params);
 			}
 		};
@@ -247,7 +373,7 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testClientSecretPost() {
+	void testClientSecretPost() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
@@ -274,7 +400,7 @@ public class OidcTokenGrantTest {
 				.build());
 
 		final var accessToken = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -295,7 +421,7 @@ public class OidcTokenGrantTest {
 
 		final var grant = new OidcTokenGrant(config) {
 			@Override
-			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 				addClientAuth(requestBuilder, params);
 			}
 		};
@@ -303,7 +429,7 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testClientSecretJwt() {
+	void testClientSecretJwt() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
@@ -330,7 +456,7 @@ public class OidcTokenGrantTest {
 				.build());
 
 		final var accessToken = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -360,7 +486,7 @@ public class OidcTokenGrantTest {
 
 		final var grant = new OidcTokenGrant(config) {
 			@Override
-			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 				addClientAuth(requestBuilder, params);
 			}
 		};
@@ -368,7 +494,7 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testIdToken() {
+	void testIdToken() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var jwksUri = URI.create(IdGenerator.generateId());
@@ -421,7 +547,7 @@ public class OidcTokenGrantTest {
 				.claim("auth_time", Instant.now().minusSeconds(1L), Instant.class) //
 				.build().sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -452,7 +578,7 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testMaxAge() {
+	void testMaxAge() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var jwksUri = URI.create(IdGenerator.generateId());
@@ -505,7 +631,7 @@ public class OidcTokenGrantTest {
 				.claim("auth_time", Instant.now().minusSeconds(10L), Instant.class) //
 				.build().sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -529,12 +655,18 @@ public class OidcTokenGrantTest {
 			}
 		};
 
-		assertEquals("Authenticated session lifetime PT10S exceeds maximum PT5S",
-				assertThrows(IllegalArgumentException.class, grant::getTokenResponse).getMessage());
+		final var error = assertThrows(IllegalArgumentException.class, grant::getTokenResponse);
+		final var message = error.getMessage();
+		final var prefix = "Authenticated session lifetime ";
+		final var suffix = " exceeds maximum PT5S";
+		assertTrue(message.startsWith(prefix));
+		assertTrue(message.endsWith(suffix));
+		final var authAge = Duration.parse(message.substring(prefix.length(), message.length() - suffix.length()));
+		assertTrue(authAge.compareTo(Duration.ofSeconds(10L)) >= 0);
 	}
 
 	@Test
-	void testAtHash() {
+	void testAtHash() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var tokenEndpoint = URI.create(IdGenerator.generateId());
 		final var jwksUri = URI.create(IdGenerator.generateId());
@@ -586,7 +718,7 @@ public class OidcTokenGrantTest {
 				.claim("auth_time", Instant.now().minusSeconds(10L), Instant.class) //
 				.build().sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
@@ -615,7 +747,7 @@ public class OidcTokenGrantTest {
 	}
 
 	@Test
-	void testEncIdToken() {
+	void testEncIdToken() throws IOException {
 		IuTestLogger.allow("iu.crypt", Level.FINE);
 
 		final var issuer = URI.create(IdGenerator.generateId());
@@ -669,7 +801,7 @@ public class OidcTokenGrantTest {
 				.build().signAndEncrypt("JWT", Algorithm.EDDSA, issuerKey, Algorithm.ECDH_ES, Encryption.A256GCM,
 						decryptKey.wellKnown());
 
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(tokenEndpoint), argThat(a -> {
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
 			final var bp = mock(BodyPublisher.class);
 			final var rb = mock(HttpRequest.Builder.class);
 			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {

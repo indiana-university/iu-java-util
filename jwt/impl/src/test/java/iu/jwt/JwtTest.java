@@ -84,7 +84,7 @@ public class JwtTest {
 	}
 
 	static {
-		IuConfig.registerInterface(Details.class);
+//		IuConfig.registerInterface(Details.class);
 	}
 
 	@BeforeEach
@@ -333,7 +333,6 @@ public class JwtTest {
 		assertEquals("SHA256withECDSA verification failed", error.getMessage());
 	}
 
-	@SuppressWarnings("deprecation")
 	@Test
 	public void testSignAndVerifyCaSignedCert() {
 		final var jwt = new Jwt(IuJson.object().build());

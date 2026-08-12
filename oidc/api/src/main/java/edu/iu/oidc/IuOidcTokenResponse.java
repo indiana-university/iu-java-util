@@ -101,4 +101,11 @@ public interface IuOidcTokenResponse {
 	 */
 	URI getErrorUri();
 
+	/**
+	 * Gets the scopes the token(s) are issued for.
+	 * 
+	 * @return scopes, space separated
+	 */
+	String getScope();
+
 }

@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.http.HttpRequest.Builder;
 import java.util.Map;
 
@@ -53,7 +54,7 @@ public class ClientCredentialsGrant extends OidcTokenGrant {
 	}
 
 	@Override
-	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+	protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) throws IOException {
 		params.put("grant_type", IuIterable.iter("client_credentials"));
 		addClientAuth(requestBuilder, params);
 	}

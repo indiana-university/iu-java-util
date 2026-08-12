@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -40,7 +41,6 @@ import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import edu.iu.IuException;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
@@ -66,8 +66,10 @@ public final class OidcProviders {
 	 * 
 	 * @param config {@link IuOidcProvider} provider configuration
 	 * @return {@link IuOidcProviderMetadata}
+	 * @throws IOException if an error occurs reading metadata from the provider
+	 *                     before the cache is populated
 	 */
-	public static IuOidcProviderMetadata getMetadata(IuOidcProvider config) {
+	public static IuOidcProviderMetadata getMetadata(IuOidcProvider config) throws IOException {
 		final var metadata = config.getMetadata();
 		if (metadata != null)
 			return metadata;
@@ -94,7 +96,7 @@ public final class OidcProviders {
 				cached.lastUpdate = Instant.now();
 			} catch (Throwable e) {
 				if (cached.instance == null)
-					throw IuException.unchecked(e);
+					throw e;
 				else
 					LOG.log(Level.INFO, e, () -> "OIDC provider metadata lookup failure " + config.getMetadataUri()
 							+ "; using last good version");

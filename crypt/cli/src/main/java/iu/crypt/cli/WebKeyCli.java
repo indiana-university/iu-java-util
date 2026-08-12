@@ -839,9 +839,11 @@ public class WebKeyCli {
 				} else if (cmd.equals("export")) {
 					if (inputKey != null)
 						export(System.out, inputKey);
-					else if (arg.length == 1)
+					else if (arg.length == 1) {
 						export(System.out, inputCa.getJwk().wellKnown());
-					else
+						for (final var crl : inputCa.getCrl())
+							PemEncoded.print(System.out, crl);
+					} else
 						export(System.out, inputCa, parseSerial(arg[1]));
 					return;
 				} else if (cmd.equals("print")) {

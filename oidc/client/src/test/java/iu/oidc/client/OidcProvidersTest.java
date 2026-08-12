@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.logging.Level;
@@ -56,7 +57,7 @@ import iu.oidc.client.config.IuOidcProvider;
 public class OidcProvidersTest {
 
 	@Test
-	void testDirect() {
+	void testDirect() throws IOException {
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		final var provider = mock(IuOidcProvider.class);
 		when(provider.getMetadata()).thenReturn(metadata);
@@ -64,7 +65,7 @@ public class OidcProvidersTest {
 	}
 
 	@Test
-	void testReadsFromUri() {
+	void testReadsFromUri() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());
 		final var metadataUri = URI.create(IdGenerator.generateId());
 		final var metadataTtl = Duration.ofSeconds(1L);
