@@ -38,6 +38,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -55,6 +56,8 @@ import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
 import edu.iu.oidc.IuOidcTokenResponse;
@@ -189,6 +192,45 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		};
 	}
 
+	/**
+	 * Verifies an access token as a JWT signed by the OpenID Provider.
+	 *
+	 * <p>
+	 * Returns null when the access token can't be identified as one of the
+	 * issuer's, so callers can fall back to another means of authorizing access,
+	 * e.g., token exchange. Once the token's key ID is matched to a key the issuer
+	 * publishes, it's expected to verify; a failure past that point is not a
+	 * fallback signal and is allowed to propagate.
+	 * </p>
+	 *
+	 * @param accessToken access token
+	 * @return verified {@link WebToken}; null if the access token isn't a signed
+	 *         JWT, or its key isn't published by the issuer
+	 * @throws IOException if OP metadata or JWKS interactions fail
+	 */
+	private WebToken verifyAccessToken(String accessToken) throws IOException {
+		final WebCryptoHeader jose;
+		try {
+			jose = WebCryptoHeader.getProtectedHeader(accessToken);
+		} catch (RuntimeException e) {
+			return null; // not a JWT
+		}
+
+		final var kid = jose.getKeyId();
+		if (kid == null)
+			return null;
+
+		final var metadata = OidcProviders.getMetadata(config.getProvider());
+		final WebKey issuerKey;
+		try {
+			issuerKey = IuIterable.select(WebKey.readJwks(metadata.getJwksUri()), k -> kid.equals(k.getKeyId()));
+		} catch (NoSuchElementException e) {
+			return null; // signing key not published by issuer
+		}
+
+		return WebToken.verify(accessToken, issuerKey);
+	}
+
 	@Override
 	public IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes requestAttributes) throws IOException {
 		final var sessionHandler = config.getSessionHandler();
@@ -248,15 +290,25 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			@Override
 			public String apply(URI uri) throws IOException {
 				final var accessToken = grant.getTokenResponse().getAccessToken();
-				if (IuWebUtils.isRootOf(config.getClient().getResourceUri(), uri))
+				if (IuWebUtils.isRootOf(config.getResourceUri(), uri))
 					return accessToken;
 
+				final var verifiedAccessToken = verifyAccessToken(accessToken);
+				if (verifiedAccessToken != null) {
+					final var audience = verifiedAccessToken.getAudience();
+					if (audience != null)
+						for (final var aud : audience)
+							if (IuWebUtils.isRootOf(aud, uri))
+								return accessToken;
+				}
+
 				URI apiResource = null;
-				for (final var u : config.getApiResources())
+				for (final var u : Objects.requireNonNull(config.getApiResources(), "invalid resource URI " + uri))
 					if (IuWebUtils.isRootOf(u, uri) //
 							&& (apiResource == null //
 									|| IuWebUtils.isRootOf(apiResource, u)))
 						apiResource = u;
+
 				Objects.requireNonNull(apiResource, "invalid resource URI " + uri);
 
 				final OidcTokenGrant obo;

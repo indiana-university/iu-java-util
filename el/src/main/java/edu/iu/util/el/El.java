@@ -248,6 +248,7 @@ public final class El {
 				final var result = evalContext.getResult();
 				final var templatePathExpr = expression.substring(1);
 				evalContext.setPositionAtEnd();
+				evalContext.markAsRaw();
 
 				final var inline = templatePathExpr.startsWith("`");
 

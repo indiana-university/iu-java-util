@@ -80,7 +80,8 @@ public class SessionHandler implements IuSessionHandler {
 
 	@Override
 	public IuSession activate(Iterable<HttpCookie> cookies) {
-		final var cookieName = getSessionCookieName();
+		final var config = configuration.get();
+		final var cookieName = getSessionCookieName(config);
 
 		String activatedSession = null;
 		byte[] secretKey = null;
@@ -107,7 +108,7 @@ public class SessionHandler implements IuSessionHandler {
 
 		try {
 			return new Session(resourceUri, activatedSession, WebKey.builder(WebKey.Type.RAW).key(secretKey).build(),
-					configuration.get());
+					config);
 		} catch (Throwable e) {
 			LOG.log(Level.INFO, "Purging invalid session", e);
 			dataStore.put(hashKey(secretKey), null);
@@ -125,7 +126,7 @@ public class SessionHandler implements IuSessionHandler {
 		dataStore.put(hashKey(secretKey.getKey()), IuText.utf8(s.tokenize(secretKey, config)), config.getInactiveTtl());
 
 		final var cookieBuilder = new StringBuilder();
-		cookieBuilder.append(getSessionCookieName());
+		cookieBuilder.append(getSessionCookieName(config));
 		cookieBuilder.append('=');
 		cookieBuilder.append(IuText.base64Url(secretKey.getKey()));
 		cookieBuilder.append("; Path=");
@@ -151,7 +152,7 @@ public class SessionHandler implements IuSessionHandler {
 	@Override
 	public void remove(Iterable<HttpCookie> cookies) {
 		if (cookies != null) {
-			final var cookieName = getSessionCookieName();
+			final var cookieName = getSessionCookieName(configuration.get());
 			for (final var cookie : cookies)
 				if (cookie.getName().equals(cookieName))
 					try {
@@ -175,9 +176,11 @@ public class SessionHandler implements IuSessionHandler {
 	/**
 	 * Gets the session cookie name for a protected resource URI
 	 * 
+	 * @param config resolved configuration
 	 * @return session cookie name
 	 */
-	String getSessionCookieName() {
-		return "iu-sk_" + IuText.base64Url(IuDigest.sha256(IuText.utf8(resourceUri.toString())));
+	String getSessionCookieName(IuSessionConfiguration config) {
+		final var seed = resourceUri + config.getJwk().getKeyId();
+		return "iu-sk_" + IuText.base64Url(IuDigest.sha256(IuText.utf8(seed)));
 	}
 }

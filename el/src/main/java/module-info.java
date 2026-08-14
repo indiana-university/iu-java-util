@@ -39,5 +39,6 @@ module iu.util.el {
 	requires iu.util.client;
 	requires transitive jakarta.json;
 	requires java.logging;
-	requires org.apache.commons.text;
+
+	requires static org.apache.commons.text;
 }
