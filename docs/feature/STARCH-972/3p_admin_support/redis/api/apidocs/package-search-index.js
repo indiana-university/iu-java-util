@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.redis","l":"edu.iu.redis"},{"m":"iu.util.redis","l":"edu.iu.redis.spi"}];updateSearchResults();

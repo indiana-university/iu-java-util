@@ -1,0 +1,1 @@
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"iu.session.config","l":"IuSessionConfiguration","k":"10"},{"p":"iu.session","l":"Session"},{"p":"iu.session","l":"SessionDetail"},{"p":"iu.session","l":"SessionDetailAttributes","k":"10"},{"p":"iu.session","l":"SessionHandler"}];updateSearchResults();
