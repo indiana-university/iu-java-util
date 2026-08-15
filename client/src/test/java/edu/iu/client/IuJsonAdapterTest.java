@@ -880,6 +880,38 @@ public class IuJsonAdapterTest {
 	}
 
 	@Test
+	public void testGenericNestedMap() throws NoSuchFieldException {
+		class A {
+			@SuppressWarnings("unused")
+			Map<String, Set<URI>> m;
+		}
+		final var adapter = IuJsonAdapter
+				.<Map<String, Set<URI>>>of(A.class.getDeclaredField("m").getGenericType());
+
+		assertEquals(JsonValue.NULL, adapter.toJson(null));
+		assertNull(adapter.fromJson(null));
+		assertNull(adapter.fromJson(JsonValue.NULL));
+
+		final Map<String, Set<URI>> m = new LinkedHashMap<>();
+		final var o = IuJson.object();
+		final var l = ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE, Short.MAX_VALUE);
+		for (var i = 0; i < l; i++) {
+			final var k = IdGenerator.generateId();
+			final var u = Set.of(randomUri(), randomUri());
+			m.put(k, u);
+
+			final var a = IuJson.array();
+			for (final var uri : u)
+				a.add(uri.toString());
+			o.add(k, a.build());
+		}
+		final var object = o.build();
+
+		assertEquals(object, adapter.toJson(m));
+		assertEquals(m, adapter.fromJson(object));
+	}
+
+	@Test
 	public void testRawMap() throws NoSuchFieldException {
 		assertMap(IuJsonAdapter.of(Map.class), LinkedHashMap::new, IdGenerator::generateId);
 	}

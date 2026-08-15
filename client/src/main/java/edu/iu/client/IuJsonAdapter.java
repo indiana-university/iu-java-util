@@ -214,12 +214,10 @@ public interface IuJsonAdapter<T> {
 	 * @return {@link IuJsonAdapter}
 	 */
 	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat) {
-		if (type instanceof Class) {
-			final var c = (Class<?>) type;
-			if (!IuObject.isPlatformName(c.getName()) //
-					&& c.isInterface())
-				return from((Class<?>) type, propertyNameFormat, a -> adapt(a, propertyNameFormat));
-		}
+		final var c = JsonAdapters.erase(type);
+		if (!IuObject.isPlatformName(c.getName()) //
+				&& c.isInterface())
+			return from(c, propertyNameFormat, a -> adapt(a, propertyNameFormat));
 
 		return IuJsonAdapter.of(type, a -> adapt(a, propertyNameFormat));
 	}
@@ -421,7 +419,7 @@ public interface IuJsonAdapter<T> {
 	 * @see #of(Type)
 	 */
 	@SuppressWarnings("unchecked")
-	static <T> IuJsonAdapter<T> of(Type type, Function<Class<?>, IuJsonAdapter<?>> valueAdapter) {
+	static <T> IuJsonAdapter<T> of(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return JsonAdapters.adapt(type, valueAdapter);
 	}
 

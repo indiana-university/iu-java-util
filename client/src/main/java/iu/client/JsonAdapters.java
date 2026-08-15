@@ -102,7 +102,7 @@ public final class JsonAdapters {
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public static IuJsonAdapter adapt(Type type, Function<Class<?>, IuJsonAdapter<?>> valueAdapter) {
+	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		Class erased = erase(type);
 
 		if (erased == Object.class)
@@ -185,7 +185,7 @@ public final class JsonAdapters {
 		if (erased == URI.class)
 			return ParsingJsonAdapter.of(URI.class, URI::create);
 		if (erased == URL.class)
-			return ParsingJsonAdapter.of(URL.class, a -> IuException.unchecked(() -> new URL(a)));
+			return ParsingJsonAdapter.of(URL.class, a -> IuException.unchecked(() -> URI.create(a).toURL()));
 
 		if (erased.isEnum())
 			return ParsingJsonAdapter.of(erased, v -> Enum.valueOf(erased, v));
@@ -200,7 +200,7 @@ public final class JsonAdapters {
 
 		if (erased.isArray()) {
 			final var item = item(type);
-			final IntFunction factory = n -> Array.newInstance(item, n);
+			final IntFunction factory = n -> Array.newInstance(erase(item), n);
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
 				itemAdapter = valueAdapter.apply(item);
@@ -261,12 +261,12 @@ public final class JsonAdapters {
 					valueAdapter = IuJsonAdapter::of;
 				else
 					valueAdapter = a -> BasicJsonAdapter.INSTANCE;
-			final IuJsonAdapter keyAdapter ;	
-			if (type instanceof ParameterizedType)	
-					keyAdapter = valueAdapter.apply(erase(((ParameterizedType) type).getActualTypeArguments()[0]));
-			else 
-				    keyAdapter = BasicJsonAdapter.INSTANCE;
-					
+			final IuJsonAdapter keyAdapter;
+			if (type instanceof ParameterizedType)
+				keyAdapter = valueAdapter.apply(((ParameterizedType) type).getActualTypeArguments()[0]);
+			else
+				keyAdapter = BasicJsonAdapter.INSTANCE;
+
 			if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
 				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), LinkedHashMap::new);
@@ -286,7 +286,7 @@ public final class JsonAdapters {
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
 	}
 
-	private static Class<?> erase(Type type) {
+	public static Class<?> erase(Type type) {
 		if (type instanceof Class)
 			return (Class<?>) type;
 		else if (type instanceof GenericArrayType) {
@@ -307,19 +307,19 @@ public final class JsonAdapters {
 			return erase(((WildcardType) type).getUpperBounds()[0]);
 	}
 
-	private static Class<?> item(Type type) {
+	private static Type item(Type type) {
 		if (type instanceof Class) {
 			return ((Class<?>) type).getComponentType();
 		} else if (type instanceof GenericArrayType)
-			return erase(((GenericArrayType) type).getGenericComponentType());
+			return ((GenericArrayType) type).getGenericComponentType();
 		else {
 			// assumes erase() was invoked and returned a supported type first
 			final var p = (ParameterizedType) type;
 			final var raw = erase(p);
 			if (Map.class.isAssignableFrom(raw))
-				return erase(p.getActualTypeArguments()[1]);
+				return p.getActualTypeArguments()[1];
 			else
-				return erase(p.getActualTypeArguments()[0]);
+				return p.getActualTypeArguments()[0];
 		}
 	}
 
