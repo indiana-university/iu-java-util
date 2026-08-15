@@ -38,6 +38,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
@@ -66,12 +67,22 @@ public class IuConfig {
 		private final String prefix;
 		private final IuJsonAdapter<T> adapter;
 		private final IuVault[] vault;
+		private final Function<String, T> load;
 		private final Map<String, T> cache;
 
 		private StorageConfig(String prefix, IuJsonAdapter<T> adapter, Duration cacheTtl, IuVault... vault) {
 			this.prefix = prefix;
 			this.adapter = adapter;
 			this.vault = vault;
+			this.load = null;
+			this.cache = new IuCacheMap<>(cacheTtl == null ? Duration.ofSeconds(15L) : cacheTtl);
+		}
+
+		private StorageConfig(Function<String, T> load, Duration cacheTtl) {
+			this.prefix = null;
+			this.adapter = null;
+			this.vault = null;
+			this.load = load;
 			this.cache = new IuCacheMap<>(cacheTtl == null ? Duration.ofSeconds(15L) : cacheTtl);
 		}
 	}
@@ -153,6 +164,36 @@ public class IuConfig {
 	}
 
 	/**
+	 * Registers factory method for a configuration type.
+	 *
+	 * @param <T>        configuration type
+	 * @param configType configuration type
+	 * @param load       factory method handle
+	 */
+	public static synchronized <T> void registerFactory(Class<T> configType, Function<String, T> load) {
+		registerFactory(configType, load, null);
+	}
+
+	/**
+	 * Registers factory method for a configuration type.
+	 *
+	 * @param <T>        configuration type
+	 * @param configType configuration type
+	 * @param load       factory method handle
+	 * @param cacheTtl   time period for caching config objects
+	 */
+	public static synchronized <T> void registerFactory(Class<T> configType, Function<String, T> load,
+			Duration cacheTtl) {
+		if (sealed)
+			throw new IllegalStateException("sealed");
+
+		if (STORAGE.containsKey(configType))
+			throw new IllegalArgumentException("already configured");
+
+		STORAGE.put(configType, new StorageConfig<>(Objects.requireNonNull(load, "Missing factory"), cacheTtl));
+	}
+
+	/**
 	 * Registers a vault for loading authorization configuration using the default
 	 * cache TTL of 15 seconds.
 	 * 
@@ -213,10 +254,10 @@ public class IuConfig {
 	 */
 	public static <T> T load(Class<T> configInterface, String key) {
 		@SuppressWarnings("unchecked") // enforced on put (above)
-		final StorageConfig<T> vaultConfig = (StorageConfig<T>) Objects.requireNonNull(STORAGE.get(configInterface),
+		final StorageConfig<T> storageConfig = (StorageConfig<T>) Objects.requireNonNull(STORAGE.get(configInterface),
 				"not configured");
 
-		final var value = vaultConfig.cache.get(key);
+		final var value = storageConfig.cache.get(key);
 		if (configInterface.isInstance(value))
 			return configInterface.cast(value);
 
@@ -225,16 +266,22 @@ public class IuConfig {
 			Throwable error;
 
 			void check(IuVault vault) {
-				final var keyedValue = vault.get(vaultConfig.prefix + key).getValue();
+				final var keyedValue = vault.get(storageConfig.prefix + key).getValue();
 				final var config = IuJson.parse(keyedValue).asJsonObject();
 
 				final var value = IuJson.wrap(config, configInterface, IuConfig::adaptJson);
-				vaultConfig.cache.put(key, value);
+				storageConfig.cache.put(key, value);
 				this.value = value;
 			}
 
 			T load() {
-				for (final var v : vaultConfig.vault) {
+				if (storageConfig.load != null) {
+					final var value = storageConfig.load.apply(key);
+					storageConfig.cache.put(key, value);
+					return value;
+				}
+
+				for (final var v : storageConfig.vault) {
 					error = IuException.suppress(error, () -> check(v));
 					if (value != null)
 						return value;

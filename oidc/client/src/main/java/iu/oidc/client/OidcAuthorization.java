@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -302,25 +303,35 @@ public class OidcAuthorization implements IuOidcAuthorization {
 								return accessToken;
 				}
 
+				final Supplier<String> error = () -> "invalid resource URI " + uri
+						+ (verifiedAccessToken == null ? "; access token not verified"
+								: "; access token doesn't include resource URI as audience "
+										+ verifiedAccessToken.getAudience());
+
 				URI apiResource = null;
-				for (final var u : Objects.requireNonNull(config.getApiResources(), "invalid resource URI " + uri))
+				for (final var u : Objects.requireNonNull(config.getApiResources(), error))
 					if (IuWebUtils.isRootOf(u, uri) //
 							&& (apiResource == null //
 									|| IuWebUtils.isRootOf(apiResource, u)))
 						apiResource = u;
 
-				Objects.requireNonNull(apiResource, "invalid resource URI " + uri);
+				Objects.requireNonNull(apiResource, error);
 
-				final OidcTokenGrant obo;
-				synchronized (grants) {
-					final var cached = grants.get(apiResource);
-					if (cached == null)
-						grants.put(apiResource, obo = new OnBehalfOfGrant(config, apiResource, accessToken));
-					else
-						obo = cached;
+				try {
+					final OidcTokenGrant obo;
+					synchronized (grants) {
+						final var cached = grants.get(apiResource);
+						if (cached == null)
+							grants.put(apiResource, obo = new OnBehalfOfGrant(config, apiResource, accessToken));
+						else
+							obo = cached;
+					}
+
+					return obo.getTokenResponse().getAccessToken();
+				} catch (Throwable e) {
+					e.addSuppressed(new IllegalArgumentException(error.get()));
+					throw e;
 				}
-
-				return obo.getTokenResponse().getAccessToken();
 			}
 		};
 

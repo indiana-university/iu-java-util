@@ -793,13 +793,22 @@ public class OidcAuthorizationTest {
 			assertNull(authorization.getAuthorizedPrincipal(requestAttributes).getSetCookie());
 			
 			final var wrongUri = URI.create(IdGenerator.generateId());
-			assertThrows(NullPointerException.class, () -> principal.getAccessToken(wrongUri));
+			assertEquals("invalid resource URI " + wrongUri + "; access token not verified",
+					assertThrows(NullPointerException.class, () -> principal.getAccessToken(wrongUri)).getMessage());
 
 			assertEquals(apiAccessToken2, principal.getAccessToken(apiResourcev2));
 			assertEquals(apiAccessToken2, principal.getAccessToken(apiResourcev2));
 			assertEquals(1, mockOboGrant.constructed().size());
 
 			assertEquals(apiAccessToken1, principal.getAccessToken(apiResourcev1));
+
+			final var oboFailure = new IOException(IdGenerator.generateId());
+			when(mockOboGrant.constructed().get(1).getTokenResponse()).thenThrow(oboFailure);
+			assertSame(oboFailure, assertThrows(IOException.class, () -> principal.getAccessToken(apiResourcev1)));
+			assertEquals(1, oboFailure.getSuppressed().length);
+			assertEquals(IllegalArgumentException.class, oboFailure.getSuppressed()[0].getClass());
+			assertEquals("invalid resource URI " + apiResourcev1 + "; access token not verified",
+					oboFailure.getSuppressed()[0].getMessage());
 
 		}
 	}
@@ -926,6 +935,12 @@ public class OidcAuthorizationTest {
 	@SuppressWarnings("unchecked")
 	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI jwksUri, WebKey publishedKey)
 			throws IOException {
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, publishedKey, null);
+	}
+
+	@SuppressWarnings("unchecked")
+	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI jwksUri, WebKey publishedKey,
+			IOException oboFailure) throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -996,7 +1011,10 @@ public class OidcAuthorizationTest {
 			assertEquals(config, ctx.arguments().get(0));
 			assertEquals(apiResourcev1, ctx.arguments().get(1));
 			assertEquals(accessToken, ctx.arguments().get(2));
-			when(a.getTokenResponse()).thenReturn(oboResponse1);
+			if (oboFailure == null)
+				when(a.getTokenResponse()).thenReturn(oboResponse1);
+			else
+				when(a.getTokenResponse()).thenThrow(oboFailure);
 		})) {
 			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
 				final var rb = mock(HttpRequest.Builder.class);
@@ -1008,20 +1026,26 @@ public class OidcAuthorizationTest {
 					.build().toString());
 
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
-			assertEquals(apiAccessToken1, principal.getAccessToken(apiResourcev1));
+			if (oboFailure == null)
+				assertEquals(apiAccessToken1, principal.getAccessToken(apiResourcev1));
+			else {
+				assertSame(oboFailure, assertThrows(IOException.class, () -> principal.getAccessToken(apiResourcev1)));
+				assertEquals(1, oboFailure.getSuppressed().length);
+				assertEquals(IllegalArgumentException.class, oboFailure.getSuppressed()[0].getClass());
+			}
 			assertEquals(1, mockOboGrant.constructed().size());
 		}
 	}
 
 	@Test
-	void testGetPrincipalAccessTokenLookupFallsBackWhenJwtAudienceDoesNotMatch() throws IOException {
+	void testGetPrincipalAccessTokenLookupIncludesAudienceWhenOnBehalfOfFails() throws IOException {
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
 		final var jwksUri = URI.create(IdGenerator.generateId());
 
 		// signed and verifiable, but for a different audience than the requested
-		// resource, so the on-behalf-of exchange still has to run
+		// resource, so a failed on-behalf-of exchange includes the audience context
 		final var accessToken = WebToken.builder() //
 				.jti() //
 				.iss(URI.create(IdGenerator.generateId())) //
@@ -1032,7 +1056,8 @@ public class OidcAuthorizationTest {
 				.build() //
 				.sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, issuerKey);
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, issuerKey,
+				new IOException(IdGenerator.generateId()));
 	}
 
 	@Test

@@ -55,6 +55,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
@@ -147,6 +148,39 @@ public class IuConfigTest {
 		assertDoesNotThrow(() -> Thread.sleep(1000L)); // expires cache
 		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
 		verify(vault, times(2)).get("loadable/" + key); // returned to vault after cache expired
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testRegisterFactory() {
+		final var key = IdGenerator.generateId();
+		final var factory = mock(Function.class);
+		final var config = mock(LoadableConfig.class);
+		when(factory.apply(key)).thenReturn(config);
+
+		assertDoesNotThrow(() -> IuConfig.registerFactory(LoadableConfig.class, factory));
+		assertThrows(IllegalArgumentException.class, () -> IuConfig.registerFactory(LoadableConfig.class, factory));
+		assertSame(config, IuConfig.load(LoadableConfig.class, key));
+		assertSame(config, IuConfig.load(LoadableConfig.class, key));
+		verify(factory).apply(key);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testRegisterFactoryWithCacheTtl() {
+		final var key = IdGenerator.generateId();
+		final var factory = mock(Function.class);
+		final var config = mock(UnloadableConfig.class);
+		when(factory.apply(key)).thenReturn(config);
+
+		assertThrows(NullPointerException.class, () -> IuConfig.registerFactory(LoadableConfig.class, null));
+		assertDoesNotThrow(() -> IuConfig.registerFactory(UnloadableConfig.class, factory, Duration.ofMinutes(1L)));
+		assertSame(config, IuConfig.load(UnloadableConfig.class, key));
+		verify(factory).apply(key);
+
+		IuConfig.seal();
+		assertThrows(IllegalStateException.class,
+				() -> IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class)));
 	}
 
 	@SuppressWarnings("unchecked")
