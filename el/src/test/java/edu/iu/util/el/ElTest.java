@@ -179,6 +179,15 @@ public class ElTest {
 	}
 
 	@Test
+	public void testFailedDottedSelectionIncludesEvaluationContext() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> El.eval(JsonValue.TRUE, ".foo?"));
+		assertEquals("expected object or array for property 'foo', found true", error.getMessage());
+		assertEquals(1, error.getSuppressed().length);
+		assertEquals("Evalutating EL expression \".foo?\" at 0: \"[.]foo?\"",
+				error.getSuppressed()[0].getMessage());
+	}
+
+	@Test
 	public void testJsonPointer() {
 		final var context = Json.createObjectBuilder() //
 				.add("foo", Json.createObjectBuilder() //

@@ -37,8 +37,14 @@ import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuCacheMap;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
@@ -63,10 +69,62 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 
 	private static final Logger LOG = Logger.getLogger(RemoteInvocationHandler.class.getName());
 
+	private static class CachedResult {
+		private final Object value;
+		private final long refreshAt;
+
+		private CachedResult(Object value, Duration refreshTtl) {
+			this.value = value;
+			this.refreshAt = System.currentTimeMillis() + refreshTtl.toMillis();
+		}
+
+		private boolean needsRefresh() {
+			return refreshAt <= System.currentTimeMillis();
+		}
+	}
+
+	private final Duration refreshTtl;
+	private final IuCacheMap<List<?>, CachedResult> cache;
+
 	/**
-	 * Default constructor.
+	 * Default constructor. Caching is disabled.
 	 */
 	protected RemoteInvocationHandler() {
+		refreshTtl = null;
+		cache = null;
+	}
+
+	/**
+	 * Creates a remote invocation handler with a defensive call cache.
+	 *
+	 * <p>
+	 * Entries are refreshed after {@code refreshTtl}. They remain available until
+	 * {@code cacheTtl}, allowing the last successful response to be returned when
+	 * a refresh fails. The interval between the two durations is the downstream
+	 * service outage tolerance window.
+	 * </p>
+	 *
+	 * <p>
+	 * Methods for which {@link #usesCache(Method)} returns {@code false} are
+	 * never cached; a successful invocation of one of these methods instead
+	 * clears the entire cache, so that infrequent write calls (e.g. POST)
+	 * invalidate previously cached results from frequent read calls (e.g. GET).
+	 * </p>
+	 *
+	 * @param refreshTtl interval after which a cached result is refreshed
+	 * @param cacheTtl   maximum time a cached result remains available; must be
+	 *                   longer than {@code refreshTtl}
+	 */
+	protected RemoteInvocationHandler(Duration refreshTtl, Duration cacheTtl) {
+		this.refreshTtl = Objects.requireNonNull(refreshTtl, "Missing refresh TTL");
+		if (refreshTtl.isNegative() || refreshTtl.isZero())
+			throw new IllegalArgumentException("Refresh TTL must be positive");
+
+		cacheTtl = Objects.requireNonNull(cacheTtl, "Missing cache TTL");
+		if (cacheTtl.compareTo(refreshTtl) <= 0)
+			throw new IllegalArgumentException("Cache TTL must be longer than refresh TTL");
+
+		cache = new IuCacheMap<>(cacheTtl);
 	}
 
 	/**
@@ -149,14 +207,71 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 		return null;
 	}
 
+	/**
+	 * Determines whether calls to a method use the cache.
+	 *
+	 * <p>
+	 * The default enables caching for all remote methods when this handler was
+	 * constructed with a refresh TTL. Subclasses may override this method to
+	 * choose a subset of methods.
+	 * </p>
+	 *
+	 * @param method remote method
+	 * @return {@code true} if calls to {@code method} use the cache
+	 */
+	protected boolean usesCache(Method method) {
+		return refreshTtl != null;
+	}
+
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-		{
-			Object rv = invokeObjectMethod(proxy, method, args);
-			if (rv != null)
-				return rv;
+		if (method.getDeclaringClass() == Object.class)
+			return invokeObjectMethod(proxy, method, args);
+
+		if (!usesCache(method)) {
+			final var value = doInvoke(method, args);
+			if (cache != null)
+				cache.clear();
+			return value;
 		}
 
+		final var key = List.of(method.getDeclaringClass(), method,
+				Arrays.asList(args == null ? new Object[0] : args.clone()));
+		final var cached = cache.get(key);
+		if (cached == null) {
+			final var value = doInvoke(method, args);
+			cache.put(key, new CachedResult(value, refreshTtl));
+			return value;
+		}
+
+		if (!cached.needsRefresh())
+			return cached.value;
+
+		try {
+			final var value = doInvoke(method, args);
+			cache.put(key, new CachedResult(value, refreshTtl));
+			return value;
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, e, () -> "Remote call refresh failed for " + method);
+			return cached.value;
+		}
+	}
+
+	/**
+	 * Performs a remote method invocation.
+	 *
+	 * <p>
+	 * Subclasses may override this method to customize how remote calls are
+	 * performed. {@link #invoke(Object, Method, Object[])} handles object methods
+	 * and cache behavior before delegating here.
+	 * </p>
+	 *
+	 * @param method remote method
+	 * @param args   remote method arguments
+	 * @return remote method result
+	 * @throws Throwable if the remote invocation fails
+	 */
+	protected Object doInvoke(Method method, Object[] args) throws Throwable {
 		final UnsafeConsumer<HttpRequest.Builder> request = builder -> {
 			authorize(builder);
 			payload(builder, method, args);

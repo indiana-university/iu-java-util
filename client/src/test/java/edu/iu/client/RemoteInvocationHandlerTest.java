@@ -33,10 +33,12 @@ package edu.iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -55,6 +57,9 @@ import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -345,6 +350,197 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			// A#b() doesn't declare IOException, so the proxy wraps it
 			assertSame(ex, assertThrows(UndeclaredThrowableException.class, a::b).getCause());
 		}
+	}
+
+	@Test
+	public void testInvokeObjectMethodUnhandled() throws Exception {
+		final var handler = new RemoteInvocationHandler() {
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+		assertEquals(null, handler.invokeObjectMethod(a, Object.class.getDeclaredMethod("finalize"), null));
+	}
+
+	@Test
+	public void testConstructorValidatesTtls() {
+		assertThrows(IllegalArgumentException.class,
+				() -> new RemoteInvocationHandler(Duration.ZERO, Duration.ofMinutes(1L)) {
+					@Override
+					protected void authorize(Builder requestBuilder) {
+					}
+
+					@Override
+					protected URI uri(Method method) {
+						return TEST_URI;
+					}
+				});
+		assertThrows(IllegalArgumentException.class,
+				() -> new RemoteInvocationHandler(Duration.ofMinutes(-1L), Duration.ofMinutes(1L)) {
+					@Override
+					protected void authorize(Builder requestBuilder) {
+					}
+
+					@Override
+					protected URI uri(Method method) {
+						return TEST_URI;
+					}
+				});
+		assertThrows(IllegalArgumentException.class,
+				() -> new RemoteInvocationHandler(Duration.ofMinutes(5L), Duration.ofMinutes(5L)) {
+					@Override
+					protected void authorize(Builder requestBuilder) {
+					}
+
+					@Override
+					protected URI uri(Method method) {
+						return TEST_URI;
+					}
+				});
+	}
+
+	@Test
+	public void testDefensiveCallCache() throws Exception {
+		final var calls = new AtomicInteger();
+		final var remoteAvailable = new AtomicBoolean(true);
+		final var refreshTtl = Duration.ofSeconds(1L);
+		final var handler = new RemoteInvocationHandler(refreshTtl, Duration.ofSeconds(5L)) {
+			@Override
+			protected Object doInvoke(Method method, Object[] args) {
+				calls.incrementAndGet();
+				if (!remoteAvailable.get())
+					throw new IllegalStateException("remote service unavailable");
+				return args[0] + "/" + calls.get();
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+		final var echo = A.class.getMethod("echo", String.class);
+
+		assertTrue(handler.usesCache(echo));
+		assertEquals("first/1", a.echo("first"));
+		assertEquals("first/1", a.echo("first"));
+		assertEquals("second/2", a.echo("second"));
+		assertEquals(2, calls.get());
+
+		Thread.sleep(refreshTtl.toMillis() + 25L);
+		assertEquals("first/3", a.echo("first"));
+		assertEquals("first/3", a.echo("first"));
+		assertEquals(3, calls.get());
+
+		Thread.sleep(refreshTtl.toMillis() + 25L);
+		remoteAvailable.set(false);
+		assertEquals("first/3", a.echo("first"));
+		assertEquals(4, calls.get());
+	}
+
+	@Test
+	public void testDefaultHandlerDoesNotCache() throws Exception {
+		final var calls = new AtomicInteger();
+		final var handler = new RemoteInvocationHandler() {
+			@Override
+			protected Object doInvoke(Method method, Object[] args) {
+				return Integer.toString(calls.incrementAndGet());
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+
+		assertFalse(handler.usesCache(A.class.getMethod("echo", String.class)));
+		assertEquals("1", a.echo("first"));
+		assertEquals("2", a.echo("first"));
+	}
+
+	@Test
+	public void testCachedNoArgMethod() throws Exception {
+		final var calls = new AtomicInteger();
+		final var handler = new RemoteInvocationHandler(Duration.ofMinutes(5L), Duration.ofMinutes(30L)) {
+			@Override
+			protected Object doInvoke(Method method, Object[] args) {
+				calls.incrementAndGet();
+				return null;
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+
+		a.b();
+		a.b();
+		assertEquals(1, calls.get());
+	}
+
+	@Test
+	public void testNonCachedInvocationInvalidatesCache() throws Exception {
+		final var calls = new AtomicInteger();
+		final var echo = A.class.getMethod("echo", String.class);
+		final var b = A.class.getMethod("b");
+		final var handler = new RemoteInvocationHandler(Duration.ofMinutes(5L), Duration.ofMinutes(30L)) {
+			@Override
+			protected boolean usesCache(Method method) {
+				return method.equals(echo);
+			}
+
+			@Override
+			protected Object doInvoke(Method method, Object[] args) {
+				calls.incrementAndGet();
+				return args == null ? null : args[0] + "/" + calls.get();
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+
+		assertEquals("first/1", a.echo("first"));
+		assertEquals("first/1", a.echo("first"));
+		assertEquals(1, calls.get());
+
+		a.b();
+		assertEquals(2, calls.get());
+
+		assertEquals("first/3", a.echo("first"));
+		assertEquals(3, calls.get());
 	}
 
 }

@@ -310,7 +310,12 @@ public final class El {
 					result = select(evalContext.getResult(), expression.substring(1));
 					evalContext.setPositionAtEnd();
 				} else {
-					result = select(evalContext.getResult(), expression.substring(1, endOfReference));
+					try {
+						result = select(evalContext.getResult(), expression.substring(1, endOfReference));
+					} catch (RuntimeException e) {
+						e.addSuppressed(new Throwable("Evalutating " + evalContext));
+						throw e;
+					}
 					evalContext.advancePosition(endOfReference);
 				}
 				evalContext.setResult(result);

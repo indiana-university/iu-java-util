@@ -286,6 +286,12 @@ public final class JsonAdapters {
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
 	}
 
+	/**
+	 * Erases a {@link Type} to its equivalent raw {@link Class}.
+	 *
+	 * @param type type
+	 * @return raw class
+	 */
 	public static Class<?> erase(Type type) {
 		if (type instanceof Class)
 			return (Class<?>) type;
