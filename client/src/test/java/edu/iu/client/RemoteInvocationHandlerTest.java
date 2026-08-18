@@ -477,6 +477,95 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	}
 
 	@Test
+	public void testDefaultHandlerBypassesOverriddenCachePolicy() throws Exception {
+		final var calls = new AtomicInteger();
+		final var handler = new RemoteInvocationHandler() {
+			@Override
+			protected boolean usesCache(Method method) {
+				return true;
+			}
+
+			@Override
+			protected Object doInvoke(Method method, Object[] args) {
+				return Integer.toString(calls.incrementAndGet());
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var a = (A) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(), new Class<?>[] { A.class },
+				handler);
+
+		assertEquals("1", a.echo("first"));
+		assertEquals("2", a.echo("first"));
+	}
+
+	@Test
+	public void testInterruptedCacheRefreshPropagatesAndRestoresInterruptStatus() throws Throwable {
+		final var calls = new AtomicInteger();
+		final var handler = new RemoteInvocationHandler(Duration.ofMillis(1L), Duration.ofSeconds(1L)) {
+			@Override
+			protected Object doInvoke(Method method, Object[] args) throws Throwable {
+				if (calls.incrementAndGet() > 1)
+					throw new InterruptedException("refresh interrupted");
+				return "cached";
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var echo = A.class.getMethod("echo", String.class);
+
+		assertEquals("cached", handler.invoke(null, echo, new Object[] { "first" }));
+		Thread.sleep(25L);
+		try {
+			assertThrows(InterruptedException.class, () -> handler.invoke(null, echo, new Object[] { "first" }));
+			assertTrue(Thread.currentThread().isInterrupted());
+		} finally {
+			Thread.interrupted();
+		}
+	}
+
+	@Test
+	public void testErrorDuringCacheRefreshPropagates() throws Throwable {
+		final var calls = new AtomicInteger();
+		final var handler = new RemoteInvocationHandler(Duration.ofMillis(1L), Duration.ofSeconds(1L)) {
+			@Override
+			protected Object doInvoke(Method method, Object[] args) {
+				if (calls.incrementAndGet() > 1)
+					throw new AssertionError("refresh failed");
+				return "cached";
+			}
+
+			@Override
+			protected void authorize(Builder requestBuilder) {
+			}
+
+			@Override
+			protected URI uri(Method method) {
+				return TEST_URI;
+			}
+		};
+		final var echo = A.class.getMethod("echo", String.class);
+
+		assertEquals("cached", handler.invoke(null, echo, new Object[] { "first" }));
+		Thread.sleep(25L);
+		assertThrows(AssertionError.class, () -> handler.invoke(null, echo, new Object[] { "first" }));
+	}
+
+	@Test
 	public void testCachedNoArgMethod() throws Exception {
 		final var calls = new AtomicInteger();
 		final var handler = new RemoteInvocationHandler(Duration.ofMinutes(5L), Duration.ofMinutes(30L)) {

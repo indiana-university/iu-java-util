@@ -319,14 +319,18 @@ public class IuConfig {
 	/**
 	 * Provides JSON adapters for components that used
 	 * {@link #registerInterface(String, Class, Duration, IuVault...)} to register
-	 * configuration interfaces for authentication and authorization.
+	 * configuration interfaces for authentication and authorization. Registered
+	 * types without a dedicated adapter, such as types registered with
+	 * {@link #registerFactory(Class, Function)}, use the standard adapter for the
+	 * requested type.
 	 * 
 	 * @param type type
 	 * @return {@link IuJsonAdapter}
 	 */
 	public static IuJsonAdapter<?> adaptJson(Type type) {
-		if (STORAGE.containsKey(type))
-			return STORAGE.get(type).adapter;
+		final var storage = STORAGE.get(type);
+		if (storage != null && storage.adapter != null)
+			return storage.adapter;
 
 		if (type instanceof Class) {
 			final var c = (Class<?>) type;

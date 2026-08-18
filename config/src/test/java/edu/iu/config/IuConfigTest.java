@@ -225,6 +225,19 @@ public class IuConfigTest {
 	}
 
 	@Test
+	public void testAdaptJsonUsesDefaultAdapterForFactoryRegisteredInterface() {
+		IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class));
+		final var adapter = mock(IuJsonAdapter.class);
+		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
+			mockJsonAdapter.when(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
+					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any())).thenReturn(adapter);
+			assertSame(adapter, IuConfig.adaptJson(LoadableConfig.class));
+			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
+					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
+		}
+	}
+
+	@Test
 	public void testAdaptJsonUnregisteredNonPlatformClass() {
 		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
 			IuConfig.adaptJson(UnregisteredClass.class);

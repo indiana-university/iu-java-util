@@ -183,7 +183,7 @@ public class ElTest {
 		final var error = assertThrows(IllegalArgumentException.class, () -> El.eval(JsonValue.TRUE, ".foo?"));
 		assertEquals("expected object or array for property 'foo', found true", error.getMessage());
 		assertEquals(1, error.getSuppressed().length);
-		assertEquals("Evalutating EL expression \".foo?\" at 0: \"[.]foo?\"",
+		assertEquals("Evaluating EL expression \".foo?\" at 4: \".foo[?]\"",
 				error.getSuppressed()[0].getMessage());
 	}
 

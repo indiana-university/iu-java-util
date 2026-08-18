@@ -200,9 +200,10 @@ class ColumnMetaData {
 	 *
 	 * <p>
 	 * The column must carry either {@link Column} or {@link SqlColumn}, on the
-	 * getter or on the field; the field is consulted first, so a property annotated
-	 * in both places is described by its field. When {@link Column} is present it
-	 * takes precedence and the {@link SqlColumn} branch is not entered.
+	 * getter or on the field. The field is consulted first, so a property annotated
+	 * in both places is described solely by its field; annotations on the other
+	 * member are not combined. On the selected member, {@link Column} takes
+	 * precedence and the {@link SqlColumn} branch is not entered.
 	 * </p>
 	 *
 	 * <p>
@@ -240,8 +241,8 @@ class ColumnMetaData {
 		this.javaType = property == null || fieldMapped ? field.getType() : property.getPropertyType();
 
 		this.id = DaoUtils.getAnnotation(Id.class, primary, secondary);
-		this.column = DaoUtils.getAnnotation(Column.class, primary, secondary);
-		this.sqlColumn = DaoUtils.getAnnotation(SqlColumn.class, primary, secondary);
+		this.column = primary.getAnnotation(Column.class);
+		this.sqlColumn = primary.getAnnotation(SqlColumn.class);
 		this.spaceForNull = entity.spaceForNull //
 				|| DaoUtils.getAnnotation(SpaceForNull.class, primary, secondary) != null;
 

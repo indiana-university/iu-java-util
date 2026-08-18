@@ -77,7 +77,9 @@ import jakarta.json.JsonValue;
  * {@code &}, a property's name in place of a numeric index.</li>
  * <li>Dot-separated path elements select object members or array indexes. A
  * path element beginning with {@code /} is evaluated as a JSON Pointer; for
- * example, {@code $./items/0/name}.</li>
+ * example, {@code $./items/0/name}. If a selection fails, its exception includes
+ * a suppressed diagnostic positioned at the operation that follows the failed
+ * path element.</li>
  * <li>{@code '} quotes the rest of an expression as text, {@code *} starts a
  * comment, and {@code @} returns raw text. Atomic results are HTML-escaped by
  * default.</li>
@@ -313,7 +315,8 @@ public final class El {
 					try {
 						result = select(evalContext.getResult(), expression.substring(1, endOfReference));
 					} catch (RuntimeException e) {
-						e.addSuppressed(new Throwable("Evalutating " + evalContext));
+						evalContext.advancePosition(endOfReference);
+						e.addSuppressed(new Throwable("Evaluating " + evalContext));
 						throw e;
 					}
 					evalContext.advancePosition(endOfReference);

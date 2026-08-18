@@ -100,8 +100,10 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 * <p>
 	 * Entries are refreshed after {@code refreshTtl}. They remain available until
 	 * {@code cacheTtl}, allowing the last successful response to be returned when
-	 * a refresh fails. The interval between the two durations is the downstream
-	 * service outage tolerance window.
+	 * a refresh fails with a non-interruption {@link Exception}. Errors and
+	 * {@link InterruptedException interrupted refreshes} propagate immediately;
+	 * an interrupted refresh also restores the thread interrupt status. The interval
+	 * between the two durations is the downstream service outage tolerance window.
 	 * </p>
 	 *
 	 * <p>
@@ -213,7 +215,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 * <p>
 	 * The default enables caching for all remote methods when this handler was
 	 * constructed with a refresh TTL. Subclasses may override this method to
-	 * choose a subset of methods.
+	 * choose a subset of methods. A handler created without a cache bypasses this
+	 * policy and always invokes the remote method directly.
 	 * </p>
 	 *
 	 * @param method remote method
@@ -228,7 +231,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 		if (method.getDeclaringClass() == Object.class)
 			return invokeObjectMethod(proxy, method, args);
 
-		if (!usesCache(method)) {
+		if (cache == null || !usesCache(method)) {
 			final var value = doInvoke(method, args);
 			if (cache != null)
 				cache.clear();
@@ -251,7 +254,11 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 			final var value = doInvoke(method, args);
 			cache.put(key, new CachedResult(value, refreshTtl));
 			return value;
-		} catch (Throwable e) {
+		} catch (Exception e) {
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+				throw e;
+			}
 			LOG.log(Level.INFO, e, () -> "Remote call refresh failed for " + method);
 			return cached.value;
 		}

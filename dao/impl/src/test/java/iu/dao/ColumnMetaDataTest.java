@@ -153,6 +153,27 @@ public class ColumnMetaDataTest {
 		}
 	}
 
+	/** Entity whose field and getter deliberately carry conflicting mappings. */
+	@Entity
+	@Table(name = "conflicting")
+	public static class ConflictingMappingEntity {
+		@SqlColumn("FIELD_SQL")
+		private String fieldSqlGetterColumn;
+
+		@Column(name = "GETTER_COLUMN")
+		public String getFieldSqlGetterColumn() {
+			return fieldSqlGetterColumn;
+		}
+
+		@SqlColumn("GETTER_SQL")
+		public String getFieldColumnGetterSql() {
+			return fieldColumnGetterSql;
+		}
+
+		@Column(name = "FIELD_COLUMN")
+		private String fieldColumnGetterSql;
+	}
+
 	// =======================================================================
 	// Helpers
 	// =======================================================================
@@ -359,6 +380,22 @@ public class ColumnMetaDataTest {
 	public void testSqlColumn_referenceWithOverrideStillReturnsRawExpressionWithNoAlias() {
 		// aliasOverride is ignored when table is null
 		assertEquals("UPPER(named_col)", col(MixedEntity.class, "rawExpr").reference("x"));
+	}
+
+	@Test
+	public void testFieldSqlColumnWinsOverGetterColumn() {
+		final var column = col(ConflictingMappingEntity.class, "fieldSqlGetterColumn");
+		assertEquals("FIELD_SQL", column.sql);
+		assertNull(column.column);
+		assertNotNull(column.sqlColumn);
+	}
+
+	@Test
+	public void testFieldColumnWinsOverGetterSqlColumn() {
+		final var column = col(ConflictingMappingEntity.class, "fieldColumnGetterSql");
+		assertEquals("FIELD_COLUMN", column.columnName);
+		assertNotNull(column.column);
+		assertNull(column.sqlColumn);
 	}
 
 	// =======================================================================
