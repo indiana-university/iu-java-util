@@ -530,9 +530,10 @@ final class DaoUtils {
 	 * or the backing field.
 	 *
 	 * <p>
-	 * The getter is consulted first, so that a property whose field and getter are
-	 * both annotated is described by the one nearer the accessor this DAO reads
-	 * values through. Annotating the field is the more common style: it keeps the
+	 * Used to decide whether a property is mapped at all, for which either member
+	 * carrying the annotation is enough; which of them wins when both do is
+	 * {@link ColumnMetaData}'s to resolve, since there it also decides how the column
+	 * is accessed. Annotating the field is the more common style: it keeps the
 	 * mapping beside the state it describes and leaves plain accessors uncluttered.
 	 * </p>
 	 *

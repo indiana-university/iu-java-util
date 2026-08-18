@@ -34,6 +34,7 @@ package iu.dao;
 import java.beans.PropertyDescriptor;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -53,20 +54,25 @@ import jakarta.persistence.Id;
  * </p>
  * <dl>
  * <dt>{@link Column} mode</dt>
- * <dd>The getter carries {@code @Column}. {@link #columnName} is set to the
- * annotation's {@code name()} value when non-blank, or to the
+ * <dd>The mapped member carries {@code @Column}. {@link #columnName} is set to
+ * the annotation's {@code name()} value when non-blank, or to the
  * {@link DaoUtils#camelToSnakeUpper(String) UPPER_SNAKE_CASE} conversion of the
  * property name otherwise. {@link #sql} equals {@link #columnName},
  * {@link #selectAlias} is {@code null}, and {@link #table} is resolved from
  * {@code @Column.table()}.</dd>
  * <dt>{@link SqlColumn} mode</dt>
- * <dd>The getter carries {@code @SqlColumn} but not {@code @Column}.
+ * <dd>The mapped member carries {@code @SqlColumn} but not {@code @Column}.
  * {@link #columnName} and {@link #table} are {@code null}. {@link #sql} holds
  * the raw SQL expression from {@link SqlColumn#value()}, and
  * {@link #selectAlias} is set to the {@link DaoUtils#camelToSnakeUpper(String)
  * UPPER_SNAKE_CASE} form of the property name so it can be aliased in
  * {@code SELECT} lists.</dd>
  * </dl>
+ *
+ * <p>
+ * Which member the mapping was declared on decides how the column is read and
+ * written; see {@link #fieldMapped}.
+ * </p>
  */
 class ColumnMetaData {
 
@@ -86,6 +92,28 @@ class ColumnMetaData {
 	final Field field;
 
 	/**
+	 * {@code true} when the mapping annotation is on {@link #field} rather than on
+	 * the bean property's getter, so that the field — not the property — is what
+	 * this column reads from and writes to.
+	 *
+	 * <p>
+	 * A property whose accessors convert may declare a type the database knows
+	 * nothing about: a {@code TEXT} column held as a {@code String} field, exposed
+	 * as an {@code Iterable<X509CRL>} the getter parses out of it. Annotating the
+	 * field says the field is the stored value and the property is downstream of it,
+	 * so {@link #javaType}, {@link #sqlType}, {@link #getter}, and the write-back
+	 * performed by {@link JdbcDao} all describe the field. Annotating the getter
+	 * instead leaves the property authoritative, as before.
+	 * </p>
+	 *
+	 * <p>
+	 * When both members are annotated the field wins, so that the annotation
+	 * describing the column is the one on the member the column is stored in.
+	 * </p>
+	 */
+	final boolean fieldMapped;
+
+	/**
 	 * The name this column is known by: the bean property name derived from the
 	 * getter, e.g. {@code "myColumn"} for {@code getMyColumn()}, or the field name
 	 * for a column mapped on a field alone.
@@ -93,7 +121,8 @@ class ColumnMetaData {
 	final String propertyName;
 
 	/**
-	 * The declared Java type of the mapped property or field.
+	 * The declared Java type of the mapped member: the {@link #field}'s type when
+	 * {@link #fieldMapped}, and the bean property's type otherwise.
 	 */
 	final Class<?> javaType;
 
@@ -123,19 +152,19 @@ class ColumnMetaData {
 	final String selectAlias;
 
 	/**
-	 * The {@link Id} annotation on the getter, or {@code null} when the property is
-	 * not part of the entity's primary key.
+	 * The {@link Id} annotation on the mapped member, or {@code null} when the
+	 * property is not part of the entity's primary key.
 	 */
 	final Id id;
 
 	/**
-	 * The {@link Column} annotation on the getter, or {@code null} for
+	 * The {@link Column} annotation on the mapped member, or {@code null} for
 	 * {@link SqlColumn} properties.
 	 */
 	final Column column;
 
 	/**
-	 * The {@link SqlColumn} annotation on the getter, or {@code null} for
+	 * The {@link SqlColumn} annotation on the mapped member, or {@code null} for
 	 * {@link Column}-mapped properties.
 	 */
 	final SqlColumn sqlColumn;
@@ -143,8 +172,8 @@ class ColumnMetaData {
 	/**
 	 * {@code true} when {@code null} bound values for this property should be
 	 * replaced with a single space character. Inherits the entity-level flag from
-	 * {@link EntityMetaData#spaceForNull}, or is set independently when the getter
-	 * carries {@link SpaceForNull}.
+	 * {@link EntityMetaData#spaceForNull}, or is set independently when either the
+	 * field or the getter carries {@link SpaceForNull}.
 	 */
 	final boolean spaceForNull;
 
@@ -161,8 +190,8 @@ class ColumnMetaData {
 	final Class<?> sqlType;
 
 	/**
-	 * Reads this column's value from an entity, through the getter when there is
-	 * one and through the field otherwise.
+	 * Reads this column's value from an entity, through the {@link #field} when
+	 * {@link #fieldMapped} or there is no getter, and through the getter otherwise.
 	 */
 	final MethodHandle getter;
 
@@ -171,14 +200,17 @@ class ColumnMetaData {
 	 *
 	 * <p>
 	 * The column must carry either {@link Column} or {@link SqlColumn}, on the
-	 * getter or on the field; the getter is consulted first, so a property
-	 * annotated in both places is described by its getter. When {@link Column} is
-	 * present it takes precedence and the {@link SqlColumn} branch is not entered.
+	 * getter or on the field; the field is consulted first, so a property annotated
+	 * in both places is described by its field. When {@link Column} is present it
+	 * takes precedence and the {@link SqlColumn} branch is not entered.
 	 * </p>
 	 *
 	 * <p>
-	 * Access is resolved independently of the annotation: values are read through
-	 * the getter when one exists and through the field otherwise.
+	 * The annotated member is also the one accessed: a field-annotated column is
+	 * read from and written to its field even when the property has accessors, since
+	 * those accessors may convert to a type the column does not hold — see
+	 * {@link #fieldMapped}. A getter-annotated column is read through the getter, and
+	 * a column with no bean property at all through its field.
 	 * </p>
 	 *
 	 * @param entity   the owning entity metadata, used to resolve the
@@ -195,14 +227,23 @@ class ColumnMetaData {
 
 		final var readMethod = property == null ? null : property.getReadMethod();
 
-		this.propertyName = property == null ? field.getName() : property.getName();
-		this.javaType = property == null ? field.getType() : property.getPropertyType();
+		this.fieldMapped = field != null //
+				&& (field.isAnnotationPresent(Column.class) //
+						|| field.isAnnotationPresent(SqlColumn.class));
 
-		this.id = DaoUtils.getAnnotation(Id.class, readMethod, field);
-		this.column = DaoUtils.getAnnotation(Column.class, readMethod, field);
-		this.sqlColumn = DaoUtils.getAnnotation(SqlColumn.class, readMethod, field);
+		// The annotated member describes the column, so it is read first: a field
+		// mapping wins over anything the getter says about the same column.
+		final AnnotatedElement primary = fieldMapped ? field : readMethod;
+		final AnnotatedElement secondary = fieldMapped ? readMethod : field;
+
+		this.propertyName = property == null ? field.getName() : property.getName();
+		this.javaType = property == null || fieldMapped ? field.getType() : property.getPropertyType();
+
+		this.id = DaoUtils.getAnnotation(Id.class, primary, secondary);
+		this.column = DaoUtils.getAnnotation(Column.class, primary, secondary);
+		this.sqlColumn = DaoUtils.getAnnotation(SqlColumn.class, primary, secondary);
 		this.spaceForNull = entity.spaceForNull //
-				|| DaoUtils.getAnnotation(SpaceForNull.class, readMethod, field) != null;
+				|| DaoUtils.getAnnotation(SpaceForNull.class, primary, secondary) != null;
 
 		if (column == null) {
 			this.table = null;
@@ -219,7 +260,7 @@ class ColumnMetaData {
 
 		this.sqlType = DaoUtils.resolveSqlType(javaType, column);
 
-		if (readMethod == null)
+		if (readMethod == null || fieldMapped)
 			this.getter = IuException
 					.unchecked(() -> MethodHandles.lookup().unreflectGetter(DaoUtils.accessible(field)));
 		else {

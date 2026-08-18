@@ -86,8 +86,9 @@ import jakarta.persistence.Transient;
  * A member is included in the column maps when it is annotated with
  * {@link Column} or {@link SqlColumn}, and not with {@link Transient}. Either
  * annotation may be placed on a property's getter or on the field behind it, and
- * a field with no bean property at all is mapped in its own right; where the two
- * disagree, the bean property decides. Columns in the primary table are further
+ * a field with no bean property at all is mapped in its own right; which of the
+ * two describes the column, and which one it is accessed through, is resolved by
+ * {@link ColumnMetaData#fieldMapped}. Columns in the primary table are further
  * partitioned into {@link #idColumns}, {@link #primaryColumns}, and
  * {@link #primaryNonIdColumns}.
  * </p>
@@ -404,7 +405,8 @@ class EntityMetaData {
 		}
 
 		// A field with no bean property is mapped on its own. One that does have a bean
-		// property was already decided by the loop above, whose annotations win.
+		// property was already covered by the loop above, which described it from
+		// whichever of the two members carries the mapping.
 		for (final var field : DaoUtils.getAllDeclaredFields(entityClass)) {
 			if (propertyNames.contains(field.getName()) //
 					|| field.isAnnotationPresent(Transient.class))
