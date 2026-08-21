@@ -75,15 +75,17 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	/**
 	 * Constructor.
 	 *
-	 * @param idToken                      ID token
-	 * @param userinfoClaims               Claims provided by the userinfo endpoint
-	 * @param setCookie                    set-cookie header value to pass back to the user
-	 *                                     agent if session state changed assembling the
-	 *                                     principal
-	 * @param accessTokenLookup            finds access tokens by URI; <em>may</em> interact
-	 *                                     with the OpenID Provider's token endpoint
-	 * @param adapterFactory               JSON type adapter factory
-	 * @param principalNameClaimName       claim name for principal name; null to use "sub"
+	 * @param idToken                ID token
+	 * @param userinfoClaims         Claims provided by the userinfo endpoint
+	 * @param setCookie              set-cookie header value to pass back to the
+	 *                               user agent if session state changed assembling
+	 *                               the principal
+	 * @param accessTokenLookup      finds access tokens by URI; <em>may</em>
+	 *                               interact with the OpenID Provider's token
+	 *                               endpoint
+	 * @param adapterFactory         JSON type adapter factory
+	 * @param principalNameClaimName claim name for principal name; null to use
+	 *                               "sub"
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
 			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory,
@@ -106,12 +108,12 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	@Override
 	public String getName() {
 		if (principalNameClaimName != null) {
-			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
-			if (userinfoValue != null)
-				return (String) adapterFactory.apply(String.class).fromJson(userinfoValue);
 			final var idTokenValue = idToken.getClaim(principalNameClaimName, String.class);
 			if (idTokenValue != null)
 				return idTokenValue;
+			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
+			if (userinfoValue != null)
+				return (String) adapterFactory.apply(String.class).fromJson(userinfoValue);
 		}
 		return idToken.getSubject();
 	}
@@ -128,11 +130,15 @@ public class OidcPrincipal implements IuOidcPrincipal {
 
 	@Override
 	public <T> T getClaim(String name, Class<T> type) {
+		final var idTokenClaimValue = idToken.getClaim(name, type);
+		if (idTokenClaimValue != null)
+			return idTokenClaimValue;
+
 		final var userinfoClaimValue = userinfoClaims.get(name);
 		if (userinfoClaimValue == null)
-			return idToken.getClaim(name, type);
-		else
-			return type.cast(adapterFactory.apply(type).fromJson(userinfoClaimValue));
+			return null;
+
+		return type.cast(adapterFactory.apply(type).fromJson(userinfoClaimValue));
 	}
 
 	@Override

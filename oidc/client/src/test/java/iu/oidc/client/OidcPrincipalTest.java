@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -82,6 +83,7 @@ public class OidcPrincipalTest {
 		assertEquals(accessToken, principal.getAccessToken(uri));
 		assertEquals(foo, principal.getClaim("foo", String.class));
 		assertEquals(bar, principal.getClaim("bar", String.class));
+		assertNull(principal.getClaim("baz", String.class));
 		assertDoesNotThrow(principal::toString);
 	}
 
@@ -192,7 +194,7 @@ public class OidcPrincipalTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testAlternativePrincipalNameUserinfoPriority() throws Throwable {
+	void testAlternativePrincipalNameIdTokenPriority() throws Throwable {
 		final var sub = IdGenerator.generateId();
 		final var userinfoUsername = IdGenerator.generateId();
 		final var idTokenUsername = IdGenerator.generateId();
@@ -206,7 +208,7 @@ public class OidcPrincipalTest {
 				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
 				"preferred_username");
 
-		assertEquals(userinfoUsername, principal.getName());
+		assertEquals(idTokenUsername, principal.getName());
 	}
 
 }
