@@ -273,7 +273,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var decryptKeys = client.getDecryptJwk();
 		if (decryptKeys != null) {
 			final var jose = WebCryptoHeader.getProtectedHeader(encryptedUserinfoResponse);
-			final var kid = Objects.requireNonNull(jose.getKeyId(), "ID token header missing decryption key ID");
+			final var kid = Objects.requireNonNull(jose.getKeyId(),
+					"userinfo response header missing decryption key ID");
 			final var decryptJwk = IuIterable.select(decryptKeys, k -> kid.equals(k.getKeyId()),
 					"decryption key not found using kid " + kid);
 			userinfoResponse = WebEncryption.parse(encryptedUserinfoResponse).decryptText(decryptJwk);
