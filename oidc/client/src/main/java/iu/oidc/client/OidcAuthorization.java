@@ -301,7 +301,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final IuOidcTokenResponse response;
 		try {
 			response = grant.getTokenResponse();
-		} catch (Throwable e) {
+		} catch (RuntimeException e) {
 			LOG.log(Level.INFO, "refresh token failed after ID token expired", e);
 			return null;
 		}

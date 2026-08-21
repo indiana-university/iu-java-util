@@ -748,13 +748,13 @@ public class OidcAuthorizationTest {
 		final var requestAttributes = mock(IuRequestAttributes.class);
 		when(requestAttributes.getCookies()).thenReturn(cookies);
 
-		final var refreshFailure = new IOException("refresh failed");
+		final var refreshFailure = new RuntimeException("refresh failed");
 		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
 				eq(IuHttp.READ_JSON_OBJECT))).thenThrow(refreshFailure);
 		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO, "initial token response invalid",
 				IllegalArgumentException.class);
 		IuTestLogger.expect(OidcAuthorization.class.getName(), Level.INFO,
-				"refresh token failed after ID token expired", IOException.class);
+				"refresh token failed after ID token expired", RuntimeException.class);
 
 		final var authorization = new OidcAuthorization(config);
 		assertNull(authorization.getAuthorizedPrincipal(requestAttributes));
