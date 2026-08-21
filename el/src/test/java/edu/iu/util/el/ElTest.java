@@ -40,9 +40,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Map;
 import java.util.logging.Level;
 
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuException;
@@ -70,6 +71,17 @@ public class ElTest {
 
 			return Files.readString(resourcePath);
 		});
+	}
+	
+	@BeforeEach
+	void setup() throws Exception {
+		var f = El.class.getDeclaredField("INLINE_TEMPLATE_CACHE");
+		f.setAccessible(true);
+		((Map<?, ?>) f.get(null)).clear();
+		
+		f = El.class.getDeclaredField("TEMPLATE_CACHE");
+		f.setAccessible(true);
+		((Map<?, ?>) f.get(null)).clear();
 	}
 
 	@Test

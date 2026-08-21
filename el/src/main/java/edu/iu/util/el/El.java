@@ -40,17 +40,18 @@ import static edu.iu.util.el.ElUtils.select;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import edu.iu.IuCacheMap;
 import edu.iu.client.IuJson;
 import jakarta.json.Json;
 import jakarta.json.JsonNumber;
@@ -77,9 +78,9 @@ import jakarta.json.JsonValue;
  * {@code &}, a property's name in place of a numeric index.</li>
  * <li>Dot-separated path elements select object members or array indexes. A
  * path element beginning with {@code /} is evaluated as a JSON Pointer; for
- * example, {@code $./items/0/name}. If a selection fails, its exception includes
- * a suppressed diagnostic positioned at the operation that follows the failed
- * path element.</li>
+ * example, {@code $./items/0/name}. If a selection fails, its exception
+ * includes a suppressed diagnostic positioned at the operation that follows the
+ * failed path element.</li>
  * <li>{@code '} quotes the rest of an expression as text, {@code *} starts a
  * comment, and {@code @} returns raw text. Atomic results are HTML-escaped by
  * default.</li>
@@ -133,6 +134,9 @@ public final class El {
 		}
 	};
 
+	private static final Map<String, ElTemplate> TEMPLATE_CACHE = new IuCacheMap<>(Duration.ofMinutes(5));
+	private static final Map<String, ElTemplate> INLINE_TEMPLATE_CACHE = new IuCacheMap<>(Duration.ofMinutes(5));
+
 	private El() {
 	}
 
@@ -181,8 +185,31 @@ public final class El {
 	 *         given context
 	 */
 	public static JsonValue eval(JsonValue context, String expr, Function<String, String> readResource) {
-		final Map<String, ElTemplate> templateCache = new HashMap<>();
-		final Map<String, ElTemplate> inlineTemplateCache = new HashMap<>();
+		return eval(context, expr, readResource, INLINE_TEMPLATE_CACHE, TEMPLATE_CACHE);
+	}
+
+	/**
+	 * Evaluate an expression within a given context.
+	 * 
+	 * @param context             context within which to evaluate the expression
+	 * @param expr                the expression to evaluate
+	 * @param readResource        resource evaluation function; SHOULD map strictly
+	 *                            to a least-privilege set of preloaded template
+	 *                            resources. Note that this utility performs no
+	 *                            verification of resource names, e.g., to prevent
+	 *                            path traversal. The caller is responsible for
+	 *                            sanitizing template names before using to locate a
+	 *                            file or hosted resource.
+	 * @param inlineTemplateCache externally supplied map instance for caching
+	 *                            parsed inline templates
+	 * @param templateCache       externally supplied map instance for caching
+	 *                            parsed resource-backed templates
+	 * @return {@link JsonValue} representation of the input expression within the
+	 *         given context
+	 */
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public static JsonValue eval(JsonValue context, String expr, Function<String, String> readResource,
+			Map<String, ?> inlineTemplateCache, Map<String, ?> templateCache) {
 		final var rootContext = new ElContext(context, expr);
 		final Deque<ElContext> evalStack = new ArrayDeque<>();
 		evalStack.push(rootContext);
@@ -260,9 +287,9 @@ public final class El {
 							|| templatePathExpr.charAt(elen - 1) != '`')
 						throw new IllegalArgumentException("inline template doesn't end with '`'");
 
-					ElTemplate template = inlineTemplateCache.get(templatePathExpr);
+					ElTemplate template = (ElTemplate) inlineTemplateCache.get(templatePathExpr);
 					if (template == null)
-						inlineTemplateCache.put(templatePathExpr, template = new ElTemplate(
+						((Map) inlineTemplateCache).put(templatePathExpr, template = new ElTemplate(
 								templatePathExpr.substring(1, templatePathExpr.length() - 1)));
 					template.apply(result, evalContext, evalStack);
 				} else {
@@ -274,9 +301,9 @@ public final class El {
 
 								final var path = js.getString();
 
-								ElTemplate template = templateCache.get(path);
+								ElTemplate template = (ElTemplate) templateCache.get(path);
 								if (template == null)
-									templateCache.put(path,
+									((Map) templateCache).put(path,
 											template = new ElTemplate(Objects.requireNonNull(
 													Objects.requireNonNull(readResource,
 															"missing readResource function").apply(path),
