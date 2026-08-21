@@ -271,6 +271,64 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
+	void testAuthorizeMissingState() {
+		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var state = IdGenerator.generateId();
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(preAuth.getState()).thenReturn(state);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+		configureRedirectUri(config, requestAttributes);
+
+		final var code = IdGenerator.generateId();
+
+		final var authorization = new OidcAuthorization(config);
+
+		assertEquals("missing state parameter", assertThrows(IuBadRequestException.class,
+				() -> authorization.authorize(requestAttributes, code, null)).getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testAuthorizeInvalidSessionNullState() {
+		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+
+		final var state = IdGenerator.generateId();
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(preAuth.getState()).thenReturn(null);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+		configureRedirectUri(config, requestAttributes);
+
+		final var code = IdGenerator.generateId();
+
+		final var authorization = new OidcAuthorization(config);
+
+		assertEquals("invalid pre-auth session; missing state", assertThrows(IllegalStateException.class,
+				() -> authorization.authorize(requestAttributes, code, state)).getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
 	void testAuthorizeStateMismatch() {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -932,7 +990,6 @@ public class OidcAuthorizationTest {
 	 * @param publishedKey key to publish at {@code jwksUri}; ignored if
 	 *                     {@code jwksUri} is null
 	 */
-	@SuppressWarnings("unchecked")
 	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI jwksUri, WebKey publishedKey)
 			throws IOException {
 		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, publishedKey, null);

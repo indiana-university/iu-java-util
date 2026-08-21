@@ -152,10 +152,16 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var session = sessionHandler.activate(requestAttributes.getCookies());
 		if (session == null)
 			throw new IllegalStateException("missing or expired preAuth session");
-
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
+		
+		final var preAuthState = preAuth.getState();
+		if (preAuthState == null)
+			throw new IllegalStateException("invalid pre-auth session; missing state");
+		if (state == null)
+			throw new IuBadRequestException("missing state parameter");
 		if (!IuObject.equals(preAuth.getState(), state))
 			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
+		preAuth.setState(null);
 
 		final var grant = new AuthorizationGrant(config, code, config.getRedirectUri());
 		final var response = grant.getTokenResponse();
@@ -170,6 +176,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			throw new IllegalArgumentException("Expected nonce claim");
 		else
 			IuObject.once(nonce, vnonce, "nonce mismatch");
+		preAuth.setNonce(null);
 
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
 		postAuth.setTokenResponse(response);
