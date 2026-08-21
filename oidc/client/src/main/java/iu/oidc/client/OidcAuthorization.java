@@ -61,7 +61,6 @@ import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
-import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSession;
 import iu.oidc.client.config.IuOidcClient;
@@ -189,8 +188,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			IuObject.once(nonce, vnonce, "nonce mismatch");
 		preAuth.setNonce(null);
 
-		final var userinfoClaims = getUserinfoClaims(OidcProviders.getMetadata(config.getProvider()),
-				config.getClient(), response.getAccessToken());
+		final var userinfoClaims = getUserinfoClaims(config.getClient(), response.getAccessToken());
 
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
 		postAuth.setTokenResponse(response);
@@ -264,9 +262,9 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	 * @return parsed userinfo claims
 	 * @throws IOException if the userinfo request fails
 	 */
-	private JsonObject getUserinfoClaims(IuOidcProviderMetadata metadata, IuOidcClient client, String accessToken)
-			throws IOException {
-		final var encryptedUserinfoResponse = IuHttp.send(metadata.getUserinfoEndpoint(),
+	private JsonObject getUserinfoClaims(IuOidcClient client, String accessToken) throws IOException {
+		final var encryptedUserinfoResponse = IuHttp.send(
+				OidcProviders.getMetadata(config.getProvider()).getUserinfoEndpoint(),
 				rb -> rb.header("Authorization", "Bearer " + accessToken), IuHttp.READ_UTF8);
 
 		final String userinfoResponse;
@@ -307,18 +305,17 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			return null;
 		}
 
-		final var metadata = OidcProviders.getMetadata(config.getProvider());
 		final var client = config.getClient();
 
 		JsonObject userinfoClaims = postAuth.getUserinfoClaims();
 		if (!response.equals(postAuth.getTokenResponse())) {
-			userinfoClaims = getUserinfoClaims(metadata, client, response.getAccessToken());
+			userinfoClaims = getUserinfoClaims(client, response.getAccessToken());
 			postAuth.setTokenResponse(response);
 			postAuth.setNotAfter(grant.getNotAfter());
 			postAuth.setUserinfoClaims(userinfoClaims);
 			setCookie = sessionHandler.store(session);
 		} else if (userinfoClaims == null) {
-			userinfoClaims = getUserinfoClaims(metadata, client, response.getAccessToken());
+			userinfoClaims = getUserinfoClaims(client, response.getAccessToken());
 			postAuth.setUserinfoClaims(userinfoClaims);
 			setCookie = sessionHandler.store(session);
 		} else if (!postAuth.isStrict()) {
@@ -329,6 +326,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			setCookie = null;
 
 		final var accessToken = response.getAccessToken();
+		final var verifiedAccessToken = verifyAccessToken(accessToken);
 
 		final var accessTokenLookup = new UnsafeFunction<URI, String>() {
 			private final Map<URI, OidcTokenGrant> grants = new HashMap<>();
@@ -338,7 +336,6 @@ public class OidcAuthorization implements IuOidcAuthorization {
 				if (IuWebUtils.isRootOf(config.getResourceUri(), uri))
 					return accessToken;
 
-				final var verifiedAccessToken = verifyAccessToken(accessToken);
 				if (verifiedAccessToken != null) {
 					final var audience = verifiedAccessToken.getAudience();
 					if (audience != null)

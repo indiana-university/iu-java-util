@@ -1288,8 +1288,7 @@ public class OidcAuthorizationTest {
 					.add("sub", sub) //
 					.build().toString());
 
-			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
-			assertThrows(IllegalArgumentException.class, () -> principal.getAccessToken(apiResourcev1));
+			assertThrows(IllegalArgumentException.class, () -> authorization.getAuthorizedPrincipal(requestAttributes));
 			assertEquals(0, mockOboGrant.constructed().size());
 		}
 	}
