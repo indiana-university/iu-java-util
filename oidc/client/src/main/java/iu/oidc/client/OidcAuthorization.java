@@ -293,7 +293,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
 		final var notAfter = postAuth.getNotAfter();
 		if (notAfter == null)
-			throw new IllegalStateException("missing post-auth not-after date");
+			return null; // init w/o authorize; incomplete login session
 
 		final var grant = new RefreshTokenGrant(config, postAuth.getTokenResponse(), postAuth.getNotAfter());
 

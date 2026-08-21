@@ -699,7 +699,7 @@ public class OidcAuthorizationTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	void testPostAuthNotAfter() {
+	void testPostAuthNotAfter() throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -716,9 +716,7 @@ public class OidcAuthorizationTest {
 		when(requestAttributes.getCookies()).thenReturn(cookies);
 
 		final var authorization = new OidcAuthorization(config);
-		assertEquals("missing post-auth not-after date",
-				assertThrows(IllegalStateException.class, () -> authorization.getAuthorizedPrincipal(requestAttributes))
-						.getMessage());
+		assertNull(authorization.getAuthorizedPrincipal(requestAttributes));
 	}
 
 	@SuppressWarnings("unchecked")
