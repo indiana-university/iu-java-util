@@ -381,11 +381,14 @@ public class OidcAuthorizationTest {
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
+		when(client.getDecryptJwk()).thenReturn(null);
 
 		final var provider = mock(IuOidcProvider.class);
 		final var authorizationEndpoint = URI.create(IdGenerator.generateId());
+		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getAuthorizationEndpoint()).thenReturn(authorizationEndpoint);
+		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(provider.getMetadata()).thenReturn(metadata);
 
 		final var resourceUri = URI.create(IdGenerator.generateId());
@@ -405,7 +408,9 @@ public class OidcAuthorizationTest {
 		final var authorization = new OidcAuthorization(config);
 		final var response = mock(IuOidcTokenResponse.class);
 		final var idToken = mock(WebToken.class);
+		final var userinfoClaims = IuJson.object().add("sub", IdGenerator.generateId()).build();
 		when(response.getExpiresIn()).thenReturn(1);
+		when(response.getAccessToken()).thenReturn(IdGenerator.generateId());
 
 		when(idToken.getNonce()).thenReturn(nonce);
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
@@ -415,8 +420,15 @@ public class OidcAuthorizationTest {
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
+			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("Authorization", "Bearer " + response.getAccessToken());
+				return true;
+			}), eq(IuHttp.READ_UTF8))).thenReturn(userinfoClaims.toString());
 			final var redirect = authorization.authorize(requestAttributes, code, state);
 			verify(postAuth).setTokenResponse(response);
+			verify(postAuth).setUserinfoClaims(userinfoClaims);
 			verify(postAuth).setNotAfter(any(Instant.class));
 			assertEquals(resourceUri, redirect.getLocation());
 			assertEquals(setCookie, redirect.getSetCookie());
@@ -445,11 +457,14 @@ public class OidcAuthorizationTest {
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
+		when(client.getDecryptJwk()).thenReturn(null);
 
 		final var provider = mock(IuOidcProvider.class);
 		final var authorizationEndpoint = URI.create(IdGenerator.generateId());
+		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getAuthorizationEndpoint()).thenReturn(authorizationEndpoint);
+		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(provider.getMetadata()).thenReturn(metadata);
 
 		final var resourceUri = URI.create(IdGenerator.generateId());
@@ -469,7 +484,9 @@ public class OidcAuthorizationTest {
 		final var authorization = new OidcAuthorization(config);
 		final var response = mock(IuOidcTokenResponse.class);
 		final var idToken = mock(WebToken.class);
+		final var userinfoClaims = IuJson.object().add("sub", IdGenerator.generateId()).build();
 		when(response.getExpiresIn()).thenReturn(1);
+		when(response.getAccessToken()).thenReturn(IdGenerator.generateId());
 
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
 			assertEquals(config, ctx.arguments().get(0));
@@ -478,8 +495,15 @@ public class OidcAuthorizationTest {
 			when(a.getTokenResponse()).thenReturn(response);
 			when(a.getIdToken()).thenReturn(idToken);
 		})) {
+			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
+				final var rb = mock(HttpRequest.Builder.class);
+				assertDoesNotThrow(() -> a.accept(rb));
+				verify(rb).header("Authorization", "Bearer " + response.getAccessToken());
+				return true;
+			}), eq(IuHttp.READ_UTF8))).thenReturn(userinfoClaims.toString());
 			final var redirect = authorization.authorize(requestAttributes, code, state);
 			verify(postAuth).setTokenResponse(response);
+			verify(postAuth).setUserinfoClaims(userinfoClaims);
 			verify(postAuth).setNotAfter(any(Instant.class));
 			assertEquals(resourceUri, redirect.getLocation());
 			assertEquals(setCookie, redirect.getSetCookie());
@@ -791,6 +815,8 @@ public class OidcAuthorizationTest {
 		final var accessToken = IdGenerator.generateId();
 
 		final var sub = IdGenerator.generateId();
+		final var userinfoClaims = IuJson.object().add("sub", sub).build();
+		when(postAuth.getUserinfoClaims()).thenReturn(userinfoClaims);
 
 		final var authorization = new OidcAuthorization(config);
 		final var response = mock(IuOidcTokenResponse.class);
@@ -833,16 +859,9 @@ public class OidcAuthorizationTest {
 				fail();
 			assertEquals(accessToken, ctx.arguments().get(2));
 		})) {
-			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
-				final var rb = mock(HttpRequest.Builder.class);
-				assertDoesNotThrow(() -> a.accept(rb));
-				verify(rb).header("Authorization", "Bearer " + accessToken);
-				return true;
-			}), eq(IuHttp.READ_UTF8))).thenReturn(IuJson.object() //
-					.add("sub", sub) //
-					.build().toString());
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
+			IuHttpAware.mock.verifyNoInteractions();
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
 
 			assertNotNull(principal.getSetCookie());

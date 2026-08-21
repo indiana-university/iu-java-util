@@ -34,9 +34,17 @@ package iu.oidc.client;
 import java.time.Instant;
 
 import edu.iu.oidc.IuOidcTokenResponse;
+import jakarta.json.JsonObject;
 
 /**
- * Holds tokens after successful OIDC authorization
+ * Holds the managed session state after successful OIDC authorization.
+ *
+ * <p>
+ * The token response, its expiration, and the claims returned by the userinfo
+ * endpoint are stored together. {@link OidcAuthorization} refreshes the claims
+ * whenever it receives a new token response and otherwise reuses the stored
+ * claims to avoid a userinfo request on every principal lookup.
+ * </p>
  */
 public interface OidcPostAuthSession {
 
@@ -53,6 +61,21 @@ public interface OidcPostAuthSession {
 	 * @param tokenResponse token response
 	 */
 	void setTokenResponse(IuOidcTokenResponse tokenResponse);
+
+	/**
+	 * Gets the userinfo claims associated with {@link #getTokenResponse()}.
+	 *
+	 * @return cached userinfo claims, or {@code null} when an older session has
+	 *         not yet been upgraded with claims
+	 */
+	JsonObject getUserinfoClaims();
+
+	/**
+	 * Sets the userinfo claims associated with {@link #getTokenResponse()}.
+	 *
+	 * @param userinfoClaims parsed userinfo claims
+	 */
+	void setUserinfoClaims(JsonObject userinfoClaims);
 
 	/**
 	 * Gets the point in time token expiration date, from expires_in;
