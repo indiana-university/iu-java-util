@@ -177,6 +177,12 @@ public class IuConfig {
 	/**
 	 * Registers factory method for a configuration type.
 	 *
+	 * <p>
+	 * When concurrent callers request the same uncached key, the factory is invoked
+	 * only once; callers that arrive while it is loading use the cached object once
+	 * the load completes.
+	 * </p>
+	 *
 	 * @param <T>        configuration type
 	 * @param configType configuration type
 	 * @param load       factory method handle
@@ -275,11 +281,15 @@ public class IuConfig {
 			}
 
 			T load() {
-				if (storageConfig.load != null) {
-					final var value = storageConfig.load.apply(key);
-					storageConfig.cache.put(key, value);
-					return value;
-				}
+				if (storageConfig.load != null)
+					synchronized (storageConfig.cache) {
+						var value = storageConfig.cache.get(key);
+						if (!configInterface.isInstance(value)) {
+							value = storageConfig.load.apply(key);
+							storageConfig.cache.put(key, value);
+						}
+						return value;
+					}
 
 				for (final var v : storageConfig.vault) {
 					error = IuException.suppress(error, () -> check(v));

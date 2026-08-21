@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -55,6 +56,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.logging.Level;
 
@@ -163,6 +169,55 @@ public class IuConfigTest {
 		assertSame(config, IuConfig.load(LoadableConfig.class, key));
 		assertSame(config, IuConfig.load(LoadableConfig.class, key));
 		verify(factory).apply(key);
+	}
+
+	@Test
+	public void testRegisterFactoryUsesCachedValueForConcurrentLoad() throws Exception {
+		final var key = IdGenerator.generateId();
+		final var config = mock(LoadableConfig.class);
+		final var factoryCalls = new AtomicInteger();
+		final var factoryStarted = new CountDownLatch(1);
+		final var completeFactory = new CountDownLatch(1);
+		IuConfig.registerFactory(LoadableConfig.class, ignored -> {
+			factoryCalls.incrementAndGet();
+			factoryStarted.countDown();
+			try {
+				if (!completeFactory.await(5L, TimeUnit.SECONDS))
+					throw new IllegalStateException("timed out waiting for concurrent load");
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(e);
+			}
+			return config;
+		});
+
+		final var executor = Executors.newFixedThreadPool(2);
+		try {
+			final var first = executor.submit(() -> IuConfig.load(LoadableConfig.class, key));
+			assertTrue(factoryStarted.await(5L, TimeUnit.SECONDS));
+
+			final var secondThread = new AtomicReference<Thread>();
+			final var second = executor.submit(() -> {
+				secondThread.set(Thread.currentThread());
+				return IuConfig.load(LoadableConfig.class, key);
+			});
+			for (var i = 0; i < 100; i++) {
+				final var thread = secondThread.get();
+				if (thread != null && thread.getState() == Thread.State.BLOCKED)
+					break;
+				Thread.sleep(10L);
+			}
+			final var thread = secondThread.get();
+			assertTrue(thread != null && thread.getState() == Thread.State.BLOCKED);
+
+			completeFactory.countDown();
+			assertSame(config, first.get(5L, TimeUnit.SECONDS));
+			assertSame(config, second.get(5L, TimeUnit.SECONDS));
+			assertEquals(1, factoryCalls.get());
+		} finally {
+			completeFactory.countDown();
+			executor.shutdownNow();
+		}
 	}
 
 	@SuppressWarnings("unchecked")
