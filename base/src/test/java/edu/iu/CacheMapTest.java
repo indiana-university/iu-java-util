@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.ref.Reference;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -51,6 +52,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -339,6 +341,65 @@ public class CacheMapTest {
 		assertEquals("baz", cache.remove("bar"));
 		assertEquals("foo", cache.remove("baz"));
 		assertEquals("not bar", cache.get("foo"));
+	}
+
+	@Test
+	public void testComputeIfAbsent() {
+		assertEquals("Missing mappingFunction",
+				assertThrows(NullPointerException.class, () -> cache.computeIfAbsent("foo", null)).getMessage());
+
+		final var computed = new AtomicInteger();
+		assertEquals("bar", cache.computeIfAbsent("foo", k -> {
+			computed.incrementAndGet();
+			return k + "->bar";
+		}).substring(5));
+		assertEquals(1, computed.get());
+
+		// an existing value is returned without invoking the mapping function
+		assertEquals("foo->bar", cache.computeIfAbsent("foo", k -> {
+			throw new AssertionError("must not be invoked");
+		}));
+		assertEquals(1, computed.get());
+
+		// a null result stores nothing
+		assertNull(cache.computeIfAbsent("bar", k -> null));
+		assertFalse(cache.containsKey("bar"));
+	}
+
+	@Test
+	public void testComputeIfAbsentExpired() throws Exception {
+		setupCache(Duration.ofMillis(50L));
+		assertEquals("first", cache.computeIfAbsent("foo", k -> "first"));
+
+		Thread.sleep(75L);
+
+		// the expired value is replaced rather than returned
+		assertEquals("second", cache.computeIfAbsent("foo", k -> "second"));
+		assertEquals("second", cache.get("foo"));
+	}
+
+	@Test
+	public void testComputeIfAbsentIsAtomic() throws Exception {
+		final var computed = new AtomicInteger();
+		final var start = new CountDownLatch(1);
+		final var results = Collections.synchronizedList(new ArrayList<String>());
+		final var threads = new ArrayList<Thread>();
+		for (var i = 0; i < 8; i++) {
+			final var thread = new Thread(() -> {
+				assertDoesNotThrow(() -> start.await(5L, TimeUnit.SECONDS));
+				results.add(cache.computeIfAbsent("foo", k -> "value/" + computed.incrementAndGet()));
+			});
+			threads.add(thread);
+			thread.start();
+		}
+
+		start.countDown();
+		for (final var thread : threads)
+			thread.join(5000L);
+
+		assertEquals(1, computed.get(), "concurrent callers must share one computation");
+		assertEquals(8, results.size());
+		results.forEach(result -> assertEquals("value/1", result));
 	}
 
 }

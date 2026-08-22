@@ -193,6 +193,23 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 	}
 
 	@Test
+	public void testPurgeRemovesExpiredEvents() {
+		final var env = mock(LogEnvironment.class);
+		final var record = new LogRecord(Level.INFO, IdGenerator.generateId());
+		record.setInstant(Instant.now().minus(Duration.ofDays(2L)));
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class); //
+				final var mockBootstrap = mockStatic(Bootstrap.class); //
+				final var logHandler = new IuLogHandler()) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			logHandler.publish(record);
+			logHandler.purge();
+			try (final var sub = logHandler.subscribe()) {
+				assertEquals(0L, sub.available());
+			}
+		}
+	}
+
+	@Test
 	public void testFileAndConsole() throws IOException {
 		final var env = mock(LogEnvironment.class);
 		final var path = Path.of("target", "logs", IdGenerator.generateId());

@@ -398,6 +398,45 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 		return rv;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Unlike the {@link Map#computeIfAbsent(Object, Function) default
+	 * implementation}, which checks and stores in two steps, this implementation is
+	 * atomic: concurrent callers for the same absent key invoke
+	 * {@code mappingFunction} once and all receive the same value. This makes the
+	 * method suitable for creating an entry that is expensive to populate, or that
+	 * concurrent callers must share.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Implementation Note:</strong> {@code mappingFunction} is invoked
+	 * while holding a lock that serializes all {@link #computeIfAbsent} calls on
+	 * this map, so it <em>should</em> return quickly and <em>must not</em> access
+	 * this map.
+	 * </p>
+	 */
+	@Override
+	public V computeIfAbsent(K key, Function<? super K, ? extends V> mappingFunction) {
+		Objects.requireNonNull(mappingFunction, "Missing mappingFunction");
+
+		// guards check-then-store; deliberately not the backing map's own per-key
+		// lock, since a cached value that has expired removes itself from the
+		// backing map when read, which would be a recursive update
+		synchronized (cache) {
+			final var existing = get(key);
+			if (existing != null)
+				return existing;
+
+			final var computed = mappingFunction.apply(key);
+			if (computed != null)
+				put(key, computed);
+
+			return computed;
+		}
+	}
+
 	@Override
 	public V remove(Object key) {
 		final var ref = cache.remove(key);
