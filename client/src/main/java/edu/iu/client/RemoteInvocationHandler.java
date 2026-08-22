@@ -69,7 +69,10 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 
 	private static final Logger LOG = Logger.getLogger(RemoteInvocationHandler.class.getName());
 
-	private static class CachedResult {
+	/**
+	 * Cached result class, value type for {@link #cache()}.
+	 */
+	protected static class CachedResult {
 		private final Object value;
 		private final long refreshAt;
 
@@ -99,18 +102,18 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 *
 	 * <p>
 	 * Entries are refreshed after {@code refreshTtl}. They remain available until
-	 * {@code cacheTtl}, allowing the last successful response to be returned when
-	 * a refresh fails with a non-interruption {@link Exception}. Errors and
-	 * {@link InterruptedException interrupted refreshes} propagate immediately;
-	 * an interrupted refresh also restores the thread interrupt status. The interval
+	 * {@code cacheTtl}, allowing the last successful response to be returned when a
+	 * refresh fails with a non-interruption {@link Exception}. Errors and
+	 * {@link InterruptedException interrupted refreshes} propagate immediately; an
+	 * interrupted refresh also restores the thread interrupt status. The interval
 	 * between the two durations is the downstream service outage tolerance window.
 	 * </p>
 	 *
 	 * <p>
-	 * Methods for which {@link #usesCache(Method)} returns {@code false} are
-	 * never cached; a successful invocation of one of these methods instead
-	 * clears the entire cache, so that infrequent write calls (e.g. POST)
-	 * invalidate previously cached results from frequent read calls (e.g. GET).
+	 * Methods for which {@link #usesCache(Method)} returns {@code false} are never
+	 * cached; a successful invocation of one of these methods instead clears the
+	 * entire cache, so that infrequent write calls (e.g. POST) invalidate
+	 * previously cached results from frequent read calls (e.g. GET).
 	 * </p>
 	 *
 	 * @param refreshTtl interval after which a cached result is refreshed
@@ -143,6 +146,15 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 * @param requestBuilder pending remote call request
 	 */
 	protected abstract void authorize(HttpRequest.Builder requestBuilder);
+
+	/**
+	 * Gets the cache to use for the current call context.
+	 * 
+	 * @return context-sensitive cache; null to skip cache behavior
+	 */
+	protected IuCacheMap<List<?>, CachedResult> cache() {
+		return cache;
+	}
 
 	/**
 	 * Adds request payload to a pending remote call request.
@@ -214,9 +226,9 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 	 *
 	 * <p>
 	 * The default enables caching for all remote methods when this handler was
-	 * constructed with a refresh TTL. Subclasses may override this method to
-	 * choose a subset of methods. A handler created without a cache bypasses this
-	 * policy and always invokes the remote method directly.
+	 * constructed with a refresh TTL. Subclasses may override this method to choose
+	 * a subset of methods. A handler created without a cache bypasses this policy
+	 * and always invokes the remote method directly.
 	 * </p>
 	 *
 	 * @param method remote method
@@ -231,6 +243,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler {
 		if (method.getDeclaringClass() == Object.class)
 			return invokeObjectMethod(proxy, method, args);
 
+		final var cache = cache();
+		
 		if (cache == null || !usesCache(method)) {
 			final var value = doInvoke(method, args);
 			if (cache != null)
