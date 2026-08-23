@@ -921,12 +921,14 @@ public class OidcAuthorizationTest {
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
 		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var issuer = URI.create(IdGenerator.generateId());
 
 		final var provider = mock(IuOidcProvider.class);
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(metadata.getJwksUri()).thenReturn(jwksUri);
+		when(metadata.getIssuer()).thenReturn(issuer);
 		when(provider.getMetadata()).thenReturn(metadata);
 
 		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
@@ -951,7 +953,7 @@ public class OidcAuthorizationTest {
 
 		final var accessToken = WebToken.builder() //
 				.jti() //
-				.iss(URI.create(IdGenerator.generateId())) //
+				.iss(issuer) //
 				.aud(apiResourcev1) //
 				.sub(sub) //
 				.iat() //
@@ -1002,19 +1004,21 @@ public class OidcAuthorizationTest {
 	 *
 	 * @param accessToken  access token to return from the (refreshed) token
 	 *                     response
+	 * @param issuer       expected token issuer; null when token verification is
+	 *                     expected to fail before issuer validation
 	 * @param jwksUri      issuer JWKS URI to mock; null if JWT verification is
 	 *                     expected to fail before reaching the JWKS lookup
 	 * @param publishedKey key to publish at {@code jwksUri}; ignored if
 	 *                     {@code jwksUri} is null
 	 */
-	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI jwksUri, WebKey publishedKey)
-			throws IOException {
-		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, publishedKey, null);
+	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI issuer, URI jwksUri,
+			WebKey publishedKey) throws IOException {
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, issuer, jwksUri, publishedKey, null);
 	}
 
 	@SuppressWarnings("unchecked")
-	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI jwksUri, WebKey publishedKey,
-			IOException oboFailure) throws IOException {
+	private void assertAccessTokenLookupFallsBackToOnBehalfOf(String accessToken, URI issuer, URI jwksUri,
+			WebKey publishedKey, IOException oboFailure) throws IOException {
 		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
@@ -1037,6 +1041,8 @@ public class OidcAuthorizationTest {
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
+		if (issuer != null)
+			when(metadata.getIssuer()).thenReturn(issuer);
 		when(provider.getMetadata()).thenReturn(metadata);
 
 		if (jwksUri != null) {
@@ -1117,12 +1123,13 @@ public class OidcAuthorizationTest {
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
 		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var issuer = URI.create(IdGenerator.generateId());
 
 		// signed and verifiable, but for a different audience than the requested
 		// resource, so a failed on-behalf-of exchange includes the audience context
 		final var accessToken = WebToken.builder() //
 				.jti() //
-				.iss(URI.create(IdGenerator.generateId())) //
+				.iss(issuer) //
 				.aud(URI.create(IdGenerator.generateId())) //
 				.sub(IdGenerator.generateId()) //
 				.iat() //
@@ -1130,7 +1137,7 @@ public class OidcAuthorizationTest {
 				.build() //
 				.sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, issuerKey,
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, issuer, jwksUri, issuerKey,
 				new IOException(IdGenerator.generateId()));
 	}
 
@@ -1140,18 +1147,19 @@ public class OidcAuthorizationTest {
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
 		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var issuer = URI.create(IdGenerator.generateId());
 
 		// signed and verifiable, but carries no aud claim to match against
 		final var accessToken = WebToken.builder() //
 				.jti() //
-				.iss(URI.create(IdGenerator.generateId())) //
+				.iss(issuer) //
 				.sub(IdGenerator.generateId()) //
 				.iat() //
 				.exp(Instant.now().plusSeconds(60L)) //
 				.build() //
 				.sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, issuerKey);
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, issuer, jwksUri, issuerKey);
 	}
 
 	@Test
@@ -1169,7 +1177,49 @@ public class OidcAuthorizationTest {
 				.build() //
 				.sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, null, null);
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, null, null, null);
+	}
+
+	@Test
+	void testGetPrincipalAccessTokenLookupFallsBackWhenJwtIssuerMismatched() throws IOException {
+		final var keyId = IdGenerator.generateId();
+		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
+				.build();
+		final var tokenIssuer = URI.create(IdGenerator.generateId());
+		final var expectedIssuer = URI.create(IdGenerator.generateId());
+		final var accessToken = WebToken.builder() //
+				.jti() //
+				.iss(tokenIssuer) //
+				.sub(IdGenerator.generateId()) //
+				.iat() //
+				.exp(Instant.now().plusSeconds(60L)) //
+				.build() //
+				.sign("JWT", Algorithm.EDDSA, issuerKey);
+
+		IuTestLogger.expect(OidcAuthorization.class.getName(), Level.FINE,
+				"access token iss claim mismatch " + tokenIssuer + "; expected " + expectedIssuer);
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, expectedIssuer, null, null);
+	}
+
+	@Test
+	void testGetPrincipalAccessTokenLookupFallsBackWhenJwtClaimsUnreadable() throws IOException {
+		final var keyId = IdGenerator.generateId();
+		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
+				.build();
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var signedToken = WebToken.builder() //
+				.jti() //
+				.iss(issuer) //
+				.sub(IdGenerator.generateId()) //
+				.iat() //
+				.exp(Instant.now().plusSeconds(60L)) //
+				.build() //
+				.sign("JWT", Algorithm.EDDSA, issuerKey);
+		final var parts = signedToken.split("\\.");
+		final var accessToken = parts[0] + ".aW52YWxpZA." + parts[2];
+
+		IuTestLogger.allow(OidcAuthorization.class.getName(), Level.FINE, "couldn't verify access token iss claim");
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, issuer, null, null);
 	}
 
 	@Test
@@ -1180,18 +1230,19 @@ public class OidcAuthorizationTest {
 		final var publishedKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA)
 				.keyId(IdGenerator.generateId()).ephemeral().build();
 		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var issuer = URI.create(IdGenerator.generateId());
 
 		// signed with a key ID the issuer hasn't published
 		final var accessToken = WebToken.builder() //
 				.jti() //
-				.iss(URI.create(IdGenerator.generateId())) //
+				.iss(issuer) //
 				.sub(IdGenerator.generateId()) //
 				.iat() //
 				.exp(Instant.now().plusSeconds(60L)) //
 				.build() //
 				.sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, jwksUri, publishedKey);
+		assertAccessTokenLookupFallsBackToOnBehalfOf(accessToken, issuer, jwksUri, publishedKey);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -1226,12 +1277,14 @@ public class OidcAuthorizationTest {
 		final var wrongKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
 		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var issuer = URI.create(IdGenerator.generateId());
 
 		final var provider = mock(IuOidcProvider.class);
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
 		when(metadata.getJwksUri()).thenReturn(jwksUri);
+		when(metadata.getIssuer()).thenReturn(issuer);
 		when(provider.getMetadata()).thenReturn(metadata);
 
 		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
@@ -1255,7 +1308,7 @@ public class OidcAuthorizationTest {
 
 		final var accessToken = WebToken.builder() //
 				.jti() //
-				.iss(URI.create(IdGenerator.generateId())) //
+				.iss(issuer) //
 				.sub(sub) //
 				.iat() //
 				.exp(Instant.now().plusSeconds(60L)) //

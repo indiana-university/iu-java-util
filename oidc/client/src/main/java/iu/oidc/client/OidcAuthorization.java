@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
@@ -58,6 +59,7 @@ import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebSignedPayload;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
@@ -217,16 +219,18 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	 * Verifies an access token as a JWT signed by the OpenID Provider.
 	 *
 	 * <p>
-	 * Returns null when the access token can't be identified as one of the
-	 * issuer's, so callers can fall back to another means of authorizing access,
-	 * e.g., token exchange. Once the token's key ID is matched to a key the issuer
-	 * publishes, it's expected to verify; a failure past that point is not a
-	 * fallback signal and is allowed to propagate.
+	 * Returns null when the access token can't be identified as one issued by the
+	 * provider, so callers can fall back to another means of authorizing access,
+	 * e.g., token exchange. This includes tokens that are not signed JWTs, whose
+	 * issuer claim does not match provider metadata, or whose key ID the provider
+	 * does not publish. Once the issuer and key ID match, a signature verification
+	 * failure is not a fallback signal and is allowed to propagate.
 	 * </p>
 	 *
 	 * @param accessToken access token
 	 * @return verified {@link WebToken}; null if the access token isn't a signed
-	 *         JWT, or its key isn't published by the issuer
+	 *         JWT, its issuer doesn't match provider metadata, or its key isn't
+	 *         published by the issuer
 	 * @throws IOException if OP metadata or JWKS interactions fail
 	 */
 	private WebToken verifyAccessToken(String accessToken) throws IOException {
@@ -242,6 +246,29 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			return null;
 
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
+
+		// Parse claims and verify the access token was issued by the provider
+		// before attempting to validate the signature or inspect audience claim.
+		// Failure isn't strictly an issue since the access token probably isn't for us.
+		// FINE messages simply indicate we're going to ignore the audience claim
+		// when determining whether or not to use the access token with a remote call
+		final JsonObject claims;
+		try {
+			claims = IuJson.parse(new ByteArrayInputStream(WebSignedPayload.parse(accessToken).getPayload()))
+					.asJsonObject();
+
+			final var expectedIssuer = metadata.getIssuer().toString();
+			final var iss = claims.getString("iss");
+			if (!expectedIssuer.equals(iss)) {
+				LOG.fine(() -> "access token iss claim mismatch " + iss + "; expected " + expectedIssuer);
+				return null;
+			}
+
+		} catch (Exception e) {
+			LOG.log(Level.FINE, e, () -> "couldn't verify access token iss claim");
+			return null;
+		}
+
 		final WebKey issuerKey;
 		try {
 			issuerKey = IuIterable.select(WebKey.readJwks(metadata.getJwksUri()), k -> kid.equals(k.getKeyId()));
@@ -249,6 +276,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			return null; // signing key not published by issuer
 		}
 
+		// fail if the access token can't be verified as a valid JWT; this indicates
+		// an invalid response from the token endpoint
 		return WebToken.verify(accessToken, issuerKey);
 	}
 
