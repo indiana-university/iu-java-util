@@ -384,8 +384,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * <p>
 	 * Default behavior is to convert arguments to a JSON array, using
 	 * {@link #adapt(Type)} for conversion. Arguments are serialized once per
-	 * invocation, on the calling thread, so the conversion sees the caller's
-	 * thread context rather than the {@link #captureContext() forwarded} context.
+	 * invocation, on the calling thread, so the conversion sees the caller's thread
+	 * context rather than the {@link #captureContext() forwarded} context.
 	 * </p>
 	 *
 	 * <p>
@@ -399,8 +399,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * </p>
 	 *
 	 * @param method remote method
-	 * @param args   remote method arguments; null or empty for a no-argument
-	 *               method
+	 * @param args   remote method arguments; null or empty for a no-argument method
 	 * @return serialized arguments
 	 */
 	protected Object serialize(Method method, Object... args) {
@@ -530,13 +529,17 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		final Callable<?> call = () -> doInvoke(method, serializedArgs);
 		final var cache = cache();
 
+		final var start = Instant.now();
 		if (cache == null || !usesCache(method)) {
 			// sole waiter, so a call this caller has given up on is cancelled
 			final var result = await(call(call), true);
 
 			// only a successful write invalidates previously cached reads
-			if (cache != null)
+			if (cache != null) {
 				cache.clear();
+				LOG.fine("remote:clear-cache:" + method.getName() + ":" + Duration.between(start, Instant.now()));
+			} else
+				LOG.fine("remote:no-cache:" + method.getName() + ":" + Duration.between(start, Instant.now()));
 
 			return result;
 		}
@@ -551,8 +554,10 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 			final var now = Instant.now();
 
 			// still fresh: no remote call at all
-			if (cached.value != null && cached.refreshAt.isAfter(now))
+			if (cached.value != null && cached.refreshAt.isAfter(now)) {
+				LOG.fine("remote:cache-hit:" + method.getName() + ":" + Duration.between(start, now));
 				return cached.value.orElse(null);
+			}
 
 			// abandon a refresh that has outlived the call TTL, so a hung call cannot
 			// block all later refreshes for this key
@@ -581,13 +586,17 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 			pendingCall = cached.refresh;
 
 			// a result has been cached, so refresh is background-only from here on
-			if (cached.value != null)
+			if (cached.value != null) {
+				LOG.fine("remote:cache-hit-refresh:" + method.getName() + ":" + Duration.between(start, now));
 				return cached.value.orElse(null);
+			}
 		}
 
 		// nothing cached yet: all initial callers wait on this one invocation, which
 		// is left running on timeout so it can still populate the cache
-		return await(pendingCall, false);
+		final var result = await(pendingCall, false);
+		LOG.fine("remote:cache-miss:" + method.getName() + ":" + Duration.between(start, Instant.now()));
+		return result;
 	}
 
 	/**
