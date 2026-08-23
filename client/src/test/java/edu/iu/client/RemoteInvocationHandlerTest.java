@@ -79,6 +79,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
+import jakarta.json.JsonArray;
 import jakarta.json.stream.JsonParsingException;
 
 @SuppressWarnings("javadoc")
@@ -94,6 +95,41 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		void b() throws IOException;
 	}
 
+	interface Multi {
+		String first();
+
+		String second();
+
+		String echo(String message);
+
+		String otherEcho(String message);
+	}
+
+	public interface Named {
+		String getName();
+	}
+
+	/**
+	 * Argument implementation that is mutable and does not define value equality,
+	 * so it is only usable as a cache key once serialized.
+	 */
+	public static class MutableName implements Named {
+		private String name;
+
+		MutableName(String name) {
+			this.name = name;
+		}
+
+		@Override
+		public String getName() {
+			return name;
+		}
+	}
+
+	interface Lookup {
+		String lookup(Named named);
+	}
+
 	/**
 	 * Resolves a remote method.
 	 *
@@ -106,6 +142,18 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	 */
 	private static Method method(Class<?> declaringClass, String name, Class<?>... parameterTypes) {
 		return assertDoesNotThrow(() -> declaringClass.getMethod(name, parameterTypes));
+	}
+
+	/**
+	 * Reads the first argument out of the serialized form handed to
+	 * {@link RemoteInvocationHandler#doInvoke(Method, Object)}.
+	 */
+	private static String arg0(Object serializedArgs) {
+		return ((JsonArray) serializedArgs).getString(0);
+	}
+
+	private static boolean noArgs(Object serializedArgs) {
+		return ((JsonArray) serializedArgs).isEmpty();
 	}
 
 	private MockedStatic<IuHttp> mockIuHttp;
@@ -148,7 +196,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			final var p = mock(BodyPublisher.class);
 			mockBodyPublishers.when(() -> BodyPublishers.ofString("[]")).thenReturn(p);
 
-			assertDoesNotThrow(() -> handler.doInvoke(method(A.class, "b"), null));
+			assertDoesNotThrow(() -> handler.doInvoke(method(A.class, "b"), handler.serialize(method(A.class, "b"))));
 			mockIuHttp.verify(() -> IuHttp.send(eq(URI.create(uri + "/b")), argThat(c -> {
 				final var rb = mock(HttpRequest.Builder.class);
 				assertDoesNotThrow(() -> c.accept(rb));
@@ -196,9 +244,9 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 				return true;
 			}), eq(IuHttp.READ_JSON))).thenReturn(IuJson.string(message));
 
+			final var echo = method(A.class, "echo", String.class);
 			assertEquals(message,
-					assertDoesNotThrow(() -> handler.doInvoke(method(A.class, "echo", String.class),
-							new Object[] { message })));
+					assertDoesNotThrow(() -> handler.doInvoke(echo, handler.serialize(echo, message))));
 		}
 	}
 
@@ -249,7 +297,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}), eq(IuHttp.NO_CONTENT))).thenThrow(ex);
 
 			final var error = assertThrows(RemoteInvocationException.class,
-					() -> handler.doInvoke(method(A.class, "b"), null));
+					() -> handler.doInvoke(method(A.class, "b"), handler.serialize(method(A.class, "b"))));
 			assertEquals(errorMessage, error.getMessage());
 			assertEquals(Exception.class.getName(), error.getExceptionType());
 			assertEquals(Exception.class.getName(), error.getStackTrace()[0].getClassName());
@@ -300,7 +348,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}), eq(IuHttp.NO_CONTENT))).thenThrow(ex);
 
 			final var error = assertThrows(IllegalStateException.class,
-					() -> handler.doInvoke(method(A.class, "b"), null));
+					() -> handler.doInvoke(method(A.class, "b"), handler.serialize(method(A.class, "b"))));
 			assertEquals("<!doctype html>\n" + errorMessage, error.getMessage());
 			assertSame(ex, error.getCause());
 			assertInstanceOf(JsonParsingException.class, error.getSuppressed()[0]);
@@ -338,7 +386,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}), eq(IuHttp.NO_CONTENT))).thenThrow(ex);
 
 			assertSame(ex, assertThrows(HttpException.class,
-					() -> handler.doInvoke(method(IoAware.class, "b"), null)));
+					() -> handler.doInvoke(method(IoAware.class, "b"), handler.serialize(method(IoAware.class, "b")))));
 		}
 	}
 
@@ -347,7 +395,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var ex = new HttpException(IdGenerator.generateId(), new IOException());
 		try (final var handler = new TestHandler() {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) throws Exception {
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
 				throw ex;
 			}
 		}) {
@@ -541,8 +589,8 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var calls = new AtomicInteger();
 		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
-				return args[0] + "/" + calls.incrementAndGet();
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return arg0(serializedArgs) + "/" + calls.incrementAndGet();
 			}
 		}) {
 			assertTrue(handler.usesCache(A.class.getMethod("echo", String.class)));
@@ -563,11 +611,11 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var proceed = new CountDownLatch(1);
 		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) throws Exception {
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
 				final var call = calls.incrementAndGet();
 				arrived.countDown();
 				assertTrue(proceed.await(5L, TimeUnit.SECONDS));
-				return args[0] + "/" + call;
+				return arg0(serializedArgs) + "/" + call;
 			}
 		}) {
 			final var a = proxy(handler);
@@ -606,38 +654,42 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var calls = new AtomicInteger();
 		final var hold = new AtomicBoolean();
 		final var proceed = new CountDownLatch(1);
+		// a settable payload rather than a call counter, so the awaited value is
+		// stable no matter how many background refreshes run while polling
+		final var payload = new AtomicReference<>("first");
 		final var refreshTtl = Duration.ofMillis(100L);
 		try (final var handler = new TestHandler(cacheConfig(refreshTtl, Duration.ofSeconds(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) throws Exception {
-				final var call = calls.incrementAndGet();
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
+				calls.incrementAndGet();
 				if (hold.get())
 					assertTrue(proceed.await(5L, TimeUnit.SECONDS));
-				return args[0] + "/" + call;
+				return arg0(serializedArgs) + "/" + payload.get();
 			}
 		}) {
 			final var a = proxy(handler);
 
 			// first call blocks, since there is nothing cached to fall back on
-			assertEquals("stale/1", a.echo("stale"));
+			assertEquals("stale/first", a.echo("stale"));
 
 			Thread.sleep(refreshTtl.toMillis() + 25L);
 			hold.set(true);
+			payload.set("second");
 
 			// stale entry: triggers a background refresh, returns last good result
 			final var start = System.nanoTime();
-			assertEquals("stale/1", a.echo("stale"));
+			assertEquals("stale/first", a.echo("stale"));
 			final var blockedFor = Duration.ofNanos(System.nanoTime() - start);
 			assertTrue(blockedFor.toMillis() < 2000L, () -> "caller blocked for " + blockedFor);
 			awaitCalls(calls, 2);
 
 			// a refresh is already in flight, so no further call is triggered
-			assertEquals("stale/1", a.echo("stale"));
-			assertEquals("stale/1", a.echo("stale"));
+			assertEquals("stale/first", a.echo("stale"));
+			assertEquals("stale/first", a.echo("stale"));
 			assertNoFurtherCalls(calls, 2);
 
 			proceed.countDown();
-			awaitEcho(a, "stale", "stale/2");
+			awaitEcho(a, "stale", "stale/second");
 		}
 	}
 
@@ -647,7 +699,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var refreshTtl = Duration.ofMillis(100L);
 		try (final var handler = new TestHandler(cacheConfig(refreshTtl, Duration.ofSeconds(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				if (calls.incrementAndGet() > 1)
 					throw new IllegalStateException("remote service unavailable");
 				return "cached";
@@ -672,7 +724,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var proceed = new CountDownLatch(1);
 		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) throws Exception {
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
 				calls.incrementAndGet();
 				arrived.countDown();
 				assertTrue(proceed.await(5L, TimeUnit.SECONDS));
@@ -716,7 +768,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var callTtl = Duration.ofMillis(200L);
 		try (final var handler = new TestHandler(cacheConfig(refreshTtl, Duration.ofSeconds(30L), callTtl)) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				final var call = calls.incrementAndGet();
 				if (call == 2)
 					// hangs past the call TTL, ignoring the abandonment interrupt
@@ -769,7 +821,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 		}) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) throws Exception {
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
 				try {
 					Thread.sleep(5000L);
 				} catch (InterruptedException e) {
@@ -793,7 +845,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		try (final var handler = new TestHandler(
 				cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofMillis(100L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) throws Exception {
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
 				calls.incrementAndGet();
 				Thread.sleep(300L);
 				return "slow";
@@ -817,7 +869,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var calls = new AtomicInteger();
 		final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				return "call/" + calls.incrementAndGet();
 			}
 		};
@@ -841,7 +893,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	public void testCloseWithoutCache() throws Exception {
 		final var handler = new TestHandler() {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				return "uncached";
 			}
 		};
@@ -854,7 +906,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var calls = new AtomicInteger();
 		try (final var handler = new TestHandler() {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				return Integer.toString(calls.incrementAndGet());
 			}
 		}) {
@@ -876,7 +928,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				return Integer.toString(calls.incrementAndGet());
 			}
 		}) {
@@ -891,7 +943,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var calls = new AtomicInteger();
 		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				calls.incrementAndGet();
 				return null;
 			}
@@ -914,9 +966,9 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				calls.incrementAndGet();
-				return args == null ? null : args[0] + "/" + calls.get();
+				return noArgs(serializedArgs) ? null : arg0(serializedArgs) + "/" + calls.get();
 			}
 		}) {
 			final var a = proxy(handler);
@@ -933,6 +985,90 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	}
 
 	@Test
+	public void testDistinctMethodsWithEqualArgumentsDoNotShareCacheEntry() throws Exception {
+		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return method.getName() + serializedArgs;
+			}
+		}) {
+			final var multi = (Multi) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(),
+					new Class<?>[] { Multi.class }, handler);
+
+			// no-arg methods both serialize to an empty array
+			assertEquals("first[]", multi.first());
+			assertEquals("second[]", multi.second());
+
+			// as do same-signature methods called with equal arguments
+			assertEquals("echo[\"m\"]", multi.echo("m"));
+			assertEquals("otherEcho[\"m\"]", multi.otherEcho("m"));
+
+			// and the entries must remain distinct once cached
+			assertEquals("first[]", multi.first());
+			assertEquals("second[]", multi.second());
+			assertEquals("echo[\"m\"]", multi.echo("m"));
+			assertEquals("otherEcho[\"m\"]", multi.otherEcho("m"));
+		}
+	}
+
+	@Test
+	public void testCacheKeyIsSerializedSnapshotOfArguments() throws Exception {
+		final var calls = new AtomicInteger();
+		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return serializedArgs + "/" + calls.incrementAndGet();
+			}
+		}) {
+			final var lookup = (Lookup) Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(),
+					new Class<?>[] { Lookup.class }, handler);
+
+			final var arg = new MutableName("a");
+			assertEquals("[{\"name\":\"a\"}]/1", lookup.lookup(arg));
+			assertEquals("[{\"name\":\"a\"}]/1", lookup.lookup(arg));
+			assertEquals(1, calls.get());
+
+			// a distinct instance that serializes the same shares the entry, even
+			// though MutableName does not define value equality
+			assertEquals("[{\"name\":\"a\"}]/1", lookup.lookup(new MutableName("a")));
+			assertEquals(1, calls.get());
+
+			// mutating the argument selects a different entry rather than corrupting
+			// the one already cached under its previous value
+			arg.name = "b";
+			assertEquals("[{\"name\":\"b\"}]/2", lookup.lookup(arg));
+			assertEquals(2, calls.get());
+
+			// and the original entry is still reachable
+			arg.name = "a";
+			assertEquals("[{\"name\":\"a\"}]/1", lookup.lookup(arg));
+			assertEquals(2, calls.get());
+		}
+	}
+
+	@Test
+	public void testOverriddenCacheKeyIsHonored() throws Exception {
+		final var calls = new AtomicInteger();
+		try (final var handler = new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L))) {
+			@Override
+			protected Object cacheKey(Method method, Object serializedArgs) {
+				// deliberately ignores arguments, so all calls to a method share an entry
+				return method;
+			}
+
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return arg0(serializedArgs) + "/" + calls.incrementAndGet();
+			}
+		}) {
+			final var a = proxy(handler);
+			assertEquals("first/1", a.echo("first"));
+			assertEquals("first/1", a.echo("second"));
+			assertEquals(1, calls.get());
+		}
+	}
+
+	@Test
 	public void testForwardsAndRestoresContextClassLoader() throws Throwable {
 		final var poolBase = new ClassLoader(null) {
 		};
@@ -944,7 +1080,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var restore = Thread.currentThread().getContextClassLoader();
 		try (final var handler = new TestHandler(singleThreadConfig(null, null)) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				callThread.set(Thread.currentThread());
 				callContext.set(Thread.currentThread().getContextClassLoader());
 				return "result";
@@ -980,9 +1116,9 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var restore = Thread.currentThread().getContextClassLoader();
 		try (final var handler = new TestHandler(singleThreadConfig(null, null)) {
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				callThread.set(Thread.currentThread());
-				if (args != null)
+				if (!noArgs(serializedArgs))
 					throw new IllegalStateException("call failed");
 				return "warmup";
 			}
@@ -1022,7 +1158,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				events.add("call");
 				return "result";
 			}
@@ -1050,8 +1186,8 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
-				if (args == null)
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				if (noArgs(serializedArgs))
 					throw new UnsupportedOperationException("call failed");
 				return "result";
 			}
@@ -1079,7 +1215,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				return "call/" + calls.incrementAndGet();
 			}
 		}) {
@@ -1110,7 +1246,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				return "never";
 			}
 		}) {
@@ -1130,11 +1266,11 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 			}
 
 			@Override
-			protected Object doInvoke(Method method, Object[] args) {
+			protected Object doInvoke(Method method, Object serializedArgs) {
 				calls.incrementAndGet();
-				if (args == null)
+				if (noArgs(serializedArgs))
 					throw new IllegalStateException("write failed");
-				return args[0] + "/" + calls.get();
+				return arg0(serializedArgs) + "/" + calls.get();
 			}
 		}) {
 			final var a = proxy(handler);

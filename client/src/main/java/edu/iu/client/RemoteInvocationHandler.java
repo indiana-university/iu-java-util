@@ -39,7 +39,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -176,7 +175,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		 * @return remote call result
 		 * @throws Exception if the remote call fails
 		 */
-		private Object refresh(IuCacheMap<List<?>, CachedResult> cache, List<?> key, Callable<?> call, long generation)
+		private Object refresh(IuCacheMap<Object, CachedResult> cache, Object key, Callable<?> call, long generation)
 				throws Exception {
 			try {
 				final var result = call.call();
@@ -231,9 +230,9 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * <em>pooled</em> thread immediately before the call, and returns a
 	 * {@link Runnable} that undoes it.</li>
 	 * <li><strong>Restore</strong>: that {@link Runnable} is invoked on the
-	 * <em>pooled</em> thread after the call completes, whether or not it
-	 * succeeded. The pool is shared, so a call <em>must</em> leave the thread as it
-	 * found it.</li>
+	 * <em>pooled</em> thread after the call completes, whether or not it succeeded.
+	 * The pool is shared, so a call <em>must</em> leave the thread as it found
+	 * it.</li>
 	 * </ol>
 	 *
 	 * <p>
@@ -241,8 +240,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * else. In particular, no other {@link ThreadLocal}-bound state reaches the
 	 * call. Subclasses <em>may</em> override to forward additional context, e.g. a
 	 * security principal or a diagnostic context; such an override <em>should</em>
-	 * delegate to {@code super.captureContext()} so the context
-	 * {@link ClassLoader} continues to be forwarded.
+	 * delegate to {@code super.captureContext()} so the context {@link ClassLoader}
+	 * continues to be forwarded.
 	 * </p>
 	 *
 	 * <p>
@@ -255,9 +254,9 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 *
 	 * <p>
 	 * <strong>Implementation Note:</strong> capture runs on the calling thread
-	 * while a lock on the cache entry is held, so it <em>should</em> return
-	 * quickly and <em>must not</em> invoke a remote method. An apply phase that
-	 * fails <em>should</em> leave the thread unmodified, since its restore
+	 * while a lock on the cache entry is held, so it <em>should</em> return quickly
+	 * and <em>must not</em> invoke a remote method. An apply phase that fails
+	 * <em>should</em> leave the thread unmodified, since its restore
 	 * {@link Runnable} is never invoked. A failed restore is logged and does not
 	 * mask the outcome of the call.
 	 * </p>
@@ -295,7 +294,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	private final ExecutorService exec;
 	private final Duration refreshTtl;
 	private final Duration callTtl;
-	private final IuCacheMap<List<?>, CachedResult> cache;
+	private final IuCacheMap<Object, CachedResult> cache;
 	private volatile boolean closed;
 
 	/**
@@ -373,29 +372,82 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * 
 	 * @return context-sensitive cache; null to skip cache behavior
 	 */
-	protected IuCacheMap<List<?>, CachedResult> cache() {
+	protected IuCacheMap<Object, CachedResult> cache() {
 		return cache;
+	}
+
+	/**
+	 * Converts arguments to serialized form, for use as part of the cache key and
+	 * for passing to
+	 * {@link #payload(java.net.http.HttpRequest.Builder, Method, Object)}.
+	 *
+	 * <p>
+	 * Default behavior is to convert arguments to a JSON array, using
+	 * {@link #adapt(Type)} for conversion. Arguments are serialized once per
+	 * invocation, on the calling thread, so the conversion sees the caller's
+	 * thread context rather than the {@link #captureContext() forwarded} context.
+	 * </p>
+	 *
+	 * <p>
+	 * Since the result is used as part of the cache key, it <em>must</em> be
+	 * immutable and implement {@link Object#equals(Object)} and
+	 * {@link Object#hashCode()} by value. Serializing rather than retaining the
+	 * arguments means a mutable argument cannot alter a key after the fact, and
+	 * that arguments which are distinct objects but serialize identically share a
+	 * cache entry, matching the fact that the remote result depends only on the
+	 * serialized request.
+	 * </p>
+	 *
+	 * @param method remote method
+	 * @param args   remote method arguments; null or empty for a no-argument
+	 *               method
+	 * @return serialized arguments
+	 */
+	protected Object serialize(Method method, Object... args) {
+		final var parameters = method.getParameters();
+		final var requestBody = IuJson.array();
+		for (var i = 0; i < parameters.length; i++)
+			requestBody.add(adapt(parameters[i].getParameterizedType()).toJson(args[i]));
+		return requestBody.build();
+	}
+
+	/**
+	 * Gets the cache key for an invocation.
+	 *
+	 * <p>
+	 * Default behavior is to key on the remote method paired with its
+	 * {@link #serialize(Method, Object...) serialized arguments}. The method is
+	 * part of the key because serialized arguments alone do not identify a call:
+	 * every no-argument method serializes to the same empty array, as do distinct
+	 * methods that accept equal arguments.
+	 * </p>
+	 *
+	 * @param method         remote method
+	 * @param serializedArgs serialized arguments, from
+	 *                       {@link #serialize(Method, Object...)}
+	 * @return cache key; <em>must</em> be immutable and implement
+	 *         {@link Object#equals(Object)} and {@link Object#hashCode()} by value
+	 */
+	protected Object cacheKey(Method method, Object serializedArgs) {
+		return List.of(method, serializedArgs);
 	}
 
 	/**
 	 * Adds request payload to a pending remote call request.
 	 * 
 	 * <p>
-	 * Default behavior is to POST arguments as a JSON array, using
-	 * {@link #adapt(Type)} for conversion.
+	 * Default behavior is to POST the serialized arguments as the request body.
+	 * Conversion has already happened, on the calling thread, in
+	 * {@link #serialize(Method, Object...)}.
 	 * </p>
-	 * 
+	 *
 	 * @param requestBuilder pending remote call request
 	 * @param method         method
-	 * @param args           arguments
+	 * @param serializedArgs arguments, serialized via
+	 *                       {@link #serialize(Method, Object...)}
 	 */
-	protected void payload(HttpRequest.Builder requestBuilder, Method method, Object[] args) {
-		final var parameters = method.getParameters();
-		final var requestBody = IuJson.array();
-		for (var i = 0; i < parameters.length; i++)
-			requestBody.add(adapt(parameters[i].getParameterizedType()).toJson(args[i]));
-
-		final var request = requestBody.build().toString();
+	protected void payload(HttpRequest.Builder requestBuilder, Method method, Object serializedArgs) {
+		final var request = serializedArgs.toString();
 		LOG.finer(() -> method + " " + request);
 
 		requestBuilder.header("Content-Type", "application/json");
@@ -472,7 +524,10 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		if (closed)
 			throw new IllegalStateException("Remote invocation handler is closed");
 
-		final Callable<?> call = () -> doInvoke(method, args);
+		// serialized once on the calling thread, then reused as the request payload
+		final var serializedArgs = serialize(method, args);
+
+		final Callable<?> call = () -> doInvoke(method, serializedArgs);
 		final var cache = cache();
 
 		if (cache == null || !usesCache(method)) {
@@ -486,8 +541,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 			return result;
 		}
 
-		final var key = List.of(method.getDeclaringClass(), method,
-				Arrays.asList(args == null ? new Object[0] : args.clone()));
+		final var key = cacheKey(method, serializedArgs);
 
 		// atomic, so concurrent first callers share one entry and one invocation
 		final var cached = cache.computeIfAbsent(key, a -> new CachedResult());
@@ -589,15 +643,16 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * and cache behavior before delegating here.
 	 * </p>
 	 *
-	 * @param method remote method
-	 * @param args   remote method arguments
+	 * @param method         remote method
+	 * @param serializedArgs method arguments, already serialized by
+	 *                       {@link #serialize(Method, Object...)}
 	 * @return remote method result
 	 * @throws Exception if the remote invocation fails
 	 */
-	protected Object doInvoke(Method method, Object[] args) throws Exception {
+	protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
 		final UnsafeConsumer<HttpRequest.Builder> request = builder -> {
 			authorize(builder);
-			payload(builder, method, args);
+			payload(builder, method, serializedArgs);
 		};
 
 		try {
