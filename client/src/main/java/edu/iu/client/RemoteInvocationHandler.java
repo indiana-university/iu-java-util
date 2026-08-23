@@ -73,6 +73,42 @@ import edu.iu.UnsafeConsumer;
  * </p>
  *
  * <p>
+ * Configuration is supplied per invocation rather than captured at
+ * construction, so it may change over the life of the handler without a restart
+ * and without discarding cached results. Each invocation takes one snapshot and
+ * uses it throughout, so a change cannot be observed inconsistently part-way
+ * through a call. A change takes effect as follows.
+ * </p>
+ *
+ * <ul>
+ * <li>The {@link RemoteInvocationConfiguration#getRefreshTtl() refresh TTL} and
+ * {@link RemoteInvocationConfiguration#getCallTtl() call TTL} apply from the
+ * next invocation. Because staleness is measured from when an entry was last
+ * refreshed, a changed refresh TTL applies to entries already cached: shortening
+ * it can make a cached entry stale immediately, and lengthening it can make a
+ * stale entry fresh again.</li>
+ * <li>The {@link RemoteInvocationConfiguration#getCacheTtl() cache TTL} applies
+ * to entries as they are stored, so entries already cached keep their existing
+ * expiration until their next successful refresh.</li>
+ * <li>Turning caching off leaves cached entries in place, expiring on their own
+ * schedule; turning it back on may therefore serve an entry cached earlier,
+ * subject to the refresh TTL then in effect.</li>
+ * <li>A change to {@link RemoteInvocationConfiguration#getThreads() threads} or
+ * {@link RemoteInvocationConfiguration#getPending() pending} replaces the thread
+ * pool. The pool it replaces is shut down gracefully, so calls already in flight
+ * run to completion.</li>
+ * <li>An invalid configuration is reported to the caller that observes it,
+ * rather than at construction, and leaves the pool in use unchanged.</li>
+ * </ul>
+ *
+ * <p>
+ * The cache itself is internal: it is keyed, not selected, per context. A
+ * subclass customizes caching by overriding
+ * {@link #serialize(Method, Object...)} to fold call context into the key, and
+ * {@link #captureContext()} to forward that context to the call.
+ * </p>
+ *
+ * <p>
  * Because a call does not run on the calling thread, thread-bound context
  * reaches it only by being forwarded: see {@link #captureContext()}, which
  * forwards the context {@link ClassLoader} by default and may be overridden to
@@ -143,17 +179,24 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	};
 
 	/**
-	 * Cached result class, value type for {@link #cache()}.
+	 * Cached result class, the cache's value type.
 	 *
 	 * <p>
-	 * Holds the last good result for one cache key, the {@link Instant} it goes
-	 * stale, and the refresh that is currently in flight, if any. All mutable state
-	 * is guarded by the instance monitor.
+	 * Holds the last good result for one cache key, the {@link Instant} that
+	 * result was published, and the refresh that is currently in flight, if any.
+	 * All mutable state is guarded by the instance monitor.
+	 * </p>
+	 *
+	 * <p>
+	 * The publication time is stored rather than a derived expiration, so that
+	 * staleness is evaluated against the refresh TTL in effect when an entry is
+	 * read. A reconfigured refresh TTL therefore applies to entries already
+	 * cached, in both directions, without discarding them.
 	 * </p>
 	 */
 	protected class CachedResult {
 		private Optional<Object> value;
-		private Instant refreshAt;
+		private Instant refreshedAt;
 		private Future<?> refresh;
 		private Instant refreshStartedAt;
 		private long generation;
@@ -164,9 +207,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		/**
 		 * Performs a refresh, publishing the result as the last good value on success.
 		 *
-		 * @param cache      cache the entry belongs to, captured from the triggering
-		 *                   caller rather than read from {@link #cache()}, which is
-		 *                   context-sensitive
+		 * @param cache      cache the entry belongs to
 		 * @param key        cache key
 		 * @param call       remote call
 		 * @param generation refresh generation; a refresh that has been superseded by a
@@ -185,7 +226,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 					current = generation == this.generation;
 					if (current) {
 						value = Optional.ofNullable(result);
-						refreshAt = Instant.now().plus(refreshTtl);
+						refreshedAt = Instant.now();
 					}
 				}
 
@@ -247,9 +288,11 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * <p>
 	 * Because a stale entry is refreshed in the background, a refresh runs under
 	 * the context captured from whichever caller happened to trigger it, and its
-	 * result is then served to every caller. When forwarded context can change the
-	 * result, override {@link #cache()} to partition the cache by context so
-	 * results are not shared across contexts.
+	 * result is then served to every caller. The cache is internal and shared by
+	 * all contexts, so when forwarded context can change the result, override
+	 * {@link #serialize(Method, Object...)} to fold the distinguishing context
+	 * into the cache key; otherwise a result from one context is served to
+	 * another.
 	 * </p>
 	 *
 	 * <p>
@@ -274,7 +317,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		};
 	}
 
-	private <T> Future<T> call(Callable<T> call) {
+	private <T> Future<T> call(ExecutorService exec, Callable<T> call) {
 		final var context = captureContext();
 		return exec.submit(() -> {
 			final var restore = context.get();
@@ -291,10 +334,31 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		});
 	}
 
-	private final ExecutorService exec;
-	private final Duration refreshTtl;
-	private final Duration callTtl;
-	private final IuCacheMap<Object, CachedResult> cache;
+	private final Supplier<RemoteInvocationConfiguration> config;
+	private final IuCacheMap<Object, CachedResult> cache = new IuCacheMap<>(RemoteInvocationConfiguration.CACHE_TTL);
+
+	private static class Exec {
+		final int threads;
+		final int pending;
+		final ExecutorService pool;
+
+		Exec(int threads, int pending) {
+			this.threads = threads;
+			if (threads < 1)
+				throw new IllegalArgumentException("Call threads must be positive");
+
+			this.pending = pending;
+			if (pending < 1)
+				throw new IllegalArgumentException("Call pending queue size must be positive");
+
+			final var pool = new ThreadPoolExecutor(threads, threads, 15L, TimeUnit.SECONDS,
+					new ArrayBlockingQueue<>(pending, false), THREAD_FACTORY);
+			pool.allowCoreThreadTimeOut(true);
+			this.pool = pool;
+		}
+	}
+
+	private volatile Exec exec;
 	private volatile boolean closed;
 
 	/**
@@ -306,50 +370,30 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * </p>
 	 */
 	protected RemoteInvocationHandler() {
-		this(NO_CACHE);
+		this(() -> NO_CACHE);
 	}
 
 	/**
 	 * Creates a remote invocation handler.
 	 *
 	 * <p>
-	 * See {@link RemoteInvocationHandler} for a description of the defensive call
-	 * cache, which is enabled when
+	 * The supplier is consulted once per invocation, so returning current values
+	 * allows the handler to be reconfigured in place. See
+	 * {@link RemoteInvocationHandler} for how each value takes effect, and for a
+	 * description of the defensive call cache, which is enabled when
 	 * {@link RemoteInvocationConfiguration#getRefreshTtl()} is non-null.
 	 * </p>
 	 *
-	 * @param config configuration
-	 * @throws IllegalArgumentException if any configured value is invalid
+	 * <p>
+	 * Configured values are validated when observed rather than here, so an
+	 * invalid configuration fails the invocation that reads it, not construction.
+	 * </p>
+	 *
+	 * @param config supplies the configuration in effect; <em>should</em> return
+	 *               quickly, as it is called on every invocation
 	 */
-	protected RemoteInvocationHandler(RemoteInvocationConfiguration config) {
-		refreshTtl = config.getRefreshTtl();
-		if (refreshTtl != null) {
-			if (refreshTtl.isNegative() || refreshTtl.isZero())
-				throw new IllegalArgumentException("Refresh TTL must be positive");
-
-			final var cacheTtl = Objects.requireNonNull(config.getCacheTtl(), "Missing cache TTL");
-			if (cacheTtl.compareTo(refreshTtl) <= 0)
-				throw new IllegalArgumentException("Cache TTL must be longer than refresh TTL");
-
-			cache = new IuCacheMap<>(cacheTtl);
-		} else
-			cache = null;
-
-		callTtl = Objects.requireNonNull(config.getCallTtl(), "Missing call TTL");
-		if (callTtl.isNegative() || callTtl.isZero())
-			throw new IllegalArgumentException("Call TTL must be positive");
-
-		final var threads = config.getThreads();
-		if (threads < 1)
-			throw new IllegalArgumentException("Call threads must be positive");
-		final var pending = config.getPending();
-		if (pending < 1)
-			throw new IllegalArgumentException("Call pending queue size must be positive");
-
-		final var exec = new ThreadPoolExecutor(threads, threads, 15L, TimeUnit.SECONDS,
-				new ArrayBlockingQueue<>(pending, false), THREAD_FACTORY);
-		exec.allowCoreThreadTimeOut(true);
-		this.exec = exec;
+	protected RemoteInvocationHandler(Supplier<RemoteInvocationConfiguration> config) {
+		this.config = Objects.requireNonNull(config, "Missing configuration supplier");
 	}
 
 	/**
@@ -368,12 +412,88 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	protected abstract void authorize(HttpRequest.Builder requestBuilder);
 
 	/**
-	 * Gets the cache to use for the current call context.
-	 * 
-	 * @return context-sensitive cache; null to skip cache behavior
+	 * Reads and validates the refresh TTL from a configuration snapshot.
+	 *
+	 * @param config configuration snapshot
+	 * @return refresh interval; null if caching is disabled
 	 */
-	protected IuCacheMap<Object, CachedResult> cache() {
+	private static Duration refreshTtl(RemoteInvocationConfiguration config) {
+		final var refreshTtl = config.getRefreshTtl();
+
+		if (refreshTtl != null && (refreshTtl.isNegative() || refreshTtl.isZero()))
+			throw new IllegalArgumentException("Refresh TTL must be positive");
+
+		return refreshTtl;
+	}
+
+	/**
+	 * Reads and validates the call TTL from a configuration snapshot.
+	 *
+	 * @param config configuration snapshot
+	 * @return call timeout
+	 */
+	private static Duration callTtl(RemoteInvocationConfiguration config) {
+		final var callTtl = Objects.requireNonNull(config.getCallTtl(), "Missing call TTL");
+		if (callTtl.isNegative() || callTtl.isZero())
+			throw new IllegalArgumentException("Call TTL must be positive");
+		return callTtl;
+	}
+
+	/**
+	 * Gets the cache, applying the currently configured cache TTL.
+	 *
+	 * @param config     configuration snapshot
+	 * @param refreshTtl validated refresh TTL, non-null
+	 * @return cache
+	 */
+	private IuCacheMap<Object, CachedResult> cache(RemoteInvocationConfiguration config, Duration refreshTtl) {
+		final var cacheTtl = Objects.requireNonNull(config.getCacheTtl(), "Missing cache TTL");
+		if (cacheTtl.compareTo(refreshTtl) <= 0)
+			throw new IllegalArgumentException("Cache TTL must be longer than refresh TTL");
+
+		// entries already cached keep their original expiration; a reconfigured TTL
+		// takes effect as each entry is refreshed, so nothing is discarded
+		cache.setCacheTimeToLive(cacheTtl);
+
 		return cache;
+	}
+
+	/**
+	 * Gets the thread pool, replacing it if its size no longer matches the
+	 * configuration.
+	 *
+	 * <p>
+	 * A replaced pool is shut down gracefully, so calls already in flight run to
+	 * completion on it.
+	 * </p>
+	 *
+	 * @param config configuration snapshot
+	 * @return thread pool
+	 */
+	private ExecutorService exec(RemoteInvocationConfiguration config) {
+		final var threads = config.getThreads();
+		final var pending = config.getPending();
+
+		final Exec current;
+		final Exec replaced;
+		synchronized (this) {
+			final var exec = this.exec;
+			if (exec == null || exec.threads != threads || exec.pending != pending) {
+				// constructed before the field is reassigned, so an invalid size leaves
+				// the pool in use unchanged
+				current = new Exec(threads, pending);
+				replaced = exec;
+				this.exec = current;
+			} else {
+				current = exec;
+				replaced = null;
+			}
+		}
+
+		if (replaced != null)
+			replaced.pool.shutdown();
+
+		return current.pool;
 	}
 
 	/**
@@ -512,7 +632,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * @return {@code true} if calls to {@code method} use the cache
 	 */
 	protected boolean usesCache(Method method) {
-		return refreshTtl != null;
+		return refreshTtl(config.get()) != null;
 	}
 
 	@Override
@@ -523,16 +643,23 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		if (closed)
 			throw new IllegalStateException("Remote invocation handler is closed");
 
+		// one snapshot per invocation, so a configuration change taking effect
+		// mid-invocation cannot be observed inconsistently
+		final var config = this.config.get();
+		final var refreshTtl = refreshTtl(config);
+		final var callTtl = callTtl(config);
+		final var exec = exec(config);
+
 		// serialized once on the calling thread, then reused as the request payload
 		final var serializedArgs = serialize(method, args);
 
 		final Callable<?> call = () -> doInvoke(method, serializedArgs);
-		final var cache = cache();
+		final var cache = refreshTtl == null ? null : cache(config, refreshTtl);
 
 		final var start = Instant.now();
 		if (cache == null || !usesCache(method)) {
 			// sole waiter, so a call this caller has given up on is cancelled
-			final var result = await(call(call), true);
+			final var result = await(call(exec, call), callTtl, true);
 
 			// only a successful write invalidates previously cached reads
 			if (cache != null) {
@@ -553,8 +680,8 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		synchronized (cached) {
 			final var now = Instant.now();
 
-			// still fresh: no remote call at all
-			if (cached.value != null && cached.refreshAt.isAfter(now)) {
+			// still fresh under the refresh TTL currently in effect
+			if (cached.value != null && cached.refreshedAt.plus(refreshTtl).isAfter(now)) {
 				LOG.fine("remote:cache-hit:" + method.getName() + ":" + Duration.between(start, now));
 				return cached.value.orElse(null);
 			}
@@ -570,7 +697,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 				final var generation = ++cached.generation;
 				cached.refreshStartedAt = now;
 				try {
-					cached.refresh = call(() -> cached.refresh(cache, key, call, generation));
+					cached.refresh = call(exec, () -> cached.refresh(cache, key, call, generation));
 				} catch (RuntimeException e) {
 					// the refresh could not be dispatched at all, e.g. the pending queue is
 					// full; a stale result is still better than no result
@@ -594,15 +721,16 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 
 		// nothing cached yet: all initial callers wait on this one invocation, which
 		// is left running on timeout so it can still populate the cache
-		final var result = await(pendingCall, false);
+		final var result = await(pendingCall, callTtl, false);
 		LOG.fine("remote:cache-miss:" + method.getName() + ":" + Duration.between(start, Instant.now()));
 		return result;
 	}
 
 	/**
-	 * Waits for a pending remote call, bounded by the configured call TTL.
+	 * Waits for a pending remote call, bounded by the call TTL.
 	 *
 	 * @param pendingCall     pending remote call
+	 * @param callTtl         call TTL, from the invocation's configuration snapshot
 	 * @param cancelOnTimeout whether to cancel {@code pendingCall} if the call TTL
 	 *                        elapses; {@code false} when other callers may be
 	 *                        waiting on the same invocation
@@ -610,7 +738,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * @throws TimeoutException if the call TTL elapses first
 	 * @throws Throwable        if thrown by the remote call
 	 */
-	private Object await(Future<?> pendingCall, boolean cancelOnTimeout) throws Throwable {
+	private Object await(Future<?> pendingCall, Duration callTtl, boolean cancelOnTimeout) throws Throwable {
 		try {
 			return pendingCall.get(callTtl.toMillis(), TimeUnit.MILLISECONDS);
 		} catch (TimeoutException e) {
@@ -636,11 +764,17 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	@Override
 	public void close() {
 		closed = true;
-		exec.shutdownNow();
 
-		final var cache = this.cache;
-		if (cache != null)
-			cache.clear();
+		// whatever pool is in use, without creating one that was never needed
+		final Exec exec;
+		synchronized (this) {
+			exec = this.exec;
+			this.exec = null;
+		}
+		if (exec != null)
+			exec.pool.shutdownNow();
+
+		cache.clear();
 	}
 
 	/**

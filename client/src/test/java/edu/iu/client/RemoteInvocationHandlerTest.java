@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -430,6 +431,10 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		}
 
 		TestHandler(RemoteInvocationConfiguration config) {
+			super(() -> config);
+		}
+
+		TestHandler(Supplier<RemoteInvocationConfiguration> config) {
 			super(config);
 		}
 
@@ -440,6 +445,44 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		@Override
 		protected URI uri(Method method) {
 			return TEST_URI;
+		}
+	}
+
+	/**
+	 * Mutable configuration, for exercising reconfiguration of a live handler.
+	 * Single-threaded by default, so tests can assert against exactly one pooled
+	 * thread.
+	 */
+	private static class MutableConfig implements RemoteInvocationConfiguration {
+		private volatile Duration refreshTtl = Duration.ofMinutes(5L);
+		private volatile Duration cacheTtl = Duration.ofMinutes(30L);
+		private volatile Duration callTtl = RemoteInvocationConfiguration.CALL_TTL;
+		private volatile int threads = 1;
+		private volatile int pending = RemoteInvocationConfiguration.PENDING;
+
+		@Override
+		public Duration getRefreshTtl() {
+			return refreshTtl;
+		}
+
+		@Override
+		public Duration getCacheTtl() {
+			return cacheTtl;
+		}
+
+		@Override
+		public Duration getCallTtl() {
+			return callTtl;
+		}
+
+		@Override
+		public int getThreads() {
+			return threads;
+		}
+
+		@Override
+		public int getPending() {
+			return pending;
 		}
 	}
 
@@ -541,47 +584,321 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	}
 
 	@Test
-	public void testConstructorValidatesConfiguration() {
-		assertEquals("Refresh TTL must be positive", assertThrows(IllegalArgumentException.class,
-				() -> new TestHandler(cacheConfig(Duration.ZERO, Duration.ofMinutes(1L))) {
-				}).getMessage());
-		assertEquals("Refresh TTL must be positive", assertThrows(IllegalArgumentException.class,
-				() -> new TestHandler(cacheConfig(Duration.ofMinutes(-1L), Duration.ofMinutes(1L))) {
-				}).getMessage());
-		assertEquals("Missing cache TTL", assertThrows(NullPointerException.class,
-				() -> new TestHandler(cacheConfig(Duration.ofMinutes(5L), null)) {
-				}).getMessage());
-		assertEquals("Cache TTL must be longer than refresh TTL", assertThrows(IllegalArgumentException.class,
-				() -> new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(5L))) {
-				}).getMessage());
-		assertEquals("Missing call TTL", assertThrows(NullPointerException.class,
-				() -> new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L), null)) {
-				}).getMessage());
-		assertEquals("Call TTL must be positive", assertThrows(IllegalArgumentException.class,
-				() -> new TestHandler(cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ZERO)) {
-				}).getMessage());
-		assertEquals("Call TTL must be positive",
-				assertThrows(IllegalArgumentException.class, () -> new TestHandler(
-						cacheConfig(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofMinutes(-1L))) {
-				}).getMessage());
+	public void testConfigurationDefaults() throws Exception {
+		final var config = new RemoteInvocationConfiguration() {
+		};
+		assertEquals(RemoteInvocationConfiguration.REFRESH_TTL, config.getRefreshTtl());
+		assertEquals(RemoteInvocationConfiguration.CACHE_TTL, config.getCacheTtl());
+		assertEquals(RemoteInvocationConfiguration.CALL_TTL, config.getCallTtl());
+		assertEquals(RemoteInvocationConfiguration.THREADS, config.getThreads());
+		assertEquals(RemoteInvocationConfiguration.PENDING, config.getPending());
 
-		// defaults apply to everything the configuration does not override
-		assertEquals("Call threads must be positive", assertThrows(IllegalArgumentException.class,
-				() -> new TestHandler(new RemoteInvocationConfiguration() {
-					@Override
-					public int getThreads() {
-						return 0;
-					}
-				}) {
+		final var calls = new AtomicInteger();
+		try (final var handler = new TestHandler(config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return "call/" + calls.incrementAndGet();
+			}
+		}) {
+			// caching is on by default
+			final var a = proxy(handler);
+			assertTrue(handler.usesCache(A.class.getMethod("echo", String.class)));
+			assertEquals("call/1", a.echo("key"));
+			assertEquals("call/1", a.echo("key"));
+			assertEquals(1, calls.get());
+		}
+	}
+
+	@Test
+	public void testRequiresConfigurationSupplier() {
+		assertEquals("Missing configuration supplier", assertThrows(NullPointerException.class,
+				() -> new TestHandler((Supplier<RemoteInvocationConfiguration>) null) {
 				}).getMessage());
-		assertEquals("Call pending queue size must be positive", assertThrows(IllegalArgumentException.class,
-				() -> new TestHandler(new RemoteInvocationConfiguration() {
-					@Override
-					public int getPending() {
-						return 0;
-					}
-				}) {
-				}).getMessage());
+	}
+
+	@Test
+	public void testInvalidConfigurationIsReportedAtCallTime() throws Exception {
+		final var config = new MutableConfig();
+		final var calls = new AtomicInteger();
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return "call/" + calls.incrementAndGet();
+			}
+		}) {
+			final var a = proxy(handler);
+
+			// a valid configuration is accepted, so the handler is usable
+			assertEquals("call/1", a.echo("key"));
+
+			config.refreshTtl = Duration.ZERO;
+			assertEquals("Refresh TTL must be positive",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			config.refreshTtl = Duration.ofMinutes(-1L);
+			assertEquals("Refresh TTL must be positive",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			config.refreshTtl = Duration.ofMinutes(5L);
+			config.cacheTtl = null;
+			assertEquals("Missing cache TTL",
+					assertThrows(NullPointerException.class, () -> a.echo("key")).getMessage());
+
+			config.cacheTtl = Duration.ofMinutes(5L);
+			assertEquals("Cache TTL must be longer than refresh TTL",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			config.cacheTtl = Duration.ofMinutes(30L);
+			config.callTtl = null;
+			assertEquals("Missing call TTL",
+					assertThrows(NullPointerException.class, () -> a.echo("key")).getMessage());
+
+			config.callTtl = Duration.ZERO;
+			assertEquals("Call TTL must be positive",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			config.callTtl = Duration.ofMinutes(-1L);
+			assertEquals("Call TTL must be positive",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			config.callTtl = RemoteInvocationConfiguration.CALL_TTL;
+			config.threads = 0;
+			assertEquals("Call threads must be positive",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			config.threads = 1;
+			config.pending = 0;
+			assertEquals("Call pending queue size must be positive",
+					assertThrows(IllegalArgumentException.class, () -> a.echo("key")).getMessage());
+
+			// none of the rejected configurations disturbed the cached result
+			config.pending = RemoteInvocationConfiguration.PENDING;
+			assertEquals("call/1", a.echo("key"));
+			assertEquals(1, calls.get());
+		}
+	}
+
+	@Test
+	public void testRefreshTtlChangeTakesEffectWithoutFlushingCache() throws Exception {
+		final var config = new MutableConfig();
+		final var calls = new AtomicInteger();
+		final var payload = new AtomicReference<>("first");
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				calls.incrementAndGet();
+				return payload.get();
+			}
+		}) {
+			final var a = proxy(handler);
+			assertEquals("first", a.echo("key"));
+			assertEquals("first", a.echo("key"));
+			assertEquals(1, calls.get());
+
+			// shortening the refresh TTL makes the existing entry stale rather than
+			// discarding it: the caller still gets the last good result
+			payload.set("second");
+			config.refreshTtl = Duration.ofMillis(1L);
+			Thread.sleep(10L);
+
+			assertEquals("first", a.echo("key"));
+			awaitCalls(calls, 2);
+			awaitEcho(a, "key", "second");
+
+			// lengthening it again makes the entry fresh, with no new call. Polling
+			// above ran further refreshes under the 1ms TTL, so settle first.
+			config.refreshTtl = Duration.ofMinutes(5L);
+			Thread.sleep(100L);
+			final var settled = calls.get();
+
+			assertEquals("second", a.echo("key"));
+			assertNoFurtherCalls(calls, settled);
+		}
+	}
+
+	@Test
+	public void testCacheTtlChangeDoesNotFlushCache() throws Exception {
+		final var config = new MutableConfig();
+		final var calls = new AtomicInteger();
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return "call/" + calls.incrementAndGet();
+			}
+		}) {
+			final var a = proxy(handler);
+			assertEquals("call/1", a.echo("key"));
+
+			// entries already cached keep their expiration, so the result survives
+			config.cacheTtl = Duration.ofMinutes(6L);
+			assertEquals("call/1", a.echo("key"));
+			assertEquals(1, calls.get());
+		}
+	}
+
+	@Test
+	public void testCachingEnabledAndDisabledAtRuntime() throws Exception {
+		final var config = new MutableConfig();
+		config.refreshTtl = null;
+		final var calls = new AtomicInteger();
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return "call/" + calls.incrementAndGet();
+			}
+		}) {
+			final var a = proxy(handler);
+			final var echo = A.class.getMethod("echo", String.class);
+
+			// caching off: every call reaches the remote service
+			assertFalse(handler.usesCache(echo));
+			assertEquals("call/1", a.echo("key"));
+			assertEquals("call/2", a.echo("key"));
+
+			// turned on without a restart
+			config.refreshTtl = Duration.ofMinutes(5L);
+			assertTrue(handler.usesCache(echo));
+			assertEquals("call/3", a.echo("key"));
+			assertEquals("call/3", a.echo("key"));
+			assertEquals(3, calls.get());
+
+			// and back off again
+			config.refreshTtl = null;
+			assertFalse(handler.usesCache(echo));
+			assertEquals("call/4", a.echo("key"));
+			assertEquals("call/5", a.echo("key"));
+		}
+	}
+
+	@Test
+	public void testThreadPoolReplacedWhenSizeChanges() throws Exception {
+		final var config = new MutableConfig();
+		final var callThread = new AtomicReference<Thread>();
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				callThread.set(Thread.currentThread());
+				return "result";
+			}
+		}) {
+			final var a = proxy(handler);
+
+			assertEquals("result", a.echo("first"));
+			final var pooled = callThread.get();
+
+			// unchanged size reuses the pool
+			assertEquals("result", a.echo("second"));
+			assertSame(pooled, callThread.get());
+
+			// a thread count change replaces it
+			config.threads = 2;
+			assertEquals("result", a.echo("third"));
+			assertNotSame(pooled, callThread.get(), "expected a new pool");
+			final var resized = callThread.get();
+
+			// so does a pending queue size change
+			config.pending = 4;
+			assertEquals("result", a.echo("fourth"));
+			assertNotSame(resized, callThread.get(), "expected a new pool");
+		}
+	}
+
+	@Test
+	public void testInvalidPoolSizeLeavesPoolInUse() throws Exception {
+		final var config = new MutableConfig();
+		final var callThread = new AtomicReference<Thread>();
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				callThread.set(Thread.currentThread());
+				return "result";
+			}
+		}) {
+			final var a = proxy(handler);
+			assertEquals("result", a.echo("first"));
+			final var pooled = callThread.get();
+
+			config.threads = -1;
+			assertThrows(IllegalArgumentException.class, () -> a.echo("second"));
+
+			// the rejected size did not replace or shut down the working pool
+			config.threads = 1;
+			assertEquals("result", a.echo("third"));
+			assertSame(pooled, callThread.get());
+		}
+	}
+
+	@Test
+	public void testCallTtlChangeTakesEffect() throws Throwable {
+		final var config = new MutableConfig();
+		config.refreshTtl = null;
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
+				Thread.sleep(300L);
+				return "slow";
+			}
+		}) {
+			final var echo = A.class.getMethod("echo", String.class);
+			assertEquals("slow", handler.invoke(null, echo, new Object[] { "key" }));
+
+			config.callTtl = Duration.ofMillis(50L);
+			assertThrows(TimeoutException.class, () -> handler.invoke(null, echo, new Object[] { "key" }));
+		}
+	}
+
+	@Test
+	public void testCachingDisabledDuringRefreshDoesNotFailTheRefresh() throws Exception {
+		final var config = new MutableConfig();
+		config.refreshTtl = Duration.ofMillis(100L);
+		final var calls = new AtomicInteger();
+		final var hold = new AtomicBoolean();
+		final var proceed = new CountDownLatch(1);
+		final var payload = new AtomicReference<>("first");
+		try (final var handler = new TestHandler(() -> config) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
+				calls.incrementAndGet();
+				if (hold.get())
+					assertTrue(proceed.await(5L, TimeUnit.SECONDS));
+				return payload.get();
+			}
+		}) {
+			final var a = proxy(handler);
+			assertEquals("first", a.echo("key"));
+
+			Thread.sleep(125L);
+			hold.set(true);
+			payload.set("second");
+
+			// trigger a background refresh, then disable caching while it is in flight
+			assertEquals("first", a.echo("key"));
+			awaitCalls(calls, 2);
+			config.refreshTtl = null;
+			proceed.countDown();
+
+			// the in-flight refresh must still publish, using the TTL it was
+			// triggered with, rather than failing on the absent one
+			Thread.sleep(250L);
+			config.refreshTtl = Duration.ofMinutes(5L);
+			hold.set(false);
+			assertEquals("second", a.echo("key"));
+			assertEquals(2, calls.get());
+		}
+	}
+
+	@Test
+	public void testCloseBeforeAnyCall() {
+		final var handler = new TestHandler(new MutableConfig()) {
+			@Override
+			protected Object doInvoke(Method method, Object serializedArgs) {
+				return "never";
+			}
+		};
+
+		// no pool was ever created, so there is nothing to shut down
+		assertDoesNotThrow(handler::close);
+		assertDoesNotThrow(handler::close);
 	}
 
 	@Test

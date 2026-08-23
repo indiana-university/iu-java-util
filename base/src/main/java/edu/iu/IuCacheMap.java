@@ -341,7 +341,7 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 	}
 
 	private final Map<K, IuCachedValue<V>> cache = new ConcurrentHashMap<>();
-	private final Duration cacheTimeToLive;
+	private volatile Duration cacheTimeToLive;
 	private CacheKeySet keySet;
 	private CacheValues values;
 	private CacheEntrySet entrySet;
@@ -352,6 +352,28 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 	 * @param cacheTimeToLive maximum time to live for cache entries
 	 */
 	public IuCacheMap(Duration cacheTimeToLive) {
+		setCacheTimeToLive(cacheTimeToLive);
+	}
+
+	/**
+	 * Changes the maximum time to live for cache entries.
+	 *
+	 * <p>
+	 * The time to live is applied when an entry is stored, so this affects only
+	 * entries {@link #put stored} after this call. Entries already in the map keep
+	 * the expiration time they were given, and are unaffected until they are
+	 * replaced. This allows the time to live to be reconfigured without discarding
+	 * cached values.
+	 * </p>
+	 *
+	 * @param cacheTimeToLive maximum time to live for cache entries; must be
+	 *                        positive
+	 */
+	public void setCacheTimeToLive(Duration cacheTimeToLive) {
+		Objects.requireNonNull(cacheTimeToLive, "Missing cache TTL");
+		if (cacheTimeToLive.compareTo(Duration.ZERO) <= 0)
+			throw new IllegalArgumentException("Cache TTL must be positive");
+
 		this.cacheTimeToLive = cacheTimeToLive;
 	}
 

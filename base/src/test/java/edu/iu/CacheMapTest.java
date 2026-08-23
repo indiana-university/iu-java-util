@@ -344,6 +344,40 @@ public class CacheMapTest {
 	}
 
 	@Test
+	public void testSetCacheTimeToLiveValidates() {
+		assertEquals("Missing cache TTL",
+				assertThrows(NullPointerException.class, () -> cache.setCacheTimeToLive(null)).getMessage());
+		assertEquals("Cache TTL must be positive",
+				assertThrows(IllegalArgumentException.class, () -> cache.setCacheTimeToLive(Duration.ZERO))
+						.getMessage());
+		assertEquals("Cache TTL must be positive",
+				assertThrows(IllegalArgumentException.class, () -> cache.setCacheTimeToLive(Duration.ofMillis(-1L)))
+						.getMessage());
+	}
+
+	@Test
+	public void testSetCacheTimeToLiveAppliesToNewEntriesOnly() throws Exception {
+		setupCache(Duration.ofSeconds(30L));
+		cache.put("existing", "value");
+
+		// shortening the TTL leaves the entry already stored untouched
+		cache.setCacheTimeToLive(Duration.ofMillis(50L));
+		Thread.sleep(75L);
+		assertEquals("value", cache.get("existing"));
+
+		// an entry stored after the change expires on the new schedule
+		cache.put("new", "value");
+		Thread.sleep(75L);
+		assertNull(cache.get("new"));
+		assertEquals("value", cache.get("existing"));
+
+		// replacing the existing entry moves it onto the new schedule
+		cache.put("existing", "replaced");
+		Thread.sleep(75L);
+		assertNull(cache.get("existing"));
+	}
+
+	@Test
 	public void testComputeIfAbsent() {
 		assertEquals("Missing mappingFunction",
 				assertThrows(NullPointerException.class, () -> cache.computeIfAbsent("foo", null)).getMessage());
