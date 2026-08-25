@@ -31,6 +31,7 @@
  */
 package edu.iu.config;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -50,6 +51,7 @@ import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -100,6 +102,10 @@ public class IuConfigTest {
 	}
 
 	static class UnregisteredClass {
+	}
+
+	enum UnregisteredEnum {
+		FOO, BAR
 	}
 
 	@BeforeEach
@@ -318,6 +324,27 @@ public class IuConfigTest {
 			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(UnregisteredClass.class),
 					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
 		}
+	}
+
+	@Test
+	public void testAdaptJsonPrimitive() {
+		// int isn't a platform name, but must still use the primitive adapter
+		assertEquals(42, IuConfig.adaptJson(int.class).fromJson(IuJson.number(42)));
+	}
+
+	@Test
+	public void testAdaptJsonArray() {
+		// URI[] erases to "[Ljava.net.URI;", which isn't a platform name, but must
+		// still use the array adapter rather than JavaBeans conversion
+		final var uri = URI.create("test:" + IdGenerator.generateId());
+		assertArrayEquals(new URI[] { uri },
+				IuConfig.adaptJson(URI[].class).fromJson(IuJson.array().add(uri.toString()).build()));
+	}
+
+	@Test
+	public void testAdaptJsonEnum() {
+		// a non-platform enum must use the enum adapter, not JavaBeans conversion
+		assertSame(UnregisteredEnum.BAR, IuConfig.adaptJson(UnregisteredEnum.class).fromJson(IuJson.string("BAR")));
 	}
 
 	@Test

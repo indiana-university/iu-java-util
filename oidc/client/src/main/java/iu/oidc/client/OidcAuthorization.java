@@ -36,13 +36,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -53,7 +51,6 @@ import edu.iu.IuObject;
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
 import edu.iu.IuWebUtils;
-import edu.iu.UnsafeFunction;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader;
@@ -357,56 +354,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var accessToken = response.getAccessToken();
 		final var verifiedAccessToken = verifyAccessToken(accessToken);
 
-		final var accessTokenLookup = new UnsafeFunction<URI, String>() {
-			private final Map<URI, OidcTokenGrant> grants = new HashMap<>();
-
-			@Override
-			public String apply(URI uri) throws IOException {
-				if (IuWebUtils.isRootOf(config.getResourceUri(), uri))
-					return accessToken;
-
-				if (verifiedAccessToken != null) {
-					final var audience = verifiedAccessToken.getAudience();
-					if (audience != null)
-						for (final var aud : audience)
-							if (IuWebUtils.isRootOf(aud, uri))
-								return accessToken;
-				}
-
-				final Supplier<String> error = () -> "invalid resource URI " + uri
-						+ (verifiedAccessToken == null ? "; access token not verified"
-								: "; access token doesn't include resource URI as audience "
-										+ verifiedAccessToken.getAudience());
-
-				URI apiResource = null;
-				for (final var u : Objects.requireNonNull(config.getApiResources(), error))
-					if (IuWebUtils.isRootOf(u, uri) //
-							&& (apiResource == null //
-									|| IuWebUtils.isRootOf(apiResource, u)))
-						apiResource = u;
-
-				Objects.requireNonNull(apiResource, error);
-
-				try {
-					final OidcTokenGrant obo;
-					synchronized (grants) {
-						final var cached = grants.get(apiResource);
-						if (cached == null)
-							grants.put(apiResource, obo = new OnBehalfOfGrant(config, apiResource, accessToken));
-						else
-							obo = cached;
-					}
-
-					return obo.getTokenResponse().getAccessToken();
-				} catch (Throwable e) {
-					e.addSuppressed(new IllegalArgumentException(error.get()));
-					throw e;
-				}
-			}
-		};
-
-		return new OidcPrincipal(grant.getIdToken(), userinfoClaims, setCookie, accessTokenLookup, config::adaptJson,
-				client.getPrincipalNameClaimName());
+		return new OidcPrincipal(grant.getIdToken(), userinfoClaims, setCookie, config, accessToken,
+				verifiedAccessToken, client.getPrincipalNameClaimName());
 	}
 
 }

@@ -32,64 +32,66 @@
 package iu.oidc.client;
 
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.net.URI;
-import java.util.function.Function;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
-import edu.iu.IuException;
-import edu.iu.UnsafeFunction;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.IuWebUtils;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
+import iu.oidc.client.config.IuOidcClientReference;
 import jakarta.json.JsonObject;
 
 /**
  * {@link IuOidcPrincipal} implementation class.
+ *
+ * <p>
+ * Presents ID token and userinfo claims as a single claim set, and brokers
+ * access tokens for remote resources. The access token issued alongside the ID
+ * token is returned directly for resources covered by the client's own resource
+ * URI, and for resources named as an audience by a verified access token. Any
+ * other resource covered by a configured API resource URI is reached by an
+ * on-behalf-of exchange with the OpenID Provider's token endpoint; those grants
+ * are cached per API resource for the life of the principal.
+ * </p>
  */
 public class OidcPrincipal implements IuOidcPrincipal {
 
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
 	private final String setCookie;
-	private final UnsafeFunction<URI, String> accessTokenLookup;
-	private final Function<Type, IuJsonAdapter<?>> adapterFactory;
+	private final IuOidcClientReference config;
+	private final String accessToken;
+	private final WebToken verifiedAccessToken;
 	private final String principalNameClaimName;
 
-	/**
-	 * Constructor.
-	 *
-	 * @param idToken           ID token
-	 * @param userinfoClaims    Claims provided by the userinfo endpoint
-	 * @param setCookie         set-cookie header value to pass back to the user
-	 *                          agent if session state changed assembling the
-	 *                          principal
-	 * @param accessTokenLookup finds access tokens by URI; <em>may</em> interact
-	 *                          with the OpenID Provider's token endpoint
-	 * @param adapterFactory    JSON type adapter factory
-	 */
-	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
-			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory) {
-		this(idToken, userinfoClaims, setCookie, accessTokenLookup, adapterFactory, null);
-	}
+	/** On-behalf-of grants by API root resource URI; synchronized on itself. */
+	private final Map<URI, OidcTokenGrant> grants = new HashMap<>();
 
 	/**
 	 * Constructor.
 	 *
-	 * @param idToken                ID token
-	 * @param userinfoClaims         Claims provided by the userinfo endpoint
+	 * @param idToken                verified ID token
+	 * @param userinfoClaims         claims provided by the userinfo endpoint; MUST
+	 *                               include a sub claim matching the ID token
 	 * @param setCookie              set-cookie header value to pass back to the
 	 *                               user agent if session state changed assembling
 	 *                               the principal
-	 * @param accessTokenLookup      finds access tokens by URI; <em>may</em>
-	 *                               interact with the OpenID Provider's token
-	 *                               endpoint
-	 * @param adapterFactory         JSON type adapter factory
+	 * @param config                 OIDC client configuration reference; supplies
+	 *                               the client's own resource URI, downstream API
+	 *                               resource URIs, and JSON type adapters
+	 * @param accessToken            access token issued with the ID token
+	 * @param verifiedAccessToken    {@code accessToken} parsed and verified as a
+	 *                               JWT issued by the OpenID Provider; null if it
+	 *                               couldn't be verified as such, in which case its
+	 *                               audience is not considered
 	 * @param principalNameClaimName claim name for principal name; null to use
 	 *                               "sub"
 	 */
-	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie,
-			UnsafeFunction<URI, String> accessTokenLookup, Function<Type, IuJsonAdapter<?>> adapterFactory,
-			String principalNameClaimName) {
+	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie, IuOidcClientReference config,
+			String accessToken, WebToken verifiedAccessToken, String principalNameClaimName) {
 		this.idToken = idToken;
 
 		if (!userinfoClaims.containsKey("sub"))
@@ -100,8 +102,10 @@ public class OidcPrincipal implements IuOidcPrincipal {
 
 		this.setCookie = setCookie;
 
-		this.accessTokenLookup = accessTokenLookup;
-		this.adapterFactory = adapterFactory;
+		this.config = config;
+		this.accessToken = accessToken;
+		this.verifiedAccessToken = verifiedAccessToken;
+
 		this.principalNameClaimName = principalNameClaimName;
 	}
 
@@ -113,7 +117,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 				return idTokenValue;
 			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
 			if (userinfoValue != null)
-				return (String) adapterFactory.apply(String.class).fromJson(userinfoValue);
+				return config.adaptJson(String.class).fromJson(userinfoValue);
 		}
 		return idToken.getSubject();
 	}
@@ -138,12 +142,88 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (userinfoClaimValue == null)
 			return null;
 
-		return type.cast(adapterFactory.apply(type).fromJson(userinfoClaimValue));
+		return type.cast(config.adaptJson(type).fromJson(userinfoClaimValue));
 	}
 
 	@Override
 	public String getAccessToken(URI resourceUri) throws IOException {
-		return IuException.checked(IOException.class, resourceUri, accessTokenLookup);
+		if (isDirectlyAuthorized(resourceUri))
+			return accessToken;
+
+		final Supplier<String> error = () -> "invalid resource URI " + resourceUri + (verifiedAccessToken == null
+				? "; access token not verified"
+				: "; access token doesn't include resource URI as audience " + verifiedAccessToken.getAudience());
+
+		final var apiResource = Objects.requireNonNull(selectApiResource(resourceUri, error), error);
+
+		try {
+			return oboGrant(apiResource).getTokenResponse().getAccessToken();
+		} catch (Throwable e) {
+			// the on-behalf-of exchange doesn't know why it was needed; attach that
+			// context so a failed exchange reports the resource and audience mismatch
+			e.addSuppressed(new IllegalArgumentException(error.get()));
+			throw e;
+		}
+	}
+
+	/**
+	 * Determines whether the access token issued with the ID token may be sent to a
+	 * resource as-is, without an on-behalf-of exchange.
+	 *
+	 * @param resourceUri resource URI
+	 * @return true if the resource is covered by the client's own resource URI, or
+	 *         named as an audience by the verified access token; else false
+	 */
+	private boolean isDirectlyAuthorized(URI resourceUri) {
+		if (IuWebUtils.isRootOf(config.getResourceUri(), resourceUri))
+			return true;
+
+		if (verifiedAccessToken == null)
+			return false;
+
+		final var audience = verifiedAccessToken.getAudience();
+		if (audience == null)
+			return false;
+
+		for (final var aud : audience)
+			if (IuWebUtils.isRootOf(aud, resourceUri))
+				return true;
+
+		return false;
+	}
+
+	/**
+	 * Selects the most specific configured API root resource URI that covers a
+	 * resource URI.
+	 *
+	 * @param resourceUri resource URI
+	 * @param error       describes the resource URI mismatch that made the lookup
+	 *                    necessary; reported if no API resources are configured
+	 * @return API root resource URI; null if none cover {@code resourceUri}
+	 * @throws NullPointerException if no API resources are configured
+	 */
+	private URI selectApiResource(URI resourceUri, Supplier<String> error) {
+		URI apiResource = null;
+		for (final var configured : Objects.requireNonNull(config.getApiResources(), error))
+			if (IuWebUtils.isRootOf(configured, resourceUri) //
+					&& (apiResource == null //
+							|| IuWebUtils.isRootOf(apiResource, configured)))
+				apiResource = configured;
+
+		return apiResource;
+	}
+
+	/**
+	 * Gets the on-behalf-of grant for an API root resource URI, creating and
+	 * caching one on first use.
+	 *
+	 * @param apiResource API root resource URI
+	 * @return {@link OidcTokenGrant}
+	 */
+	private OidcTokenGrant oboGrant(URI apiResource) {
+		synchronized (grants) {
+			return grants.computeIfAbsent(apiResource, a -> new OnBehalfOfGrant(config, a, accessToken));
+		}
 	}
 
 	@Override

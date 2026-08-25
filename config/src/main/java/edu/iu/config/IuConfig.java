@@ -331,7 +331,16 @@ public class IuConfig {
 	 * types without a dedicated adapter, such as types registered with
 	 * {@link #registerFactory(Class, Function)}, use the standard adapter for the
 	 * requested type.
-	 * 
+	 *
+	 * <p>
+	 * Mirrors {@link IuJsonAdapter#adapt(Type, IuJsonPropertyNameFormat)}, resolving
+	 * nested property values through this method so registered adapters apply at
+	 * every level. A {@link IuObject#isPlatformName(String) non-platform} interface
+	 * or class converts as a JavaBeans type; {@link Class#isPrimitive() primitive},
+	 * {@link Class#isArray() array}, and {@link Class#isEnum() enum} types are
+	 * handled by {@link IuJsonAdapter#of(Type, Function)} even when non-platform.
+	 * </p>
+	 *
 	 * @param type type
 	 * @return {@link IuJsonAdapter}
 	 */
@@ -342,7 +351,10 @@ public class IuConfig {
 
 		if (type instanceof Class) {
 			final var c = (Class<?>) type;
-			if (!IuObject.isPlatformName(c.getName()))
+			if (!IuObject.isPlatformName(c.getName()) //
+					&& !c.isPrimitive() //
+					&& !c.isArray() //
+					&& !c.isEnum())
 				return IuJsonAdapter.from((Class<?>) type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
 						IuConfig::adaptJson);
 		}
