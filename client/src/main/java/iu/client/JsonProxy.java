@@ -174,6 +174,19 @@ public final class JsonProxy implements InvocationHandler {
 	}
 
 	private JsonValue returnValueWithCaseConversion(String propertyName) {
+		return valueWithCaseConversion(value, propertyName);
+	}
+
+	/**
+	 * Gets a property value from a {@link JsonObject}, checking each
+	 * {@link IuJsonPropertyNameFormat} in turn.
+	 * 
+	 * @param value        {@link JsonObject}
+	 * @param propertyName camel case property name
+	 * @return {@link JsonValue}; null if the property is undefined in all supported
+	 *         name formats
+	 */
+	static JsonValue valueWithCaseConversion(JsonObject value, String propertyName) {
 		if (value.containsKey(propertyName))
 			return value.get(propertyName);
 

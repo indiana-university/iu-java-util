@@ -61,9 +61,13 @@ import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateKeySpec;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 
 import javax.crypto.spec.SecretKeySpec;
 
@@ -84,6 +88,7 @@ import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.test.IuTest;
+import edu.iu.test.IuTestLogger;
 
 @SuppressWarnings("javadoc")
 public class JwkTest extends CryptImplTestCase {
@@ -392,6 +397,39 @@ public class JwkTest extends CryptImplTestCase {
 		final var key2 = (Jwk) WebKey.builder(Algorithm.ES384).ephemeral().ops(Operation.VERIFY).build().wellKnown();
 		assertNotEquals(key, key2);
 		assertFalse(key.represents(key2));
+	}
+
+	@Test
+	public void testReadJwksThrowsInitialLookupFailure() throws IOException {
+		final var uri = URI.create("https://example.test/jwks/" + IdGenerator.generateId());
+		final var failure = new IllegalStateException("JWKS unavailable");
+		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenThrow(failure);
+			assertSame(failure, assertThrows(IllegalStateException.class, () -> Jwk.readJwks(uri)));
+		}
+	}
+
+	@Test
+	public void testReadJwksRetainsCachedKeysAfterRefreshFailure() throws Exception {
+		final var uri = URI.create("https://example.test/jwks/" + IdGenerator.generateId());
+		final var key = (Jwk) WebKey.ephemeral(Algorithm.ES256);
+		final var jwks = Jwk.asJwks(IuIterable.iter(key));
+		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks)
+					.thenThrow(new IllegalStateException("JWKS unavailable"));
+			assertEquals(key, Jwk.readJwks(uri).iterator().next());
+
+			final var cache = Jwk.class.getDeclaredField("JWKS_CACHE");
+			cache.setAccessible(true);
+			final var cached = ((Map<?, ?>) cache.get(null)).get(uri);
+			final var lastUpdate = cached.getClass().getDeclaredField("lastUpdate");
+			lastUpdate.setAccessible(true);
+			lastUpdate.set(cached, Instant.now().minus(Duration.ofMinutes(16L)));
+
+			IuTestLogger.expect(Jwk.class.getName(), Level.INFO,
+					"JWKS lookup failure " + uri + "; using last good version", IllegalStateException.class);
+			assertEquals(key, Jwk.readJwks(uri).iterator().next());
+		}
 	}
 
 	private void assertEphemeral(Jwk jwk) throws IOException {

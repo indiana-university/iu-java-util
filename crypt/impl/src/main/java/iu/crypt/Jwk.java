@@ -52,13 +52,16 @@ import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.XECPrivateKeySpec;
 import java.security.spec.XECPublicKeySpec;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import edu.iu.IuCacheMap;
 import edu.iu.IuException;
 import edu.iu.IuIterable;
 import edu.iu.IuObject;
@@ -77,7 +80,14 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		IuObject.assertNotOpen(JweBuilder.class);
 	}
 
-	private static Map<URI, Jwk[]> JWKS_CACHE = new IuCacheMap<>(Duration.ofMinutes(15L));
+	private static final Logger LOG = Logger.getLogger(Jwk.class.getName());
+
+	private static class CachedJwks {
+		private volatile Jwk[] jwks;
+		private volatile Instant lastUpdate;
+	}
+
+	private static Map<URI, CachedJwks> JWKS_CACHE = new HashMap<>();
 
 	private static JsonObject writeAsJwks(Iterable<? extends WebKey> webKeys) {
 		return IuJson.object().add("keys", IuJsonAdapter.of(Iterable.class, CryptJsonAdapters.WEBKEY).toJson(webKeys))
@@ -85,18 +95,38 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	}
 
 	/**
-	 * Gets key set by URI.
+	 * Gets key set by URI. Successfully retrieved key sets are cached for fifteen minutes. If a refresh fails after
+	 * a successful retrieval, the last cached key set is returned; an initial retrieval failure is propagated.
 	 * 
 	 * @param uri Key set URI
 	 * @return key set
 	 * @throws IOException if an error occurs reading the URI
 	 */
 	public static Iterable<Jwk> readJwks(URI uri) throws IOException {
-		var jwks = JWKS_CACHE.get(uri);
-		if (jwks == null)
-			JWKS_CACHE.put(uri, jwks = IuJsonAdapter.<Stream<Jwk>>of(Stream.class, CryptJsonAdapters.WEBKEY)
-					.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray("keys")).toArray(Jwk[]::new));
-		return IuIterable.iter(jwks);
+		final CachedJwks cached;
+		synchronized (JWKS_CACHE) {
+			final var c = JWKS_CACHE.get(uri);
+			if (c == null)
+				JWKS_CACHE.put(uri, cached = new CachedJwks());
+			else
+				cached = c;
+		}
+
+		if (cached.lastUpdate == null //
+				|| Duration.between(cached.lastUpdate, Instant.now()).toSeconds() > 900L)
+			try {
+				cached.jwks = IuJsonAdapter.<Stream<Jwk>>of(Stream.class, CryptJsonAdapters.WEBKEY)
+						.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray("keys")).toArray(Jwk[]::new);
+				cached.lastUpdate = Instant.now();
+			} catch (Throwable e) {
+				if (cached.jwks == null)
+					throw e;
+				else
+					LOG.log(Level.INFO, e, () -> "JWKS lookup failure " + uri
+							+ "; using last good version");
+			}
+
+		return IuIterable.iter(cached.jwks);
 	}
 
 	/**

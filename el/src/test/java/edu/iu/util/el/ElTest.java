@@ -40,9 +40,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Map;
 import java.util.logging.Level;
 
-
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuException;
@@ -70,6 +71,17 @@ public class ElTest {
 
 			return Files.readString(resourcePath);
 		});
+	}
+	
+	@BeforeEach
+	void setup() throws Exception {
+		var f = El.class.getDeclaredField("INLINE_TEMPLATE_CACHE");
+		f.setAccessible(true);
+		((Map<?, ?>) f.get(null)).clear();
+		
+		f = El.class.getDeclaredField("TEMPLATE_CACHE");
+		f.setAccessible(true);
+		((Map<?, ?>) f.get(null)).clear();
 	}
 
 	@Test
@@ -176,6 +188,15 @@ public class ElTest {
 		final var c = b.build();
 		assertEquals("missing close bracket ']'",
 				assertThrows(IllegalArgumentException.class, () -> El.eval(c, "['foo")).getMessage());
+	}
+
+	@Test
+	public void testFailedDottedSelectionIncludesEvaluationContext() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> El.eval(JsonValue.TRUE, ".foo?"));
+		assertEquals("expected object or array for property 'foo', found true", error.getMessage());
+		assertEquals(1, error.getSuppressed().length);
+		assertEquals("Evaluating EL expression \".foo?\" at 4: \".foo[?]\"",
+				error.getSuppressed()[0].getMessage());
 	}
 
 	@Test
@@ -403,7 +424,7 @@ public class ElTest {
 		assertEquals("zero is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero?'zero is true!'zero is false")));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.baz?'baz is true"));
-		assertEquals(JsonValue.TRUE, El.eval(context, "$.foo!'foo is false"));
+		assertNull(El.eval(context, "$.foo!'foo is false"));
 		assertNull(El.eval("$?'no context"));
 	}
 
@@ -422,7 +443,7 @@ public class ElTest {
 		assertEquals("baz is false", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz!'baz is false")));
 		assertEquals("bum is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
-		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.one!'one is false")));
+		assertNull(IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.one!'one is false")));
 		assertEquals("zero is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero!'zero is false")));
 		assertEquals("bif is null",

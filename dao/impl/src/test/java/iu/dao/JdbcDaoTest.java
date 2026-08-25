@@ -682,6 +682,46 @@ public class JdbcDaoTest {
 		assertEquals(List.of("0000123"), List.copyOf((List<?>) dao.getBeanDelete(person).getArguments()));
 	}
 
+	/**
+	 * Entity whose stored value is a field, exposed through accessors that convert to
+	 * a type no column holds.
+	 */
+	@Entity
+	@Table(name = "person", schema = "s")
+	public static class ConvertingPerson {
+		@Id
+		@Column(name = "EMPLID")
+		private String employeeId;
+
+		/** Stored as delimited text, exposed as the parsed list. */
+		@Column(name = "LABEL")
+		private String label;
+
+		public List<String> getLabel() {
+			return label == null ? List.of() : List.of(label.split(","));
+		}
+
+		public void setLabel(List<String> label) {
+			this.label = String.join(",", label);
+		}
+	}
+
+	@Test
+	public void testFieldMappedColumnIsPopulatedAndBoundThroughItsFieldNotItsAccessors() {
+		final var person = daoOver(personRow("0000123", "a,b")).getBeanQuery(ConvertingPerson.class, List.of())
+				.getSingleResult();
+
+		// Read: the column value is the field's, so writing it through the setter —
+		// which takes the property's List — would fail on a type mismatch.
+		assertEquals("a,b", person.label);
+		assertEquals(List.of("a", "b"), person.getLabel());
+
+		// Write: the same field supplies the bind argument, not the getter's List.
+		final var jdbc = new Jdbc();
+		final var dao = new JdbcDao(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION), registry());
+		assertEquals(List.of("a,b", "0000123"), List.copyOf((List<?>) dao.getBeanUpdate(person).getArguments()));
+	}
+
 	@Test
 	public void testMappedColumnNamesPopulateTheirProperties() {
 		// The default SQL builder, so that column resolution runs against real entity

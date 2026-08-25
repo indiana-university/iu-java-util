@@ -31,13 +31,14 @@
  */
 package iu.oidc.client;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -50,19 +51,31 @@ import edu.iu.IuObject;
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
 import edu.iu.IuWebUtils;
-import edu.iu.UnsafeFunction;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebSignedPayload;
+import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSession;
+import iu.oidc.client.config.IuOidcClient;
 import iu.oidc.client.config.IuOidcClientReference;
+import jakarta.json.JsonObject;
 
 /**
  * {@link IuOidcAuthorization} implementation resource.
+ *
+ * <p>
+ * Successful authorization and token refreshes retrieve userinfo claims and
+ * store them in the managed {@link OidcPostAuthSession}. Principal lookup then
+ * reuses those claims without another userinfo request while the token response
+ * is unchanged. Sessions created before the claims were stored are repaired on
+ * their next principal lookup.
+ * </p>
  */
 public class OidcAuthorization implements IuOidcAuthorization {
 
@@ -148,10 +161,16 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var session = sessionHandler.activate(requestAttributes.getCookies());
 		if (session == null)
 			throw new IllegalStateException("missing or expired preAuth session");
-
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
+
+		final var preAuthState = preAuth.getState();
+		if (preAuthState == null)
+			throw new IllegalStateException("invalid pre-auth session; missing state");
+		if (state == null)
+			throw new IuBadRequestException("missing state parameter");
 		if (!IuObject.equals(preAuth.getState(), state))
 			throw new IllegalStateException("state mismatch " + state + " preAuth=" + preAuth);
+		preAuth.setState(null);
 
 		final var grant = new AuthorizationGrant(config, code, config.getRedirectUri());
 		final var response = grant.getTokenResponse();
@@ -166,9 +185,13 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			throw new IllegalArgumentException("Expected nonce claim");
 		else
 			IuObject.once(nonce, vnonce, "nonce mismatch");
+		preAuth.setNonce(null);
+
+		final var userinfoClaims = getUserinfoClaims(config.getClient(), response.getAccessToken());
 
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
 		postAuth.setTokenResponse(response);
+		postAuth.setUserinfoClaims(userinfoClaims);
 
 		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
 		postAuth.setNotAfter(
@@ -189,6 +212,102 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		};
 	}
 
+	/**
+	 * Verifies an access token as a JWT signed by the OpenID Provider.
+	 *
+	 * <p>
+	 * Returns null when the access token can't be identified as one issued by the
+	 * provider, so callers can fall back to another means of authorizing access,
+	 * e.g., token exchange. This includes tokens that are not signed JWTs, whose
+	 * issuer claim does not match provider metadata, or whose key ID the provider
+	 * does not publish. Once the issuer and key ID match, a signature verification
+	 * failure is not a fallback signal and is allowed to propagate.
+	 * </p>
+	 *
+	 * @param accessToken access token
+	 * @return verified {@link WebToken}; null if the access token isn't a signed
+	 *         JWT, its issuer doesn't match provider metadata, or its key isn't
+	 *         published by the issuer
+	 * @throws IOException if OP metadata or JWKS interactions fail
+	 */
+	private WebToken verifyAccessToken(String accessToken) throws IOException {
+		final WebCryptoHeader jose;
+		try {
+			jose = WebCryptoHeader.getProtectedHeader(accessToken);
+		} catch (RuntimeException e) {
+			return null; // not a JWT
+		}
+
+		final var kid = jose.getKeyId();
+		if (kid == null)
+			return null;
+
+		final var metadata = OidcProviders.getMetadata(config.getProvider());
+
+		// Parse claims and verify the access token was issued by the provider
+		// before attempting to validate the signature or inspect audience claim.
+		// Failure isn't strictly an issue since the access token probably isn't for us.
+		// FINE messages simply indicate we're going to ignore the audience claim
+		// when determining whether or not to use the access token with a remote call
+		final JsonObject claims;
+		try {
+			claims = IuJson.parse(new ByteArrayInputStream(WebSignedPayload.parse(accessToken).getPayload()))
+					.asJsonObject();
+
+			final var expectedIssuer = metadata.getIssuer().toString();
+			final var iss = claims.getString("iss");
+			if (!expectedIssuer.equals(iss)) {
+				LOG.fine(() -> "access token iss claim mismatch " + iss + "; expected " + expectedIssuer);
+				return null;
+			}
+
+		} catch (Exception e) {
+			LOG.log(Level.FINE, e, () -> "couldn't verify access token iss claim");
+			return null;
+		}
+
+		final WebKey issuerKey;
+		try {
+			issuerKey = IuIterable.select(WebKey.readJwks(metadata.getJwksUri()), k -> kid.equals(k.getKeyId()));
+		} catch (NoSuchElementException e) {
+			return null; // signing key not published by issuer
+		}
+
+		// fail if the access token can't be verified as a valid JWT; this indicates
+		// an invalid response from the token endpoint
+		return WebToken.verify(accessToken, issuerKey);
+	}
+
+	/**
+	 * Retrieves, decrypts when configured, and parses the userinfo claims for an
+	 * access token.
+	 *
+	 * @param metadata    provider metadata containing the userinfo endpoint
+	 * @param client      client configuration, including optional decryption keys
+	 * @param accessToken token used to authorize the userinfo request
+	 * @return parsed userinfo claims
+	 * @throws IOException if the userinfo request fails
+	 */
+	private JsonObject getUserinfoClaims(IuOidcClient client, String accessToken) throws IOException {
+		final var encryptedUserinfoResponse = IuHttp.send(
+				OidcProviders.getMetadata(config.getProvider()).getUserinfoEndpoint(),
+				rb -> rb.header("Authorization", "Bearer " + accessToken), IuHttp.READ_UTF8);
+
+		final String userinfoResponse;
+		final var decryptKeys = client.getDecryptJwk();
+		if (decryptKeys != null) {
+			final var jose = WebCryptoHeader.getProtectedHeader(encryptedUserinfoResponse);
+			final var kid = Objects.requireNonNull(jose.getKeyId(),
+					"userinfo response header missing decryption key ID");
+			final var decryptJwk = IuIterable.select(decryptKeys, k -> kid.equals(k.getKeyId()),
+					"decryption key not found using kid " + kid);
+			userinfoResponse = WebEncryption.parse(encryptedUserinfoResponse).decryptText(decryptJwk);
+		} else
+			userinfoResponse = encryptedUserinfoResponse; // not encrypted
+
+		return IuJson.parse(userinfoResponse).asJsonObject();
+	}
+
 	@Override
 	public IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes requestAttributes) throws IOException {
 		final var sessionHandler = config.getSessionHandler();
@@ -199,7 +318,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var postAuth = session.getDetail(OidcPostAuthSession.class);
 		final var notAfter = postAuth.getNotAfter();
 		if (notAfter == null)
-			throw new IllegalStateException("missing post-auth not-after date");
+			return null; // init w/o authorize; incomplete login session
 
 		final var grant = new RefreshTokenGrant(config, postAuth.getTokenResponse(), postAuth.getNotAfter());
 
@@ -207,14 +326,23 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final IuOidcTokenResponse response;
 		try {
 			response = grant.getTokenResponse();
-		} catch (Throwable e) {
+		} catch (RuntimeException e) {
 			LOG.log(Level.INFO, "refresh token failed after ID token expired", e);
 			return null;
 		}
 
+		final var client = config.getClient();
+
+		JsonObject userinfoClaims = postAuth.getUserinfoClaims();
 		if (!response.equals(postAuth.getTokenResponse())) {
+			userinfoClaims = getUserinfoClaims(client, response.getAccessToken());
 			postAuth.setTokenResponse(response);
 			postAuth.setNotAfter(grant.getNotAfter());
+			postAuth.setUserinfoClaims(userinfoClaims);
+			setCookie = sessionHandler.store(session);
+		} else if (userinfoClaims == null) {
+			userinfoClaims = getUserinfoClaims(client, response.getAccessToken());
+			postAuth.setUserinfoClaims(userinfoClaims);
 			setCookie = sessionHandler.store(session);
 		} else if (!postAuth.isStrict()) {
 			postAuth.setStrict(true);
@@ -224,56 +352,10 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			setCookie = null;
 
 		final var accessToken = response.getAccessToken();
-		final var idToken = grant.getIdToken();
+		final var verifiedAccessToken = verifyAccessToken(accessToken);
 
-		final var metadata = OidcProviders.getMetadata(config.getProvider());
-		final var client = config.getClient();
-
-		final var encryptedUserinfoResponse = IuHttp.send(metadata.getUserinfoEndpoint(),
-				rb -> rb.header("Authorization", "Bearer " + accessToken), IuHttp.READ_UTF8);
-		final String userinfoResponse;
-		final var decryptKeys = client.getDecryptJwk();
-		if (decryptKeys != null) {
-			final var jose = WebCryptoHeader.getProtectedHeader(encryptedUserinfoResponse);
-			final var kid = Objects.requireNonNull(jose.getKeyId(), "ID token header missing decryption key ID");
-			final var decryptJwk = IuIterable.select(decryptKeys, k -> kid.equals(k.getKeyId()),
-					"decryption key not found using kid " + kid);
-			userinfoResponse = WebEncryption.parse(encryptedUserinfoResponse).decryptText(decryptJwk);
-		} else
-			userinfoResponse = encryptedUserinfoResponse; // not encrypted
-
-		final var accessTokenLookup = new UnsafeFunction<URI, String>() {
-			private final Map<URI, OidcTokenGrant> grants = new HashMap<>();
-
-			@Override
-			public String apply(URI uri) throws IOException {
-				final var accessToken = grant.getTokenResponse().getAccessToken();
-				if (IuWebUtils.isRootOf(config.getClient().getResourceUri(), uri))
-					return accessToken;
-
-				URI apiResource = null;
-				for (final var u : config.getApiResources())
-					if (IuWebUtils.isRootOf(u, uri) //
-							&& (apiResource == null //
-									|| IuWebUtils.isRootOf(apiResource, u)))
-						apiResource = u;
-				Objects.requireNonNull(apiResource, "invalid resource URI " + uri);
-
-				final OidcTokenGrant obo;
-				synchronized (grants) {
-					final var cached = grants.get(apiResource);
-					if (cached == null)
-						grants.put(apiResource, obo = new OnBehalfOfGrant(config, apiResource, accessToken));
-					else
-						obo = cached;
-				}
-
-				return obo.getTokenResponse().getAccessToken();
-			}
-		};
-
-		return new OidcPrincipal(idToken, IuJson.parse(userinfoResponse).asJsonObject(), setCookie, accessTokenLookup,
-				config::adaptJson, client.getPrincipalNameClaimName());
+		return new OidcPrincipal(grant.getIdToken(), userinfoClaims, setCookie, config, accessToken,
+				verifiedAccessToken, client.getPrincipalNameClaimName());
 	}
 
 }

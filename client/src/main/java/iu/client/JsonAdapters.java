@@ -78,7 +78,6 @@ import java.util.SortedSet;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
@@ -92,7 +91,12 @@ import edu.iu.client.IuJsonAdapter;
  */
 public final class JsonAdapters {
 
-	private static final Map<Class<?>, Class<?>> ARRAY_TYPES = new WeakHashMap<>();
+	private static final ClassValue<Class<?>> ARRAY_TYPES = new ClassValue<>() {
+		@Override
+		protected Class<?> computeValue(Class<?> component) {
+			return Array.newInstance(component, 0).getClass();
+		}
+	};
 
 	/**
 	 * {@link IuJsonAdapter} factory method.
@@ -102,7 +106,7 @@ public final class JsonAdapters {
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public static IuJsonAdapter adapt(Type type, Function<Class<?>, IuJsonAdapter<?>> valueAdapter) {
+	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		Class erased = erase(type);
 
 		if (erased == Object.class)
@@ -185,7 +189,7 @@ public final class JsonAdapters {
 		if (erased == URI.class)
 			return ParsingJsonAdapter.of(URI.class, URI::create);
 		if (erased == URL.class)
-			return ParsingJsonAdapter.of(URL.class, a -> IuException.unchecked(() -> new URL(a)));
+			return ParsingJsonAdapter.of(URL.class, a -> IuException.unchecked(() -> URI.create(a).toURL()));
 
 		if (erased.isEnum())
 			return ParsingJsonAdapter.of(erased, v -> Enum.valueOf(erased, v));
@@ -200,7 +204,7 @@ public final class JsonAdapters {
 
 		if (erased.isArray()) {
 			final var item = item(type);
-			final IntFunction factory = n -> Array.newInstance(item, n);
+			final IntFunction factory = n -> Array.newInstance(erase(item), n);
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
 				itemAdapter = valueAdapter.apply(item);
@@ -261,12 +265,12 @@ public final class JsonAdapters {
 					valueAdapter = IuJsonAdapter::of;
 				else
 					valueAdapter = a -> BasicJsonAdapter.INSTANCE;
-			final IuJsonAdapter keyAdapter ;	
-			if (type instanceof ParameterizedType)	
-					keyAdapter = valueAdapter.apply(erase(((ParameterizedType) type).getActualTypeArguments()[0]));
-			else 
-				    keyAdapter = BasicJsonAdapter.INSTANCE;
-					
+			final IuJsonAdapter keyAdapter;
+			if (type instanceof ParameterizedType)
+				keyAdapter = valueAdapter.apply(((ParameterizedType) type).getActualTypeArguments()[0]);
+			else
+				keyAdapter = BasicJsonAdapter.INSTANCE;
+
 			if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
 				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), LinkedHashMap::new);
@@ -286,20 +290,18 @@ public final class JsonAdapters {
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
 	}
 
-	private static Class<?> erase(Type type) {
+	/**
+	 * Erases a {@link Type} to its equivalent raw {@link Class}.
+	 *
+	 * @param type type
+	 * @return raw class
+	 */
+	public static Class<?> erase(Type type) {
 		if (type instanceof Class)
 			return (Class<?>) type;
-		else if (type instanceof GenericArrayType) {
-			final var component = erase(((GenericArrayType) type).getGenericComponentType());
-			var array = ARRAY_TYPES.get(component);
-			if (array == null) {
-				array = Array.newInstance(component, 0).getClass();
-				synchronized (ARRAY_TYPES) {
-					ARRAY_TYPES.put(component, array);
-				}
-			}
-			return array;
-		} else if (type instanceof ParameterizedType)
+		else if (type instanceof GenericArrayType)
+			return ARRAY_TYPES.get(erase(((GenericArrayType) type).getGenericComponentType()));
+		else if (type instanceof ParameterizedType)
 			return erase(((ParameterizedType) type).getRawType());
 		else if (type instanceof TypeVariable)
 			return erase(((TypeVariable<?>) type).getBounds()[0]);
@@ -307,19 +309,23 @@ public final class JsonAdapters {
 			return erase(((WildcardType) type).getUpperBounds()[0]);
 	}
 
-	private static Class<?> item(Type type) {
+	private static Type item(Type type) {
 		if (type instanceof Class) {
-			return ((Class<?>) type).getComponentType();
+			final var c = (Class<?>) type;
+			if (c.isArray())
+				return ((Class<?>) type).getComponentType();
+			else
+				return Object.class;
 		} else if (type instanceof GenericArrayType)
-			return erase(((GenericArrayType) type).getGenericComponentType());
+			return ((GenericArrayType) type).getGenericComponentType();
 		else {
 			// assumes erase() was invoked and returned a supported type first
 			final var p = (ParameterizedType) type;
 			final var raw = erase(p);
 			if (Map.class.isAssignableFrom(raw))
-				return erase(p.getActualTypeArguments()[1]);
+				return p.getActualTypeArguments()[1];
 			else
-				return erase(p.getActualTypeArguments()[0]);
+				return p.getActualTypeArguments()[0];
 		}
 	}
 

@@ -89,9 +89,11 @@ public class SessionHandlerTest {
 	@Test
 	void testSessionCookieName() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var handler = new SessionHandler(resourceUri, null, null);
-		assertEquals("iu-sk_" + IuText.base64Url(IuDigest.sha256(IuText.utf8(resourceUri.toString()))),
-				handler.getSessionCookieName());
+		final var config = configuration();
+		final var handler = new SessionHandler(resourceUri, () -> config, null);
+		final var seed = resourceUri + config.getJwk().getKeyId();
+		assertEquals("iu-sk_" + IuText.base64Url(IuDigest.sha256(IuText.utf8(seed))),
+				handler.getSessionCookieName(config));
 	}
 
 	@Test
@@ -103,7 +105,8 @@ public class SessionHandlerTest {
 	@Test
 	void testActivateNoCookies() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var handler = new SessionHandler(resourceUri, null, null);
+		final var config = configuration();
+		final var handler = new SessionHandler(resourceUri, () -> config, null);
 		assertNull(handler.activate(null));
 		assertNull(handler.activate(IuIterable.iter()));
 	}
@@ -111,18 +114,20 @@ public class SessionHandlerTest {
 	@Test
 	void testActivateNotStored() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
-		final var handler = new SessionHandler(resourceUri, null, store);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
 		final var secretKey = EphemeralKeys.secret("AES", 256);
-		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
+		final var cookie = new HttpCookie(handler.getSessionCookieName(config), IuText.base64Url(secretKey));
 		assertNull(handler.activate(IuIterable.iter(cookie)));
 	}
 
 	@Test
 	void testActivateDifferentCookie() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
-		final var handler = new SessionHandler(resourceUri, null, store);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var cookie = new HttpCookie(IdGenerator.generateId(), IuText.base64Url(secretKey));
 		assertNull(handler.activate(IuIterable.iter(cookie)));
@@ -131,9 +136,10 @@ public class SessionHandlerTest {
 	@Test
 	void testActivateCorrupt() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
-		final var handler = new SessionHandler(resourceUri, null, store);
-		final var cookie = new HttpCookie(handler.getSessionCookieName(), "!@#$%^");
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
+		final var cookie = new HttpCookie(handler.getSessionCookieName(config), "!@#$%^");
 		IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Invalid session cookie value",
 				IllegalArgumentException.class);
 		assertNull(handler.activate(IuIterable.iter(cookie)));
@@ -142,14 +148,14 @@ public class SessionHandlerTest {
 	@Test
 	void testActivateSuccess() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var config = mock(IuSessionConfiguration.class);
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
 		final var handler = new SessionHandler(resourceUri, () -> config, store);
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var hashKey = SessionHandler.hashKey(secretKey);
 		final var activated = IdGenerator.generateId();
 		when(store.get(hashKey)).thenReturn(IuText.utf8(activated));
-		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
+		final var cookie = new HttpCookie(handler.getSessionCookieName(config), IuText.base64Url(secretKey));
 		try (final var mockSession = mockConstruction(Session.class, (a, ctx) -> {
 			assertEquals(resourceUri, ctx.arguments().get(0));
 			assertEquals(activated, ctx.arguments().get(1));
@@ -164,13 +170,13 @@ public class SessionHandlerTest {
 	@Test
 	void testActivateSessionConstructorError() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var config = mock(IuSessionConfiguration.class);
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
 		final var handler = new SessionHandler(resourceUri, () -> config, store);
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var activated = IdGenerator.generateId();
 		when(store.get(SessionHandler.hashKey(secretKey))).thenReturn(IuText.utf8(activated));
-		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
+		final var cookie = new HttpCookie(handler.getSessionCookieName(config), IuText.base64Url(secretKey));
 		final var error = new Error();
 		IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Purging invalid session", Error.class,
 				thrown -> thrown == error);
@@ -184,7 +190,7 @@ public class SessionHandlerTest {
 	@Test
 	void testStore() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var config = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+		final var config = configuration();
 		when(config.getEnc()).thenReturn(Encryption.A256GCM);
 		final var store = mock(IuDataStore.class);
 		final var handler = new SessionHandler(resourceUri, () -> config, store);
@@ -192,7 +198,7 @@ public class SessionHandlerTest {
 		final var session = mock(Session.class);
 		when(session.tokenize(any(), eq(config))).thenReturn(stored);
 		final var setCookie = handler.store(session);
-		final var prefix = handler.getSessionCookieName() + "=";
+		final var prefix = handler.getSessionCookieName(config) + "=";
 		assertTrue(setCookie.startsWith(prefix), setCookie);
 		final var suffix = "; Path=" + resourceUri.getPath() + "; HttpOnly; SameSite=Lax";
 		assertTrue(setCookie.endsWith(suffix), setCookie);
@@ -205,7 +211,7 @@ public class SessionHandlerTest {
 	@Test
 	void testStoreStrictAndSecure() {
 		final var resourceUri = URI.create("https://" + IdGenerator.generateId());
-		final var config = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+		final var config = configuration();
 		when(config.getEnc()).thenReturn(Encryption.A256GCM);
 		final var store = mock(IuDataStore.class);
 		final var handler = new SessionHandler(resourceUri, () -> config, store);
@@ -214,7 +220,7 @@ public class SessionHandlerTest {
 		when(session.tokenize(any(), eq(config))).thenReturn(stored);
 		when(session.isStrict()).thenReturn(true);
 		final var setCookie = handler.store(session);
-		final var prefix = handler.getSessionCookieName() + "=";
+		final var prefix = handler.getSessionCookieName(config) + "=";
 		assertTrue(setCookie.startsWith(prefix), setCookie);
 		final var suffix = "; Path=/; Secure; HttpOnly; SameSite=Strict";
 		assertTrue(setCookie.endsWith(suffix), setCookie);
@@ -227,7 +233,8 @@ public class SessionHandlerTest {
 	@Test
 	void testRemoveNoCookies() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var handler = new SessionHandler(resourceUri, null, null);
+		final var config = configuration();
+		final var handler = new SessionHandler(resourceUri, () -> config, null);
 		handler.remove(null);
 		handler.remove(IuIterable.iter());
 	}
@@ -235,10 +242,11 @@ public class SessionHandlerTest {
 	@Test
 	void testRemoveSuccess() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
-		final var handler = new SessionHandler(resourceUri, null, store);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
 		final var secretKey = EphemeralKeys.secret("AES", 256);
-		final var cookie = new HttpCookie(handler.getSessionCookieName(), IuText.base64Url(secretKey));
+		final var cookie = new HttpCookie(handler.getSessionCookieName(config), IuText.base64Url(secretKey));
 		handler.remove(IuIterable.iter(cookie));
 		verify(store).put(SessionHandler.hashKey(secretKey), null);
 	}
@@ -246,8 +254,9 @@ public class SessionHandlerTest {
 	@Test
 	void testRemoveDifferentCookie() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
-		final var handler = new SessionHandler(resourceUri, null, store);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
 		final var secretKey = EphemeralKeys.secret("AES", 256);
 		final var cookie = new HttpCookie(IdGenerator.generateId(), IuText.base64Url(secretKey));
 		handler.remove(IuIterable.iter(cookie));
@@ -256,12 +265,21 @@ public class SessionHandlerTest {
 	@Test
 	void testRemoveCorrupt() {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
 		final var store = mock(IuDataStore.class);
-		final var handler = new SessionHandler(resourceUri, null, store);
-		final var cookie = new HttpCookie(handler.getSessionCookieName(), "!@#$%^");
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
+		final var cookie = new HttpCookie(handler.getSessionCookieName(config), "!@#$%^");
 		IuTestLogger.expect(SessionHandler.class.getName(), Level.INFO, "Invalid session cookie value",
 				IllegalArgumentException.class);
 		handler.remove(IuIterable.iter(cookie));
+	}
+
+	private static IuSessionConfiguration configuration() {
+		final var configuration = mock(IuSessionConfiguration.class, CALLS_REAL_METHODS);
+		final var jwk = mock(WebKey.class);
+		when(jwk.getKeyId()).thenReturn(IdGenerator.generateId());
+		when(configuration.getJwk()).thenReturn(jwk);
+		return configuration;
 	}
 
 }

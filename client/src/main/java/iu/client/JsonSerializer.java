@@ -82,6 +82,15 @@ public final class JsonSerializer {
 	/**
 	 * Serializes a business object as JSON.
 	 * 
+	 * <p>
+	 * Includes an entry for each readable JavaBeans property of {@code type},
+	 * including properties inherited from superclasses and declared as interface
+	 * default methods. Properties declared by {@link Object}, in particular
+	 * {@link Object#getClass() class}, are skipped, as are properties with a null
+	 * value. When more than one declaration maps to the same formatted property
+	 * name, the declaration nearest {@code type} wins.
+	 * </p>
+	 * 
 	 * @param <T>                value type
 	 * @param type               value type for introspection
 	 * @param value              business object to serialize
@@ -101,7 +110,7 @@ public final class JsonSerializer {
 		}
 
 		final var builder = IuJson.object();
-		
+
 		final Deque<Class<?>> todo = new ArrayDeque<>();
 		final Set<String> seen = new HashSet<>();
 		todo.push(type);
@@ -124,6 +133,10 @@ public final class JsonSerializer {
 
 			for (final var i : next.getInterfaces())
 				todo.push(i);
+
+			final var parent = next.getSuperclass();
+			if (parent != null && !IuObject.isPlatformName(parent.getName()))
+				todo.push(parent);
 		}
 
 		return builder.build();

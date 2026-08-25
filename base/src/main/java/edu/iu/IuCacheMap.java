@@ -341,7 +341,7 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 	}
 
 	private final Map<K, IuCachedValue<V>> cache = new ConcurrentHashMap<>();
-	private final Duration cacheTimeToLive;
+	private volatile Duration cacheTimeToLive;
 	private CacheKeySet keySet;
 	private CacheValues values;
 	private CacheEntrySet entrySet;
@@ -352,6 +352,28 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 	 * @param cacheTimeToLive maximum time to live for cache entries
 	 */
 	public IuCacheMap(Duration cacheTimeToLive) {
+		setCacheTimeToLive(cacheTimeToLive);
+	}
+
+	/**
+	 * Changes the maximum time to live for cache entries.
+	 *
+	 * <p>
+	 * The time to live is applied when an entry is stored, so this affects only
+	 * entries {@link #put stored} after this call. Entries already in the map keep
+	 * the expiration time they were given, and are unaffected until they are
+	 * replaced. This allows the time to live to be reconfigured without discarding
+	 * cached values.
+	 * </p>
+	 *
+	 * @param cacheTimeToLive maximum time to live for cache entries; must be
+	 *                        positive
+	 */
+	public void setCacheTimeToLive(Duration cacheTimeToLive) {
+		Objects.requireNonNull(cacheTimeToLive, "Missing cache TTL");
+		if (cacheTimeToLive.compareTo(Duration.ZERO) <= 0)
+			throw new IllegalArgumentException("Cache TTL must be positive");
+
 		this.cacheTimeToLive = cacheTimeToLive;
 	}
 
@@ -396,6 +418,45 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 		}
 		cache.put(key, ref(key, value));
 		return rv;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Unlike the {@link Map#computeIfAbsent(Object, Function) default
+	 * implementation}, which checks and stores in two steps, this implementation is
+	 * atomic: concurrent callers for the same absent key invoke
+	 * {@code mappingFunction} once and all receive the same value. This makes the
+	 * method suitable for creating an entry that is expensive to populate, or that
+	 * concurrent callers must share.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Implementation Note:</strong> {@code mappingFunction} is invoked
+	 * while holding a lock that serializes all {@link #computeIfAbsent} calls on
+	 * this map, so it <em>should</em> return quickly and <em>must not</em> access
+	 * this map.
+	 * </p>
+	 */
+	@Override
+	public V computeIfAbsent(K key, Function<? super K, ? extends V> mappingFunction) {
+		Objects.requireNonNull(mappingFunction, "Missing mappingFunction");
+
+		// guards check-then-store; deliberately not the backing map's own per-key
+		// lock, since a cached value that has expired removes itself from the
+		// backing map when read, which would be a recursive update
+		synchronized (cache) {
+			final var existing = get(key);
+			if (existing != null)
+				return existing;
+
+			final var computed = mappingFunction.apply(key);
+			if (computed != null)
+				put(key, computed);
+
+			return computed;
+		}
 	}
 
 	@Override

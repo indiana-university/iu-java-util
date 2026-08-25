@@ -364,10 +364,10 @@ public class EntityMetaDataTest {
 		}
 	}
 
-	/** Field and getter disagree, so the getter decides. */
+	/** Field and getter disagree, so the field — where the value is stored — decides. */
 	@Entity
 	@Table(name = "items", schema = "pub")
-	public static class GetterOverridesFieldEntity {
+	public static class FieldOverridesGetterEntity {
 		@Id
 		@Column(name = "ID")
 		private long id;
@@ -1858,8 +1858,12 @@ public class EntityMetaDataTest {
 	}
 
 	@Test
-	public void testGetterAnnotationWinsOverFieldAnnotation() {
-		assertEquals("FROM_GETTER", EntityMetaData.of(GetterOverridesFieldEntity.class).columns.get("label").columnName);
+	public void testFieldAnnotationWinsOverGetterAnnotation() {
+		// The annotated field is the one the column is read from and written to, so it
+		// is also the one that names the column; see ColumnMetaData.fieldMapped.
+		final var label = EntityMetaData.of(FieldOverridesGetterEntity.class).columns.get("label");
+		assertEquals("FROM_FIELD", label.columnName);
+		assertTrue(label.fieldMapped);
 	}
 
 	/** Annotated as an entity, but with nothing mapped to a column. */

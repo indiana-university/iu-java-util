@@ -31,12 +31,14 @@
  */
 package edu.iu.config;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -49,12 +51,19 @@ import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
@@ -95,6 +104,10 @@ public class IuConfigTest {
 	static class UnregisteredClass {
 	}
 
+	enum UnregisteredEnum {
+		FOO, BAR
+	}
+
 	@BeforeEach
 	public void setup() throws Exception {
 		teardown();
@@ -108,7 +121,11 @@ public class IuConfigTest {
 		f.setAccessible(true);
 		f.set(null, false);
 
-		f = IuConfig.class.getDeclaredField("STORAGE");
+		f = IuConfig.class.getDeclaredField("JSON");
+		f.setAccessible(true);
+		((Map<?, ?>) f.get(null)).clear();
+
+		f = IuConfig.class.getDeclaredField("CONFIG");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
 
@@ -147,6 +164,101 @@ public class IuConfigTest {
 		assertDoesNotThrow(() -> Thread.sleep(1000L)); // expires cache
 		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
 		verify(vault, times(2)).get("loadable/" + key); // returned to vault after cache expired
+	}
+
+	@Test
+	void testRegisterInterfaceRejectsExistingConfigurationAfterAdapterRemoved() throws Exception {
+		final var vault = mock(IuVault.class);
+		IuConfig.registerInterface("loadable", LoadableConfig.class, vault);
+
+		final var json = IuConfig.class.getDeclaredField("JSON");
+		json.setAccessible(true);
+		((Map<?, ?>) json.get(null)).remove(LoadableConfig.class);
+
+		assertEquals("already configured", assertThrows(IllegalArgumentException.class,
+				() -> IuConfig.registerInterface("loadable", LoadableConfig.class, vault)).getMessage());
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testRegisterFactory() {
+		final var key = IdGenerator.generateId();
+		final var factory = mock(Function.class);
+		final var config = mock(LoadableConfig.class);
+		when(factory.apply(key)).thenReturn(config);
+
+		assertDoesNotThrow(() -> IuConfig.registerFactory(LoadableConfig.class, factory));
+		assertThrows(IllegalArgumentException.class, () -> IuConfig.registerFactory(LoadableConfig.class, factory));
+		assertSame(config, IuConfig.load(LoadableConfig.class, key));
+		assertSame(config, IuConfig.load(LoadableConfig.class, key));
+		verify(factory).apply(key);
+	}
+
+	@Test
+	public void testRegisterFactoryUsesCachedValueForConcurrentLoad() throws Exception {
+		final var key = IdGenerator.generateId();
+		final var config = mock(LoadableConfig.class);
+		final var factoryCalls = new AtomicInteger();
+		final var factoryStarted = new CountDownLatch(1);
+		final var completeFactory = new CountDownLatch(1);
+		IuConfig.registerFactory(LoadableConfig.class, ignored -> {
+			factoryCalls.incrementAndGet();
+			factoryStarted.countDown();
+			try {
+				if (!completeFactory.await(5L, TimeUnit.SECONDS))
+					throw new IllegalStateException("timed out waiting for concurrent load");
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(e);
+			}
+			return config;
+		});
+
+		final var executor = Executors.newFixedThreadPool(2);
+		try {
+			final var first = executor.submit(() -> IuConfig.load(LoadableConfig.class, key));
+			assertTrue(factoryStarted.await(5L, TimeUnit.SECONDS));
+
+			final var secondThread = new AtomicReference<Thread>();
+			final var second = executor.submit(() -> {
+				secondThread.set(Thread.currentThread());
+				return IuConfig.load(LoadableConfig.class, key);
+			});
+			for (var i = 0; i < 100; i++) {
+				final var thread = secondThread.get();
+				if (thread != null && thread.getState() == Thread.State.BLOCKED)
+					break;
+				Thread.sleep(10L);
+			}
+			final var thread = secondThread.get();
+			assertTrue(thread != null && thread.getState() == Thread.State.BLOCKED);
+
+			completeFactory.countDown();
+			assertSame(config, first.get(5L, TimeUnit.SECONDS));
+			assertSame(config, second.get(5L, TimeUnit.SECONDS));
+			assertEquals(1, factoryCalls.get());
+		} finally {
+			completeFactory.countDown();
+			executor.shutdownNow();
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testRegisterFactoryWithCacheTtl() {
+		final var key = IdGenerator.generateId();
+		final var factory = mock(Function.class);
+		final var config = mock(UnloadableConfig.class);
+		when(factory.apply(key)).thenReturn(config);
+
+		assertThrows(NullPointerException.class, () -> IuConfig.registerFactory(LoadableConfig.class, null));
+		assertDoesNotThrow(() -> IuConfig.registerFactory(UnloadableConfig.class, factory, Duration.ofMinutes(1L)));
+		assertSame(config, IuConfig.load(UnloadableConfig.class, key));
+		verify(factory).apply(key);
+
+		IuConfig.seal();
+		assertThrows(IllegalStateException.class,
+				() -> IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class)));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -191,11 +303,48 @@ public class IuConfigTest {
 	}
 
 	@Test
+	public void testAdaptJsonUsesDefaultAdapterForFactoryRegisteredInterface() {
+		IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class));
+		final var adapter = mock(IuJsonAdapter.class);
+		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
+			mockJsonAdapter
+					.when(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
+							eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()))
+					.thenReturn(adapter);
+			assertSame(adapter, IuConfig.adaptJson(LoadableConfig.class));
+			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
+					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
+		}
+	}
+
+	@Test
 	public void testAdaptJsonUnregisteredNonPlatformClass() {
 		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
 			IuConfig.adaptJson(UnregisteredClass.class);
-			mockJsonAdapter.verify(() -> IuJsonAdapter.of(eq((Type) UnregisteredClass.class), any()));
+			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(UnregisteredClass.class),
+					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
 		}
+	}
+
+	@Test
+	public void testAdaptJsonPrimitive() {
+		// int isn't a platform name, but must still use the primitive adapter
+		assertEquals(42, IuConfig.adaptJson(int.class).fromJson(IuJson.number(42)));
+	}
+
+	@Test
+	public void testAdaptJsonArray() {
+		// URI[] erases to "[Ljava.net.URI;", which isn't a platform name, but must
+		// still use the array adapter rather than JavaBeans conversion
+		final var uri = URI.create("test:" + IdGenerator.generateId());
+		assertArrayEquals(new URI[] { uri },
+				IuConfig.adaptJson(URI[].class).fromJson(IuJson.array().add(uri.toString()).build()));
+	}
+
+	@Test
+	public void testAdaptJsonEnum() {
+		// a non-platform enum must use the enum adapter, not JavaBeans conversion
+		assertSame(UnregisteredEnum.BAR, IuConfig.adaptJson(UnregisteredEnum.class).fromJson(IuJson.string("BAR")));
 	}
 
 	@Test
@@ -315,12 +464,11 @@ public class IuConfigTest {
 		assertEquals(value, IuConfig.load(LoadableRef.class, key).getConfig().getValue());
 	}
 
-	@SuppressWarnings({ "unchecked", "deprecation" })
+	@SuppressWarnings({ "unchecked" })
 	@Test
 	public void testLoadableNoVault() {
 		final var vault = mock(IuVault.class);
 
-		assertDoesNotThrow(() -> IuConfig.registerInterface(LoadableConfig.class));
 		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableRef.class, vault));
 
 		final var key = IdGenerator.generateId();

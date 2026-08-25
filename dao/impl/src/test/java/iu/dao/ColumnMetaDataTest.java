@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -150,6 +151,27 @@ public class ColumnMetaDataTest {
 		public void setVal(String val) {
 			this.val = val;
 		}
+	}
+
+	/** Entity whose field and getter deliberately carry conflicting mappings. */
+	@Entity
+	@Table(name = "conflicting")
+	public static class ConflictingMappingEntity {
+		@SqlColumn("FIELD_SQL")
+		private String fieldSqlGetterColumn;
+
+		@Column(name = "GETTER_COLUMN")
+		public String getFieldSqlGetterColumn() {
+			return fieldSqlGetterColumn;
+		}
+
+		@SqlColumn("GETTER_SQL")
+		public String getFieldColumnGetterSql() {
+			return fieldColumnGetterSql;
+		}
+
+		@Column(name = "FIELD_COLUMN")
+		private String fieldColumnGetterSql;
 	}
 
 	// =======================================================================
@@ -360,6 +382,22 @@ public class ColumnMetaDataTest {
 		assertEquals("UPPER(named_col)", col(MixedEntity.class, "rawExpr").reference("x"));
 	}
 
+	@Test
+	public void testFieldSqlColumnWinsOverGetterColumn() {
+		final var column = col(ConflictingMappingEntity.class, "fieldSqlGetterColumn");
+		assertEquals("FIELD_SQL", column.sql);
+		assertNull(column.column);
+		assertNotNull(column.sqlColumn);
+	}
+
+	@Test
+	public void testFieldColumnWinsOverGetterSqlColumn() {
+		final var column = col(ConflictingMappingEntity.class, "fieldColumnGetterSql");
+		assertEquals("FIELD_COLUMN", column.columnName);
+		assertNotNull(column.column);
+		assertNull(column.sqlColumn);
+	}
+
 	// =======================================================================
 	// property field
 	// =======================================================================
@@ -554,6 +592,154 @@ public class ColumnMetaDataTest {
 		// spaceForNull only triggers for null; non-null values pass through unchanged
 		final var value = "not-null";
 		assertSame(value, col(MixedEntity.class, "spaceCol").normalizeArgument(value));
+	}
+
+	// =======================================================================
+	// fieldMapped — which member the mapping was declared on
+	// =======================================================================
+
+	/**
+	 * Entity whose stored values are its fields, reached through accessors that
+	 * convert to a type the database knows nothing about.
+	 */
+	@Entity
+	@Table(name = "converting_tbl")
+	public static class ConvertingEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		/** Stored as delimited text; exposed as the list the application works with. */
+		@Column(name = "TAGS")
+		private String tags;
+
+		/** Same arrangement for a raw SQL expression rather than a column. */
+		@SqlColumn("UPPER(tags)")
+		private String upperTags;
+
+		/** Mapped on the getter, so the property remains authoritative. */
+		private String label;
+
+		public List<String> getTags() {
+			return tags == null ? List.of() : List.of(tags.split(","));
+		}
+
+		public void setTags(List<String> tags) {
+			this.tags = String.join(",", tags);
+		}
+
+		public List<String> getUpperTags() {
+			return upperTags == null ? List.of() : List.of(upperTags.split(","));
+		}
+
+		public void setUpperTags(List<String> upperTags) {
+			this.upperTags = String.join(",", upperTags);
+		}
+
+		@Column(name = "LABEL")
+		public String getLabel() {
+			return label;
+		}
+
+		public void setLabel(String label) {
+			this.label = label;
+		}
+	}
+
+	@Test
+	public void testFieldMapped_trueWhenTheAnnotationIsOnTheField() {
+		assertTrue(col(ConvertingEntity.class, "tags").fieldMapped);
+		assertTrue(col(ConvertingEntity.class, "upperTags").fieldMapped);
+		// A column mapped on a field with no bean property at all.
+		assertTrue(col(ConvertingEntity.class, "id").fieldMapped);
+	}
+
+	@Test
+	public void testFieldMapped_falseWhenTheAnnotationIsOnTheGetter() {
+		assertFalse(col(ConvertingEntity.class, "label").fieldMapped);
+		assertFalse(col(MixedEntity.class, "namedCol").fieldMapped);
+		assertFalse(col(MixedEntity.class, "rawExpr").fieldMapped);
+	}
+
+	@Test
+	public void testFieldMapped_javaTypeAndSqlTypeDescribeTheFieldNotTheProperty() {
+		// The property converts, so only the field's type is the one the column holds.
+		final var tags = col(ConvertingEntity.class, "tags");
+		assertEquals(String.class, tags.javaType);
+		assertEquals(String.class, tags.sqlType);
+
+		assertEquals(String.class, col(ConvertingEntity.class, "upperTags").javaType);
+	}
+
+	@Test
+	public void testFieldMapped_javaTypeStillDescribesThePropertyWhenTheGetterIsAnnotated() {
+		assertEquals(String.class, col(ConvertingEntity.class, "label").javaType);
+	}
+
+	@Test
+	public void testFieldMapped_valuesAreReadFromTheFieldAndNotThroughTheGetter() {
+		final var entity = new ConvertingEntity();
+		entity.setTags(List.of("a", "b"));
+		entity.setUpperTags(List.of("c", "d"));
+		entity.setLabel("seed");
+
+		// The getter would have answered with a List; the stored text is what binds.
+		assertEquals("a,b", DaoUtils.getPropertyValue(entity, col(ConvertingEntity.class, "tags")));
+		assertEquals("c,d", DaoUtils.getPropertyValue(entity, col(ConvertingEntity.class, "upperTags")));
+
+		// A getter-mapped property is still read through its getter.
+		assertEquals("seed", DaoUtils.getPropertyValue(entity, col(ConvertingEntity.class, "label")));
+	}
+
+	@Test
+	public void testFieldMapped_valuesReadFromTheDatabaseAreConvertedForTheField() {
+		// Coercion targets the field's type, so text read from a text column arrives
+		// unchanged rather than being aimed at the property's List.
+		final var tags = col(ConvertingEntity.class, "tags");
+		final var value = "a,b";
+		assertSame(value, tags.normalizeResult(value));
+	}
+
+	/** Column annotated on both the field and the getter. */
+	@Entity
+	@Table(name = "both_tbl")
+	public static class BothAnnotatedEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "FROM_FIELD", columnDefinition = "VARCHAR(8)")
+		@SpaceForNull
+		private String val;
+
+		@Column(name = "FROM_GETTER")
+		public String getVal() {
+			return val;
+		}
+
+		public void setVal(String val) {
+			this.val = val;
+		}
+	}
+
+	@Test
+	public void testFieldMapped_fieldAnnotationWinsWhenBothMembersAreAnnotated() {
+		// The column is stored in the field, so the field's annotation is the one
+		// describing it — naming the column from the getter while reading the field
+		// would describe two different values.
+		final var val = col(BothAnnotatedEntity.class, "val");
+		assertTrue(val.fieldMapped);
+		assertEquals("FROM_FIELD", val.columnName);
+		assertEquals("VARCHAR(8)", val.column.columnDefinition());
+	}
+
+	@Test
+	public void testFieldMapped_markerAnnotationsAreAcceptedOnEitherMember() {
+		// @Id and @SpaceForNull say nothing about type or naming, so either member
+		// carrying one is enough.
+		assertNotNull(col(ConvertingEntity.class, "id").id);
+		assertTrue(col(BothAnnotatedEntity.class, "val").spaceForNull);
+		assertTrue(col(MixedEntity.class, "spaceCol").spaceForNull);
 	}
 
 }

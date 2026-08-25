@@ -293,15 +293,21 @@ public final class JdbcDao implements IuDao {
 	 * One entity member a result-set column can be assigned to.
 	 *
 	 * <p>
-	 * A member is normally a bean property, written through its setter. A column
-	 * mapped on a field with no setter — either a field with no bean property at all,
-	 * or a read-only property — is written through the field instead.
+	 * A member is normally a bean property, written through its setter. A column is
+	 * written through its field instead when there is no setter to use — a field with
+	 * no bean property at all, or a read-only property — and when the mapping
+	 * annotation is on the field, whose type is then the one the value was read as;
+	 * see {@link ColumnMetaData#fieldMapped}.
 	 * </p>
 	 *
 	 * @param name   property or field name
-	 * @param type   declared type of the member, which the column value is read as
+	 * @param type   declared type of the member the value is written to, which the
+	 *               column value is read as when the member belongs to no mapped
+	 *               column
 	 * @param setter setter to write through, or {@code null} to write the field
 	 * @param field  field to write through when there is no setter
+	 * @param column metadata of the mapped column supplying this member, or
+	 *               {@code null} when the member maps to no column
 	 */
 	private record ColumnMember(String name, Class<?> type, Method setter, Field field, ColumnMetaData column) {
 
@@ -990,8 +996,10 @@ public final class JdbcDao implements IuDao {
 		 * <p>
 		 * A class is populated through its setters, and through its declared fields for
 		 * whatever has no setter — a column mapped on a field alone, or on a read-only
-		 * property. An interface is not populated at all, only read from, so its members
-		 * are its readable properties and it has no fields to consider.
+		 * property — and for a column whose mapping annotation is on the field, which
+		 * makes the field rather than the property the stored value. An interface is not
+		 * populated at all, only read from, so its members are its readable properties
+		 * and it has no fields to consider.
 		 * </p>
 		 *
 		 * @param metadata metadata of the executing query
@@ -1010,10 +1018,18 @@ public final class JdbcDao implements IuDao {
 			final Map<String, ColumnMember> byNormalizedName = new HashMap<>();
 
 			for (final var property : Introspector.getBeanInfo(beanClass).getPropertyDescriptors())
-				if (readOnly ? property.getReadMethod() != null : property.getWriteMethod() != null)
-					register(byName, byNormalizedName,
-							new ColumnMember(property.getName(), property.getPropertyType(),
-									property.getWriteMethod(), null, mappedColumns.get(property.getName())));
+				if (readOnly ? property.getReadMethod() != null : property.getWriteMethod() != null) {
+					final var column = mappedColumns.get(property.getName());
+					// A column mapped on the field is written to the field even though the
+					// property has a setter, since that setter takes the property's type and
+					// the value read is the field's; see ColumnMetaData.fieldMapped.
+					final var writeField = column != null && column.fieldMapped;
+					register(byName, byNormalizedName, new ColumnMember(property.getName(), //
+							writeField ? column.field.getType() : property.getPropertyType(), //
+							writeField ? null : property.getWriteMethod(), //
+							writeField ? DaoUtils.accessible(column.field) : null, //
+							column));
+				}
 
 			if (!readOnly)
 				for (final var field : DaoUtils.getAllDeclaredFields(beanClass))
