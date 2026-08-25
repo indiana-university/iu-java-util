@@ -1,1 +1,0 @@
-moduleSearchIndex = [{"l":"iu.util.type.loader"}];updateSearchResults();
