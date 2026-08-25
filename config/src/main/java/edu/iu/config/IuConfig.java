@@ -63,31 +63,81 @@ public class IuConfig {
 		IuObject.assertNotOpen(IuConfig.class);
 	}
 
-	private static class StorageConfig<T> {
-		private final String prefix;
-		private final IuJsonAdapter<T> adapter;
-		private final IuVault[] vault;
-		private final Function<String, T> load;
-		private final Map<String, T> cache;
+	private abstract static class BaseConfig<T> {
+		final Map<String, T> cache;
 
-		private StorageConfig(String prefix, IuJsonAdapter<T> adapter, Duration cacheTtl, IuVault... vault) {
-			this.prefix = prefix;
-			this.adapter = adapter;
-			this.vault = vault;
-			this.load = null;
+		private BaseConfig(Duration cacheTtl) {
 			this.cache = new IuCacheMap<>(cacheTtl == null ? Duration.ofSeconds(15L) : cacheTtl);
 		}
 
-		private StorageConfig(Function<String, T> load, Duration cacheTtl) {
-			this.prefix = null;
-			this.adapter = null;
-			this.vault = null;
+		abstract T load(String key);
+	}
+
+	private static class StorageConfig<T> extends BaseConfig<T> {
+		private final String prefix;
+		private final Class<T> configType;
+		private final IuVault[] vault;
+
+		private StorageConfig(String prefix, Class<T> configType, Duration cacheTtl, IuVault... vault) {
+			super(cacheTtl);
+			this.prefix = prefix;
+			this.configType = configType;
+			this.vault = vault;
+		}
+
+		T load(String key) {
+			final var value = cache.get(key);
+			if (value != null)
+				return value;
+
+			return (new Object() {
+				T value;
+				Throwable error;
+
+				void check(IuVault vault) {
+					final var keyedValue = vault.get(prefix + key).getValue();
+					final var config = IuJson.parse(keyedValue).asJsonObject();
+
+					final var value = IuJson.wrap(config, configType, IuConfig::adaptJson);
+					cache.put(key, value);
+					this.value = value;
+				}
+
+				T load() {
+					for (final var v : vault) {
+						error = IuException.suppress(error, () -> check(v));
+						if (value != null)
+							return value;
+					}
+					throw IuException.unchecked(error);
+				}
+			}).load();
+		}
+
+	}
+
+	private static class FactoryConfig<T> extends BaseConfig<T> {
+		private final Function<String, T> load;
+
+		private FactoryConfig(Function<String, T> load, Duration cacheTtl) {
+			super(cacheTtl);
 			this.load = load;
-			this.cache = new IuCacheMap<>(cacheTtl == null ? Duration.ofSeconds(15L) : cacheTtl);
+		}
+
+		T load(String key) {
+			synchronized (cache) {
+				var value = cache.get(key);
+				if (value == null) {
+					value = load.apply(key);
+					cache.put(key, value);
+				}
+				return value;
+			}
 		}
 	}
 
-	private static final Map<Class<?>, StorageConfig<?>> STORAGE = new HashMap<>();
+	private static final Map<Class<?>, IuJsonAdapter<?>> JSON = new HashMap<>();
+	private static final Map<Class<?>, BaseConfig<?>> CONFIG = new HashMap<>();
 	private static boolean sealed;
 
 	static {
@@ -146,21 +196,10 @@ public class IuConfig {
 		if (sealed)
 			throw new IllegalStateException("sealed");
 
-		if (STORAGE.containsKey(type))
+		if (JSON.containsKey(type))
 			throw new IllegalArgumentException("already configured");
 
-		STORAGE.put(type, new StorageConfig<>(null, adapter, null));
-	}
-
-	/**
-	 * No-op, non-platform interfaces no longer need to be registered.
-	 * 
-	 * @param <T>             configuration type
-	 * @param configInterface configuration interface
-	 * @deprecated this method will be removed in a future version
-	 */
-	@Deprecated(forRemoval = true)
-	public static synchronized <T> void registerInterface(Class<T> configInterface) {
+		JSON.put(type, adapter);
 	}
 
 	/**
@@ -193,10 +232,10 @@ public class IuConfig {
 		if (sealed)
 			throw new IllegalStateException("sealed");
 
-		if (STORAGE.containsKey(configType))
+		if (CONFIG.containsKey(configType))
 			throw new IllegalArgumentException("already configured");
 
-		STORAGE.put(configType, new StorageConfig<>(Objects.requireNonNull(load, "Missing factory"), cacheTtl));
+		CONFIG.put(configType, new FactoryConfig<>(Objects.requireNonNull(load, "Missing factory"), cacheTtl));
 	}
 
 	/**
@@ -216,89 +255,48 @@ public class IuConfig {
 	/**
 	 * Registers a vault for loading authorization configuration.
 	 * 
-	 * @param <T>             configuration type
-	 * @param prefix          prefix to append to vault key to classify the resource
-	 *                        names used by {@link #load(Class, String)}
-	 * @param configInterface configuration interface
-	 * @param cacheTtl        time period for caching config objects
-	 * @param vault           vault to use for loading configuration
+	 * @param <T>        configuration type
+	 * @param prefix     prefix to append to vault key to classify the resource
+	 *                   names used by {@link #load(Class, String)}
+	 * @param configType configuration type
+	 * @param cacheTtl   time period for caching config objects
+	 * @param vault      vault to use for loading configuration
 	 */
-	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface, Duration cacheTtl,
+	public static synchronized <T> void registerInterface(String prefix, Class<T> configType, Duration cacheTtl,
 			IuVault... vault) {
 		if (sealed)
 			throw new IllegalStateException("sealed");
 
-		IuObject.require(configInterface, Class::isInterface, configInterface + " is not an interface");
-		IuObject.require(Objects.requireNonNull(prefix, "Missing prefix"), a -> a.matches("\\p{Lower}+"),
-				"invalid prefix " + prefix);
-
-		if (STORAGE.containsKey(configInterface))
-			throw new IllegalArgumentException("already configured");
-
-		final var propertyAdapter = IuJsonAdapter.from(configInterface,
-				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuConfig::adaptJson);
-
+		final var propertyAdapter = IuJsonAdapter.from(configType, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
+				IuConfig::adaptJson);
 		final var adapter = IuJsonAdapter.from(v -> {
 			if (v instanceof JsonString)
-				return load(configInterface, ((JsonString) v).getString());
+				return load(configType, ((JsonString) v).getString());
 			else
 				return IuObject.convert(v, propertyAdapter::fromJson);
 		}, //
 				propertyAdapter::toJson);
+		registerAdapter(configType, adapter);
 
-		STORAGE.put(configInterface,
-				Objects.requireNonNull(new StorageConfig<>(prefix + '/', adapter, cacheTtl, vault)));
+		IuObject.require(Objects.requireNonNull(prefix, "Missing prefix"), a -> a.matches("\\p{Lower}+"),
+				"invalid prefix " + prefix);
+
+		if (CONFIG.containsKey(configType))
+			throw new IllegalArgumentException("already configured");
+
+		CONFIG.put(configType, Objects.requireNonNull(new StorageConfig<>(prefix + '/', configType, cacheTtl, vault)));
 	}
 
 	/**
 	 * Loads a configuration object from vault.
 	 * 
-	 * @param <T>             configuration type
-	 * @param configInterface configuration interface
-	 * @param key             vault key
+	 * @param <T>        configuration type
+	 * @param configType configuration interface
+	 * @param key        vault key
 	 * @return loaded configuration
 	 */
-	public static <T> T load(Class<T> configInterface, String key) {
-		@SuppressWarnings("unchecked") // enforced on put (above)
-		final StorageConfig<T> storageConfig = (StorageConfig<T>) Objects.requireNonNull(STORAGE.get(configInterface),
-				"not configured");
-
-		final var value = storageConfig.cache.get(key);
-		if (configInterface.isInstance(value))
-			return configInterface.cast(value);
-
-		return (new Object() {
-			T value;
-			Throwable error;
-
-			void check(IuVault vault) {
-				final var keyedValue = vault.get(storageConfig.prefix + key).getValue();
-				final var config = IuJson.parse(keyedValue).asJsonObject();
-
-				final var value = IuJson.wrap(config, configInterface, IuConfig::adaptJson);
-				storageConfig.cache.put(key, value);
-				this.value = value;
-			}
-
-			T load() {
-				if (storageConfig.load != null)
-					synchronized (storageConfig.cache) {
-						var value = storageConfig.cache.get(key);
-						if (!configInterface.isInstance(value)) {
-							value = storageConfig.load.apply(key);
-							storageConfig.cache.put(key, value);
-						}
-						return value;
-					}
-
-				for (final var v : storageConfig.vault) {
-					error = IuException.suppress(error, () -> check(v));
-					if (value != null)
-						return value;
-				}
-				throw IuException.unchecked(error);
-			}
-		}).load();
+	public static <T> T load(Class<T> configType, String key) {
+		return configType.cast(Objects.requireNonNull(CONFIG.get(configType), "not configured").load(key));
 	}
 
 	/**
@@ -338,14 +336,13 @@ public class IuConfig {
 	 * @return {@link IuJsonAdapter}
 	 */
 	public static IuJsonAdapter<?> adaptJson(Type type) {
-		final var storage = STORAGE.get(type);
-		if (storage != null && storage.adapter != null)
-			return storage.adapter;
+		final var adapter = JSON.get(type);
+		if (adapter != null)
+			return adapter;
 
 		if (type instanceof Class) {
 			final var c = (Class<?>) type;
-			if (!IuObject.isPlatformName(c.getName()) //
-					&& c.isInterface())
+			if (!IuObject.isPlatformName(c.getName()))
 				return IuJsonAdapter.from((Class<?>) type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
 						IuConfig::adaptJson);
 		}

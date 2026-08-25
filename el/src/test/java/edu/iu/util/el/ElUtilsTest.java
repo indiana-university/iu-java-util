@@ -170,6 +170,18 @@ public class ElUtilsTest {
 		assertEquals(Json.createValue("value"), ElUtils.select(object, "name"));
 		assertNull(ElUtils.select(object, "missing"));
 		assertSame(object, ElUtils.select(array, "1"));
+		assertEquals(Json.createValue(2), ElUtils.select(array, "size"));
+		assertEquals(JsonValue.FALSE, ElUtils.select(array, "empty"));
+		assertEquals(JsonValue.TRUE, ElUtils.select(Json.createArrayBuilder().build(), "empty"));
+		assertEquals(JsonValue.TRUE, ElUtils.select(Json.createValue(" \t"), "blank"));
+		assertEquals(JsonValue.FALSE, ElUtils.select(Json.createValue("value"), "blank"));
+		assertEquals(JsonValue.TRUE, ElUtils.select(Json.createValue(""), "empty"));
+		assertEquals(JsonValue.FALSE, ElUtils.select(Json.createValue("value"), "empty"));
+		assertEquals(JsonValue.TRUE, ElUtils.select(null, "blank"));
+		assertEquals(JsonValue.TRUE, ElUtils.select(JsonValue.NULL, "empty"));
+		assertEquals(Json.createValue(0), ElUtils.select(null, "size"));
+		assertEquals("expected object or array for property 'missing', found null",
+				assertThrows(IllegalArgumentException.class, () -> ElUtils.select(null, "missing")).getMessage());
 	}
 
 	@Test

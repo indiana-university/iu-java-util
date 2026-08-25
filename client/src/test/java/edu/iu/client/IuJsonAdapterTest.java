@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -151,6 +152,37 @@ public class IuJsonAdapterTest {
 		})).getId());
 	}
 
+	public static class BeanClass {
+		private String id;
+
+		public String getId() {
+			return id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
+	}
+
+	@Test
+	public void testFromJavaBeansClass() {
+		final var id = IdGenerator.generateId();
+		final var adapter = IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+
+		final var value = new BeanClass();
+		value.setId(id);
+
+		final var json = adapter.toJson(value).asJsonObject();
+		assertEquals(IuJson.object().add("id", id).build(), json);
+		assertEquals(id, adapter.fromJson(json).getId());
+	}
+
+	@Test
+	public void testFromJavaBeansHandlesNull() {
+		final var adapter = IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertNull(adapter.fromJson(null));
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testTo() {
@@ -183,8 +215,6 @@ public class IuJsonAdapterTest {
 	public void testAdaptInterface() {
 		final var adapter = IuJsonAdapter.adapt(AdaptTest.class, IuJsonPropertyNameFormat.IDENTITY);
 		assertThrows(UnsupportedOperationException.class,
-				() -> IuJsonAdapter.adapt(getClass(), IuJsonPropertyNameFormat.IDENTITY));
-		assertThrows(UnsupportedOperationException.class,
 				() -> IuJsonAdapter.adapt(Class.class, IuJsonPropertyNameFormat.IDENTITY));
 		final var cfoo = IdGenerator.generateId();
 		final var child = new AdaptTest() {
@@ -215,6 +245,100 @@ public class IuJsonAdapterTest {
 		final var adapted = adapter.fromJson(json);
 		assertEquals(foo, adapted.getFoo());
 		assertEquals(cfoo, adapted.getChildren().iterator().next().getFoo());
+	}
+
+	public enum AdaptEnumTest {
+		FOO, BAR;
+	}
+
+	public static class AdaptClassTest {
+		private String foo;
+		private int barBaz;
+		private AdaptEnumTest sample;
+		private List<AdaptClassTest> children;
+
+		public String getFoo() {
+			return foo;
+		}
+
+		public void setFoo(String foo) {
+			this.foo = foo;
+		}
+
+		public int getBarBaz() {
+			return barBaz;
+		}
+
+		public void setBarBaz(int barBaz) {
+			this.barBaz = barBaz;
+		}
+
+		public AdaptEnumTest getSample() {
+			return sample;
+		}
+
+		public void setSample(AdaptEnumTest sample) {
+			this.sample = sample;
+		}
+
+		public List<AdaptClassTest> getChildren() {
+			return children;
+		}
+
+		public void setChildren(List<AdaptClassTest> children) {
+			this.children = children;
+		}
+	}
+
+	@Test
+	public void testAdaptClass() {
+		final var adapter = IuJsonAdapter.adapt(AdaptClassTest.class,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
+
+		final var child = new AdaptClassTest();
+		child.setFoo(IdGenerator.generateId());
+
+		final var value = new AdaptClassTest();
+		value.setFoo(IdGenerator.generateId());
+		value.setBarBaz(34);
+		value.setSample(AdaptEnumTest.BAR);
+		value.setChildren(List.of(child));
+
+		final var json = adapter.toJson(value).asJsonObject();
+		assertFalse(json.containsKey("class"), json::toString);
+		assertEquals(value.getFoo(), json.getString("foo"));
+		assertEquals(34, json.getInt("bar_baz"));
+		assertEquals("BAR", json.getString("sample"));
+		assertEquals(child.getFoo(), json.getJsonArray("children").getJsonObject(0).getString("foo"));
+
+		final var adapted = adapter.fromJson(json);
+		assertNotSame(value, adapted);
+		assertEquals(value.getFoo(), adapted.getFoo());
+		assertEquals(34, adapted.getBarBaz());
+		assertSame(AdaptEnumTest.BAR, adapted.getSample());
+		assertEquals(child.getFoo(), adapted.getChildren().get(0).getFoo());
+	}
+
+	@Test
+	public void testAdaptDoesntInterceptEnum() {
+		final var adapter = IuJsonAdapter.adapt(AdaptEnumTest.class, IuJsonPropertyNameFormat.IDENTITY);
+		assertEquals(IuJson.string("FOO"), adapter.toJson(AdaptEnumTest.FOO));
+		assertSame(AdaptEnumTest.BAR, adapter.fromJson(IuJson.string("BAR")));
+	}
+
+	@Test
+	public void testAdaptDoesntInterceptArray() {
+		final var adapter = IuJsonAdapter.adapt(AdaptEnumTest[].class, IuJsonPropertyNameFormat.IDENTITY);
+		final var json = IuJson.array().add("FOO").add("BAR").build();
+		assertEquals(json, adapter.toJson(new AdaptEnumTest[] { AdaptEnumTest.FOO, AdaptEnumTest.BAR }));
+		assertArrayEquals(new AdaptEnumTest[] { AdaptEnumTest.FOO, AdaptEnumTest.BAR }, adapter.fromJson(json));
+	}
+
+	@Test
+	public void testAdaptDoesntInterceptPrimitive() {
+		final var adapter = IuJsonAdapter.adapt(int.class, IuJsonPropertyNameFormat.IDENTITY);
+		assertEquals(IuJson.number(34), adapter.toJson(34));
+		assertEquals(34, adapter.fromJson(IuJson.number(34)));
 	}
 
 	@Test

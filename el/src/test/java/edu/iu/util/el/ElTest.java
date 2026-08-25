@@ -424,7 +424,7 @@ public class ElTest {
 		assertEquals("zero is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero?'zero is true!'zero is false")));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.baz?'baz is true"));
-		assertEquals(JsonValue.TRUE, El.eval(context, "$.foo!'foo is false"));
+		assertNull(El.eval(context, "$.foo!'foo is false"));
 		assertNull(El.eval("$?'no context"));
 	}
 
@@ -443,7 +443,7 @@ public class ElTest {
 		assertEquals("baz is false", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.baz!'baz is false")));
 		assertEquals("bum is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bum?'bum is true!'bum is false")));
-		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.one!'one is false")));
+		assertNull(IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.one!'one is false")));
 		assertEquals("zero is false",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zero!'zero is false")));
 		assertEquals("bif is null",

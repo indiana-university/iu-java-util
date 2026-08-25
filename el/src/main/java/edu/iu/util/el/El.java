@@ -381,6 +381,8 @@ public final class El {
 				if (!isTruthy(result))
 					evalStack.push(new ElContext(evalContext, evalContext.getContext(), expression.substring(1),
 							evalContext::setResult));
+				else
+					evalContext.setResult(null);
 
 				evalContext.setPositionAtEnd();
 				break;

@@ -108,6 +108,32 @@ public class JsonSerializerTest {
 				IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
 	}
 
+	public interface DefaultProperty {
+		default String getInherited() {
+			return "inherited";
+		}
+	}
+
+	public static class Base implements DefaultProperty {
+		public String getBase() {
+			return "base";
+		}
+	}
+
+	public static class Derived extends Base {
+		public String getDerived() {
+			return "derived";
+		}
+	}
+
+	@Test
+	public void testSerializeInheritedProperties() {
+		assertEquals(
+				IuJson.object().add("derived", "derived").add("base", "base").add("inherited", "inherited").build(),
+				JsonSerializer.serialize(Derived.class, new Derived(), IuJsonPropertyNameFormat.IDENTITY,
+						IuJsonAdapter::of));
+	}
+
 	interface A {
 		String getFoo();
 

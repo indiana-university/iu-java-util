@@ -115,7 +115,11 @@ public class IuConfigTest {
 		f.setAccessible(true);
 		f.set(null, false);
 
-		f = IuConfig.class.getDeclaredField("STORAGE");
+		f = IuConfig.class.getDeclaredField("JSON");
+		f.setAccessible(true);
+		((Map<?, ?>) f.get(null)).clear();
+
+		f = IuConfig.class.getDeclaredField("CONFIG");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
 
@@ -154,6 +158,19 @@ public class IuConfigTest {
 		assertDoesNotThrow(() -> Thread.sleep(1000L)); // expires cache
 		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
 		verify(vault, times(2)).get("loadable/" + key); // returned to vault after cache expired
+	}
+
+	@Test
+	void testRegisterInterfaceRejectsExistingConfigurationAfterAdapterRemoved() throws Exception {
+		final var vault = mock(IuVault.class);
+		IuConfig.registerInterface("loadable", LoadableConfig.class, vault);
+
+		final var json = IuConfig.class.getDeclaredField("JSON");
+		json.setAccessible(true);
+		((Map<?, ?>) json.get(null)).remove(LoadableConfig.class);
+
+		assertEquals("already configured", assertThrows(IllegalArgumentException.class,
+				() -> IuConfig.registerInterface("loadable", LoadableConfig.class, vault)).getMessage());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -284,8 +301,10 @@ public class IuConfigTest {
 		IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class));
 		final var adapter = mock(IuJsonAdapter.class);
 		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
-			mockJsonAdapter.when(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
-					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any())).thenReturn(adapter);
+			mockJsonAdapter
+					.when(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
+							eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()))
+					.thenReturn(adapter);
 			assertSame(adapter, IuConfig.adaptJson(LoadableConfig.class));
 			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(LoadableConfig.class),
 					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
@@ -296,7 +315,8 @@ public class IuConfigTest {
 	public void testAdaptJsonUnregisteredNonPlatformClass() {
 		try (final var mockJsonAdapter = mockStatic(IuJsonAdapter.class)) {
 			IuConfig.adaptJson(UnregisteredClass.class);
-			mockJsonAdapter.verify(() -> IuJsonAdapter.of(eq((Type) UnregisteredClass.class), any()));
+			mockJsonAdapter.verify(() -> IuJsonAdapter.from(eq(UnregisteredClass.class),
+					eq(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES), any()));
 		}
 	}
 
@@ -417,12 +437,11 @@ public class IuConfigTest {
 		assertEquals(value, IuConfig.load(LoadableRef.class, key).getConfig().getValue());
 	}
 
-	@SuppressWarnings({ "unchecked", "deprecation" })
+	@SuppressWarnings({ "unchecked" })
 	@Test
 	public void testLoadableNoVault() {
 		final var vault = mock(IuVault.class);
 
-		assertDoesNotThrow(() -> IuConfig.registerInterface(LoadableConfig.class));
 		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableRef.class, vault));
 
 		final var key = IdGenerator.generateId();

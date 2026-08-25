@@ -82,6 +82,7 @@ import java.util.stream.Stream;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import iu.client.JsonAdapters;
+import iu.client.JsonDeserializer;
 import iu.client.JsonSerializer;
 import iu.client.ParsingJsonAdapter;
 import jakarta.json.JsonArray;
@@ -191,23 +192,52 @@ public interface IuJsonAdapter<T> {
 	 * Creates a JSON type adapter that converts from a JavaBeans business object
 	 * type to and from JSON.
 	 * 
+	 * <p>
+	 * {@link #toJson(Object)} returns a {@link JsonObject} with an entry for each
+	 * readable JavaBeans property of {@code type}, including properties inherited
+	 * from superclasses and declared as interface default methods. Properties
+	 * declared by {@link Object}, in particular {@link Object#getClass() class}, are
+	 * skipped, as are properties with a null value.
+	 * </p>
+	 * 
+	 * <p>
+	 * {@link #fromJson(JsonValue)} behavior depends on {@code type}:
+	 * </p>
+	 * <ul>
+	 * <li>An interface is wrapped by a {@link java.lang.reflect.Proxy} that reads
+	 * property values directly from the {@link JsonObject}; see
+	 * {@link IuJson#wrap(JsonObject, Class, Function)}.</li>
+	 * <li>Any other type is instantiated using its no-arg constructor, then each
+	 * JavaBeans property with a setter that maps to a defined JSON value is
+	 * converted and applied. Setters without a corresponding JSON value are
+	 * skipped, retaining the value assigned by the constructor.</li>
+	 * </ul>
+	 * 
 	 * @param <T>                business object type
-	 * @param type               business object class; <em>must</em> be an
-	 *                           interface to convert from JSON, an interface is
-	 *                           <em>not required</em> to convert from JSON.
+	 * @param type               business object class; <em>must</em> declare an
+	 *                           accessible no-arg constructor to convert from JSON
+	 *                           unless it is an interface
 	 * @param propertyNameFormat property name format to use for converting to JSON
 	 * @param valueAdapter       value adapter function
 	 * @return {@link IuJsonAdapter}
 	 */
 	static <T> IuJsonAdapter<T> from(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		return from(v -> v == null ? null : IuJson.wrap(v.asJsonObject(), type, valueAdapter),
+		return from(v -> v == null ? null : JsonDeserializer.deserialize(type, v.asJsonObject(), valueAdapter),
 				v -> JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
 	}
 
 	/**
 	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
-	 * {@link IuObject#isPlatformName(String) non-platform} interface.
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type.
+	 * 
+	 * <p>
+	 * Returns {@link #from(Class, IuJsonPropertyNameFormat, Function)} for a
+	 * {@link IuObject#isPlatformName(String) non-platform} interface or class.
+	 * {@link Class#isPrimitive() Primitive}, {@link Class#isArray() array}, and
+	 * {@link Class#isEnum() enum} types are handled by {@link #of(Type, Function)}
+	 * even when non-platform.
+	 * </p>
 	 * 
 	 * @param type               business object class
 	 * @param propertyNameFormat property name format to use for converting to JSON
@@ -216,7 +246,9 @@ public interface IuJsonAdapter<T> {
 	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat) {
 		final var c = JsonAdapters.erase(type);
 		if (!IuObject.isPlatformName(c.getName()) //
-				&& c.isInterface())
+				&& !c.isPrimitive() //
+				&& !c.isArray() //
+				&& !c.isEnum())
 			return from(c, propertyNameFormat, a -> adapt(a, propertyNameFormat));
 
 		return IuJsonAdapter.of(type, a -> adapt(a, propertyNameFormat));
@@ -224,12 +256,13 @@ public interface IuJsonAdapter<T> {
 
 	/**
 	 * Gets a JSON type adapter for common-case conversion to/from a
-	 * {@link IuObject#isPlatformName(String) non-platform} interface.
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type.
 	 * 
 	 * @param <T>                business object type
 	 * @param type               business object class
 	 * @param propertyNameFormat property name format to use for converting to JSON
 	 * @return {@link IuJsonAdapter}
+	 * @see #adapt(Type, IuJsonPropertyNameFormat)
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> adapt(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat) {

@@ -176,15 +176,21 @@ final class ElUtils {
 	 *
 	 * <p>
 	 * A path beginning with {@code /} is interpreted as a JSON Pointer. Otherwise,
-	 * the path is used as an object property name or parsed as an array index. An
-	 * empty path returns {@code selected} unchanged.
+	 * the path is used as an object property name, the {@code size} or
+	 * {@code empty} property of an array, or parsed as an array index. An empty
+	 * path returns {@code selected} unchanged.
 	 * </p>
 	 *
-	 * @param selected    object or array from which to select
-	 * @param pathElement JSON Pointer, property name, array index, or empty string
+	 * @param selected    object, array, string, or null from which to select
+	 * @param pathElement JSON Pointer, property name, array size, array emptiness,
+	 *                    array index, or empty string
 	 * @return selected JSON value
-	 * @throws IllegalArgumentException if a non-empty path is applied to a scalar
-	 *                                  value or an array index is not numeric
+	 * @throws IllegalArgumentException if a path other than {@code blank} or
+	 *                                  {@code empty} is applied to a string, a path
+	 *                                  other than {@code size}, {@code blank}, or
+	 *                                  {@code empty} is applied to a null value, a
+	 *                                  non-empty path is applied to another scalar
+	 *                                  value, or an array index is not numeric
 	 */
 	static JsonValue select(JsonValue selected, String pathElement) {
 		if (pathElement.startsWith("/")) {
@@ -199,13 +205,34 @@ final class ElUtils {
 		} else {
 			if (pathElement.isEmpty())
 				return selected;
-			else if (selected instanceof JsonArray)
-				return selected.asJsonArray().get(Integer.parseInt(pathElement));
-			else if (selected instanceof JsonObject)
+			else if (selected instanceof JsonArray) {
+				if ("size".equals(pathElement))
+					return IuJson.number(selected.asJsonArray().size());
+				else if ("empty".equals(pathElement))
+					return IuJson.bool(selected.asJsonArray().isEmpty());
+				else
+					return selected.asJsonArray().get(Integer.parseInt(pathElement));
+			} else if (selected instanceof JsonObject)
 				return selected.asJsonObject().get(pathElement);
-			else
+			else {
+				if (selected == null || selected.equals(JsonValue.NULL)) {
+					if ("size".equals(pathElement))
+						return IuJson.number(0);
+					else if ("blank".equals(pathElement))
+						return IuJson.bool(true);
+					else if ("empty".equals(pathElement))
+						return IuJson.bool(true);
+				}
+				if (selected instanceof JsonString) {
+					if ("blank".equals(pathElement))
+						return IuJson.bool(((JsonString) selected).getString().isBlank());
+					else if ("empty".equals(pathElement))
+						return IuJson.bool(((JsonString) selected).getString().isEmpty());
+				}
+
 				throw new IllegalArgumentException(
 						"expected object or array for property '" + pathElement + "', found " + selected);
+			}
 		}
 	}
 
