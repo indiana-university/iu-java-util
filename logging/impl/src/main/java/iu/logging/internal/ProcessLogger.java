@@ -205,12 +205,11 @@ public final class ProcessLogger {
 
 			if (end != null) {
 				sb.append("final: ");
-				sb.append(end);
+				sb.append(Duration.between(start, end));
 				sb.append(' ');
 				sb.append(sizeToString(endFree - startFree));
 				sb.append(' ');
 				sb.append(memoryToString(endFree, endTot, endMax));
-				sb.append(System.lineSeparator());
 			}
 
 			return sb.toString();
@@ -346,18 +345,18 @@ public final class ProcessLogger {
 			final var state = new ProcessState(context, header);
 
 			ACTIVE_PROCESS_STATE.remove();
-			LOG.info(() -> "begin " + state.requestId + ": " + header);
 			ACTIVE_PROCESS_STATE.set(state);
+			LOG.info(() -> "begin " + state.requestId + ": " + header);
 
 			final var rv = supplier.get();
 
 			state.end();
 
-			ACTIVE_PROCESS_STATE.remove();
 			if (restore == null)
 				LOG.info(() -> "complete " + state.requestId + ": " + header + System.lineSeparator() + state);
 			else
 				LOG.info(() -> "end " + state.requestId + ": " + header);
+			ACTIVE_PROCESS_STATE.remove();
 
 			return rv;
 

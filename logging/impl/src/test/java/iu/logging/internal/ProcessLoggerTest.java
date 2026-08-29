@@ -91,6 +91,7 @@ public class ProcessLoggerTest {
 			+ " free";
 	private static final String INT_REGEX = "\\d{2}:\\d{2}.\\d{3}";
 	private static final String TIME_REGEX = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3,9}Z";
+	private static final String DURATION_REGEX = "P(?:\\d+D)?T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?";
 
 	private static final String msgRegex(String message) {
 		StringBuilder sb = new StringBuilder(message);
@@ -141,7 +142,7 @@ public class ProcessLoggerTest {
 				+ msgRegex(" " + message5) + System.lineSeparator() //
 				+ msgRegex("<1.2 " + application + ": " + header3) + System.lineSeparator() //
 				+ msgRegex("end 1: " + header) + System.lineSeparator() //
-				+ "final: " + TIME_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+				+ "final: " + DURATION_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + "(?:\\r?\\n)?" //
 		);
 
 		final var env = mock(LogEnvironment.class);
@@ -173,7 +174,7 @@ public class ProcessLoggerTest {
 					return null;
 				});
 				reset(env);
-				
+
 				return null;
 			}));
 		}

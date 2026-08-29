@@ -355,7 +355,10 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			return;
 
 		final var event = new IuLogEvent(record);
-		ProcessLogger.trace(() -> event.getMessage());
+		// ProcessLogger already records its own lifecycle messages. Capturing them
+		// here would feed those records back into the active trace.
+		if (!ProcessLogger.class.getName().equals(record.getLoggerName()))
+			ProcessLogger.trace(() -> event.getMessage());
 		logEvents.offer(event);
 		subject.accept(event);
 
