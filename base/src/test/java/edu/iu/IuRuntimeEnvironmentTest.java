@@ -32,8 +32,10 @@
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -71,6 +73,57 @@ public class IuRuntimeEnvironmentTest {
 		System.setProperty(id, val);
 		assertEquals(val, IuRuntimeEnvironment.envOptional(id));
 		assertEquals(val, IuRuntimeEnvironment.env(id));
+	}
+
+	@Test
+	public void testFlag() {
+		final var id = id();
+		assertFalse(IuRuntimeEnvironment.flag(id));
+
+		System.setProperty(id, "true");
+		assertTrue(IuRuntimeEnvironment.flag(id));
+
+		System.setProperty(id, "TRUE");
+		assertFalse(IuRuntimeEnvironment.flag(id));
+	}
+
+	@Test
+	public void testBound() {
+		final var id = id();
+		assertEquals(42, IuRuntimeEnvironment.bound(id, 42));
+
+		System.setProperty(id, " 1 ");
+		assertEquals(1, IuRuntimeEnvironment.bound(id, 42));
+
+		System.setProperty(id, "0");
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.bound(id, 42));
+
+		System.setProperty(id, "43");
+		assertEquals(43, IuRuntimeEnvironment.bound(id, 42, 45));
+
+		System.setProperty(id, "46");
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.bound(id, 42, 45));
+		
+		System.setProperty(id, Long.toString((long) Integer.MAX_VALUE + 1L));
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.bound(id, 42));
+
+		System.setProperty(id, "not-a-number");
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.bound(id, 42));
+	}
+
+	@Test
+	public void testLongBound() {
+		final var id = id();
+		assertEquals(42L, IuRuntimeEnvironment.longBound(id, 42L));
+
+		System.setProperty(id, Long.toString(Long.MAX_VALUE));
+		assertEquals(Long.MAX_VALUE, IuRuntimeEnvironment.longBound(id, 42L));
+
+		System.setProperty(id, "2");
+		assertEquals(2L, IuRuntimeEnvironment.longBound(id, 42L, 2L));
+
+		System.setProperty(id, "3");
+		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.longBound(id, 42L, 2L));
 	}
 
 	private String id() {

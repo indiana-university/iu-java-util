@@ -119,6 +119,105 @@ public class IuRuntimeEnvironment {
 			return system.toUpperCase().replace('.', '_').replace('-', '_');
 	}
 
+	/**
+	 * Reads one optional boolean flag.
+	 *
+	 * <p>
+	 * Only the exact value {@code true} enables a flag. Every one of these turns
+	 * off a protection or trusts a header, so a typo has to read as "off" rather
+	 * than as anything a truthiness rule might accept.
+	 * </p>
+	 *
+	 * @param name environment variable name
+	 * @return true when the variable is exactly {@code true}; else false
+	 */
+	public static boolean flag(String name) {
+		return "true".equals(envOptional(name));
+	}
+
+	/**
+	 * Reads one optional positive-integer bound.
+	 *
+	 * <p>
+	 * Shared by every numeric setting the container accepts, so that each reports a
+	 * bad value the same way &mdash; naming the variable, since an operator setting
+	 * several of these needs to be told which one was rejected rather than only
+	 * that some number would not parse.
+	 * </p>
+	 *
+	 * @param name         environment variable name
+	 * @param defaultValue value to apply when the variable is unset
+	 * @return configured bound, or {@code defaultValue}
+	 * @throws IllegalArgumentException if the configured value is not a positive
+	 *                                  integer &mdash; including zero, which would
+	 *                                  configure a bound that permits nothing
+	 */
+	public static int bound(String name, int defaultValue) {
+		return (int) longBound(name, defaultValue, Integer.MAX_VALUE);
+	}
+
+	/**
+	 * Reads one optional positive-integer bound.
+	 *
+	 * <p>
+	 * Shared by every numeric setting the container accepts, so that each reports a
+	 * bad value the same way &mdash; naming the variable, since an operator setting
+	 * several of these needs to be told which one was rejected rather than only
+	 * that some number would not parse.
+	 * </p>
+	 *
+	 * @param name         environment variable name
+	 * @param defaultValue value to apply when the variable is unset
+	 * @param maxValue     maximum value to allow
+	 * @return configured bound, or {@code defaultValue}
+	 * @throws IllegalArgumentException if the configured value is not a positive
+	 *                                  integer &mdash; including zero, which would
+	 *                                  configure a bound that permits nothing
+	 */
+	public static int bound(String name, int defaultValue, int maxValue) {
+		return (int) longBound(name, defaultValue, maxValue);
+	}
+
+	/**
+	 * Reads one optional positive-long bound.
+	 *
+	 * @param name         environment variable name
+	 * @param defaultValue value to apply when the variable is unset
+	 * @return configured bound, or {@code defaultValue}
+	 * @throws IllegalArgumentException if the configured value is not a positive
+	 *                                  number
+	 */
+	public static long longBound(String name, long defaultValue) {
+		return longBound(name, defaultValue, Long.MAX_VALUE);
+	}
+
+	/**
+	 * Reads one optional positive-long bound.
+	 *
+	 * @param name         environment variable name
+	 * @param defaultValue value to apply when the variable is unset
+	 * @param maxValue     upper limit
+	 * @return configured bound, or {@code defaultValue}
+	 * @throws IllegalArgumentException if the configured value is not a positive
+	 *                                  number
+	 */
+	public static long longBound(String name, long defaultValue, long maxValue) {
+		final var configured = envOptional(name);
+		if (configured == null)
+			return defaultValue;
+
+		final long value;
+		try {
+			value = Long.parseLong(configured.strip());
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Invalid " + name + " " + configured, e);
+		}
+		if (value < 1 //
+				|| value > maxValue)
+			throw new IllegalArgumentException("Invalid " + name + " " + configured);
+		return value;
+	}
+
 	private IuRuntimeEnvironment() {
 	}
 }

@@ -38,6 +38,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -114,24 +117,25 @@ public final class ProcessLogger {
 		private final long startFree = Runtime.getRuntime().freeMemory();
 		private final long startTot = Runtime.getRuntime().totalMemory();
 		private final long startMax = Runtime.getRuntime().maxMemory();
-		private Instant end;
+		private volatile Instant end;
 		private long endFree;
 		private long endTot;
 		private long endMax;
-		private final Queue<Object> children = new ArrayDeque<>();
+		private final Queue<Object> children = new ConcurrentLinkedQueue<>();
 		private final int depth;
-		private int subRequestId;
+		private final AtomicInteger subRequestId = new AtomicInteger();
+		private final AtomicInteger joinId = new AtomicInteger();
 
 		private ProcessState(LogContext logContext, String header) {
 			this.header = header;
 
 			final var active = ACTIVE_PROCESS_STATE.get();
 			if (active == null) {
-				requestId = Long.toString(++ProcessLogger.requestId);
+				requestId = Long.toString(REQUEST_ID.incrementAndGet());
 				depth = 0;
 			} else {
 				active.children.add(this);
-				requestId = active.requestId + '.' + Integer.toString(++active.subRequestId);
+				requestId = active.requestId + '.' + Integer.toString(active.subRequestId.incrementAndGet());
 				depth = active.depth + 1;
 			}
 
@@ -180,8 +184,12 @@ public final class ProcessLogger {
 			while (current.hasNext() //
 					|| !inProgress.isEmpty()) {
 
-				if (!current.hasNext())
+				// the interrupted iterator may itself be exhausted, i.e. when a sub-process
+				// was the last message appended before the trace was captured
+				if (!current.hasNext()) {
 					current = inProgress.pop();
+					continue;
+				}
 
 				final TracedMessage message;
 				final var next = current.next();
@@ -220,7 +228,9 @@ public final class ProcessLogger {
 
 	private static final ThreadLocal<ProcessState> ACTIVE_PROCESS_STATE = new ThreadLocal<>();
 
-	private static volatile long requestId;
+	private static final ThreadLocal<Integer> ACTIVE_JOIN_ID = new ThreadLocal<>();
+
+	private static final AtomicLong REQUEST_ID = new AtomicLong();
 
 	private static final ThreadLocal<DecimalFormat> DF3 = new ThreadLocal<DecimalFormat>() {
 		@Override
@@ -369,6 +379,81 @@ public final class ProcessLogger {
 	}
 
 	/**
+	 * Captures the process bound to the current thread, as an opaque handle that
+	 * may be {@link #join(Object, Runnable) joined} from another thread.
+	 *
+	 * <p>
+	 * Returns null when the current thread is not
+	 * {@link #follow(LogContext, String, UnsafeSupplier) following} a process;
+	 * {@link #join(Object, Runnable) joining} a null handle is valid and simply
+	 * detaches the joining thread from any process already bound to it.
+	 * </p>
+	 *
+	 * @return opaque handle on the active process; null if not following
+	 */
+	public static Object fork() {
+		return ACTIVE_PROCESS_STATE.get();
+	}
+
+	/**
+	 * Binds a {@link #fork() forked} process to the current thread for the duration
+	 * of a task.
+	 *
+	 * <p>
+	 * Messages {@link #trace(Supplier) traced} by the task are appended to the
+	 * forked process' trace, and log events published by the task report the forked
+	 * process' {@link #getActiveContext() context}. Any process already bound to the
+	 * current thread is restored when the task completes, so a task may be joined by
+	 * the same thread that forked it, i.e. when a work queue falls back to executing
+	 * on the submitting thread.
+	 * </p>
+	 *
+	 * <p>
+	 * Each joined task is assigned the next sequential join ID for the forked
+	 * process, and messages it traces are prefixed with {@code joinId + "> "} so
+	 * that work forked onto other threads can be told apart from the forking
+	 * thread's own messages once merged into a single trace.
+	 * </p>
+	 *
+	 * <p>
+	 * It is up to the forking thread to ensure joined tasks complete before it stops
+	 * {@link #follow(LogContext, String, UnsafeSupplier) following} the forked
+	 * process; messages traced after the process ends are not guaranteed to be
+	 * reported.
+	 * </p>
+	 *
+	 * @param forkedContext opaque handle returned by {@link #fork()}
+	 * @param task          task to run with the forked process bound
+	 */
+	public static void join(Object forkedContext, Runnable task) {
+		final var forked = (ProcessState) forkedContext;
+		final var restoreState = ACTIVE_PROCESS_STATE.get();
+		final var restoreJoinId = ACTIVE_JOIN_ID.get();
+		try {
+			if (forked == null) {
+				ACTIVE_PROCESS_STATE.remove();
+				ACTIVE_JOIN_ID.remove();
+			} else {
+				ACTIVE_PROCESS_STATE.set(forked);
+				ACTIVE_JOIN_ID.set(forked.joinId.incrementAndGet());
+			}
+
+			task.run();
+
+		} finally {
+			if (restoreState == null)
+				ACTIVE_PROCESS_STATE.remove();
+			else
+				ACTIVE_PROCESS_STATE.set(restoreState);
+
+			if (restoreJoinId == null)
+				ACTIVE_JOIN_ID.remove();
+			else
+				ACTIVE_JOIN_ID.set(restoreJoinId);
+		}
+	}
+
+	/**
 	 * Gets an external proxy to the active log context.
 	 * 
 	 * @return Proxy instance of logContext for inspecting the active context
@@ -392,7 +477,12 @@ public final class ProcessLogger {
 
 	/**
 	 * Adds a message to the active process trace without logging.
-	 * 
+	 *
+	 * <p>
+	 * Messages traced by a {@link #join(Object, Runnable) joined} task are prefixed
+	 * with that task's join ID.
+	 * </p>
+	 *
 	 * @param messageSupplier message supplier
 	 */
 	public static void trace(Supplier<String> messageSupplier) {
@@ -404,7 +494,10 @@ public final class ProcessLogger {
 		if (state == null)
 			return;
 
-		state.children.offer(new TracedMessage(message, state.depth));
+		final var joinId = ACTIVE_JOIN_ID.get();
+		state.children.offer(new TracedMessage( //
+				(joinId == null) ? message : joinId + "> " + message, //
+				state.depth));
 	}
 
 }

@@ -33,6 +33,7 @@ package iu.logging.internal;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,8 +43,10 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -54,6 +57,17 @@ import iu.logging.LogEnvironment;
 
 @SuppressWarnings("javadoc")
 public class ProcessLoggerTest {
+
+	@BeforeEach
+	public void resetRequestId() {
+		// each test asserts on generated request IDs, so the sequence must not depend
+		// on the order tests run in
+		assertDoesNotThrow(() -> {
+			final var requestId = ProcessLogger.class.getDeclaredField("REQUEST_ID");
+			requestId.setAccessible(true);
+			((AtomicLong) requestId.get(null)).set(0L);
+		});
+	}
 
 	@Test
 	public void testSizeToString() {
@@ -82,6 +96,20 @@ public class ProcessLoggerTest {
 		ProcessLogger.trace(IdGenerator::generateId); // no-op
 		assertNull(ProcessLogger.getActiveContext());
 		assertNull(ProcessLogger.export());
+		assertNull(ProcessLogger.fork());
+	}
+
+	@Test
+	public void testJoinNothing() {
+		final var joined = new boolean[1];
+		ProcessLogger.join(null, () -> {
+			joined[0] = true;
+			ProcessLogger.trace(IdGenerator::generateId); // no-op
+			assertNull(ProcessLogger.getActiveContext());
+			assertNull(ProcessLogger.export());
+		});
+		assertTrue(joined[0], "task not invoked");
+		assertNull(ProcessLogger.fork(), "process left bound to the joining thread");
 	}
 
 	private static final String NUM_REGEX = "-?[\\d\\.]+";
@@ -108,6 +136,20 @@ public class ProcessLoggerTest {
 			sb.append("\\.{").append(80 - l).append('}');
 
 		return sb + " " + INT_REGEX + " " + INT_REGEX + " " + SIZE_REGEX + " " + SIZE_REGEX;
+	}
+
+	/**
+	 * Runs a task on a dedicated thread, waits for it to complete, and reports
+	 * assertion failures back to the calling thread.
+	 */
+	private static void runInWorker(Runnable task) throws Throwable {
+		final var error = new Throwable[1];
+		final var worker = new Thread(task);
+		worker.setUncaughtExceptionHandler((t, e) -> error[0] = e);
+		worker.start();
+		worker.join();
+		if (error[0] != null)
+			throw error[0];
 	}
 
 	@Test
@@ -174,6 +216,135 @@ public class ProcessLoggerTest {
 					return null;
 				});
 				reset(env);
+
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testForkAndJoin() {
+		final var header = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+
+		final var firstJoined = IdGenerator.generateId();
+		final var nestedJoined = IdGenerator.generateId();
+		final var afterNestedJoined = IdGenerator.generateId();
+		final var secondJoined = IdGenerator.generateId();
+		final var message = IdGenerator.generateId();
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1: " + header);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "complete 1: " + header + System.lineSeparator() //
+				+ "init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+				+ msgRegex("begin 1: " + header) + System.lineSeparator() //
+				+ msgRegex("1> " + firstJoined) + System.lineSeparator() //
+				+ msgRegex("2> " + nestedJoined) + System.lineSeparator() //
+				+ msgRegex("1> " + afterNestedJoined) + System.lineSeparator() //
+				+ msgRegex("3> " + secondJoined) + System.lineSeparator() //
+				+ msgRegex(message) + System.lineSeparator() //
+				+ msgRegex("end 1: " + header) + System.lineSeparator() //
+				+ "final: " + DURATION_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + "(?:\\r?\\n)?" //
+		);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				final var forked = ProcessLogger.fork();
+				assertNotNull(forked);
+
+				runInWorker(() -> {
+					assertNull(ProcessLogger.fork(), "worker thread must start clean");
+					ProcessLogger.join(forked, () -> {
+						assertSame(context, ProcessLogger.getActiveContext());
+						ProcessLogger.trace(() -> firstJoined);
+
+						// a joined task may itself join, i.e. when splitting work further
+						ProcessLogger.join(forked, () -> ProcessLogger.trace(() -> nestedJoined));
+
+						ProcessLogger.trace(() -> afterNestedJoined);
+					});
+					assertNull(ProcessLogger.fork(), "process left bound to the worker thread");
+				});
+
+				runInWorker(() -> ProcessLogger.join(forked, () -> ProcessLogger.trace(() -> secondJoined)));
+
+				assertSame(forked, ProcessLogger.fork(), "forking thread lost its process");
+				ProcessLogger.trace(() -> message);
+
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testJoinOnForkingThread() {
+		final var header = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+
+		final var joined = IdGenerator.generateId();
+		final var message = IdGenerator.generateId();
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1: " + header);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "complete 1: " + header + System.lineSeparator() //
+				+ "init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+				+ msgRegex("begin 1: " + header) + System.lineSeparator() //
+				+ msgRegex("1> " + joined) + System.lineSeparator() //
+				+ msgRegex(message) + System.lineSeparator() //
+				+ msgRegex("end 1: " + header) + System.lineSeparator() //
+				+ "final: " + DURATION_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + "(?:\\r?\\n)?" //
+		);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				final var forked = ProcessLogger.fork();
+
+				// i.e. a work queue that falls back to running on the submitting thread
+				ProcessLogger.join(forked, () -> {
+					assertSame(context, ProcessLogger.getActiveContext());
+					ProcessLogger.trace(() -> joined);
+				});
+
+				assertSame(forked, ProcessLogger.fork(), "forking thread lost its process");
+				ProcessLogger.trace(() -> message);
+
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testExportEndingWithSubProcess() {
+		final var header = IdGenerator.generateId();
+		final var subHeader = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1: " + header);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1.1: " + subHeader);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "end 1.1: " + subHeader);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "complete 1: " + header + System.lineSeparator() //
+				+ "init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+				+ msgRegex("begin 1: " + header) + System.lineSeparator() //
+				+ msgRegex(">1.1: " + subHeader) + System.lineSeparator() //
+				+ msgRegex("<1.1: " + subHeader) + System.lineSeparator() //
+				+ msgRegex("end 1: " + header) + System.lineSeparator() //
+				+ "final: " + DURATION_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + "(?:\\r?\\n)?" //
+		);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				ProcessLogger.follow(context, subHeader, () -> null);
+
+				// the sub-process is the last entry in the trace: the traversal must resume
+				// the exhausted parent iterator without attempting to read past its end
+				final var exp = ProcessLogger.export();
+				assertTrue(exp.matches("init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+						+ msgRegex("begin 1: " + header) + System.lineSeparator() //
+						+ msgRegex(">1.1: " + subHeader) + System.lineSeparator() //
+						+ msgRegex("<1.1: " + subHeader) + System.lineSeparator() //
+				), exp::toString);
 
 				return null;
 			}));

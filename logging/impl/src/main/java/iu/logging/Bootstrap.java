@@ -234,6 +234,51 @@ public final class Bootstrap {
 	}
 
 	/**
+	 * Proxy method for {@link ProcessLogger#fork()}.
+	 *
+	 * <p>
+	 * The value returned is an opaque handle on the process active in this
+	 * implementation module; it carries no externally defined contract and is only
+	 * useful as the {@code forkedContext} argument to
+	 * {@link #join(Object, Runnable)}. It is null when the current thread is not
+	 * {@link #follow(Object, String, Object) following} a process.
+	 * </p>
+	 *
+	 * <p>
+	 * It is up to the forking thread to ensure joined tasks complete before it
+	 * stops following the forked process; messages traced after the process ends
+	 * are not guaranteed to be reported.
+	 * </p>
+	 *
+	 * @return opaque handle on the active process; null if not following
+	 */
+	public static Object fork() {
+		return ProcessLogger.fork();
+	}
+
+	/**
+	 * Proxy method for {@link ProcessLogger#join(Object, Runnable)}.
+	 *
+	 * <p>
+	 * {@link Runnable} is defined by {@code java.base} so, unlike
+	 * {@link #follow(Object, String, Object)}, the task requires no
+	 * {@link IuLoggingProxy adapter} to cross the module boundary.
+	 * </p>
+	 *
+	 * <p>
+	 * Each joined task is assigned the next sequential join ID for the forked
+	 * process, and messages it {@link #trace(Supplier) traces} are prefixed with
+	 * {@code joinId + "> "}.
+	 * </p>
+	 *
+	 * @param forkedContext opaque handle returned by {@link #fork()}
+	 * @param task          task to run with the forked process bound
+	 */
+	public static void join(Object forkedContext, Runnable task) {
+		ProcessLogger.join(forkedContext, task);
+	}
+
+	/**
 	 * Subscribes to log events via proxy to a remotely defined interface.
 	 * 
 	 * @param <T>        event type

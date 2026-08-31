@@ -112,6 +112,62 @@ public interface IuLogContext {
 	}
 
 	/**
+	 * Captures the process being {@link #follow(IuLogContext, String, UnsafeSupplier)
+	 * followed} by the current thread, for {@link #join(Object, Runnable) joining}
+	 * from a worker thread.
+	 *
+	 * <p>
+	 * The value returned is an opaque handle with no externally defined contract; it
+	 * is only useful as the {@code forkedContext} argument to
+	 * {@link #join(Object, Runnable)}, and is null when the current thread is not
+	 * following a process.
+	 * </p>
+	 *
+	 * <p>
+	 * The forking thread <em>must</em> ensure joined tasks complete before it stops
+	 * following the process; messages traced by a task that outlives the process are
+	 * not guaranteed to be reported.
+	 * </p>
+	 *
+	 * <pre>
+	 * final var fork = IuLogContext.fork();
+	 * executor.submit(() -&gt; IuLogContext.join(fork, this::handle));
+	 * </pre>
+	 *
+	 * @return opaque handle on the process being followed; null if not following
+	 */
+	static Object fork() {
+		return IuLoggingBootstrap.fork();
+	}
+
+	/**
+	 * Applies a {@link #fork() forked} process to log events generated during the
+	 * invocation of an application-defined {@link Runnable}.
+	 *
+	 * <p>
+	 * Log events published by the task report the forked process' context, and
+	 * process trace messages recorded by the task are merged into the forked
+	 * process' trace. Any process already followed by the current thread is restored
+	 * when the task completes, so a task <em>may</em> be joined by the thread that
+	 * forked it, i.e. when a work queue falls back to executing on the submitting
+	 * thread.
+	 * </p>
+	 *
+	 * <p>
+	 * Each joined task is assigned the next sequential join ID for the forked
+	 * process, and its trace messages are prefixed with {@code joinId + "> "} so
+	 * that work forked onto other threads can be told apart from the forking
+	 * thread's own messages once merged into a single trace.
+	 * </p>
+	 *
+	 * @param forkedContext opaque handle returned by {@link #fork()}
+	 * @param task          task to run with the forked process applied
+	 */
+	static void join(Object forkedContext, Runnable task) {
+		IuLoggingBootstrap.join(forkedContext, task);
+	}
+
+	/**
 	 * Gets the unique identifier for the active request
 	 * 
 	 * @return unique request ID
