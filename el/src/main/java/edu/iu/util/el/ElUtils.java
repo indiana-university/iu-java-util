@@ -222,6 +222,8 @@ final class ElUtils {
 						return IuJson.bool(true);
 					else if ("empty".equals(pathElement))
 						return IuJson.bool(true);
+					else
+						return null;
 				}
 				if (selected instanceof JsonString) {
 					if ("blank".equals(pathElement))

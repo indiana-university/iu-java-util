@@ -32,6 +32,7 @@
 package iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mockStatic;
@@ -60,6 +61,11 @@ public class JsonSerializerTest {
 			assertEquals(convertedName.toUpperCase(),
 					JsonSerializer.formatPropertyName(name, IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES));
 		}
+	}
+
+	@Test
+	public void testSerializeNull() {
+		assertNull(JsonSerializer.serialize(Object.class, null, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
 	}
 
 	@Test

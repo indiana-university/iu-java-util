@@ -72,13 +72,13 @@ public class ElTest {
 			return Files.readString(resourcePath);
 		});
 	}
-	
+
 	@BeforeEach
 	void setup() throws Exception {
 		var f = El.class.getDeclaredField("INLINE_TEMPLATE_CACHE");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
-		
+
 		f = El.class.getDeclaredField("TEMPLATE_CACHE");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
@@ -178,7 +178,8 @@ public class ElTest {
 		assertEquals("inline template doesn't end with '`'",
 				assertThrows(IllegalArgumentException.class, () -> El.eval("<`")).getMessage());
 		assertEquals("invalid template name {}, expected a string",
-				assertThrows(IllegalArgumentException.class, () -> El.eval(IuJson.object().build(), "<_")).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> El.eval(IuJson.object().build(), "<_"))
+						.getMessage());
 	}
 
 	@Test
@@ -195,8 +196,7 @@ public class ElTest {
 		final var error = assertThrows(IllegalArgumentException.class, () -> El.eval(JsonValue.TRUE, ".foo?"));
 		assertEquals("expected object or array for property 'foo', found true", error.getMessage());
 		assertEquals(1, error.getSuppressed().length);
-		assertEquals("Evaluating EL expression \".foo?\" at 4: \".foo[?]\"",
-				error.getSuppressed()[0].getMessage());
+		assertEquals("Evaluating EL expression \".foo?\" at 4: \".foo[?]\"", error.getSuppressed()[0].getMessage());
 	}
 
 	@Test
@@ -274,8 +274,7 @@ public class ElTest {
 		JsonArrayBuilder arr = Json.createArrayBuilder();
 		arr.add("foo");
 		arr.add("bar");
-		assertEquals("0:foo1:bar",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(arr.build(), "$<`{i}:{<`{$}`}`")));
+		assertEquals("0:foo1:bar", IuJsonAdapter.of(String.class).fromJson(El.eval(arr.build(), "$<`{i}:{<`{$}`}`")));
 	}
 
 	@Test
@@ -482,8 +481,6 @@ public class ElTest {
 		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.int##")));
 		assertEquals("01", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.int#00")));
 
-		assertEquals("0123", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string_int#00")));
-
 		assertEquals("1234567890",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0000000000")));
 		assertEquals("1,234,567,890",
@@ -512,6 +509,9 @@ public class ElTest {
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date#d MMM yyyy HH:mm:ss")));
 
 		// ignored
+		IuTestLogger.allow(El.class.getName(), Level.FINE);
+		assertEquals("0123", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string_int#00")));
+
 		assertEquals("foo", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string#0")));
 		assertEquals("foo", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string#MM/dd/yyyy")));
 	}

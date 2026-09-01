@@ -41,18 +41,18 @@ import static edu.iu.util.el.ElUtils.select;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuCacheMap;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import jakarta.json.Json;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
@@ -113,6 +113,8 @@ import jakarta.json.JsonValue;
  */
 public final class El {
 
+	private static final Logger LOG = Logger.getLogger(El.class.getName());
+
 	private static final ThreadLocal<DecimalFormat> DECIMAL_FMT = new ThreadLocal<DecimalFormat>() {
 		@Override
 		protected DecimalFormat initialValue() {
@@ -124,13 +126,6 @@ public final class El {
 		@Override
 		protected SimpleDateFormat initialValue() {
 			return new SimpleDateFormat();
-		}
-	};
-
-	private static final ThreadLocal<DateTimeFormatter> DATE_TIME_FMT = new ThreadLocal<DateTimeFormatter>() {
-		@Override
-		protected DateTimeFormatter initialValue() {
-			return DateTimeFormatter.ISO_INSTANT;
 		}
 	};
 
@@ -335,18 +330,18 @@ public final class El {
 			case '.': {
 				final var endOfReference = getIndexFrom(expression, ANY, 1);
 				final JsonValue result;
-				if (endOfReference == -1) {
-					result = select(evalContext.getResult(), expression.substring(1));
-					evalContext.setPositionAtEnd();
-				} else {
-					try {
+				try {
+					if (endOfReference == -1) {
+						result = select(evalContext.getResult(), expression.substring(1));
+						evalContext.setPositionAtEnd();
+					} else {
 						result = select(evalContext.getResult(), expression.substring(1, endOfReference));
-					} catch (RuntimeException e) {
 						evalContext.advancePosition(endOfReference);
-						e.addSuppressed(new Throwable("Evaluating " + evalContext));
-						throw e;
 					}
+				} catch (RuntimeException e) {
 					evalContext.advancePosition(endOfReference);
+					e.addSuppressed(new Throwable("Evaluating " + evalContext));
+					throw e;
 				}
 				evalContext.setResult(result);
 				break;
@@ -402,20 +397,18 @@ public final class El {
 					df.applyPattern(expression.substring(1));
 					evalContext.setResult(Json.createValue(df.format(((JsonNumber) cval).numberValue())));
 				}
-				// Expect the value is formatted as ISO 8601, treat it as a date and apply the
-				// format pattern
+
 				if (cval instanceof JsonString) {
 					try {
-						DateTimeFormatter dtf = DATE_TIME_FMT.get();
-						final var instant = dtf.parse(((JsonString) cval).getString(), Instant::from);
+						final var date = IuJsonAdapter.of(Date.class).fromJson(cval);
 						SimpleDateFormat df = DATE_FMT.get();
 						df.applyPattern(expression.substring(1));
-						evalContext.setResult(Json.createValue(df.format(new Date(instant.toEpochMilli()))));
-					} catch (DateTimeParseException e) {
-						// ignore
-						// will return unformatted value
+						evalContext.setResult(Json.createValue(df.format(date)));
+					} catch (Exception e) {
+						LOG.log(Level.FINE, e, () -> "Invalid format or date/time string evaluating " + evalContext);
 					}
 				}
+
 				evalContext.setPositionAtEnd();
 				break;
 			}
