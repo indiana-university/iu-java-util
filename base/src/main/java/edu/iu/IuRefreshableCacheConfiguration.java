@@ -29,23 +29,42 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.client;
+package edu.iu;
 
 import java.time.Duration;
 
 /**
- * Provides tuning parameters to a {@link RemoteInvocationHandler}.
+ * Provides runtime tuning parameters to a {@link IuRefreshableCache}.
  *
  * <p>
  * All methods supply a default, so an implementation only overrides the values
- * it needs to change. The defensive call cache is <em>short-lived</em> by
+ * it needs to change. The cache reads one configuration snapshot for each
+ * operation, allowing a supplier to expose current values without recreating
+ * the cache. The defensive call cache is <em>short-lived</em> by
  * design: {@link #getRefreshTtl() refresh TTL} <em>should</em> be short enough
- * that callers see reasonably current data, and
- * {@link #getCacheTtl() cache TTL} <em>should</em> be long enough to cover a
- * downstream outage without forcing callers to block.
+ * that callers see reasonably current data, and {@link #getCacheTtl() cache
+ * TTL} <em>should</em> be long enough to cover a downstream outage without
+ * forcing callers to block.
  * </p>
  */
-public interface RemoteInvocationConfiguration {
+public interface IuRefreshableCacheConfiguration {
+
+	/**
+	 * Configuration with the default cache, call timeout, and executor limits.
+	 */
+	static final IuRefreshableCacheConfiguration DEFAULT = new IuRefreshableCacheConfiguration() {
+	};
+
+	/**
+	 * Configuration with the default call timeout and executor limits, but without
+	 * a result cache.
+	 */
+	static final IuRefreshableCacheConfiguration NO_CACHE = new IuRefreshableCacheConfiguration() {
+		@Override
+		public Duration getRefreshTtl() {
+			return null;
+		}
+	};
 
 	/**
 	 * Default {@link #getRefreshTtl() refresh TTL}: five minutes.
@@ -78,8 +97,8 @@ public interface RemoteInvocationConfiguration {
 	 *
 	 * <p>
 	 * Returns null to disable the defensive call cache entirely, in which case
-	 * every invocation results in a remote call and
-	 * {@link #getCacheTtl()} is not used.
+	 * every invocation results in a remote call and {@link #getCacheTtl()} is not
+	 * used.
 	 * </p>
 	 *
 	 * @return refresh interval; null to disable caching. Must be positive when
@@ -90,13 +109,13 @@ public interface RemoteInvocationConfiguration {
 	}
 
 	/**
-	 * Gets the maximum length of time a cached result remains available once it
-	 * has stopped being refreshed successfully.
+	 * Gets the maximum length of time a cached result remains available once it has
+	 * stopped being refreshed successfully.
 	 *
 	 * <p>
 	 * The interval between {@link #getRefreshTtl()} and this value is the
-	 * downstream service outage tolerance window: a successful refresh restarts
-	 * the window, so a healthy entry never expires.
+	 * downstream service outage tolerance window: a successful refresh restarts the
+	 * window, so a healthy entry never expires.
 	 * </p>
 	 *
 	 * @return cache time to live; must be longer than {@link #getRefreshTtl()}
