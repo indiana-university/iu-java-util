@@ -331,15 +331,18 @@ public final class El {
 				final var endOfReference = getIndexFrom(expression, ANY, 1);
 				final JsonValue result;
 				try {
-					if (endOfReference == -1) {
-						result = select(evalContext.getResult(), expression.substring(1));
-						evalContext.setPositionAtEnd();
-					} else {
-						result = select(evalContext.getResult(), expression.substring(1, endOfReference));
-						evalContext.advancePosition(endOfReference);
+					try {
+						if (endOfReference == -1)
+							result = select(evalContext.getResult(), expression.substring(1));
+						else
+							result = select(evalContext.getResult(), expression.substring(1, endOfReference));
+					} finally {
+						if (endOfReference == -1)
+							evalContext.setPositionAtEnd();
+						else
+							evalContext.advancePosition(endOfReference);
 					}
 				} catch (RuntimeException e) {
-					evalContext.advancePosition(endOfReference);
 					e.addSuppressed(new Throwable("Evaluating " + evalContext));
 					throw e;
 				}
