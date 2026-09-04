@@ -6,15 +6,13 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 ## Role
 
-SAML 2.0 Service Provider — metadata publication, AuthnRequest generation, and Response validation.
-Authentication state is carried across the redirect round-trip in a `session` detail.
+SAML 2.0 Service Provider — metadata publication, AuthnRequest generation, and Response validation. Authentication state is carried across the redirect round-trip in a `session` detail.
 
 `api` compiles at the inherited level; `impl` overrides `release` to **17**.
 
 ## OpenSAML is an optional runtime dependency
 
-This is the module's defining constraint. `module-info.java` declares every OpenSAML and Shibboleth
-module `requires static`, and `pom.xml` scopes them `provided`:
+This is the module's defining constraint. `module-info.java` declares every OpenSAML and Shibboleth module `requires static`, and `pom.xml` scopes them `provided`:
 
 ```java
 requires static org.opensaml.core;
@@ -29,13 +27,9 @@ requires static net.shibboleth.shared.support;
 
 Consequences when editing:
 
-- OpenSAML types must not appear in any exported signature. They are confined to the internals of
-  `iu.saml`; the public API speaks `edu.iu.saml` types plus `IuStatefulRedirect` and
-  `IuRequestAttributes` from `base`.
-- The deploying application supplies OpenSAML on the runtime module path. A missing provider surfaces
-  as `NoClassDefFoundError` at first use, not at startup.
-- OpenSAML artifacts resolve from the **Shibboleth Nexus** repository declared in this POM, and
-  BouncyCastle is excluded in favor of the JDK providers used by `crypt`.
+- OpenSAML types must not appear in any exported signature. They are confined to the internals of `iu.saml`; the public API speaks `edu.iu.saml` types plus `IuStatefulRedirect` and `IuRequestAttributes` from `base`.
+- The deploying application supplies OpenSAML on the runtime module path. A missing provider surfaces as `NoClassDefFoundError` at first use, not at startup.
+- OpenSAML artifacts resolve from the **Shibboleth Nexus** repository declared in this POM, and BouncyCastle is excluded in favor of the JDK providers used by `crypt`.
 
 ## API surface (`edu.iu.saml`)
 
@@ -50,10 +44,6 @@ IuSamlPrincipal getPrincipalIdentity(IuRequestAttributes attrs);
 
 ## Implementation notes (`iu.saml`)
 
-`SamlServiceProvider` is the entry point. Validation is split across `SamlResponseValidator` and
-`IuSubjectConfirmationValidator`; `SamlParserPool` manages XML parsers (pooled deliberately — parser
-construction dominates response processing cost). `XmlDomUtil` holds the DOM helpers, and
-`SamlPreAuthentication` / `SamlPostAuthentication` are the session details carried across the
-redirect. Configuration is `iu.saml.config.IuSamlServiceProviderMetadata`, bound through `IuConfig`.
+`SamlServiceProvider` is the entry point. Validation is split across `SamlResponseValidator` and `IuSubjectConfirmationValidator`; `SamlParserPool` manages XML parsers (pooled deliberately — parser construction dominates response processing cost). `XmlDomUtil` holds the DOM helpers, and `SamlPreAuthentication` / `SamlPostAuthentication` are the session details carried across the redirect. Configuration is `iu.saml.config.IuSamlServiceProviderMetadata`, bound through `IuConfig`.
 
 Response validation is the security boundary: every rejection path needs a negative test.

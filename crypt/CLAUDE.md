@@ -6,9 +6,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 ## Role
 
-JOSE — JSON Web Key, JSON Web Signature, and JSON Web Encryption — implemented directly on the JDK
-crypto providers. This is the security foundation for `jwt`, `session`, `oidc`, `saml`, `pki`,
-`config`, and `logging/impl`.
+JOSE — JSON Web Key, JSON Web Signature, and JSON Web Encryption — implemented directly on the JDK crypto providers. This is the security foundation for `jwt`, `session`, `oidc`, `saml`, `pki`, `config`, and `logging/impl`.
 
 ## Layout and build order
 
@@ -24,11 +22,7 @@ crypto providers. This is the security foundation for `jwt`, `session`, `oidc`, 
 
 `edu.iu.crypt.Init` holds the `ServiceLoader`-resolved `IuCryptSpi` in a static initializer.
 
-When both `iu.util.crypt` and `iu.util.crypt.impl` are loaded by the system class loader, resolution
-is automatic. When they are loaded into a **non-system `ModuleLayer`** — which is how `type/loader`
-and `logging` load components — the bootstrap module must call `Init.init()` explicitly while the
-implementation module's `ClassLoader` is the thread context class loader. Getting this wrong produces
-a `NoSuchElementException` from `ServiceLoader.findFirst().get()` at first use, far from the cause.
+When both `iu.util.crypt` and `iu.util.crypt.impl` are loaded by the system class loader, resolution is automatic. When they are loaded into a **non-system `ModuleLayer`** — which is how `type/loader` and `logging` load components — the bootstrap module must call `Init.init()` explicitly while the implementation module's `ClassLoader` is the thread context class loader. Getting this wrong produces a `NoSuchElementException` from `ServiceLoader.findFirst().get()` at first use, far from the cause.
 
 ## API surface (`edu.iu.crypt`)
 
@@ -40,20 +34,12 @@ a `NoSuchElementException` from `ServiceLoader.findFirst().get()` at first use, 
 - `PemEncoded` — PEM parsing and generation.
 - `EphemeralKeys` — throwaway key material.
 
-Everything in this package is a builder-driven interface; the concrete classes are in `iu.crypt`
-(`Jwk`, `Jws`, `Jwe`, `Jose`, and their `*Builder` counterparts). Add new capability by extending the
-interface in `api` and the corresponding builder in `impl` together — the SPI split means an
-interface method with no implementation compiles cleanly and fails at runtime.
+Everything in this package is a builder-driven interface; the concrete classes are in `iu.crypt` (`Jwk`, `Jws`, `Jwe`, `Jose`, and their `*Builder` counterparts). Add new capability by extending the interface in `api` and the corresponding builder in `impl` together — the SPI split means an interface method with no implementation compiles cleanly and fails at runtime.
 
 ## CLI
 
-`crypt/cli` (`iu.crypt.cli.WebKeyCli`) is packaged by `maven-assembly-plugin` from
-`src/assembly/bin.xml` into `iu-java-crypt-cli.tar.gz`, with launcher scripts from `src/bin/` and all
-runtime dependencies under `lib/`. It is the only module in the repository compiled at Java 21.
-Exercise it through `edu.iu.test.CliTestSupport`.
+`crypt/cli` (`iu.crypt.cli.WebKeyCli`) is packaged by `maven-assembly-plugin` from `src/assembly/bin.xml` into `iu-java-crypt-cli.tar.gz`, with launcher scripts from `src/bin/` and all runtime dependencies under `lib/`. It is the only module in the repository compiled at Java 21. Exercise it through `edu.iu.test.CliTestSupport`.
 
 ## Testing notes
 
-`src/test/resources/META-INF/iu-test.properties` sets `iu.util.test.platformLoggers=edu.iu.crypt`,
-exempting this package's own log output from `IuTestLogger`'s strict matching. Downstream modules
-that use crypt (`session/impl`, `logging/impl`) copy that same line.
+`src/test/resources/META-INF/iu-test.properties` sets `iu.util.test.platformLoggers=edu.iu.crypt`, exempting this package's own log output from `IuTestLogger`'s strict matching. Downstream modules that use crypt (`session/impl`, `logging/impl`) copy that same line.
