@@ -149,7 +149,8 @@ public class ElTest {
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap?_.foo")));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap[$.fooMap[_.bar]]")));
 
-		assertEquals("not empty", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.empty?'empty!'not empty")));
+		assertEquals("not empty",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.empty?'empty!'not empty")));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.1")));
 		assertEquals("three", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.size=3?'three")));
 		assertEquals(JsonValue.TRUE, El.eval(c, "$.fooList.size=3"));
@@ -297,8 +298,9 @@ public class ElTest {
 		JsonObjectBuilder failure = Json.createObjectBuilder().add("success", JsonValue.FALSE).add("message",
 				"failure message");
 		b.add("foo", Json.createObjectBuilder().add("baz", success).add("bim", failure));
-		assertEquals("Here it is a success success message!\n" //
-				+ "Here it is a failure failure message!\n", IuJsonAdapter.of(String.class)
+		assertEquals("Here it is a success success message!" + System.lineSeparator() //
+				+ "Here it is a failure failure message!" + System.lineSeparator(),
+				IuJsonAdapter.of(String.class)
 						.fromJson(El.eval(b.build(), "$.foo<'el/testTemplate", ElTest::readResource)));
 	}
 
@@ -560,7 +562,8 @@ public class ElTest {
 		b.add("money", "3.50");
 		b.add("bigger_money", "1234567890.97");
 		b.add("date", "2025-02-03T22:23:24Z");
-		// the two forms IuJsonAdapter.of(Date.class).toJson() emits: ISO_DATE_TIME with the
+		// the two forms IuJsonAdapter.of(Date.class).toJson() emits: ISO_DATE_TIME with
+		// the
 		// zone region appended, and ISO_DATE alone when the time is midnight
 		b.add("zoned_date", "2026-08-24T12:24:00.098Z[UTC]");
 		b.add("date_only", "2026-08-24Z");
@@ -600,8 +603,7 @@ public class ElTest {
 
 		assertEquals("08/24/2026",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zoned_date#MM/dd/yyyy")));
-		assertEquals("08/24/2026",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date_only#MM/dd/yyyy")));
+		assertEquals("08/24/2026", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date_only#MM/dd/yyyy")));
 
 		// an invalid pattern fails on both branches, rather than only on the number one
 		assertEquals("Illegal pattern character 'j'",
