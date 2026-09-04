@@ -31,7 +31,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -71,6 +78,115 @@ public class IuRefreshableCacheTest {
 		public int getPending() {
 			return pending;
 		}
+	}
+
+	/**
+	 * Captures everything this package logs for the duration of one test.
+	 *
+	 * <p>
+	 * Several behaviors under test are reported at {@code INFO} — a refresh that
+	 * failed, or one that could not be dispatched — and printing those to the build
+	 * output makes a passing run look like a broken one. They are captured instead,
+	 * and a test that expects one declares it with {@link #expectLog}. Anything
+	 * else logged at {@code INFO} or higher fails the test that produced it, so a
+	 * new diagnostic cannot appear unnoticed.
+	 * </p>
+	 */
+	private static final class CapturedLog extends Handler {
+		private final List<LogRecord> records = Collections.synchronizedList(new ArrayList<>());
+
+		@Override
+		public void publish(LogRecord record) {
+			records.add(record);
+		}
+
+		@Override
+		public void flush() {
+		}
+
+		@Override
+		public void close() {
+		}
+	}
+
+	private final List<String> expectedLog = Collections.synchronizedList(new ArrayList<>());
+	private Logger log;
+	private CapturedLog captured;
+	private Level restoreLevel;
+	private boolean restoreUseParentHandlers;
+
+	@BeforeEach
+	public void captureLog() {
+		// the package logger, so a message from the cache map or a cached value is
+		// held to the same standard as one from the cache itself
+		log = Logger.getLogger("edu.iu");
+		restoreLevel = log.getLevel();
+		restoreUseParentHandlers = log.getUseParentHandlers();
+
+		captured = new CapturedLog();
+		captured.setLevel(Level.ALL);
+
+		log.setLevel(Level.INFO);
+		log.setUseParentHandlers(false);
+		log.addHandler(captured);
+	}
+
+	@AfterEach
+	public void assertOnlyExpectedLog() {
+		log.removeHandler(captured);
+		log.setUseParentHandlers(restoreUseParentHandlers);
+		log.setLevel(restoreLevel);
+
+		final var unexpected = captured.records.stream() //
+				.filter(record -> record.getLevel().intValue() >= Level.INFO.intValue()) //
+				.filter(record -> !interrupted(record.getThrown())) //
+				.filter(record -> expectedLog.stream().noneMatch(record.getMessage()::startsWith)) //
+				.map(record -> record.getMessage() + " [" + (record.getThrown() == null //
+						? "no exception"
+						: record.getThrown().getClass().getName()) + "]") //
+				.collect(Collectors.toList());
+
+		assertEquals(List.of(), unexpected, "unexpected log output at INFO or higher");
+	}
+
+	/**
+	 * Determines whether a logged failure was an interruption.
+	 *
+	 * <p>
+	 * Closing the cache interrupts whatever calls are in flight, and a refresh
+	 * interrupted while a value is on hand reports that at {@code INFO}. Whether
+	 * any given test still has a refresh running when it closes depends on where
+	 * that refresh had got to, so this is expected output from any of them rather
+	 * than something an individual test can declare.
+	 * </p>
+	 *
+	 * @param thrown logged failure; may be null
+	 * @return true if the failure was, or was caused by, an interruption
+	 */
+	private static boolean interrupted(Throwable thrown) {
+		while (thrown != null) {
+			if (thrown instanceof InterruptedException)
+				return true;
+			thrown = thrown.getCause();
+		}
+		return false;
+	}
+
+	/**
+	 * Permits a message this test may log, by its leading text.
+	 *
+	 * <p>
+	 * This allows the message rather than requiring it: some are reported only when
+	 * a value happens to be on hand as a refresh is abandoned, which depends on
+	 * where the abandoned call had got to. Assert on behavior for what a test
+	 * requires; this only keeps the expected diagnostics out of the build output
+	 * without blinding it to new ones.
+	 * </p>
+	 *
+	 * @param message leading text of a permitted message
+	 */
+	private void expectLog(String message) {
+		expectedLog.add(message);
 	}
 
 	private static IuRefreshableCache<String, String> cache(Supplier<IuRefreshableCacheConfiguration> config,
@@ -147,6 +263,26 @@ public class IuRefreshableCacheTest {
 			Thread.sleep(25L);
 		} while (System.nanoTime() < expires);
 		assertEquals(expected, queue.size(), "timed out waiting for invalidation queue depth");
+	}
+
+	/**
+	 * Waits until every caller is parked, either on the shared invocation or
+	 * inside it.
+	 *
+	 * <p>
+	 * A caller that has been started has not necessarily reached the cache yet.
+	 * Releasing the shared invocation before they all arrive lets it complete and
+	 * clear itself, so a late arrival starts its own rather than joining the one
+	 * under test.
+	 * </p>
+	 */
+	private static void awaitParked(List<Thread> callers) {
+		final var expires = System.nanoTime() + Duration.ofSeconds(5L).toNanos();
+		for (final var caller : callers)
+			while (caller.getState() != Thread.State.WAITING //
+					&& caller.getState() != Thread.State.TIMED_WAITING //
+					&& System.nanoTime() < expires)
+				Thread.onSpinWait();
 	}
 
 	private static void awaitCalls(AtomicInteger calls, int expected) throws InterruptedException {
@@ -421,6 +557,51 @@ public class IuRefreshableCacheTest {
 	}
 
 	@Test
+	public void testConcurrentCallersReplaceThePoolOnlyOnce() throws Throwable {
+		final var configuration = new MutableConfiguration();
+		final var reachedConfig = new CountDownLatch(2);
+		final var pools = Collections.synchronizedList(new ArrayList<Object>());
+
+		try (final var cache = new IuRefreshableCache<String, String>(() -> {
+			reachedConfig.countDown();
+			return configuration;
+		}, key -> {
+			pools.add(Thread.currentThread().getThreadGroup());
+			return key;
+		}, key -> IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("warm", cache.apply("warm"));
+
+			// both callers read the pool as mismatched and then queue on the cache's
+			// own monitor, so whichever enters second finds the replacement already
+			// made and must not build a second pool
+			configuration.threads = 3;
+
+			final List<Thread> callers = new ArrayList<>();
+			synchronized (cache) {
+				for (var i = 0; i < 2; i++) {
+					final var caller = new Thread(() -> assertDoesNotThrow(() -> cache.apply("key")));
+					callers.add(caller);
+					caller.start();
+				}
+
+				assertTrue(reachedConfig.await(5L, TimeUnit.SECONDS));
+				for (final var caller : callers) {
+					final var expires = System.nanoTime() + Duration.ofSeconds(5L).toNanos();
+					while (caller.getState() != Thread.State.BLOCKED && System.nanoTime() < expires)
+						Thread.onSpinWait();
+					assertEquals(Thread.State.BLOCKED, caller.getState(), "caller never reached the pool monitor");
+				}
+			}
+
+			for (final var caller : callers)
+				caller.join(5000L);
+
+			assertEquals("key", cache.apply("key"));
+			assertEquals(3, configuration.threads);
+		}
+	}
+
+	@Test
 	public void testExecutorIsReplacedAndRejectedSizeLeavesOldExecutor() throws Throwable {
 		final var configuration = new MutableConfiguration();
 		final var thread = new AtomicReference<Thread>();
@@ -472,6 +653,7 @@ public class IuRefreshableCacheTest {
 				caller.start();
 			}
 			assertTrue(arrived.await(5L, TimeUnit.SECONDS));
+			awaitParked(callers);
 			proceed.countDown();
 			for (var caller : callers)
 				caller.join(5000L);
@@ -505,6 +687,7 @@ public class IuRefreshableCacheTest {
 				caller.start();
 			}
 			assertTrue(arrived.await(5L, TimeUnit.SECONDS));
+			awaitParked(callers);
 			proceed.countDown();
 			for (var caller : callers)
 				caller.join(5000L);
@@ -550,6 +733,7 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testFailedBackgroundRefreshServesLastGoodValue() throws Throwable {
+		expectLog("Remote call refresh failed, serving last good result for");
 		final var calls = new AtomicInteger();
 		final var ttl = Duration.ofMillis(75L);
 		try (final var cache = cache(config(ttl, Duration.ofSeconds(30L)), key -> {
@@ -743,6 +927,7 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testDispatchFailureAndClose() throws Throwable {
+		expectLog("Remote call refresh could not be dispatched, serving last good result for");
 		final var fail = new AtomicBoolean();
 		final var calls = new AtomicInteger();
 		final var ttl = Duration.ofMillis(75L);
@@ -765,7 +950,7 @@ public class IuRefreshableCacheTest {
 			awaitCalls(calls, 2);
 			cache.close();
 			cache.close();
-			assertEquals("Remote invocation handler is closed",
+			assertEquals("Refreshable cache is closed",
 					assertThrows(IllegalStateException.class, () -> cache.apply("key")).getMessage());
 		}
 		try (final var cache = new IuRefreshableCache<String, String>(
@@ -1165,6 +1350,7 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testInvalidationAbandonsARefreshAlreadyInFlight() throws Throwable {
+		expectLog("Remote call refresh failed, serving last good result for");
 		final var value = new AtomicReference<>("v0");
 		final var slow = new AtomicBoolean();
 		final var started = new CountDownLatch(1);
@@ -1204,7 +1390,57 @@ public class IuRefreshableCacheTest {
 	}
 
 	@Test
+	public void testInvalidationsOlderThanTheEntryAreSkippedWhileNewerOnesAreEvaluated() throws Throwable {
+		final var calls = new AtomicInteger();
+		final var consulted = Collections.synchronizedList(new ArrayList<String>());
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key + "/" + calls.incrementAndGet(), key -> {
+					if (!key.startsWith("write"))
+						return IuRefreshableCacheHint.useDefaults();
+					return new IuRefreshableCacheHint<String, String>() {
+						@Override
+						public boolean shouldClear(String candidate) {
+							if (candidate.equals("target"))
+								consulted.add(key);
+							return candidate.equals(key);
+						}
+					};
+				})) {
+			// one invalidation before this entry is read and one after, so the scan
+			// spans both sides of the entry's own position in the sequence
+			assertEquals("writeOne/1", cache.apply("writeOne"));
+			assertEquals("target/2", cache.apply("target"));
+			assertEquals("writeTwo/3", cache.apply("writeTwo"));
+			assertEquals(2, hintQueue(cache).size());
+
+			// the older invalidation is skipped without consulting its predicate; only
+			// the newer one is evaluated, and it does not match
+			assertEquals("target/2", cache.apply("target"));
+			assertEquals(List.of("writeTwo"), consulted);
+			assertEquals(3, calls.get());
+		}
+	}
+
+	@Test
+	public void testOutcomeIsRecordedWhenFineLoggingIsEnabled() throws Throwable {
+		log.setLevel(Level.FINE);
+		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> "value")) {
+			assertEquals("value", cache.apply("key"));
+			assertEquals("value", cache.apply("key"));
+		}
+
+		// the message is built only when the level is enabled, so this is also the
+		// only path on which the supplier runs at all
+		final var messages = captured.records.stream().map(LogRecord::getMessage).collect(Collectors.toList());
+		assertTrue(messages.stream().anyMatch(m -> m.startsWith("cache-miss:key:")), () -> messages.toString());
+		assertTrue(messages.stream().anyMatch(m -> m.startsWith("cache-hit:key:")), () -> messages.toString());
+	}
+
+	@Test
 	public void testInvalidationDuringTheDispatchWindowIsNotLost() throws Throwable {
+		expectLog("Remote call refresh failed, serving last good result for");
 		final var gate = new AtomicBoolean();
 		final var dispatched = new CountDownLatch(1);
 		final var release = new CountDownLatch(1);

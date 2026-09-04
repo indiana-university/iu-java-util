@@ -11,6 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,8 +34,10 @@ import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.security.Principal;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -45,6 +49,7 @@ import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuRefreshableCacheConfiguration;
+import edu.iu.IuRefreshableCacheHint;
 import jakarta.json.stream.JsonParsingException;
 
 /** Tests behavior that remains in {@link RemoteInvocationHandler}. */
@@ -236,17 +241,136 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 	public void testCachePolicyReceivesKeyAndCanBeOverridden() throws Exception {
 		final var handler = new TestHandler();
 		final var key = handler.cacheKey(method(A.class, "b"), handler.serialize(method(A.class, "b")));
-		assertTrue(handler.usesCache(key));
+
+		// the default hint caches the request: it does not match its own key
+		final var defaultHint = handler.cacheHint(key);
+		assertNotNull(defaultHint);
+		assertFalse(defaultHint.shouldClear(key));
+
 		final var observed = new AtomicReference<RemoteInvocationHandler.Key>();
 		final var rejecting = new TestHandler() {
 			@Override
-			protected boolean usesCache(Key request) {
+			protected IuRefreshableCacheHint<Key, Object> cacheHint(Key request) {
 				observed.set(request);
-				return false;
+				return null;
 			}
 		};
-		assertFalse(rejecting.usesCache(key));
+		assertNull(rejecting.cacheHint(key));
 		assertSame(key, observed.get());
+	}
+
+	/**
+	 * Handler with caching enabled and a counted, in-process invocation, so the
+	 * tests below observe cache behavior rather than transport behavior.
+	 */
+	private static class CachingHandler extends RemoteInvocationHandler {
+		private final AtomicInteger invocations = new AtomicInteger();
+		private final Function<Key, IuRefreshableCacheHint<Key, Object>> hint;
+
+		CachingHandler(Function<Key, IuRefreshableCacheHint<Key, Object>> hint) {
+			super(() -> IuRefreshableCacheConfiguration.DEFAULT);
+			this.hint = hint;
+		}
+
+		@Override
+		protected void authorize(HttpRequest.Builder requestBuilder) {
+		}
+
+		@Override
+		protected URI uri(Method method) {
+			return TEST_URI;
+		}
+
+		@Override
+		protected IuRefreshableCacheHint<Key, Object> cacheHint(Key key) {
+			return hint.apply(key);
+		}
+
+		@Override
+		protected Object doInvoke(Method method, Object serializedArgs) {
+			return method.getName() + "/" + invocations.incrementAndGet();
+		}
+	}
+
+	@Test
+	public void testDefaultHintCachesRepeatedRequests() throws Throwable {
+		final var echo = method(A.class, "echo", String.class);
+		try (final var handler = new CachingHandler(key -> IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "key" }));
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "key" }));
+			assertEquals(1, handler.invocations.get());
+		}
+	}
+
+	@Test
+	public void testClearAllHintExcludesTheRequestAndDiscardsCachedResults() throws Throwable {
+		final var echo = method(A.class, "echo", String.class);
+		final var b = method(A.class, "b");
+
+		// the direct replacement for excluding a request under the previous policy,
+		// which cleared the whole cache on success
+		try (final var handler = new CachingHandler(key -> key.method.equals(b) //
+				? IuRefreshableCacheHint.clearAll()
+				: IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "key" }));
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "key" }));
+
+			// never cached itself, and discards what was cached before it
+			assertEquals("b/2", handler.invoke(null, b, null));
+			assertEquals("b/3", handler.invoke(null, b, null));
+			assertEquals("echo/4", handler.invoke(null, echo, new Object[] { "key" }));
+		}
+	}
+
+	@Test
+	public void testNullHintBypassesTheCacheWithoutDiscardingCachedResults() throws Throwable {
+		final var echo = method(A.class, "echo", String.class);
+		final var b = method(A.class, "b");
+
+		// null is NOT the equivalent of excluding a request under the previous
+		// policy: it bypasses the cache but publishes no invalidation, so a result
+		// cached before it survives
+		try (final var handler = new CachingHandler(key -> key.method.equals(b) //
+				? null
+				: IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "key" }));
+
+			assertEquals("b/2", handler.invoke(null, b, null));
+			assertEquals("b/3", handler.invoke(null, b, null));
+
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "key" }));
+		}
+	}
+
+	@Test
+	public void testSelectiveHintInvalidatesOnlyTheKeysItMatches() throws Throwable {
+		final var echo = method(A.class, "echo", String.class);
+		final var b = method(A.class, "b");
+
+		try (final var handler = new CachingHandler(key -> {
+			if (!key.method.equals(b))
+				return IuRefreshableCacheHint.useDefaults();
+
+			return new IuRefreshableCacheHint<RemoteInvocationHandler.Key, Object>() {
+				@Override
+				public boolean shouldClear(RemoteInvocationHandler.Key candidate) {
+					// its own key, so the write is not cached, plus the one read it
+					// is declared to affect. Arguments reach the key serialized, as a
+					// JSON array, rather than as the values passed to the method.
+					return candidate.method.equals(b) //
+							|| String.valueOf(candidate.serializedArgs).contains("stale");
+				}
+			};
+		})) {
+			assertEquals("echo/1", handler.invoke(null, echo, new Object[] { "stale" }));
+			assertEquals("echo/2", handler.invoke(null, echo, new Object[] { "fresh" }));
+
+			assertEquals("b/3", handler.invoke(null, b, null));
+
+			// only the matched key is resolved again
+			assertEquals("echo/4", handler.invoke(null, echo, new Object[] { "stale" }));
+			assertEquals("echo/2", handler.invoke(null, echo, new Object[] { "fresh" }));
+		}
 	}
 
 	@Test

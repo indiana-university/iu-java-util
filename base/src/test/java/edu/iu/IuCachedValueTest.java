@@ -106,6 +106,25 @@ public class IuCachedValueTest {
 	}
 
 	@Test
+	public void testExpirationThunkThatReadsTheValueDoesNotRecur() throws Throwable {
+		final var runs = new java.util.concurrent.atomic.AtomicInteger();
+		final var self = new java.util.concurrent.atomic.AtomicReference<IuCachedValue<String>>();
+
+		// a thunk that reads the value it is expiring, as a collection does when it
+		// compares the value it is removing against what it holds. Reading a value
+		// mid-clear resolves it as expired and calls back into clear().
+		final var ref = new IuCachedValue<>("value", Duration.ofSeconds(30L), () -> {
+			runs.incrementAndGet();
+			self.get().isValid();
+		});
+		self.set(ref);
+		allRefs.add(ref);
+
+		ref.clear();
+		assertEquals(1, runs.get(), "the expiration thunk re-entered its own expiration");
+	}
+
+	@Test
 	public void testThunkError() throws Throwable {
 		final var log = LogManager.getLogManager().getLogger("");
 		final var restoreHandlers = log.getHandlers();
@@ -117,7 +136,11 @@ public class IuCachedValueTest {
 			try {
 				final var thunk = mock(UnsafeRunnable.class);
 				doThrow(Exception.class).when(thunk).run();
-				final var ref = new IuCachedValue<>(null, Duration.ofMillis(25L), thunk);
+
+				// this exercises expiration by a cleared reference, not by elapsed time,
+				// so the time to live is held well clear of the assertions below; a
+				// short one races the expiration timer to the never() check
+				final var ref = new IuCachedValue<>(null, Duration.ofSeconds(30L), thunk);
 				allRefs.add(ref);
 				final var f = IuCachedValue.class.getDeclaredField("reference");
 				f.setAccessible(true);

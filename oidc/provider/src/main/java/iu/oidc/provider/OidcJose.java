@@ -104,6 +104,43 @@ public final class OidcJose {
 	}
 
 	/**
+	 * Encrypts serialized claims to one audience, without signing them.
+	 *
+	 * <p>
+	 * What an audience gets is confidential but unauthenticated: encryption tells
+	 * it nobody else read the claims, not that this provider is who wrote them.
+	 * That is a weaker guarantee than {@link #signAndEncrypt} gives, and it is what
+	 * OpenID Connect means by an encrypted response with no signing algorithm
+	 * registered.
+	 * </p>
+	 *
+	 * @param serializedClaims claims, as whatever rendered them serialized them
+	 * @param contentType      {@code cty} header value naming what the plaintext
+	 *                         is; null to declare none, which is what claims
+	 *                         serialized as a plain document want
+	 * @param audienceKey      audience's public key, whose
+	 *                         {@link WebKey#getAlgorithm() algorithm} manages the
+	 *                         content encryption key
+	 * @param encryption       content {@link Encryption}
+	 * @return JWE compact serialization
+	 * @throws NullPointerException if the audience key declares no algorithm
+	 */
+	public static String encrypt(String serializedClaims, String contentType, WebKey audienceKey,
+			Encryption encryption) {
+		final var algorithm = Objects.requireNonNull(audienceKey.getAlgorithm(), "Missing audience key algorithm");
+		final var recipient = WebEncryption.builder(encryption).compact().addRecipient(algorithm).key(audienceKey);
+
+		if (contentType != null)
+			recipient.contentType(contentType);
+
+		final var keyId = audienceKey.getKeyId();
+		if (keyId != null)
+			recipient.keyId(keyId);
+
+		return recipient.encrypt(serializedClaims).compact();
+	}
+
+	/**
 	 * Signs serialized claims, then encrypts the signature to one audience.
 	 *
 	 * <p>
@@ -128,15 +165,7 @@ public final class OidcJose {
 	 */
 	public static String signAndEncrypt(String serializedClaims, String type, WebKey issuerKey, WebKey audienceKey,
 			Encryption encryption) {
-		final var algorithm = Objects.requireNonNull(audienceKey.getAlgorithm(), "Missing audience key algorithm");
-		final var recipient = WebEncryption.builder(encryption).compact().addRecipient(algorithm).key(audienceKey)
-				.contentType(type);
-
-		final var keyId = audienceKey.getKeyId();
-		if (keyId != null)
-			recipient.keyId(keyId);
-
-		return recipient.encrypt(sign(serializedClaims, type, issuerKey)).compact();
+		return encrypt(sign(serializedClaims, type, issuerKey), type, audienceKey, encryption);
 	}
 
 	private OidcJose() {

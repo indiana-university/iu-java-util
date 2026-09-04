@@ -194,23 +194,30 @@ public class IuCachedValue<V> {
 	 * </p>
 	 */
 	public synchronized void clear() {
-		if (!expired)
-			try {
-				// counted only when a scheduled run was actually prevented, since a task
-				// that already came due is no longer in the timer's queue to purge
-				if (expireTask.cancel())
-					CANCELLED.incrementAndGet();
+		if (expired)
+			return;
 
-				reference.clear();
-				onExpire.run();
-			} catch (Throwable e) {
-				LOG.log(Level.INFO, e, () -> "Unhandled error in cache reference expiration thunk " + onExpire);
-			} finally {
-				expired = true;
-				expireTask = null;
-				reference = null;
-				onExpire = null;
-			}
+		// marked before the thunk runs, not after. The thunk reaches back into the
+		// collection holding this value, and any read of this value while it is
+		// being cleared resolves it as expired and calls back into this method; the
+		// monitor is reentrant, so only this flag stops that from recurring.
+		expired = true;
+
+		try {
+			// counted only when a scheduled run was actually prevented, since a task
+			// that already came due is no longer in the timer's queue to purge
+			if (expireTask.cancel())
+				CANCELLED.incrementAndGet();
+
+			reference.clear();
+			onExpire.run();
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, e, () -> "Unhandled error in cache reference expiration thunk " + onExpire);
+		} finally {
+			expireTask = null;
+			reference = null;
+			onExpire = null;
+		}
 	}
 
 	@Override

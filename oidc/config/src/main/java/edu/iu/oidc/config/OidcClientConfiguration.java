@@ -31,6 +31,10 @@
  */
 package edu.iu.oidc.config;
 
+import edu.iu.crypt.WebEncryption.Encryption;
+import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+
 /**
  * Describes one relying party registered with this provider.
  *
@@ -101,5 +105,63 @@ public interface OidcClientConfiguration {
 	 * @return mapped roles
 	 */
 	Iterable<OidcClientRole> getRoles();
+
+	/**
+	 * Gets the algorithm a UserInfo response to this client is signed with.
+	 *
+	 * <p>
+	 * Registered for the client rather than for one of its
+	 * {@link #getEndpoints() endpoints}, unlike the algorithm an ID token is signed
+	 * with, because a UserInfo request names no endpoint: it presents an access
+	 * token, and a token names the client it was issued to and not the redirect URI
+	 * the grant behind it went through. There is nothing at that point to select an
+	 * endpoint by.
+	 * </p>
+	 *
+	 * <p>
+	 * Also unlike an ID token, which is always signed: {@code null} is the default
+	 * and means the response is a plain claims document, which is what OpenID
+	 * Connect means by registering no signing algorithm.
+	 * </p>
+	 *
+	 * @return signature {@link Algorithm}; {@code null} (default) to answer an
+	 *         unsigned document
+	 */
+	default Algorithm getUserinfoAlg() {
+		return null;
+	}
+
+	/**
+	 * Gets the content encryption algorithm a UserInfo response to this client is
+	 * encrypted with.
+	 *
+	 * <p>
+	 * Independent of {@link #getUserinfoAlg()}. Registering encryption alone
+	 * answers an encrypted claims document, which is confidential but
+	 * unauthenticated; registering both answers a signature encrypted to
+	 * {@link #getUserinfoJwk() the client's key}, which is both.
+	 * </p>
+	 *
+	 * @return {@link Encryption}; {@code null} (default) to answer an unencrypted
+	 *         document
+	 */
+	default Encryption getUserinfoEnc() {
+		return null;
+	}
+
+	/**
+	 * Gets the key a UserInfo response to this client is encrypted to.
+	 *
+	 * <p>
+	 * Required when {@link #getUserinfoEnc()} names an encryption, and unread
+	 * otherwise. Registered for the client for the same reason the algorithms are.
+	 * </p>
+	 *
+	 * @return encryption {@link WebKey}; {@code null} (default) when nothing is
+	 *         encrypted to this client
+	 */
+	default WebKey getUserinfoJwk() {
+		return null;
+	}
 
 }

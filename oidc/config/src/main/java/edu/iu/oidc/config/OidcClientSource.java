@@ -29,39 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.oidc;
+package edu.iu.oidc.config;
 
 /**
- * Supplies the standard claims an OpenID Provider asserts about one end user.
+ * Reads one relying party's registration, whole.
  *
  * <p>
- * The seam between the provider and whatever holds identity data. A deployment
- * implements this over its own directory, database, or attribute service; the
- * provider asks it for a principal and never learns where the answer came from.
- * That keeps an identity service free of OpenID Connect &mdash; it neither
- * verifies tokens nor knows which relying party is asking &mdash; while the
- * provider keeps the parts that are its own: which claims a grant's scope
- * admits, and how what it publishes is signed and encrypted.
+ * The seam between a provider endpoint and wherever registrations are kept
+ * &mdash; a secret store, a set of database tables, a static document. An
+ * implementation assembles whatever it reads into an
+ * {@link OidcClientConfiguration}: the client's own record, every endpoint it
+ * registers, and for each endpoint the credentials it accepts, the roles a
+ * request through it may act in, and the resources it may act on.
  * </p>
  *
  * <p>
- * An implementation answers everything it knows about the principal and filters
- * nothing. The provider suppresses what a grant doesn't cover, and does so
- * deny-by-default, so a source that volunteers more than a relying party may
- * see does not thereby disclose it.
+ * How long a registration stays cached, and whether it is cached at all, is an
+ * implementation's own. An endpoint reads through this on every request, so a
+ * source backed by something expensive to read is the one that decides what to
+ * do about it.
  * </p>
  */
-public interface IuOidcClaimsSource {
+public interface OidcClientSource {
 
 	/**
-	 * Gets the claims this source holds for one principal.
+	 * Gets one relying party's registration.
 	 *
-	 * @param principalName principal name, which the provider has already settled
-	 *                      from a verified grant
-	 * @return claims held for {@code principalName}; <em>should</em> answer the
-	 *         principal name back as {@link IuOidcClaims#getSub() sub}, though a
-	 *         provider binds that claim to the grant regardless
+	 * <p>
+	 * An unregistered client is one with nothing to read. An implementation may
+	 * answer {@code null} or throw; an endpoint treats the two the same way, as a
+	 * refusal indistinguishable from a client that never existed. A failure
+	 * <em>should not</em> be cached, so a client registered a moment ago costs a
+	 * fresh lookup rather than being refused until a cache expires.
+	 * </p>
+	 *
+	 * @param clientId requested {@code client_id}
+	 * @return registration, or {@code null} if no client is registered under that
+	 *         ID
 	 */
-	IuOidcClaims claims(String principalName);
+	OidcClientConfiguration client(String clientId);
 
 }

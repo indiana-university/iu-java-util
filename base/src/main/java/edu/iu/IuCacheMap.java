@@ -278,10 +278,9 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 			V oldValue = this.value;
 
 			// replaced in place, so a traversal in progress over the backing map is
-			// not disturbed, then cleared to cancel its pending expiration
-			final var replaced = entry.setValue(ref(key, value));
-			if (replaced != null)
-				replaced.clear();
+			// not disturbed, then cleared to cancel its pending expiration. The
+			// backing map holds no null values, so there is always one to release.
+			entry.setValue(ref(key, value)).clear();
 
 			this.value = value;
 			return oldValue;

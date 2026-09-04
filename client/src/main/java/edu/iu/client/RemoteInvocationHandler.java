@@ -45,6 +45,7 @@ import java.util.logging.Logger;
 import edu.iu.IuObject;
 import edu.iu.IuRefreshableCache;
 import edu.iu.IuRefreshableCacheConfiguration;
+import edu.iu.IuRefreshableCacheHint;
 import edu.iu.IuStream;
 import edu.iu.IuText;
 import edu.iu.UnsafeConsumer;
@@ -65,17 +66,18 @@ import edu.iu.UnsafeConsumer;
  * Subclasses customize the request by supplying a {@link #uri(Method)}, adding
  * authorization in {@link #authorize(HttpRequest.Builder)}, and optionally
  * overriding serialization, key creation, payload generation, cache policy, or
- * {@link #captureContext() context forwarding}.
- * When caller-specific state can affect a response, override
- * {@link #cacheKey(Method, Object)} to include that state in the {@link Key}; a
- * cache entry is otherwise shared by equivalent method calls.
+ * {@link #captureContext() context forwarding}. When caller-specific state can
+ * affect a response, override {@link #cacheKey(Method, Object)} to include that
+ * state in the {@link Key}; a cache entry is otherwise shared by equivalent
+ * method calls.
  * </p>
  *
  * <p>
  * A remote error response is adapted to a {@link RemoteInvocationException}.
  * Failures before a response is received remain {@link HttpException}s. Remote
  * interface methods should declare relevant checked exceptions; otherwise the
- * proxy wraps them in an {@link java.lang.reflect.UndeclaredThrowableException}.
+ * proxy wraps them in an
+ * {@link java.lang.reflect.UndeclaredThrowableException}.
  * </p>
  */
 public abstract class RemoteInvocationHandler implements InvocationHandler, AutoCloseable {
@@ -172,12 +174,65 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 *               return quickly, as it is called on every invocation
 	 */
 	protected RemoteInvocationHandler(Supplier<IuRefreshableCacheConfiguration> config) {
-		callCache = new IuRefreshableCache<>(config, Key::refresh, this::usesCache) {
+		callCache = new IuRefreshableCache<>(config, Key::refresh, this::cacheHint) {
 			@Override
 			protected Supplier<Runnable> captureContext() {
 				return RemoteInvocationHandler.this.captureContext();
 			}
 		};
+	}
+
+	/**
+	 * Determines how a request uses the cache, and what a successful request
+	 * invalidates.
+	 *
+	 * <p>
+	 * The default caches every request and invalidates nothing. Whether caching is
+	 * enabled at all is determined by the supplied
+	 * {@link IuRefreshableCacheConfiguration}; a null refresh TTL bypasses this
+	 * policy. Subclasses may override this method to exclude requests, typically
+	 * write calls, based on their {@link Key}.
+	 * </p>
+	 *
+	 * <p>
+	 * The returned hint answers two separate questions, and it is the hint's
+	 * {@link IuRefreshableCacheHint#shouldClear(Object) shouldClear} — evaluated
+	 * against the key that produced it — that decides whether this request is
+	 * itself cached.
+	 * </p>
+	 *
+	 * <dl>
+	 * <dt>{@link IuRefreshableCacheHint#useDefaults()}</dt>
+	 * <dd>The request is cached and invalidates nothing. This is the default, and
+	 * is what a read wants.</dd>
+	 * <dt>{@link IuRefreshableCacheHint#clearAll()}</dt>
+	 * <dd>The request is not cached, and on success discards every cached result.
+	 * This is what a write wants unless it can describe its effect more
+	 * precisely.</dd>
+	 * <dt>a hint whose {@code shouldClear} matches its own key</dt>
+	 * <dd>The request is not cached, and on success invalidates exactly the keys
+	 * its predicate matches. Cheaper for readers than clearing everything when a
+	 * write affects a known, narrow set of keys.</dd>
+	 * <dt>null</dt>
+	 * <dd>The request bypasses the cache and invalidates <em>nothing</em>. Use this
+	 * only for a request that neither benefits from caching nor changes anything a
+	 * cached result depends on.</dd>
+	 * </dl>
+	 *
+	 * <p>
+	 * <strong>Implementation Note:</strong> this method is called on every
+	 * invocation, before the cache is read, so it <em>should</em> be inexpensive.
+	 * The predicate of a returned hint is evaluated later, under a cache entry's
+	 * own monitor, so it <em>must</em> return quickly and <em>must not</em> invoke
+	 * a remote method.
+	 * </p>
+	 *
+	 * @param key remote request key
+	 * @return hint directing how this request interacts with the cache; null to
+	 *         bypass the cache without invalidating anything
+	 */
+	protected IuRefreshableCacheHint<Key, Object> cacheHint(Key key) {
+		return IuRefreshableCacheHint.useDefaults();
 	}
 
 	/**
@@ -337,27 +392,6 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		return null;
 	}
 
-	/**
-	 * Determines whether a request uses the cache.
-	 *
-	 * <p>
-	 * The default allows every request to use the cache. Whether caching is enabled
-	 * is determined by the supplied {@link IuRefreshableCacheConfiguration}; a
-	 * null refresh TTL bypasses this policy. Subclasses may override this method to
-	 * exclude requests, typically write calls, based on their {@link Key}.
-	 * </p>
-	 *
-	 * <p>
-	 * A successful call to an excluded method clears the entire cache.
-	 * </p>
-	 *
-	 * @param key remote request key
-	 * @return {@code true} if the request uses the cache
-	 */
-	protected boolean usesCache(Key key) {
-		return true;
-	}
-
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		if (method.getDeclaringClass() == Object.class)
@@ -410,8 +444,7 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 			try {
 				body = IuText.utf8(IuStream.read(errorResponse.body()));
 				remoteError = new RemoteInvocationException(
-						(RemoteInvocationFailure) adapt(RemoteInvocationFailure.class)
-								.fromJson(IuJson.parse(body)));
+						(RemoteInvocationFailure) adapt(RemoteInvocationFailure.class).fromJson(IuJson.parse(body)));
 				remoteError.addSuppressed(e);
 			} catch (Exception errorHandlingFailure) {
 				remoteError = new IllegalStateException(body, e);

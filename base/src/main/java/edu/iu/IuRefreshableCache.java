@@ -344,14 +344,14 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	private static final ThreadFactory THREAD_FACTORY;
 
 	static {
-		THREAD_GROUP = new ThreadGroup("iu-java-client-remote");
+		THREAD_GROUP = new ThreadGroup("iu-refreshable-cache");
 		THREAD_FACTORY = new ThreadFactory() {
 			private int c;
 
 			@Override
 			public Thread newThread(Runnable r) {
 				// daemon: a handler that was never closed must not block JVM exit
-				final var thread = new Thread(THREAD_GROUP, r, "iu-java-client-remote/" + ++c);
+				final var thread = new Thread(THREAD_GROUP, r, "iu-refreshable-cache/" + ++c);
 				thread.setDaemon(true);
 				return thread;
 			}
@@ -406,20 +406,20 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		 *                     is published in place of invoking {@code call}
 		 * @param key          cache key
 		 * @param call         remote call
-		 * @param generation   refresh generation; a refresh that has been superseded by
-		 *                     a later one neither publishes its result nor clears the
-		 *                     refresh that replaced it
-		 * @param dispatchedAt instant this refresh was dispatched, published alongside
-		 *                     the result as the instant it read the backing source
+		 * @param generation refresh generation; a refresh that has been superseded by
+		 *                   a later one neither publishes its result nor clears the
+		 *                   refresh that replaced it
 		 * @return remote call result
 		 * @throws Exception if the remote call fails
 		 */
 		private V refresh(IuCacheMap<K, CachedResult> cache, IuRefreshableCacheHint<K, V> cacheHint, K key,
-				Callable<V> call, long generation, Instant dispatchedAt) throws Exception {
+				Callable<V> call, long generation) throws Exception {
 
-			synchronized (this) {
-				readSeq = eventSeq.get();
-			}
+			// read before the backing source is, so every invalidation raised while
+			// this call is in flight is newer than the result it produces. Held in a
+			// local until that result is published: a refresh that fails, or that has
+			// been superseded, must not move the entry it never wrote to.
+			final var readAtSeq = eventSeq.get();
 
 			try {
 				final var restored = IuObject.convert(cacheHint, IuRefreshableCacheHint::restore);
@@ -431,6 +431,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 					if (current) {
 						value = result;
 						refreshedAt = Instant.now();
+						readSeq = readAtSeq;
 					}
 				}
 
@@ -459,17 +460,35 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		}
 
 		/**
-		 * Accept an value retrieved by inspecting another value.
-		 * 
+		 * Accepts a value retrieved by inspecting the result of another key's call.
+		 *
 		 * <p>
-		 * Cancels and invalidates any in-flight refresh.
+		 * The embedded value is exactly as fresh as the result carrying it, so it is
+		 * published with that result's own publication time and sequence position
+		 * rather than with the current instant. A refresh already in flight for this
+		 * key read the backing source no later than the result being published, so it
+		 * is superseded and abandoned.
 		 * </p>
-		 * 
-		 * @param refreshedAt from parent
+		 *
+		 * <p>
+		 * Declined when this entry already holds a value read more recently than the
+		 * result carrying the embedded one, so a slow call cannot publish stale
+		 * related values over fresher ones. The comparison is made under this entry's
+		 * own monitor, so it cannot race the update it guards.
+		 * </p>
+		 *
+		 * @param refreshedAt publication time of the result carrying this value
+		 * @param readSeq     sequence position at which that result read the backing
+		 *                    source
 		 * @param v           embedded value
+		 * @return true if the value was published; false if it was declined as stale
 		 */
-		synchronized void acceptEmbedded(Instant refreshedAt, V v) {
+		synchronized boolean acceptEmbedded(Instant refreshedAt, long readSeq, V v) {
+			if (readSeq < this.readSeq)
+				return false;
+
 			this.refreshedAt = refreshedAt;
+			this.readSeq = readSeq;
 			generation++;
 
 			if (refresh != null) {
@@ -479,6 +498,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			refreshStartedAt = null;
 
 			value = Optional.ofNullable(v);
+			return true;
 		}
 	}
 
@@ -660,6 +680,22 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	}
 
 	/**
+	 * Records the outcome and elapsed time of one invocation.
+	 *
+	 * <p>
+	 * The message is composed only when {@link Level#FINE} is enabled, so a cache
+	 * hit does not pay to build one that is discarded.
+	 * </p>
+	 *
+	 * @param outcome how the invocation resolved
+	 * @param key     cache key
+	 * @param start   instant the invocation began
+	 */
+	private static void fine(String outcome, Object key, Instant start) {
+		LOG.log(Level.FINE, () -> outcome + ":" + key + ":" + Duration.between(start, Instant.now()));
+	}
+
+	/**
 	 * Reads and validates the call TTL from a configuration snapshot.
 	 *
 	 * @param config configuration snapshot
@@ -673,16 +709,26 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	}
 
 	/**
-	 * Gets the cache, applying the currently configured cache TTL.
+	 * Reads and validates the cache TTL from a configuration snapshot.
 	 *
 	 * @param config     configuration snapshot
 	 * @param refreshTtl validated refresh TTL, non-null
-	 * @return cache
+	 * @return cache time to live
 	 */
-	private IuCacheMap<K, CachedResult> cache(IuRefreshableCacheConfiguration config, Duration refreshTtl) {
+	private static Duration cacheTtl(IuRefreshableCacheConfiguration config, Duration refreshTtl) {
 		final var cacheTtl = Objects.requireNonNull(config.getCacheTtl(), "Missing cache TTL");
 		if (cacheTtl.compareTo(refreshTtl) <= 0)
 			throw new IllegalArgumentException("Cache TTL must be longer than refresh TTL");
+		return cacheTtl;
+	}
+
+	/**
+	 * Gets the cache, applying the cache TTL read for this invocation.
+	 *
+	 * @param cacheTtl validated cache TTL
+	 * @return cache
+	 */
+	private IuCacheMap<K, CachedResult> cache(Duration cacheTtl) {
 
 		// entries already cached keep their original expiration; a reconfigured TTL
 		// takes effect as each entry is refreshed, so nothing is discarded
@@ -758,7 +804,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	@Override
 	public V apply(K key) throws Throwable {
 		if (closed)
-			throw new IllegalStateException("Remote invocation handler is closed");
+			throw new IllegalStateException("Refreshable cache is closed");
 
 		// one snapshot per invocation, so a configuration change taking effect
 		// mid-invocation cannot be observed inconsistently
@@ -768,11 +814,15 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		final var callTtl = callTtl(config);
 		final var exec = exec(config);
 
+		final Duration cacheTtl;
 		final IuCacheMap<K, CachedResult> cache;
-		if (refreshTtl != null)
-			cache = cache(config, refreshTtl);
-		else
+		if (refreshTtl != null) {
+			cacheTtl = cacheTtl(config, refreshTtl);
+			cache = cache(cacheTtl);
+		} else {
+			cacheTtl = null;
 			cache = null;
+		}
 
 		final var noCache = cache == null //
 				|| cacheHint == null //
@@ -784,7 +834,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			final var result = await(call(exec, () -> IuException.checked(key, refreshFunction)), callTtl, true);
 
 			if (cache == null)
-				LOG.fine("no-cache:" + key + ":" + Duration.between(start, Instant.now()));
+				fine("no-cache", key, start);
 			else
 
 			// successful at this point, invalidate cache entries by hint
@@ -795,55 +845,54 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 					// event already queued is made moot by the clear that follows
 					hintQueue.clear();
 					cache.clear();
-					LOG.fine("clear-cache:" + key + ":" + Duration.between(start, Instant.now()));
+					fine("clear-cache", key, start);
 				} else {
 					hintQueue.offer(new HintEvent(cacheHint));
-					LOG.fine("cache-hint:" + key + ":" + Duration.between(start, Instant.now()));
+					fine("cache-hint", key, start);
 				}
 
 			else // no cache hint -> skip cache
-				LOG.fine("skip-cache:" + key + ":" + Duration.between(start, Instant.now()));
+				fine("skip-cache", key, start);
 
 			return result;
 		}
 
-		// atomic, so concurrent first callers share one entry and one invocation
+		// a lock-free read on the hit path; only a miss pays for the entry's creation
 		var cached = cache.get(key);
 		if (cached == null)
-			synchronized (cache) {
-				cached = cache.computeIfAbsent(key, a -> new CachedResult());
-			}
+			cached = cache.computeIfAbsent(key, a -> new CachedResult());
+
+		// nothing older than this can match an entry that is still cached, so these
+		// are dropped from the head rather than found by walking the queue
+		final var hintPurgeThreshold = Instant.now().minus(cacheTtl);
+		for (var head = hintQueue.peek(); //
+				head != null && !head.time.isAfter(hintPurgeThreshold); //
+				head = hintQueue.peek())
+			hintQueue.poll();
 
 		final Future<V> pendingCall;
 		synchronized (cached) {
 			final var now = Instant.now();
 
-			final var hintPurgeThreshold = now.minus(config.getCacheTtl());
-			final var eventIterator = hintQueue.iterator();
-
 			boolean clearedByHint = false;
-			while (!clearedByHint && eventIterator.hasNext()) {
-				// FIFO -> purge first, skip next
 
-				final var event = eventIterator.next();
-				if (hintPurgeThreshold != null && !event.time.isAfter(hintPurgeThreshold)) {
-					eventIterator.remove();
-					continue;
-				}
-
-				if (event.seq <= cached.readSeq)
-					continue;
-
-				if (event.hint.shouldClear(key)) {
-					// short-circuit on first matching clear event
-					cached.value = null;
-					clearedByHint = true;
-				}
-			}
+			// every queued invalidation precedes this entry's own position unless the
+			// sequence has advanced since it was read, so the common case — no write
+			// since the last read of this key — costs one comparison rather than a
+			// walk of the queue
+			if (cached.readSeq < eventSeq.get())
+				for (final var event : hintQueue)
+					if (event.seq > cached.readSeq //
+							&& event.hint.shouldClear(key)) {
+						// short-circuit on first matching clear event
+						cached.value = null;
+						clearedByHint = true;
+						break;
+					}
 
 			// still fresh under the refresh TTL currently in effect
 			if (cached.value != null && cached.refreshedAt.plus(refreshTtl).isAfter(now)) {
-				LOG.fine("cache-hit:" + key + ":" + Duration.between(start, now));
+				fine("cache-hit", key, start);
 				return cached.value.orElse(null);
 			}
 
@@ -862,30 +911,31 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 				final var toRefresh = cached;
 				try {
 					final Callable<V> call = () -> {
+						// read before the backing source is, so an invalidation raised
+						// while this call runs is newer than the values it publishes
+						final var readAtSeq = eventSeq.get();
 						final var result = IuException.checked(key, refreshFunction);
 
 						// inspect and cache embedded values when caching this result
 						final var embeddedValues = cacheHint.inspect(result);
 						if (embeddedValues != null //
 								&& !embeddedValues.isEmpty())
-							embeddedValues.keySet().forEach(k -> {
+							embeddedValues.forEach((k, v) -> {
 
 								var embeddedResult = cache.get(k);
 								if (embeddedResult == null)
-									synchronized (cache) {
-										embeddedResult = cache.computeIfAbsent(k, a -> new CachedResult());
-									}
+									embeddedResult = cache.computeIfAbsent(k, a -> new CachedResult());
 
-								if (toRefresh.readSeq >= embeddedResult.readSeq)
-									embeddedResult.acceptEmbedded(now, embeddedValues.get(k));
-
-								cache.put(k, embeddedResult);
+								// stored again only when the value was actually taken, so
+								// an entry left as it stands keeps its own expiration
+								if (embeddedResult.acceptEmbedded(now, readAtSeq, v))
+									cache.put(k, embeddedResult);
 							});
 
 						return result;
 					};
 
-					cached.refresh = call(exec, () -> toRefresh.refresh(cache, cacheHint, key, call, generation, now));
+					cached.refresh = call(exec, () -> toRefresh.refresh(cache, cacheHint, key, call, generation));
 
 				} catch (RuntimeException e) {
 					// the refresh could not be dispatched at all, e.g. the pending queue is
@@ -903,7 +953,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 			// a result has been cached, so refresh is background-only from here on
 			if (cached.value != null) {
-				LOG.fine("cache-hit-refresh:" + key + ":" + Duration.between(start, now));
+				fine("cache-hit-refresh", key, start);
 				return cached.value.orElse(null);
 			}
 		}
@@ -911,7 +961,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		// nothing cached yet: all initial callers wait on this one invocation, which
 		// is left running on timeout so it can still populate the cache
 		final var result = await(pendingCall, callTtl, false);
-		LOG.fine("cache-miss:" + key + ":" + Duration.between(start, Instant.now()));
+		fine("cache-miss", key, start);
 		return result;
 	}
 
