@@ -41,6 +41,29 @@ Prefer the `test` phase while iterating: `verify` runs the JaCoCo gate, which fa
 
 The reactor's module list lives in a profile named `default` with `activeByDefault`, alongside a second `activeByDefault` profile named `scan` that redundantly lists `logging`. Because `activeByDefault` profiles deactivate as soon as any profile is selected explicitly, running `mvn -P<anything> ...` yields an empty reactor. Use `-pl` to scope a build, not `-P`.
 
+### Local build failures that are not defects
+
+CI runs in a clean container and does not see any of the following. Locally, all four are environmental — do not change code in response to them.
+
+**Always `clean` before trusting a coverage result.** An incremental build leaves orphaned class files behind when javac renumbers anonymous classes, and JaCoCo analyzes every `.class` file it finds in `target/classes` — an orphan counts as a wholly uncovered class and fails `coverage-check`, while the class that actually ran reports 100%. The symptom is a missed-class count with no plausible source line. Compare class-file timestamps in `target/classes` if in doubt.
+
+**Timing-sensitive tests.** Several tests assert on elapsed time, thread handoff, or queue drain. When a failure is at such an assertion, re-run that test alone and then its whole class; if both pass in isolation, it is a local timing artifact and can be skipped for the rest of the run. Coverage for that class then has to be confirmed separately from the full-reactor run.
+
+**JaCoCo "do not match with execution data".** In modules whose tests mock their own classes (`saml/impl`, `oidc/client`), Mockito's inline mock maker retransforms those classes at load time, so the class-id recorded at runtime no longer matches the file on disk. Every class in the bundle reports as missed and coverage collapses to near zero while all tests pass. Verify those modules' coverage separately.
+
+**External services.** `jdbc/pool` and `dao/impl` run Liquibase against PostgreSQL and fail at `update-database` without it. `redis/impl`'s `LettuceConnectionIT` enables itself whenever `REDIS_HOST` is set, and then also needs `REDIS_CACERT`, `REDIS_PORT`, and `REDIS_PASSWORD` — so a half-configured environment fails where an unconfigured one skips.
+
+Exclude by **leaf path**, not by aggregator: `-pl '!dao,!jdbc'` names the two parent POMs, and Maven happily drops those while still building their children, so it reads as though it worked and changes nothing. The reactor is 53 modules; a correct exclusion drops the count.
+
+```bash
+# 51 modules, without the two that need PostgreSQL
+mvn -o clean verify -pl '!jdbc/pool,!dao/impl' -fae
+```
+
+Prefer `--fail-at-end` for a whole-reactor run so one module's gate does not skip everything downstream, then disregard failures in modules the current change does not touch.
+
+`git diff --ignore-cr-at-eol --name-only <base> -- <module>/` is the quick way to confirm a module is untouched. Note that `-w` alone does not reliably hide line-ending-only changes.
+
 ### CI
 
 `.github/workflows/develop.yml` and `main.yml` run in a container with a `postgres` service (`-c max_prepared_transactions=10`) and publish javadoc plus aggregate coverage to GitHub Pages. Modules with database tests read `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` from the environment — see `dao/` and `jdbc/`.
@@ -132,6 +155,7 @@ jakarta.json-api.version=${jakarta.json-api.version}
 
 ## Conventions to follow when editing
 
+- **Markdown is not hard-wrapped.** In every `.md` file, a paragraph is one line, however long, including the body of a bullet or numbered item. Editors soft-wrap it. The one exception is `LICENSE.md`, which `src/util/apply_license` reads to build the Java file headers, so its lines stay within the source line length.
 - **BSD 3-Clause header.** Every `.java` file and `pom.xml` carries the full license header. Copy it from a sibling file when creating a new one.
 - **Checked-exception handling.** Do not write `try`/`catch` boilerplate to convert exceptions. Use `edu.iu.IuException` with the `Unsafe*` functional interfaces: `IuException.unchecked(() -> ...)`, `IuException.checked(IOException.class, () -> ...)`.
 - **Argument and state checks.** Use `edu.iu.IuObject`: `require`, `requireType`, `once` (assign a value only once), `first`, `assertNotOpen`, and the `hashCode`/`equals`/`compareTo` helpers rather than hand-rolled equivalents.

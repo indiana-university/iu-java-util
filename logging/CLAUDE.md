@@ -54,6 +54,15 @@ Consequently **renaming or changing the signature of a `Bootstrap` method silent
 
 The API package is both `exports` and `opens` because context binding is reflective.
 
+### Process trace
+
+`IuLogHandler.publish` appends every record it publishes to the active process trace, regardless of level, and `IuLogEvent` captures the whole accumulated trace for every record at `WARNING` or above and appends it to the formatted output. Two consequences worth keeping in mind when adding logging anywhere inside a `follow` boundary:
+
+- **The trace is not level-gated.** An 80-character prefix of a `FINE` message is republished into the error and info log files, and to every `subscribe()` consumer, as soon as anything in the same process logs a warning. Keep credentials and personal data out of records at *every* level.
+- **The trace is capped**, at `ProcessLogger.MAX_TRACED_MESSAGES` messages per process tree, with a truncation marker in place of the remainder. The budget is shared with the root process, not held per nesting level. Raise it deliberately: the cap bounds both retained heap and the size of the block each warning writes.
+
+`follow` reports the trace on both the returning and the throwing path — a failed process is the one whose trace matters most, and the thread-local is unbound before the exception reaches the caller, so a caller logging the failure afterwards can no longer capture it.
+
 ## Testing notes
 
 `logging/api` has an integration test, `IuLoggingBootstrapIT`, running under failsafe at `verify` — it exercises real bootstrap and module-layer loading and will not run under `mvn test`.
