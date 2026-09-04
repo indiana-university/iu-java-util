@@ -120,14 +120,10 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 		private final LogFilePublisher error;
 		private final Map<String, LogFilePublisher> trace;
 
-		private LogFilePublishers(Path logPath, String endpoint, String application, String environment) {
+		private LogFilePublishers(Path logPath, String endpoint, String application, String environment, long maxSize,
+				int nLimit) {
 			final Path path = resolvePath(logPath, endpoint, environment);
 			IuException.unchecked(() -> Files.createDirectories(path));
-
-			final var maxSize = Long.parseLong(Objects
-					.requireNonNullElse(IuRuntimeEnvironment.envOptional("iu.logging.file.maxSize"), "10485760"));
-			final var nLimit = Integer.parseInt(
-					Objects.requireNonNullElse(IuRuntimeEnvironment.envOptional("iu.logging.file.nLimit"), "10"));
 
 			debug = new LogFilePublisher(path.resolve(filename(application, "debug")), maxSize, nLimit);
 			info = new LogFilePublisher(path.resolve(filename(application, "info")), maxSize, nLimit);
@@ -154,6 +150,8 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	private final Map<FilePublisherKey, LogFilePublishers> filePublishers = new ConcurrentHashMap<>();
 
 	private final int maxEvents;
+	private final long fileMaxSize;
+	private final int fileNLimit;
 	private final Duration eventTtl;
 	private final Duration closeWait;
 	private final Thread purge;
@@ -171,6 +169,17 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 		maxEvents = env("iu.logging.maxEvents", 100000, Integer::parseInt);
 		eventTtl = env("iu.logging.eventTtl", Duration.ofDays(1L), Duration::parse);
 		closeWait = env("iu.logging.closeWait", Duration.ofSeconds(15L), Duration::parse);
+
+		// bounded rather than parsed, and read here rather than with the publishers they
+		// configure. A nLimit of zero makes LogFilePublisher.rotate() a no-op and a
+		// maxSize of zero leaves its output buffer no room, either of which wedges
+		// LogFilePublisher.flush() rotating and retrying forever against a file that
+		// never comes back under the limit -- and it spins that way holding the
+		// cross-process file lock, timing out every other process sharing the folder.
+		// Reading them before any thread starts reports a bad value to whoever
+		// constructed the handler, instead of killing the file task on its first flush
+		fileMaxSize = IuRuntimeEnvironment.longBound("iu.logging.file.maxSize", 10485760L);
+		fileNLimit = IuRuntimeEnvironment.bound("iu.logging.file.nLimit", 10);
 
 		purge = new Thread(this::purgeTask, "iu-java-logging-purge/" + c);
 		purge.setDaemon(true);
@@ -194,11 +203,9 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 	};
 
 	private static <T> T env(String name, T defaultValue, Function<String, T> convert) {
-		final var value = IuRuntimeEnvironment.envOptional(name);
-		if (value == null)
-			return defaultValue;
-		else
-			return convert.apply(value);
+		// requireNonNullElse is not usable here: iu.logging.file.path has a null default
+		final var value = IuRuntimeEnvironment.envOptional(name, convert);
+		return value == null ? defaultValue : value;
 	}
 
 	/**
@@ -247,7 +254,7 @@ public class IuLogHandler extends Handler implements AutoCloseable {
 			final var key = new FilePublisherKey(endpoint, application, environment);
 
 			final var publishers = filePublishers.computeIfAbsent(key,
-					a -> new LogFilePublishers(logPath, endpoint, application, environment));
+					a -> new LogFilePublishers(logPath, endpoint, application, environment, fileMaxSize, fileNLimit));
 
 			final var level = event.getLevel();
 			final var formatted = event.format();
