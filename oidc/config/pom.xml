@@ -10,8 +10,8 @@
 		<version>7.1.1-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-oidc-client</artifactId>
-	<name>IU OpenID Connect and OAuth 2.0 Client</name>
+	<artifactId>iu-java-oidc-config</artifactId>
+	<name>IU OpenID Connect and OAuth 2.0 Configuration</name>
 
 	<dependencies>
 		<dependency>
@@ -40,31 +40,15 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-session-api</artifactId>
+			<artifactId>iu-java-pki-api</artifactId>
 			<version>${project.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-client</artifactId>
+			<artifactId>iu-java-session-api</artifactId>
 			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-config</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-crypt-impl</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-jwt-impl</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>

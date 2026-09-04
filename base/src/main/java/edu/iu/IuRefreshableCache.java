@@ -35,8 +35,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -44,27 +46,291 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Predicate;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * A refresh-ahead cache for values resolved by an {@link UnsafeFunction}.
+ * A refresh-ahead cache for values resolved by an {@link UnsafeFunction}, with
+ * hint-directed caching, background refresh, downstream outage tolerance, and
+ * deferred invalidation.
  *
  * <p>
- * A first request for a key waits for its value. Subsequent requests receive
- * the last successfully resolved value while a stale entry is refreshed in the
- * background. If a refresh fails, that last good value remains available until
- * the configured cache TTL expires. A {@code null} refresh TTL disables caching
- * and every request resolves the value directly.
+ * This cache is a <em>defensive</em> short-term cache: it exists to keep an
+ * actively read value close at hand and to absorb a brief downstream outage,
+ * not to serve as a system of record. It is designed for values that are read
+ * far more often than they change, resolved from a stable backing source, and
+ * tolerable to serve slightly stale.
+ * </p>
+ *
+ * <h2>Lookup lifecycle</h2>
+ *
+ * <p>
+ * Every {@link #apply(Object)} invocation proceeds through the same steps.
+ * </p>
+ *
+ * <ol>
+ * <li><strong>Hint</strong>: the cache hint function is consulted for the key.
+ * A null hint bypasses the cache entirely for that invocation.</li>
+ * <li><strong>Configuration snapshot</strong>: the configuration supplier is
+ * read and its values validated. An invalid value fails this invocation only;
+ * the cache itself is left intact.</li>
+ * <li><strong>Call pool</strong>: the thread pool is resolved, and replaced if
+ * its size no longer matches the configuration.</li>
+ * <li><strong>Cache decision</strong>: the invocation either bypasses the cache
+ * (see <em>Uncached invocations</em>) or resolves against it (see <em>Cached
+ * invocations</em>).</li>
+ * </ol>
+ *
+ * <h3>Uncached invocations</h3>
+ *
+ * <p>
+ * An invocation bypasses the cache when caching is disabled
+ * ({@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL} is
+ * null), the hint function returned null, or the hint's
+ * {@link IuRefreshableCacheHint#shouldClear(Object) shouldClear} returns true
+ * for its own key. The last case is the <em>write key</em> idiom: a key that
+ * mutates the backing source is never itself cached, and on success publishes
+ * an invalidation for the keys it affected.
  * </p>
  *
  * <p>
- * The configuration supplier is read once for each {@link #apply(Object)} call,
- * permitting an application to reconfigure TTLs and call-pool limits without
- * replacing the cache. Instances own a lazily created executor and must be
- * {@link #close() closed} when no longer needed.
+ * An uncached call is dispatched to the pool and joined in line, bounded by the
+ * {@link IuRefreshableCacheConfiguration#getCallTtl() call TTL}; on timeout the
+ * call is cancelled, since no other caller is waiting on it. Invalidation is
+ * published only after the call <em>succeeds</em>, so a failed write never
+ * discards good cached data.
+ * </p>
+ *
+ * <h3>Cached invocations</h3>
+ *
+ * <p>
+ * A cached invocation resolves to exactly one of four outcomes.
+ * </p>
+ *
+ * <dl>
+ * <dt>hit</dt>
+ * <dd>The entry holds a value published less than one refresh TTL ago. It is
+ * returned without any call.</dd>
+ * <dt>hit, refreshing</dt>
+ * <dd>The entry holds a value older than the refresh TTL. The caller returns
+ * that value immediately and a refresh runs in the background. This is the
+ * common steady-state path: readers never pay for a refresh.</dd>
+ * <dt>miss</dt>
+ * <dd>The entry holds no value — it was never populated, it was invalidated, or
+ * the {@link IuRefreshableCacheConfiguration#getCacheTtl() cache TTL} elapsed
+ * without a successful refresh. The caller waits, bounded by the call TTL. All
+ * concurrent callers for the same key share one invocation and one result — or
+ * one failure. On timeout the call is left running, so it can still populate
+ * the cache for the callers behind it.</dd>
+ * <dt>degraded</dt>
+ * <dd>A refresh failed, or could not be dispatched because the pending queue
+ * was full. The last good value continues to be served, at {@code INFO}, until
+ * the cache TTL elapses. Only once there is no last good value does a caller
+ * see the failure.</dd>
+ * </dl>
+ *
+ * <h2>Time to live</h2>
+ *
+ * <p>
+ * Three independent intervals govern an entry, measured from the moment its
+ * last successful refresh was <em>published</em>.
+ * </p>
+ *
+ * <dl>
+ * <dt>{@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL}</dt>
+ * <dd>How long a value is served without triggering a refresh. This is the
+ * staleness bound under healthy conditions. Null disables caching entirely, and
+ * the cache TTL is then unused.</dd>
+ * <dt>{@link IuRefreshableCacheConfiguration#getCacheTtl() cache TTL}</dt>
+ * <dd>How long a value remains available once refreshes stop succeeding; must
+ * be longer than the refresh TTL. The interval between the two is the
+ * <em>outage tolerance window</em>. A successful refresh restarts the window,
+ * so a healthy entry never expires.</dd>
+ * <dt>{@link IuRefreshableCacheConfiguration#getCallTtl() call TTL}</dt>
+ * <dd>How long any single call may run. It also bounds a background refresh: a
+ * refresh still in flight after the call TTL is cancelled and replaced, so a
+ * hung call cannot block every later refresh for its key.</dd>
+ * </dl>
+ *
+ * <p>
+ * Publication time is stored rather than a derived expiration, so a
+ * reconfigured refresh TTL applies immediately to entries already cached, in
+ * both directions, without discarding them. The cache TTL is applied as each
+ * entry is stored, so a reconfigured cache TTL takes effect for an entry at its
+ * next successful refresh.
+ * </p>
+ *
+ * <h2>Cache hints</h2>
+ *
+ * <p>
+ * The hint function supplied at construction is consulted once per invocation,
+ * before the cache is read, so it <em>should</em> be inexpensive: its cost is
+ * paid on every cache hit. The {@link IuRefreshableCacheHint} it returns
+ * directs three separate behaviors.
+ * </p>
+ *
+ * <dl>
+ * <dt>{@link IuRefreshableCacheHint#shouldClear(Object)}</dt>
+ * <dd>Serves a dual role. Evaluated against the invocation's <em>own</em> key
+ * it selects the uncached write-key path described above. Evaluated against
+ * <em>other</em> keys, after that call succeeds, it selects which cached
+ * entries the write invalidated.</dd>
+ * <dt>{@link IuRefreshableCacheHint#restore()}</dt>
+ * <dd>Supplies a value resolved elsewhere — typically by a peer node in the
+ * same cluster — in place of calling the refresh function. It is consulted at
+ * the start of every refresh, including the first, so a hint that always
+ * restores never contacts the backing source at all. It is <em>not</em>
+ * consulted on the uncached path.</dd>
+ * <dt>{@link IuRefreshableCacheHint#inspect(Object)}</dt>
+ * <dd>Extracts related values embedded in a result and publishes them under
+ * their own keys, so a single call can populate many entries. Because a
+ * restored value short-circuits the refresh function, inspection is skipped for
+ * restored values.</dd>
+ * </dl>
+ *
+ * <h2>Invalidation</h2>
+ *
+ * <p>
+ * Invalidation is deferred rather than applied eagerly, because a hint
+ * describes which keys it affects by predicate rather than by enumeration.
+ * </p>
+ *
+ * <p>
+ * {@link IuRefreshableCacheHint#clearAll()} is the exception: it is recognized
+ * by identity, and immediately after a successful call it discards every
+ * pending invalidation and then clears the entire cache, both in line. A hint
+ * that merely returns true from {@code shouldClear} for every key is
+ * <em>not</em> equivalent — it takes the deferred path below.
+ * </p>
+ *
+ * <p>
+ * Every other invalidating hint is queued, timestamped at the moment its call
+ * succeeded. Each cached lookup then scans that queue, under the entry's own
+ * monitor, and applies three rules to each event in turn.
+ * </p>
+ *
+ * <dl>
+ * <dt>purge</dt>
+ * <dd>An event older than the cache TTL is ejected from the queue. Nothing it
+ * could still match has survived that long, so this is housekeeping: it bounds
+ * queue growth, and does not affect any result.</dd>
+ * <dt>skip</dt>
+ * <dd>An event that precedes the entry's own position in the invalidation
+ * sequence is ignored for that entry, because the value on hand was published
+ * after it. Ordering is by sequence rather than by timestamp, so two events
+ * that fall in the same clock tick are still ordered, and an invalidation can
+ * never tie with a publication and be lost. The event remains queued for other
+ * entries.</dd>
+ * <dt>clear</dt>
+ * <dd>Otherwise the event's {@code shouldClear} is consulted for the key. On
+ * the first match the entry's value is discarded and the scan stops, converting
+ * the lookup into a miss; a refresh already in flight for that key is
+ * abandoned, since it too predates the invalidation. The matching event is
+ * <em>not</em> removed: it stays queued for other entries, but stops matching
+ * this one, whose replacement takes a later position in the sequence.</dd>
+ * </dl>
+ *
+ * <p>
+ * An invalidation therefore costs one refresh per affected key, not one per
+ * subsequent read.
+ * </p>
+ *
+ * <p>
+ * <strong>Implementation Note:</strong> apart from a clear-all and
+ * {@link #close()}, which drain it outright, the queue is drained only by
+ * cached lookups, and the scan stops at the first matching event. A workload
+ * with no cached reads, or one whose reads match early in the queue, does not
+ * purge. Scan cost is proportional to queue depth, which is bounded by the
+ * invalidating call rate multiplied by the cache TTL — so a long cache TTL
+ * combined with a high write rate is the configuration to avoid.
+ * {@code shouldClear} is invoked while the entry monitor is held, so it
+ * <em>must</em> return quickly and <em>must not</em> invoke a remote method or
+ * touch this cache.
+ * </p>
+ *
+ * <h2>Call pool</h2>
+ *
+ * <p>
+ * All calls, foreground and background alike, run on a lazily created pool of
+ * daemon threads sized by {@link IuRefreshableCacheConfiguration#getThreads()
+ * threads} with a bounded backlog of
+ * {@link IuRefreshableCacheConfiguration#getPending() pending} calls. Idle
+ * threads time out, so an idle cache holds no threads. Changing either value
+ * replaces the pool; the replaced pool is shut down gracefully so calls already
+ * in flight run to completion.
+ * </p>
+ *
+ * <p>
+ * A full backlog rejects the dispatch. For a key with a last good value that is
+ * absorbed — the stale value is served — so the pool bounds are a load-shedding
+ * control, not only a resource control. Sizing them too tightly converts
+ * pressure into staleness; sizing them too loosely converts it into latency.
+ * </p>
+ *
+ * <p>
+ * Because calls run on pooled threads, thread-bound context does not reach them
+ * unless forwarded. See {@link #captureContext()}, which forwards the context
+ * {@link ClassLoader} and may be overridden to forward more.
+ * </p>
+ *
+ * <h2>Tuning</h2>
+ *
+ * <dl>
+ * <dt>read latency</dt>
+ * <dd>Governed by the refresh TTL. Short enough to keep values current, long
+ * enough that most reads are hits.</dd>
+ * <dt>staleness</dt>
+ * <dd>Bounded by the refresh TTL while healthy, and by the cache TTL while
+ * degraded.</dd>
+ * <dt>outage tolerance</dt>
+ * <dd>The cache TTL less the refresh TTL. Widen to survive a longer downstream
+ * outage; narrow to fail faster on one.</dd>
+ * <dt>downstream load</dt>
+ * <dd>Roughly one call per key per refresh TTL, plus one per uncached
+ * invocation. Lengthen the refresh TTL to reduce it; use
+ * {@link IuRefreshableCacheHint#inspect(Object)} to populate many keys per
+ * call.</dd>
+ * <dt>invalidation scan cost</dt>
+ * <dd>Proportional to cache TTL times the invalidating call rate. Reduce by
+ * shortening the cache TTL, or by making invalidation coarse (clear-all)
+ * instead of predicate-based.</dd>
+ * <dt>concurrency and backpressure</dt>
+ * <dd>Threads and pending, as described above.</dd>
+ * <dt>failure latency</dt>
+ * <dd>The call TTL, which is also the ceiling on how long a hung refresh
+ * occupies a pool thread before it is cancelled.</dd>
+ * </dl>
+ *
+ * <p>
+ * Sound starting points: a refresh TTL of minutes, a cache TTL no longer than
+ * {@code PT30M}, and a call TTL short enough that a stalled downstream is
+ * noticed promptly. See {@link IuRefreshableCacheConfiguration} for defaults.
+ * </p>
+ *
+ * <h2>Concurrency and lifecycle</h2>
+ *
+ * <p>
+ * This class is thread-safe. Concurrent first callers for one key share a
+ * single entry and a single invocation. Each entry's mutable state is guarded
+ * by its own monitor, so lookups of distinct keys do not contend on it.
+ * </p>
+ *
+ * <p>
+ * The cache is shared by all callers regardless of the context they call from.
+ * When forwarded context can change a result, fold the distinguishing context
+ * into the cache key; otherwise a result resolved in one context is served in
+ * another.
+ * </p>
+ *
+ * <p>
+ * The configuration supplier is read on every invocation, so an application may
+ * reconfigure TTLs and pool limits in place without replacing the cache.
+ * Instances own a lazily created executor and <em>must</em> be {@link #close()
+ * closed} when no longer needed; {@link #close()} is idempotent and further
+ * invocations fail with {@link IllegalStateException}.
  * </p>
  *
  * @param <K> cache key type
@@ -97,8 +363,9 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 *
 	 * <p>
 	 * Holds the last good result for one cache key, the {@link Instant} that result
-	 * was published, and the refresh that is currently in flight, if any. All
-	 * mutable state is guarded by the instance monitor.
+	 * was published, the invalidation sequence it was published at, and the refresh
+	 * that is currently in flight, if any. All mutable state is guarded by the
+	 * instance monitor.
 	 * </p>
 	 *
 	 * <p>
@@ -107,13 +374,24 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 * read. A reconfigured refresh TTL therefore applies to entries already cached,
 	 * in both directions, without discarding them.
 	 * </p>
+	 *
+	 * <p>
+	 * The sequence is what deferred invalidation compares against, rather than a
+	 * timestamp. It is drawn from the same monotonic counter that stamps
+	 * invalidation events, so every value and every invalidation fall into one
+	 * total order and no comparison depends on the resolution of the system clock.
+	 * Like the publication time, it is a durable property of the published value:
+	 * unlike the in-flight marker, it is not cleared when the refresh that set it
+	 * completes.
+	 * </p>
 	 */
 	protected class CachedResult {
 		private Optional<V> value;
 		private Instant refreshedAt;
+		private long readSeq = eventSeq.get();
 		private Future<V> refresh;
 		private Instant refreshStartedAt;
-		private long generation;
+		private volatile long generation;
 
 		private CachedResult() {
 		}
@@ -121,25 +399,37 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		/**
 		 * Performs a refresh, publishing the result as the last good value on success.
 		 *
-		 * @param cache      cache the entry belongs to
-		 * @param key        cache key
-		 * @param call       remote call
-		 * @param generation refresh generation; a refresh that has been superseded by a
-		 *                   later one neither publishes its result nor clears the
-		 *                   refresh that replaced it
+		 * @param cache        cache the entry belongs to
+		 * @param cacheHint    hint captured for {@code key} by the invocation that
+		 *                     dispatched this refresh; a non-null
+		 *                     {@link IuRefreshableCacheHint#restore() restored} value
+		 *                     is published in place of invoking {@code call}
+		 * @param key          cache key
+		 * @param call         remote call
+		 * @param generation   refresh generation; a refresh that has been superseded by
+		 *                     a later one neither publishes its result nor clears the
+		 *                     refresh that replaced it
+		 * @param dispatchedAt instant this refresh was dispatched, published alongside
+		 *                     the result as the instant it read the backing source
 		 * @return remote call result
 		 * @throws Exception if the remote call fails
 		 */
-		private V refresh(IuCacheMap<K, CachedResult> cache, K key, Callable<V> call, long generation)
-				throws Exception {
+		private V refresh(IuCacheMap<K, CachedResult> cache, IuRefreshableCacheHint<K, V> cacheHint, K key,
+				Callable<V> call, long generation, Instant dispatchedAt) throws Exception {
+
+			synchronized (this) {
+				readSeq = eventSeq.get();
+			}
+
 			try {
-				final var result = call.call();
+				final var restored = IuObject.convert(cacheHint, IuRefreshableCacheHint::restore);
+				final var result = restored == null ? Optional.ofNullable(call.call()) : restored;
 
 				final boolean current;
 				synchronized (this) {
 					current = generation == this.generation;
 					if (current) {
-						value = Optional.ofNullable(result);
+						value = result;
 						refreshedAt = Instant.now();
 					}
 				}
@@ -149,7 +439,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 				if (current)
 					cache.put(key, this);
 
-				return result;
+				return result.orElse(null);
 			} catch (Exception e) {
 				final boolean served;
 				synchronized (this) {
@@ -166,6 +456,29 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 					}
 				}
 			}
+		}
+
+		/**
+		 * Accept an value retrieved by inspecting another value.
+		 * 
+		 * <p>
+		 * Cancels and invalidates any in-flight refresh.
+		 * </p>
+		 * 
+		 * @param refreshedAt from parent
+		 * @param v           embedded value
+		 */
+		synchronized void acceptEmbedded(Instant refreshedAt, V v) {
+			this.refreshedAt = refreshedAt;
+			generation++;
+
+			if (refresh != null) {
+				refresh.cancel(false);
+				refresh = null;
+			}
+			refreshStartedAt = null;
+
+			value = Optional.ofNullable(v);
 		}
 	}
 
@@ -226,9 +539,9 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		return () -> {
 			final var current = Thread.currentThread();
 			final var restore = current.getContextClassLoader();
-			
+
 			current.setContextClassLoader(context);
-			
+
 			return () -> current.setContextClassLoader(restore);
 		};
 	}
@@ -253,7 +566,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 	private final Supplier<IuRefreshableCacheConfiguration> config;
 	private final UnsafeFunction<K, V> refreshFunction;
-	private final Predicate<K> usesCache;
+	private final Function<K, IuRefreshableCacheHint<K, V>> cacheHintFunction;
 
 	private final IuCacheMap<K, CachedResult> cache = new IuCacheMap<>(IuRefreshableCacheConfiguration.CACHE_TTL);
 
@@ -281,15 +594,29 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	private volatile Exec exec;
 	private volatile boolean closed;
 
+	private final AtomicLong eventSeq = new AtomicLong();
+
+	private class HintEvent {
+		private final long seq = eventSeq.incrementAndGet();
+		private final Instant time = Instant.now();
+		private final IuRefreshableCacheHint<K, V> hint;
+
+		private HintEvent(IuRefreshableCacheHint<K, V> hint) {
+			this.hint = hint;
+		}
+	}
+
+	private final Queue<HintEvent> hintQueue = new ConcurrentLinkedQueue<>();
+
 	/**
 	 * Creates a refresh-ahead cache with a dynamically supplied configuration and a
 	 * policy for keys eligible for caching.
 	 *
 	 * <p>
-	 * The supplier is consulted once per invocation, so returning current values
+	 * Both functions are consulted once per invocation, so returning current values
 	 * allows the cache to be reconfigured in place. See {@link IuRefreshableCache}
-	 * for how each value takes effect, and for a description of the defensive call
-	 * cache, which is enabled when
+	 * for how each configured value takes effect, and for a description of the
+	 * defensive call cache, which is enabled when
 	 * {@link IuRefreshableCacheConfiguration#getRefreshTtl()} is non-null.
 	 * </p>
 	 *
@@ -298,18 +625,23 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 * configuration fails the invocation that reads it, not construction.
 	 * </p>
 	 *
-	 * @param config          supplies the configuration in effect; <em>should</em>
-	 *                        return quickly, as it is called on every invocation
-	 * @param refreshFunction function that resolves cached values on a cache miss
-	 * @param usesCache       {@link Predicate} to determine if key should use
-	 *                        cache; returns true to use/refresh a cached result,
-	 *                        false to clear cache before resolving
+	 * @param config            supplies the configuration in effect;
+	 *                          <em>should</em> return quickly, as it is called on
+	 *                          every invocation
+	 * @param refreshFunction   function that resolves cached values on a cache miss
+	 *                          and on each background refresh; invoked on a pooled
+	 *                          thread
+	 * @param cacheHintFunction function that directs how a key interacts with the
+	 *                          cache; <em>should</em> return quickly, as it is
+	 *                          called on every invocation before the cache is read.
+	 *                          A null function, or one that returns null for a key,
+	 *                          bypasses the cache for that key
 	 */
 	public IuRefreshableCache(Supplier<IuRefreshableCacheConfiguration> config, UnsafeFunction<K, V> refreshFunction,
-			Predicate<K> usesCache) {
+			Function<K, IuRefreshableCacheHint<K, V>> cacheHintFunction) {
 		this.config = Objects.requireNonNull(config, "Missing configuration supplier");
 		this.refreshFunction = refreshFunction;
-		this.usesCache = usesCache;
+		this.cacheHintFunction = Objects.requireNonNullElse(cacheHintFunction, k -> null);
 	}
 
 	/**
@@ -372,23 +704,29 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 * @return thread pool
 	 */
 	private ExecutorService exec(IuRefreshableCacheConfiguration config) {
-		final var threads = config.getThreads();
-		final var pending = config.getPending();
+		var threads = config.getThreads();
+		var pending = config.getPending();
 
 		final Exec current;
 		final Exec replaced;
-		synchronized (this) {
-			final var exec = this.exec;
-			if (exec == null || exec.threads != threads || exec.pending != pending) {
-				// constructed before the field is reassigned, so an invalid size leaves
-				// the pool in use unchanged
-				current = new Exec(threads, pending);
-				replaced = exec;
-				this.exec = current;
-			} else {
-				current = exec;
-				replaced = null;
+		if (exec == null || exec.threads != threads || exec.pending != pending)
+			synchronized (this) {
+				final var exec = this.exec;
+				if (exec == null || exec.threads != threads || exec.pending != pending) {
+
+					// constructed before the field is reassigned, so an invalid size leaves
+					// the pool in use unchanged
+					current = new Exec(threads, pending);
+					replaced = exec;
+					this.exec = current;
+				} else {
+					current = exec;
+					replaced = null;
+				}
 			}
+		else {
+			current = exec;
+			replaced = null;
 		}
 
 		if (replaced != null)
@@ -399,11 +737,23 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 	/**
 	 * Resolves a potentially cached value.
-	 * 
+	 *
+	 * <p>
+	 * See {@link IuRefreshableCache} for the full lookup lifecycle: which
+	 * invocations bypass the cache, when a value is served without a call, when a
+	 * refresh runs in the background, and when a caller waits.
+	 * </p>
+	 *
 	 * @param key cache key
-	 * @return value associated with the key
-	 * @throws IllegalStateException if this cache has been closed
-	 * @throws Throwable             from {@link #refreshFunction}
+	 * @return value associated with the key; null if the resolved value is null
+	 * @throws IllegalStateException    if this cache has been closed
+	 * @throws IllegalArgumentException if the configuration snapshot read for this
+	 *                                  invocation is invalid
+	 * @throws TimeoutException         if a caller waiting on an uncached value is
+	 *                                  not served within the call TTL
+	 * @throws Throwable                as thrown by the refresh function, when no
+	 *                                  last good value is available to serve in its
+	 *                                  place
 	 */
 	@Override
 	public V apply(K key) throws Throwable {
@@ -412,6 +762,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 		// one snapshot per invocation, so a configuration change taking effect
 		// mid-invocation cannot be observed inconsistently
+		final var cacheHint = cacheHintFunction.apply(key);
 		final var config = this.config.get();
 		final var refreshTtl = refreshTtl(config);
 		final var callTtl = callTtl(config);
@@ -423,29 +774,72 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		else
 			cache = null;
 
-		final Callable<V> call = () -> IuException.checked(key, refreshFunction);
+		final var noCache = cache == null //
+				|| cacheHint == null //
+				|| cacheHint.shouldClear(key);
 
 		final var start = Instant.now();
-		if (cache == null || !usesCache.test(key)) {
-			// sole waiter, so a call this caller has given up on is cancelled
-			final var result = await(call(exec, call), callTtl, true);
+		if (noCache) {
+			// not caching, exec call and join in-line
+			final var result = await(call(exec, () -> IuException.checked(key, refreshFunction)), callTtl, true);
 
-			// only a successful write invalidates previously cached reads
-			if (cache != null) {
-				cache.clear();
-				LOG.fine("clear-cache:" + key + ":" + Duration.between(start, Instant.now()));
-			} else
+			if (cache == null)
 				LOG.fine("no-cache:" + key + ":" + Duration.between(start, Instant.now()));
+			else
+
+			// successful at this point, invalidate cache entries by hint
+			if (cacheHint != null)
+				if (cacheHint == IuRefreshableCacheHint.CLEAR_ALL) {
+					// drained before the cache, so an event queued concurrently with this
+					// clear survives to invalidate entries repopulated after it; every
+					// event already queued is made moot by the clear that follows
+					hintQueue.clear();
+					cache.clear();
+					LOG.fine("clear-cache:" + key + ":" + Duration.between(start, Instant.now()));
+				} else {
+					hintQueue.offer(new HintEvent(cacheHint));
+					LOG.fine("cache-hint:" + key + ":" + Duration.between(start, Instant.now()));
+				}
+
+			else // no cache hint -> skip cache
+				LOG.fine("skip-cache:" + key + ":" + Duration.between(start, Instant.now()));
 
 			return result;
 		}
 
 		// atomic, so concurrent first callers share one entry and one invocation
-		final var cached = cache.computeIfAbsent(key, a -> new CachedResult());
+		var cached = cache.get(key);
+		if (cached == null)
+			synchronized (cache) {
+				cached = cache.computeIfAbsent(key, a -> new CachedResult());
+			}
 
 		final Future<V> pendingCall;
 		synchronized (cached) {
 			final var now = Instant.now();
+
+			final var hintPurgeThreshold = now.minus(config.getCacheTtl());
+			final var eventIterator = hintQueue.iterator();
+
+			boolean clearedByHint = false;
+			while (!clearedByHint && eventIterator.hasNext()) {
+				// FIFO -> purge first, skip next
+
+				final var event = eventIterator.next();
+				if (hintPurgeThreshold != null && !event.time.isAfter(hintPurgeThreshold)) {
+					eventIterator.remove();
+					continue;
+				}
+
+				if (event.seq <= cached.readSeq)
+					continue;
+
+				if (event.hint.shouldClear(key)) {
+					// short-circuit on first matching clear event
+					cached.value = null;
+					clearedByHint = true;
+				}
+			}
 
 			// still fresh under the refresh TTL currently in effect
 			if (cached.value != null && cached.refreshedAt.plus(refreshTtl).isAfter(now)) {
@@ -455,7 +849,8 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 			// abandon a refresh that has outlived the call TTL, so a hung call cannot
 			// block all later refreshes for this key
-			if (cached.refresh != null && cached.refreshStartedAt.plus(callTtl).isBefore(now)) {
+			if (cached.refresh != null //
+					&& (clearedByHint || cached.refreshStartedAt.plus(callTtl).isBefore(now))) {
 				cached.refresh.cancel(true);
 				cached.refresh = null;
 			}
@@ -463,8 +858,35 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			if (cached.refresh == null) {
 				final var generation = ++cached.generation;
 				cached.refreshStartedAt = now;
+
+				final var toRefresh = cached;
 				try {
-					cached.refresh = call(exec, () -> cached.refresh(cache, key, call, generation));
+					final Callable<V> call = () -> {
+						final var result = IuException.checked(key, refreshFunction);
+
+						// inspect and cache embedded values when caching this result
+						final var embeddedValues = cacheHint.inspect(result);
+						if (embeddedValues != null //
+								&& !embeddedValues.isEmpty())
+							embeddedValues.keySet().forEach(k -> {
+
+								var embeddedResult = cache.get(k);
+								if (embeddedResult == null)
+									synchronized (cache) {
+										embeddedResult = cache.computeIfAbsent(k, a -> new CachedResult());
+									}
+
+								if (toRefresh.readSeq >= embeddedResult.readSeq)
+									embeddedResult.acceptEmbedded(now, embeddedValues.get(k));
+
+								cache.put(k, embeddedResult);
+							});
+
+						return result;
+					};
+
+					cached.refresh = call(exec, () -> toRefresh.refresh(cache, cacheHint, key, call, generation, now));
+
 				} catch (RuntimeException e) {
 					// the refresh could not be dispatched at all, e.g. the pending queue is
 					// full; a stale result is still better than no result
@@ -520,7 +942,8 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	}
 
 	/**
-	 * Releases the thread pool backing this cache and discards all cached results.
+	 * Releases the thread pool backing this cache, and discards all cached results
+	 * and all pending invalidations.
 	 *
 	 * <p>
 	 * In-flight calls are interrupted. Once closed, further invocations fail with
@@ -540,6 +963,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		if (exec != null)
 			exec.pool.shutdownNow();
 
+		hintQueue.clear();
 		cache.clear();
 	}
 

@@ -172,4 +172,35 @@ public class IuCachedValueTest {
 		assertNotEquals(ref2, this);
 	}
 
+	@Test
+	public void testCancelledExpirationTasksDoNotAccumulate() throws Exception {
+		final var timerField = IuCachedValue.class.getDeclaredField("PURGE_TIMER");
+		timerField.setAccessible(true);
+		final var timer = (java.util.Timer) timerField.get(null);
+
+		final var thresholdField = IuCachedValue.class.getDeclaredField("PURGE_THRESHOLD");
+		thresholdField.setAccessible(true);
+		final var threshold = (int) thresholdField.get(null);
+
+		// purge() reports how many cancelled tasks are still held by the shared
+		// timer, which is the accumulation being bounded. Draining first so the
+		// count below reflects only what this test creates.
+		timer.purge();
+
+		// a long time to live, so none of these come due on their own; every one of
+		// them leaves the queue only by being cancelled and then purged
+		final var churn = threshold * 8;
+		for (var i = 0; i < churn; i++)
+			new IuCachedValue<>(IdGenerator.generateId(), Duration.ofHours(1L), () -> {
+			}).clear();
+
+		// the sweep runs on a 500ms cycle; allow several before measuring, since
+		// purge() is itself destructive and so can only be sampled once
+		Thread.sleep(1500L);
+
+		final var stale = timer.purge();
+		assertTrue(stale <= threshold, () -> "expected at most " + threshold
+				+ " cancelled tasks to be outstanding after " + churn + " cancellations, but was " + stale);
+	}
+
 }

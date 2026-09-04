@@ -42,9 +42,16 @@ import java.time.Duration;
  * operation, allowing a supplier to expose current values without recreating
  * the cache. The defensive call cache is <em>short-lived</em> by
  * design: {@link #getRefreshTtl() refresh TTL} <em>should</em> be short enough
- * that callers see reasonably current data, and {@link #getCacheTtl() cache
- * TTL} <em>should</em> be long enough to cover a downstream outage without
- * forcing callers to block.
+ * that callers see reasonably current data from a stable backing source;
+ * {@link #getCacheTtl() cache TTL} <em>should</em> be no longer than
+ * {@code PT30M}; and {@link #getCallTtl() call TTL} <em>should</em> be short.
+ * </p>
+ *
+ * <p>
+ * Values are validated by the invocation that reads them, so an invalid value
+ * fails that invocation and leaves the cache intact. See
+ * {@link IuRefreshableCache} for what each value controls, when a change takes
+ * effect, and how the values trade off against one another.
  * </p>
  */
 public interface IuRefreshableCacheConfiguration {
@@ -96,6 +103,14 @@ public interface IuRefreshableCacheConfiguration {
 	 * caller triggers a refresh.
 	 *
 	 * <p>
+	 * This is the staleness bound under healthy conditions: a value older than
+	 * this is still served immediately, but triggers a background refresh. A change
+	 * applies to entries already cached, in both directions, without discarding
+	 * them, because staleness is evaluated against the interval in effect when an
+	 * entry is read.
+	 * </p>
+	 *
+	 * <p>
 	 * Returns null to disable the defensive call cache entirely, in which case
 	 * every invocation results in a remote call and {@link #getCacheTtl()} is not
 	 * used.
@@ -118,7 +133,20 @@ public interface IuRefreshableCacheConfiguration {
 	 * window, so a healthy entry never expires.
 	 * </p>
 	 *
-	 * @return cache time to live; must be longer than {@link #getRefreshTtl()}
+	 * <p>
+	 * This value also bounds how long a queued invalidation hint is retained, and
+	 * therefore how much work each cached lookup performs when evaluating pending
+	 * invalidations. A long cache TTL combined with a high rate of invalidating
+	 * calls is the combination to avoid.
+	 * </p>
+	 *
+	 * <p>
+	 * A change applies as each entry is stored, so an entry already cached takes
+	 * the new value at its next successful refresh rather than immediately.
+	 * </p>
+	 *
+	 * @return short-term cache time to live; should be no longer than
+	 *         {@code PT30M} and must be longer than {@link #getRefreshTtl()}
 	 */
 	default Duration getCacheTtl() {
 		return CACHE_TTL;
@@ -127,7 +155,14 @@ public interface IuRefreshableCacheConfiguration {
 	/**
 	 * Gets the maximum length of time to wait for a remote call to complete.
 	 *
-	 * @return call timeout; must be positive
+	 * <p>
+	 * Applies to a caller waiting on an uncached value and to a background refresh
+	 * alike: a refresh still in flight after this interval is cancelled and
+	 * replaced, so a hung call cannot block every later refresh for its key, nor
+	 * occupy a {@link #getThreads() thread} indefinitely.
+	 * </p>
+	 *
+	 * @return short call timeout; must be positive
 	 */
 	default Duration getCallTtl() {
 		return CALL_TTL;
@@ -135,6 +170,12 @@ public interface IuRefreshableCacheConfiguration {
 
 	/**
 	 * Gets the number of threads available for performing remote calls.
+	 *
+	 * <p>
+	 * Changing this value, or {@link #getPending()}, replaces the call pool; the
+	 * replaced pool is shut down gracefully so calls already in flight run to
+	 * completion. Idle threads time out, so an idle cache holds no threads.
+	 * </p>
 	 *
 	 * @return thread count; must be positive
 	 */
@@ -145,6 +186,13 @@ public interface IuRefreshableCacheConfiguration {
 	/**
 	 * Gets the maximum number of remote calls that may be queued while all
 	 * {@link #getThreads() threads} are busy.
+	 *
+	 * <p>
+	 * A full queue rejects the dispatch. For a key that already holds a value that
+	 * is absorbed — the stale value is served instead — so this value acts as a
+	 * load-shedding control as well as a resource bound: too tight converts
+	 * pressure into staleness, too loose converts it into latency.
+	 * </p>
 	 *
 	 * @return pending queue size; must be positive
 	 */

@@ -9,15 +9,20 @@ package edu.iu;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +75,7 @@ public class IuRefreshableCacheTest {
 
 	private static IuRefreshableCache<String, String> cache(Supplier<IuRefreshableCacheConfiguration> config,
 			UnsafeFunction<String, String> refresh) {
-		return new IuRefreshableCache<>(config, refresh, key -> true);
+		return new IuRefreshableCache<>(config, refresh, key -> IuRefreshableCacheHint.useDefaults());
 	}
 
 	private static IuRefreshableCache<String, String> cache(IuRefreshableCacheConfiguration config,
@@ -83,6 +88,11 @@ public class IuRefreshableCacheTest {
 	}
 
 	private static IuRefreshableCacheConfiguration config(Duration refreshTtl, Duration cacheTtl, Duration callTtl) {
+		return config(refreshTtl, cacheTtl, callTtl, 1);
+	}
+
+	private static IuRefreshableCacheConfiguration config(Duration refreshTtl, Duration cacheTtl, Duration callTtl,
+			int threads) {
 		return new IuRefreshableCacheConfiguration() {
 			@Override
 			public Duration getRefreshTtl() {
@@ -101,9 +111,42 @@ public class IuRefreshableCacheTest {
 
 			@Override
 			public int getThreads() {
-				return 1;
+				return threads;
 			}
 		};
+	}
+
+	/**
+	 * Reads the deferred invalidation queue.
+	 *
+	 * <p>
+	 * Purge ejection has no effect on any result by design: an event is only
+	 * purged once nothing it could match is still cached. It is therefore not
+	 * observable through the public API, and is asserted here against internal
+	 * state, as {@link CacheMapTest} does for cached value references.
+	 * </p>
+	 */
+	private static Queue<?> hintQueue(IuRefreshableCache<?, ?> cache) throws Exception {
+		final var f = IuRefreshableCache.class.getDeclaredField("hintQueue");
+		f.setAccessible(true);
+		return (Queue<?>) f.get(cache);
+	}
+
+	/**
+	 * Polls {@code key} until the invalidation queue reaches {@code expected}
+	 * depth, keeping the polled entry alive by refreshing it.
+	 */
+	private static void awaitQueueDepth(IuRefreshableCache<String, String> cache, String key, int expected)
+			throws Throwable {
+		final var queue = hintQueue(cache);
+		final var expires = System.nanoTime() + Duration.ofSeconds(5L).toNanos();
+		do {
+			cache.apply(key);
+			if (queue.size() == expected)
+				return;
+			Thread.sleep(25L);
+		} while (System.nanoTime() < expires);
+		assertEquals(expected, queue.size(), "timed out waiting for invalidation queue depth");
 	}
 
 	private static void awaitCalls(AtomicInteger calls, int expected) throws InterruptedException {
@@ -111,6 +154,24 @@ public class IuRefreshableCacheTest {
 		while (calls.get() < expected && System.nanoTime() < expires)
 			Thread.sleep(5L);
 		assertEquals(expected, calls.get());
+	}
+
+	/**
+	 * Waits for at least {@code expected} calls.
+	 *
+	 * <p>
+	 * Use this rather than {@link #awaitCalls} wherever a polling loop has already
+	 * run against a short refresh TTL: each poll of a stale entry dispatches its
+	 * own refresh, and {@link IuCacheMap} holds values softly, so the exact call
+	 * count at that point is not something the cache promises.
+	 * </p>
+	 */
+	private static void awaitCallsAtLeast(AtomicInteger calls, int expected) throws InterruptedException {
+		final var expires = System.nanoTime() + Duration.ofSeconds(5L).toNanos();
+		while (calls.get() < expected && System.nanoTime() < expires)
+			Thread.sleep(5L);
+		assertTrue(calls.get() >= expected,
+				() -> "expected at least " + expected + " calls, but was " + calls.get());
 	}
 
 	private static void assertNoFurtherCalls(AtomicInteger calls, int expected) throws InterruptedException {
@@ -147,7 +208,7 @@ public class IuRefreshableCacheTest {
 		assertEquals("Missing configuration supplier",
 				assertThrows(NullPointerException.class,
 						() -> new IuRefreshableCache<String, String>((Supplier<IuRefreshableCacheConfiguration>) null,
-								key -> key, key -> true))
+								key -> key, key -> IuRefreshableCacheHint.useDefaults()))
 						.getMessage());
 	}
 
@@ -195,7 +256,9 @@ public class IuRefreshableCacheTest {
 		final var calls = new AtomicInteger();
 		try (final var cache = new IuRefreshableCache<String, String>(
 				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
-				key -> key + "/" + calls.incrementAndGet(), key -> !key.equals("write"))) {
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? IuRefreshableCacheHint.clearAll()
+						: IuRefreshableCacheHint.useDefaults())) {
 			assertEquals("read/1", cache.apply("read"));
 			assertEquals("read/1", cache.apply("read"));
 			assertEquals("write/2", cache.apply("write"));
@@ -208,14 +271,110 @@ public class IuRefreshableCacheTest {
 		final var calls = new AtomicInteger();
 		try (final var cache = new IuRefreshableCache<String, String>(
 				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> {
-			if (key.equals("write"))
-				throw new IllegalStateException("write failed");
-			return key + "/" + calls.incrementAndGet();
-		}, key -> !key.equals("write"))) {
+					if (key.equals("write"))
+						throw new IllegalStateException("write failed");
+					return key + "/" + calls.incrementAndGet();
+				}, key -> new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String key) {
+						return key.equals("write");
+					}
+				})) {
 			assertEquals("read/1", cache.apply("read"));
 			assertEquals("write failed",
 					assertThrows(IllegalStateException.class, () -> cache.apply("write")).getMessage());
 			assertEquals("read/1", cache.apply("read"));
+		}
+	}
+
+	@Test
+	public void testNullHintSkipsCache() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(), key -> null)) {
+			assertEquals("key/1", cache.apply("key"));
+			assertEquals("key/2", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testNullHintFunctionSkipsCacheForEveryKey() throws Throwable {
+		final var calls = new AtomicInteger();
+
+		// a null hint function is accepted and stands in for one that returns null
+		// for every key, so nothing is cached even though caching is configured
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(), null)) {
+			assertEquals("one/1", cache.apply("one"));
+			assertEquals("one/2", cache.apply("one"));
+			assertEquals("two/3", cache.apply("two"));
+			assertEquals(3, calls.get());
+		}
+	}
+
+	@Test
+	public void testHintRestoresResultWithoutCallingRefreshFunction() throws Throwable {
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> {
+					throw new AssertionError("refresh function must not be called for a restored result");
+				}, key -> new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public Optional<String> restore() {
+						return Optional.of("restored");
+					}
+				})) {
+			assertEquals("restored", cache.apply("key"));
+			assertEquals("restored", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testHintPublishesEmbeddedResultsAndAllowsNullInspection() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> {
+					calls.incrementAndGet();
+					return key;
+				}, key -> new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public Map<String, String> inspect(String result) {
+						return result.equals("root") ? Map.of("embedded", "published") : null;
+					}
+				})) {
+			assertEquals("root", cache.apply("root"));
+			assertEquals("published", cache.apply("embedded"));
+			assertEquals(1, calls.get());
+
+			// A null inspection result simply means that this result exposes no
+			// related cache values.
+			assertEquals("standalone", cache.apply("standalone"));
+			assertEquals(2, calls.get());
+		}
+	}
+
+	@Test
+	public void testHintSelectivelyPrunesCachedResultsAfterSuccessfulCall() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(), key -> {
+					if (!key.equals("write"))
+						return IuRefreshableCacheHint.useDefaults();
+					return new IuRefreshableCacheHint<String, String>() {
+						@Override
+						public boolean shouldClear(String candidate) {
+							return candidate.equals("write") || candidate.equals("one");
+						}
+					};
+				})) {
+			assertEquals("one/1", cache.apply("one"));
+			assertEquals("two/2", cache.apply("two"));
+			assertEquals("write/3", cache.apply("write"));
+			assertEquals("two/2", cache.apply("two"));
+			assertEquals("one/4", cache.apply("one"));
 		}
 	}
 
@@ -376,9 +535,15 @@ public class IuRefreshableCacheTest {
 			assertNoFurtherCalls(calls, 2);
 			proceed.countDown();
 			awaitValue(cache, "key", "value2");
+
+			// stale once more: the caller is served the settled value while another
+			// refresh runs behind it. The polling above has already driven an
+			// unpredictable number of refreshes, so count from here rather than
+			// pinning a total.
+			final var polled = calls.get();
 			Thread.sleep(125L);
 			assertEquals("value2", cache.apply("key"));
-			awaitCalls(calls, 3);
+			awaitCallsAtLeast(calls, polled + 1);
 			assertEquals("value2", cache.apply("key"));
 		}
 	}
@@ -418,8 +583,8 @@ public class IuRefreshableCacheTest {
 			assertTrue(interrupted.await(5L, TimeUnit.SECONDS));
 		}
 		final var calls = new AtomicInteger();
-		try (final var cached = cache(
-				config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofMillis(75L)), key -> {
+		try (final var cached = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofMillis(75L)),
+				key -> {
 					calls.incrementAndGet();
 					Thread.sleep(200L);
 					return "slow";
@@ -435,12 +600,17 @@ public class IuRefreshableCacheTest {
 	public void testSupersededRefreshCannotOverwriteNewerValue() throws Throwable {
 		final var calls = new AtomicInteger();
 		final var released = new AtomicBoolean();
-		final var refreshTtl = Duration.ofMillis(50L);
+
+		// held long enough to drive the two refreshes this test needs, then widened
+		// so no further refresh is dispatched. Without that, polling for the settled
+		// value keeps triggering refreshes on a 50ms cadence and the expected call
+		// never stays the current one long enough to be observed.
+		final var refreshTtl = new AtomicReference<>(Duration.ofMillis(50L));
 		final var callTtl = Duration.ofMillis(150L);
 		final var configuration = new IuRefreshableCacheConfiguration() {
 			@Override
 			public Duration getRefreshTtl() {
-				return refreshTtl;
+				return refreshTtl.get();
 			}
 
 			@Override
@@ -473,13 +643,36 @@ public class IuRefreshableCacheTest {
 			Thread.sleep(75L);
 			assertEquals("v1", cache.apply("key"));
 			awaitCalls(calls, 2);
+
+			// the held refresh has now outlived the call TTL, so this caller abandons
+			// it and dispatches its replacement
 			Thread.sleep(225L);
 			assertEquals("v1", cache.apply("key"));
 			awaitCalls(calls, 3);
-			awaitValue(cache, "key", "v3");
+
+			// no further refresh is dispatched on staleness from here, so the
+			// replacement settles. Still shorter than the 30s cache TTL, which must
+			// remain the longer of the two.
+			refreshTtl.set(Duration.ofSeconds(10L));
+
+			// wait for the replacement to publish, but do not pin its generation:
+			// IuCacheMap holds values softly, so the entry may be evicted and
+			// repopulated at any point, which is a legitimate extra call
+			final var expires = System.nanoTime() + Duration.ofSeconds(5L).toNanos();
+			var settled = cache.apply("key");
+			while ("v1".equals(settled) && System.nanoTime() < expires) {
+				Thread.sleep(10L);
+				settled = cache.apply("key");
+			}
+			assertNotEquals("v1", settled, "timed out waiting for the replacement refresh");
+			assertNotEquals("v2", settled);
+
+			// the abandoned refresh finally returns. Its result was superseded before
+			// it completed, so it must never reach a caller, no matter how many
+			// refreshes have run in the meantime.
 			released.set(true);
 			Thread.sleep(100L);
-			assertEquals("v3", cache.apply("key"));
+			assertNotEquals("v2", cache.apply("key"));
 		}
 	}
 
@@ -523,7 +716,7 @@ public class IuRefreshableCacheTest {
 			if (key.equals("fail"))
 				throw new UnsupportedOperationException("failed");
 			return key;
-		}, key -> true) {
+		}, key -> IuRefreshableCacheHint.useDefaults()) {
 			@Override
 			protected Supplier<Runnable> captureContext() {
 				final var delegate = super.captureContext();
@@ -553,8 +746,8 @@ public class IuRefreshableCacheTest {
 		final var fail = new AtomicBoolean();
 		final var calls = new AtomicInteger();
 		final var ttl = Duration.ofMillis(75L);
-		try (final var cache = new IuRefreshableCache<String, String>(
-				() -> config(ttl, Duration.ofSeconds(30L)), key -> "call/" + calls.incrementAndGet(), key -> true) {
+		try (final var cache = new IuRefreshableCache<String, String>(() -> config(ttl, Duration.ofSeconds(30L)),
+				key -> "call/" + calls.incrementAndGet(), key -> IuRefreshableCacheHint.useDefaults()) {
 			@Override
 			protected Supplier<Runnable> captureContext() {
 				if (fail.get())
@@ -576,7 +769,8 @@ public class IuRefreshableCacheTest {
 					assertThrows(IllegalStateException.class, () -> cache.apply("key")).getMessage());
 		}
 		try (final var cache = new IuRefreshableCache<String, String>(
-				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> key, key -> true) {
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> key,
+				key -> IuRefreshableCacheHint.useDefaults()) {
 			@Override
 			protected Supplier<Runnable> captureContext() {
 				throw new RejectedExecutionException("rejected");
@@ -588,5 +782,485 @@ public class IuRefreshableCacheTest {
 		final var unused = cache(() -> IuRefreshableCacheConfiguration.DEFAULT, key -> key);
 		assertDoesNotThrow(unused::close);
 		assertDoesNotThrow(unused::close);
+	}
+
+	/**
+	 * A hint whose {@code shouldClear} matches only its own key, so its queued
+	 * invalidation event never matches a cached entry and can only leave the queue
+	 * by being purged.
+	 */
+	private static IuRefreshableCacheHint<String, String> writeOnly(String writeKey) {
+		return new IuRefreshableCacheHint<String, String>() {
+			@Override
+			public boolean shouldClear(String candidate) {
+				return candidate.equals(writeKey);
+			}
+		};
+	}
+
+	@Test
+	public void testHintEventsAreQueuedThenPurgedAtTheCacheTtlHorizon() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMillis(80L), Duration.ofMillis(300L), Duration.ofSeconds(5L), 2),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? writeOnly("write") : IuRefreshableCacheHint.useDefaults())) {
+			final var queue = hintQueue(cache);
+			assertEquals(0, queue.size());
+
+			assertEquals("poll/1", cache.apply("poll"));
+			for (int i = 0; i < 3; i++)
+				cache.apply("write");
+			assertEquals(3, queue.size());
+
+			// a scan that matches nothing leaves events younger than the horizon in
+			// place, so the queue is drained by age rather than by evaluation
+			cache.apply("poll");
+			assertEquals(3, queue.size());
+
+			awaitQueueDepth(cache, "poll", 0);
+
+			// purging is housekeeping only: the polled entry is untouched by it
+			assertTrue(cache.apply("poll").startsWith("poll/"));
+		}
+	}
+
+	@Test
+	public void testClearAllDrainsPendingInvalidationsAndFreshEntriesSurvive() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key + "/" + calls.incrementAndGet(), key -> {
+					if (key.equals("clearAll"))
+						return IuRefreshableCacheHint.clearAll();
+					if (key.equals("write"))
+						return new IuRefreshableCacheHint<String, String>() {
+							@Override
+							public boolean shouldClear(String candidate) {
+								return candidate.equals("write") || candidate.equals("target");
+							}
+						};
+					return IuRefreshableCacheHint.useDefaults();
+				})) {
+			final var queue = hintQueue(cache);
+
+			assertEquals("target/1", cache.apply("target"));
+			assertEquals("write/2", cache.apply("write"));
+			assertEquals(1, queue.size());
+
+			// emptying the cache subsumes every invalidation still pending, so they are
+			// discarded rather than left to be re-evaluated against entries that no
+			// longer exist
+			assertEquals("clearAll/3", cache.apply("clearAll"));
+			assertEquals(0, queue.size());
+
+			// a key cached for the first time after the clear-all is not evaluated
+			// against those discarded events, and is served from cache thereafter
+			final var repopulated = cache.apply("target");
+			assertEquals("target/4", repopulated);
+			assertEquals(repopulated, cache.apply("target"));
+			assertEquals(4, calls.get());
+		}
+	}
+
+	@Test
+	public void testCloseDiscardsPendingInvalidations() throws Throwable {
+		final var calls = new AtomicInteger();
+		final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("target");
+					}
+				} : IuRefreshableCacheHint.useDefaults());
+		try {
+			assertEquals("target/1", cache.apply("target"));
+			assertEquals("write/2", cache.apply("write"));
+			assertEquals(1, hintQueue(cache).size());
+		} finally {
+			cache.close();
+		}
+
+		// close releases the queue along with the cached results it referred to
+		assertEquals(0, hintQueue(cache).size());
+		assertDoesNotThrow(cache::close);
+		assertEquals(0, hintQueue(cache).size());
+	}
+
+	@Test
+	public void testQueuedHintEventClearsEntryAndForcesTheNextCallerToWait() throws Throwable {
+		final var block = new AtomicBoolean();
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofMillis(250L), 2), key -> {
+					final var call = calls.incrementAndGet();
+					if (block.get())
+						Thread.sleep(1000L);
+					return key + "/" + call;
+				}, key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("target");
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("target/1", cache.apply("target"));
+			assertEquals("write/2", cache.apply("write"));
+			assertEquals(1, hintQueue(cache).size());
+
+			// the queued event still matches, so the entry is discarded and the caller
+			// waits for a replacement rather than being served the invalidated value
+			block.set(true);
+			assertThrows(TimeoutException.class, () -> cache.apply("target"));
+		}
+	}
+
+	@Test
+	public void testPurgedHintEventCanNoLongerClearALiveEntry() throws Throwable {
+		final var armed = new AtomicBoolean();
+		final var block = new AtomicBoolean();
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMillis(80L), Duration.ofMillis(300L), Duration.ofMillis(250L), 2), key -> {
+					final var call = calls.incrementAndGet();
+					if (block.get())
+						Thread.sleep(1000L);
+					return key + "/" + call;
+				}, key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || (armed.get() && candidate.equals("target"));
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("target/1", cache.apply("target"));
+			assertEquals("write/2", cache.apply("write"));
+			assertEquals(1, hintQueue(cache).size());
+
+			// the event does not match while unarmed, so it survives every scan until
+			// it ages past the cache TTL horizon
+			awaitQueueDepth(cache, "target", 0);
+
+			// arming the same predicate now has no effect: the event that carried it is
+			// gone, so the entry is served without waiting, unlike the control above
+			armed.set(true);
+			block.set(true);
+			final var served = assertDoesNotThrow(() -> cache.apply("target"));
+			assertTrue(served.startsWith("target/"), served);
+		}
+	}
+
+	@Test
+	public void testHintEventOlderThanTheLastRefreshIsSkippedAndRetained() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						// matches every key, but is not the CLEAR_ALL singleton, so it
+						// takes the deferred per-entry path rather than clearing in line
+						return true;
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+			final var queue = hintQueue(cache);
+
+			assertEquals("other/1", cache.apply("other"));
+			assertEquals("target/2", cache.apply("target"));
+			assertEquals("write/3", cache.apply("write"));
+			assertEquals(1, queue.size());
+
+			// the event is newer than the entry, so it clears and the caller waits
+			assertEquals("target/4", cache.apply("target"));
+
+			// a matching event is neither consumed nor purged; it is retained and
+			// re-evaluated, but is now older than the value on hand and so is skipped
+			assertEquals(1, queue.size());
+			assertEquals("target/4", cache.apply("target"));
+			assertEquals(4, calls.get());
+
+			// skipping is evaluated per entry, so the retained event still clears a
+			// key whose value predates it
+			assertEquals("other/5", cache.apply("other"));
+			assertEquals(1, queue.size());
+		}
+	}
+
+	@Test
+	public void testInvalidationCostsExactlyOneRefreshPerAffectedKey() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("target");
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("target/1", cache.apply("target"));
+			assertEquals("write/2", cache.apply("write"));
+
+			// the invalidation is a one-shot: the first read repopulates the entry and
+			// every read after it is a hit, well inside the refresh TTL. A retained
+			// event that keeps matching would instead make every read a blocking miss
+			// and a downstream call, for as long as the event stays queued — defeating
+			// the cache for that key and amplifying load precisely when a write has
+			// just landed.
+			final var repopulated = cache.apply("target");
+			assertEquals("target/3", repopulated);
+			for (int i = 0; i < 5; i++)
+				assertEquals(repopulated, cache.apply("target"));
+			assertEquals(3, calls.get());
+		}
+	}
+
+	/**
+	 * Caches "target", then queues two invalidation events in the order given, and
+	 * reports how many times the non-matching event's predicate was consulted for
+	 * "target" during the scan that follows.
+	 */
+	private static int consultationsAfterScan(String first, String second) throws Throwable {
+		final var calls = new AtomicInteger();
+		final var consulted = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key + "/" + calls.incrementAndGet(), key -> {
+					if (key.equals("writeMatch"))
+						return new IuRefreshableCacheHint<String, String>() {
+							@Override
+							public boolean shouldClear(String candidate) {
+								return candidate.equals("writeMatch") || candidate.equals("target");
+							}
+						};
+					if (key.equals("writeMiss"))
+						return new IuRefreshableCacheHint<String, String>() {
+							@Override
+							public boolean shouldClear(String candidate) {
+								if (candidate.equals("target"))
+									consulted.incrementAndGet();
+								return candidate.equals("writeMiss");
+							}
+						};
+					return IuRefreshableCacheHint.useDefaults();
+				})) {
+			assertEquals("target/1", cache.apply("target"));
+			cache.apply(first);
+			cache.apply(second);
+			assertEquals(2, hintQueue(cache).size());
+
+			// the matching event clears the entry, so this caller waits for a
+			// replacement value rather than being served the invalidated one
+			assertEquals("target/4", cache.apply("target"));
+
+			// neither event is consumed by the scan that matched
+			assertEquals(2, hintQueue(cache).size());
+			return consulted.get();
+		}
+	}
+
+	@Test
+	public void testFirstMatchingHintEventShortCircuitsTheScan() throws Throwable {
+		// scanned in FIFO order, so a non-matching event queued first is consulted
+		assertEquals(1, consultationsAfterScan("writeMiss", "writeMatch"));
+
+		// but the same event queued behind a matching one is never reached
+		assertEquals(0, consultationsAfterScan("writeMatch", "writeMiss"));
+	}
+
+	/** Publishes {@code embedded} whenever the {@code root} result is inspected. */
+	private static IuRefreshableCacheHint<String, String> publishesEmbedded() {
+		return new IuRefreshableCacheHint<String, String>() {
+			@Override
+			public Map<String, String> inspect(String result) {
+				return result.equals("root") ? Map.of("embedded", "published") : Map.of();
+			}
+		};
+	}
+
+	@Test
+	public void testEmbeddedValueReplacesAnEntryAlreadyCached() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), IuRefreshableCacheConfiguration.CALL_TTL,
+						2),
+				key -> key.equals("root") ? "root" : key + "/" + calls.incrementAndGet(),
+				key -> publishesEmbedded())) {
+
+			// resolved directly first, so the entry the embedded value is published
+			// into already exists rather than being created for it
+			assertEquals("embedded/1", cache.apply("embedded"));
+			assertEquals("root", cache.apply("root"));
+			assertEquals("published", cache.apply("embedded"));
+			assertEquals(1, calls.get());
+		}
+	}
+
+	@Test
+	public void testEmbeddedValueSupersedesARefreshInFlightForThatKey() throws Throwable {
+		final var started = new CountDownLatch(1);
+		final var release = new CountDownLatch(1);
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofSeconds(10L), 4), key -> {
+					if (!key.equals("embedded"))
+						return "root";
+					started.countDown();
+					assertTrue(release.await(5L, TimeUnit.SECONDS));
+					return "direct";
+				}, key -> publishesEmbedded())) {
+
+			// a caller is already waiting on a direct refresh of the embedded key
+			final var waiter = new Thread(() -> assertDoesNotThrow(() -> cache.apply("embedded")));
+			waiter.start();
+			assertTrue(started.await(5L, TimeUnit.SECONDS));
+
+			// the parent publishes the embedded value while that refresh is in flight
+			assertEquals("root", cache.apply("root"));
+
+			release.countDown();
+			waiter.join(5000L);
+
+			// the in-flight refresh was superseded, so its result is never published
+			assertEquals("published", cache.apply("embedded"));
+		}
+	}
+
+	@Test
+	public void testEmbeddedValueDoesNotDisplaceANewerEntry() throws Throwable {
+		final var started = new CountDownLatch(1);
+		final var release = new CountDownLatch(1);
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofSeconds(10L), 4), key -> {
+					final var call = calls.incrementAndGet();
+					if (!key.equals("root"))
+						return key + "/" + call;
+					started.countDown();
+					assertTrue(release.await(5L, TimeUnit.SECONDS));
+					return "root";
+				}, key -> key.equals("write") ? writeOnly("write") : publishesEmbedded())) {
+
+			final var waiter = new Thread(() -> assertDoesNotThrow(() -> cache.apply("root")));
+			waiter.start();
+			assertTrue(started.await(5L, TimeUnit.SECONDS));
+
+			// an invalidation is published while the parent call is in flight, so the
+			// entry created for the embedded value takes a later position in the
+			// sequence than the result carrying it
+			assertEquals("write/2", cache.apply("write"));
+
+			release.countDown();
+			waiter.join(5000L);
+
+			// the embedded value is stale relative to that entry and is not published
+			assertTrue(cache.apply("embedded").startsWith("embedded/"), "a stale embedded value was published");
+		}
+	}
+
+	@Test
+	public void testInvalidationAbandonsARefreshAlreadyInFlight() throws Throwable {
+		final var value = new AtomicReference<>("v0");
+		final var slow = new AtomicBoolean();
+		final var started = new CountDownLatch(1);
+		final var release = new CountDownLatch(1);
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMillis(50L), Duration.ofSeconds(30L), Duration.ofSeconds(10L), 4), key -> {
+					if (key.equals("write"))
+						return "ok";
+					final var read = value.get();
+					if (slow.compareAndSet(true, false)) {
+						started.countDown();
+						release.await(5L, TimeUnit.SECONDS);
+					}
+					return read;
+				}, key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("read");
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("v0", cache.apply("read"));
+			Thread.sleep(75L);
+
+			// stale, so this caller is served v0 and leaves a refresh in flight
+			slow.set(true);
+			assertEquals("v0", cache.apply("read"));
+			assertTrue(started.await(5L, TimeUnit.SECONDS));
+
+			value.set("v1");
+			assertEquals("ok", cache.apply("write"));
+
+			// that refresh read the source before the write, so the invalidation
+			// abandons it rather than letting it publish pre-write data
+			assertEquals("v1", cache.apply("read"));
+			release.countDown();
+		}
+	}
+
+	@Test
+	public void testInvalidationDuringTheDispatchWindowIsNotLost() throws Throwable {
+		final var gate = new AtomicBoolean();
+		final var dispatched = new CountDownLatch(1);
+		final var release = new CountDownLatch(1);
+		final var fail = new AtomicBoolean();
+
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMillis(60L), Duration.ofSeconds(30L), Duration.ofSeconds(10L), 3), key -> {
+					if (key.equals("write"))
+						return "ok";
+					if (fail.get())
+						throw new IllegalStateException("refresh failed");
+					return "v1";
+				}, key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("target");
+					}
+				} : IuRefreshableCacheHint.useDefaults()) {
+
+			@Override
+			protected Supplier<Runnable> captureContext() {
+				final var delegate = super.captureContext();
+				if (!gate.compareAndSet(true, false))
+					return delegate;
+
+				// holds the pooled thread after the refresh has been dispatched but
+				// before it records the point in the invalidation sequence at which it
+				// reads the backing source
+				return () -> {
+					dispatched.countDown();
+					assertDoesNotThrow(() -> assertTrue(release.await(5L, TimeUnit.SECONDS)));
+					return delegate.get();
+				};
+			}
+		}) {
+			assertEquals("v1", cache.apply("target"));
+			Thread.sleep(80L);
+
+			// stale, so this caller is served the cached value and dispatches a
+			// background refresh, which stalls in the window above
+			gate.set(true);
+			fail.set(true);
+			assertEquals("v1", cache.apply("target"));
+			assertTrue(dispatched.await(5L, TimeUnit.SECONDS));
+
+			// the invalidation lands while that refresh is dispatched but not started
+			assertEquals("ok", cache.apply("write"));
+
+			release.countDown();
+			Thread.sleep(300L);
+
+			// that refresh failed, so the value on hand is the one published before
+			// the invalidation and must not survive it. A refresh that never
+			// published must not move the entry's position in the sequence.
+			assertThrows(IllegalStateException.class, () -> cache.apply("target"),
+					"the invalidation was skipped for a value published before it");
+		}
 	}
 }

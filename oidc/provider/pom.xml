@@ -10,8 +10,8 @@
 		<version>7.1.1-SNAPSHOT</version>
 	</parent>
 
-	<artifactId>iu-java-oidc-client</artifactId>
-	<name>IU OpenID Connect and OAuth 2.0 Client</name>
+	<artifactId>iu-java-oidc-provider</artifactId>
+	<name>IU OpenID Connect and OAuth 2.0 Provider</name>
 
 	<dependencies>
 		<dependency>
@@ -40,19 +40,21 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-session-api</artifactId>
+			<artifactId>iu-java-oidc-config</artifactId>
 			<version>${project.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-client</artifactId>
+			<artifactId>iu-java-pki-api</artifactId>
 			<version>${project.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
-			<artifactId>iu-java-config</artifactId>
+			<artifactId>iu-java-session-api</artifactId>
 			<version>${project.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
@@ -73,5 +75,18 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<configuration>
+						<release>21</release>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
 
 </project>
