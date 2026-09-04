@@ -32,6 +32,7 @@
 package edu.iu.logging;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -85,6 +86,21 @@ public class IuLogContextTest {
 		final var supplier = mock(UnsafeSupplier.class);
 		assertDoesNotThrow(() -> IuLogContext.follow(context, message, supplier));
 		mockLoggingBootstrap.verify(() -> IuLoggingBootstrap.follow(context, message, supplier));
+	}
+
+	@Test
+	public void testFork() {
+		final var forked = new Object();
+		mockLoggingBootstrap.when(() -> IuLoggingBootstrap.fork()).thenReturn(forked);
+		assertSame(forked, IuLogContext.fork());
+	}
+
+	@Test
+	public void testJoin() {
+		final var forked = new Object();
+		final var task = mock(Runnable.class);
+		assertDoesNotThrow(() -> IuLogContext.join(forked, task));
+		mockLoggingBootstrap.verify(() -> IuLoggingBootstrap.join(forked, task));
 	}
 
 }

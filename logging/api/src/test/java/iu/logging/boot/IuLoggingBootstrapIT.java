@@ -33,8 +33,10 @@ package iu.logging.boot;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -69,7 +71,7 @@ public class IuLoggingBootstrapIT {
 
 	@Test
 	public void testInit() throws IOException {
-		IuTestLogger.allow("", Level.INFO);
+		IuTestLogger.allow("", Level.WARNING);
 		final var nodeId = IdGenerator.generateId();
 		final var development = ThreadLocalRandom.current().nextBoolean();
 		final var endpoint = IdGenerator.generateId();
@@ -96,7 +98,20 @@ public class IuLoggingBootstrapIT {
 				new Thread(() -> sub.forEach(events::push)).start();
 
 				assertDoesNotThrow(() -> IuLogContext.follow(context, header, () -> {
-					Logger.getLogger(IuLoggingBootstrapIT.class.getName()).info(message);
+					final var forked = IuLogContext.fork();
+					assertNotNull(forked);
+
+					// the joined task reports the forked process from another thread; WARNING
+					// captures the forked process trace with the event
+					final var error = new Throwable[1];
+					final var worker = new Thread(() -> IuLogContext.join(forked,
+							() -> Logger.getLogger(IuLoggingBootstrapIT.class.getName()).warning(message)));
+					worker.setUncaughtExceptionHandler((t, e) -> error[0] = e);
+					worker.start();
+					worker.join();
+					if (error[0] != null)
+						throw error[0];
+
 					return null;
 				}));
 
@@ -115,6 +130,7 @@ public class IuLoggingBootstrapIT {
 			final var event = events.pop();
 			System.out.println(event);
 			assertEquals(message, event.getMessage());
+			assertTrue(event.getProcessLog().contains(header), event::getProcessLog);
 		} finally {
 			current.setContextClassLoader(restore);
 		}

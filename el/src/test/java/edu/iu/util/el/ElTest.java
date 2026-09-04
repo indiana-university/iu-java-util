@@ -72,13 +72,13 @@ public class ElTest {
 			return Files.readString(resourcePath);
 		});
 	}
-	
+
 	@BeforeEach
 	void setup() throws Exception {
 		var f = El.class.getDeclaredField("INLINE_TEMPLATE_CACHE");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
-		
+
 		f = El.class.getDeclaredField("TEMPLATE_CACHE");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
@@ -137,7 +137,6 @@ public class ElTest {
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "foo*bar")));
 
 		b.add("fooList", Json.createArrayBuilder().add("foo").add("bar").add("baz"));
-		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(b.build(), "$.fooList.1")));
 
 		JsonObjectBuilder b1 = Json.createObjectBuilder();
 		b1.add("foo", "bar");
@@ -149,6 +148,11 @@ public class ElTest {
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap.foo")));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap?_.foo")));
 		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooMap[$.fooMap[_.bar]]")));
+
+		assertEquals("not empty", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.empty?'empty!'not empty")));
+		assertEquals("bar", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.1")));
+		assertEquals("three", IuJsonAdapter.of(String.class).fromJson(El.eval(c, "$.fooList.size=3?'three")));
+		assertEquals(JsonValue.TRUE, El.eval(c, "$.fooList.size=3"));
 	}
 
 	@Test
@@ -178,7 +182,8 @@ public class ElTest {
 		assertEquals("inline template doesn't end with '`'",
 				assertThrows(IllegalArgumentException.class, () -> El.eval("<`")).getMessage());
 		assertEquals("invalid template name {}, expected a string",
-				assertThrows(IllegalArgumentException.class, () -> El.eval(IuJson.object().build(), "<_")).getMessage());
+				assertThrows(IllegalArgumentException.class, () -> El.eval(IuJson.object().build(), "<_"))
+						.getMessage());
 	}
 
 	@Test
@@ -195,8 +200,15 @@ public class ElTest {
 		final var error = assertThrows(IllegalArgumentException.class, () -> El.eval(JsonValue.TRUE, ".foo?"));
 		assertEquals("expected object or array for property 'foo', found true", error.getMessage());
 		assertEquals(1, error.getSuppressed().length);
-		assertEquals("Evaluating EL expression \".foo?\" at 4: \".foo[?]\"",
-				error.getSuppressed()[0].getMessage());
+		assertEquals("Evaluating EL expression \".foo?\" at 4: \".foo[?]\"", error.getSuppressed()[0].getMessage());
+	}
+
+	@Test
+	public void testFailedTerminalDottedSelectionIncludesEvaluationContext() {
+		final var error = assertThrows(IllegalArgumentException.class, () -> El.eval(JsonValue.TRUE, ".foo"));
+		assertEquals("expected object or array for property 'foo', found true", error.getMessage());
+		assertEquals(1, error.getSuppressed().length);
+		assertEquals("Evaluating EL expression \".foo\" at 4: \".foo[]\"", error.getSuppressed()[0].getMessage());
 	}
 
 	@Test
@@ -274,8 +286,7 @@ public class ElTest {
 		JsonArrayBuilder arr = Json.createArrayBuilder();
 		arr.add("foo");
 		arr.add("bar");
-		assertEquals("0:foo1:bar",
-				IuJsonAdapter.of(String.class).fromJson(El.eval(arr.build(), "$<`{i}:{<`{$}`}`")));
+		assertEquals("0:foo1:bar", IuJsonAdapter.of(String.class).fromJson(El.eval(arr.build(), "$<`{i}:{<`{$}`}`")));
 	}
 
 	@Test
@@ -286,8 +297,8 @@ public class ElTest {
 		JsonObjectBuilder failure = Json.createObjectBuilder().add("success", JsonValue.FALSE).add("message",
 				"failure message");
 		b.add("foo", Json.createObjectBuilder().add("baz", success).add("bim", failure));
-		assertEquals("Here it is a success success message!" + System.lineSeparator() + //
-				"Here it is a failure failure message!" + System.lineSeparator(), IuJsonAdapter.of(String.class)
+		assertEquals("Here it is a success success message!\n" //
+				+ "Here it is a failure failure message!\n", IuJsonAdapter.of(String.class)
 						.fromJson(El.eval(b.build(), "$.foo<'el/testTemplate", ElTest::readResource)));
 	}
 
@@ -458,11 +469,85 @@ public class ElTest {
 		b.add("baz", false);
 		b.add("bim", "bam");
 		b.add("bar", JsonValue.NULL);
+		b.add("bum", 3);
 		final var context = b.build();
 		assertEquals(JsonValue.TRUE, El.eval(context, "$.bim='bam"));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.bim='baz"));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.bim=$.p"));
 		assertEquals(JsonValue.FALSE, El.eval(context, "$.bim=$.bar"));
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.bum=3"));
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.bim=bam"));
+	}
+
+	@Test
+	public void testMatchOperandFormsUsedByTemplates() {
+		final var context = Json.createObjectBuilder() //
+				.add("accountType", "A") //
+				.add("lastUpdatedBy", "thirdparty01") //
+				.add("active", JsonValue.FALSE) //
+				.add("maxResultLimit", 2) //
+				.add("results", Json.createArrayBuilder().add("one").add("two")) //
+				.add("noResults", Json.createArrayBuilder()) //
+				.build();
+
+		// {$.accountType=A?'ADS}
+		assertEquals("ADS", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.accountType=A?'ADS")));
+		assertEquals(JsonValue.FALSE, El.eval(context, "$.accountType=G?'Guest"));
+
+		// {$.auditResourceCategories.size=0?<'/html/audit/noResults.html}
+		assertEquals("Hello World", IuJsonAdapter.of(String.class)
+				.fromJson(El.eval(context, "$.noResults.size=0?<'el/hello.txt", ElTest::readResource)));
+		assertEquals(JsonValue.FALSE, El.eval(context, "$.results.size=0?<'el/hello.txt", ElTest::readResource));
+
+		// {$.auditResourceCategories.size=0!<'/html/audit/categoryResults.html}
+		assertEquals("Hello World", IuJsonAdapter.of(String.class)
+				.fromJson(El.eval(context, "$.results.size=0!<'el/hello.txt", ElTest::readResource)));
+		assertNull(El.eval(context, "$.noResults.size=0!<'el/hello.txt", ElTest::readResource));
+
+		// {$.maxResultLimit=$.auditResourceCategories.size?<'/html/audit/maxResults.html}
+		assertEquals("Hello World", IuJsonAdapter.of(String.class)
+				.fromJson(El.eval(context, "$.maxResultLimit=$.results.size?<'el/hello.txt", ElTest::readResource)));
+		assertEquals(JsonValue.FALSE,
+				El.eval(context, "$.maxResultLimit=$.noResults.size?<'el/hello.txt", ElTest::readResource));
+
+		// {$.invitationEmail.lastUpdatedBy=thirdparty01?<`Expired`}
+		assertEquals("Expired",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.lastUpdatedBy=thirdparty01?<`Expired`")));
+
+		// {$.invitationEmail.active!$.invitationEmail.lastUpdatedBy=thirdparty01!<`Canceled`}
+		assertNull(El.eval(context, "$.active!$.lastUpdatedBy=thirdparty01!<`Canceled`"));
+		assertEquals("Canceled", IuJsonAdapter.of(String.class).fromJson(El.eval(Json.createObjectBuilder() //
+				.add("active", JsonValue.FALSE) //
+				.add("lastUpdatedBy", "someone") //
+				.build(), "$.active!$.lastUpdatedBy=thirdparty01!<`Canceled`")));
+	}
+
+	@Test
+	public void testMatchOperandParsing() {
+		final var context = Json.createObjectBuilder() //
+				.add("bim", "bam") //
+				.add("blank", "") //
+				.add("num", 3) //
+				.add("neg", -1) //
+				.add("dotted", "1.2.3") //
+				.add("signed", "+1") //
+				.build();
+
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.blank="));
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.bim=_"));
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.neg=-1"));
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.dotted=1.2.3"));
+		assertEquals(JsonValue.TRUE, El.eval(context, "$.signed=+1"));
+
+		// numbers compare by BigDecimal value, so scale is significant
+		assertEquals(JsonValue.FALSE, El.eval(context, "$.num=3.0"));
+
+		assertEquals("y", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.num=3?'y")));
+		assertEquals(JsonValue.FALSE, El.eval(context, "$.num=4?'y"));
+		assertNull(El.eval(context, "$.num=3!'n"));
+		assertEquals("n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.num=4!'n")));
+		assertEquals("y", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.num=3?'y!'n")));
+		assertEquals("n", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.num=4?'y!'n")));
 	}
 
 	@Test
@@ -475,14 +560,16 @@ public class ElTest {
 		b.add("money", "3.50");
 		b.add("bigger_money", "1234567890.97");
 		b.add("date", "2025-02-03T22:23:24Z");
+		// the two forms IuJsonAdapter.of(Date.class).toJson() emits: ISO_DATE_TIME with the
+		// zone region appended, and ISO_DATE alone when the time is midnight
+		b.add("zoned_date", "2026-08-24T12:24:00.098Z[UTC]");
+		b.add("date_only", "2026-08-24Z");
 		b.add("string", "foo");
 		final var context = b.build();
 		// numbers
 		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.int#0")));
 		assertEquals("1", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.int##")));
 		assertEquals("01", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.int#00")));
-
-		assertEquals("0123", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string_int#00")));
 
 		assertEquals("1234567890",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.bigger_int#0000000000")));
@@ -511,7 +598,20 @@ public class ElTest {
 		assertEquals("3 Feb 2025 17:23:24",
 				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date#d MMM yyyy HH:mm:ss")));
 
+		assertEquals("08/24/2026",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.zoned_date#MM/dd/yyyy")));
+		assertEquals("08/24/2026",
+				IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.date_only#MM/dd/yyyy")));
+
+		// an invalid pattern fails on both branches, rather than only on the number one
+		assertEquals("Illegal pattern character 'j'",
+				assertThrows(IllegalArgumentException.class, () -> El.eval(context, "$.date#j")).getMessage());
+		assertThrows(IllegalArgumentException.class, () -> El.eval(context, "$.pi#0.0.0"));
+
 		// ignored
+		IuTestLogger.allow(El.class.getName(), Level.FINE);
+		assertEquals("0123", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string_int#00")));
+
 		assertEquals("foo", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string#0")));
 		assertEquals("foo", IuJsonAdapter.of(String.class).fromJson(El.eval(context, "$.string#MM/dd/yyyy")));
 	}

@@ -246,6 +246,31 @@ public class IuLoggingBootstrap {
 	}
 
 	/**
+	 * Implements {@link IuLogContext#fork()}.
+	 *
+	 * @return opaque handle on the active process; null if the current thread is
+	 *         not {@link #follow(IuLogContext, String, UnsafeSupplier) following} a
+	 *         process
+	 */
+	public static Object fork() {
+		return IuException.uncheckedInvocation(() -> bootstrap() //
+				.getMethod("fork") //
+				.invoke(null));
+	}
+
+	/**
+	 * Implements {@link IuLogContext#join(Object, Runnable)}.
+	 *
+	 * @param forkedContext opaque handle returned by {@link #fork()}
+	 * @param task          task to run with the forked process bound
+	 */
+	public static void join(Object forkedContext, Runnable task) {
+		IuException.uncheckedInvocation(() -> bootstrap() //
+				.getMethod("join", Object.class, Runnable.class) //
+				.invoke(null, forkedContext, task));
+	}
+
+	/**
 	 * Implements {@link IuLogEvent#subscribe()}.
 	 * 
 	 * @return {@link Stream} of log events.
