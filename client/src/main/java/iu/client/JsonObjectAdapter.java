@@ -84,7 +84,7 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 
 		final var a = IuJson.object();
 		for (final var e : javaValue.entrySet())
-			IuJson.add(a, toString(e.getKey()), valueAdapter.toJson(e.getValue()));
+			a.add(toString(e.getKey()), valueAdapter.toJson(e.getValue()));
 		return a.build();
 	}
 
