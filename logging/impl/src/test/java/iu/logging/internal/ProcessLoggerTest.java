@@ -33,9 +33,11 @@ package iu.logging.internal;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -60,12 +62,26 @@ public class ProcessLoggerTest {
 
 	@BeforeEach
 	public void resetRequestId() {
+		// asserted rather than cleared: a frame left bound by an earlier test is the
+		// regression this file exists to catch, so it must fail at the boundary of the
+		// test that leaked it instead of contaminating this one
+		assertNull(ProcessLogger.fork(), "process left bound by an earlier test");
+		assertNull(activeJoinId(), "join ID left bound by an earlier test");
+
 		// each test asserts on generated request IDs, so the sequence must not depend
 		// on the order tests run in
 		assertDoesNotThrow(() -> {
 			final var requestId = ProcessLogger.class.getDeclaredField("REQUEST_ID");
 			requestId.setAccessible(true);
 			((AtomicLong) requestId.get(null)).set(0L);
+		});
+	}
+
+	private static Object activeJoinId() {
+		return assertDoesNotThrow(() -> {
+			final var joinId = ProcessLogger.class.getDeclaredField("ACTIVE_JOIN_ID");
+			joinId.setAccessible(true);
+			return ((ThreadLocal<?>) joinId.get(null)).get();
 		});
 	}
 
@@ -121,6 +137,8 @@ public class ProcessLoggerTest {
 	private static final String TIME_REGEX = "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d{3,9}Z";
 	private static final String DURATION_REGEX = "P(?:\\d+D)?T(?:\\d+H)?(?:\\d+M)?(?:\\d+(?:\\.\\d+)?S)?";
 
+	private static final Duration WORKER_TIMEOUT = Duration.ofSeconds(10L);
+
 	private static final String msgRegex(String message) {
 		StringBuilder sb = new StringBuilder(message);
 		if (sb.length() >= 80)
@@ -147,7 +165,14 @@ public class ProcessLoggerTest {
 		final var worker = new Thread(task);
 		worker.setUncaughtExceptionHandler((t, e) -> error[0] = e);
 		worker.start();
-		worker.join();
+
+		// bounded: this helper drives the cross-thread handoff, which is exactly the
+		// code a future change could block forever. An unbounded join would turn that
+		// into a hung build with no test name attached to it
+		worker.join(WORKER_TIMEOUT.toMillis());
+		assertFalse(worker.isAlive(), () -> "worker " + worker.getName() + " did not complete within "
+				+ WORKER_TIMEOUT + "; the forked process handoff is blocked");
+
 		if (error[0] != null)
 			throw error[0];
 	}
@@ -307,6 +332,184 @@ public class ProcessLoggerTest {
 
 				assertSame(forked, ProcessLogger.fork(), "forking thread lost its process");
 				ProcessLogger.trace(() -> message);
+
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testFollowReportsAndUnbindsWhenTheTaskThrows() {
+		final var header = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+		final var message = IdGenerator.generateId();
+		final var thrown = new Throwable(IdGenerator.generateId());
+
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1: " + header);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "failed 1: " + header + System.lineSeparator() //
+				+ "init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+				+ msgRegex("begin 1: " + header) + System.lineSeparator() //
+				+ msgRegex(message) + System.lineSeparator() //
+				+ msgRegex("end 1: " + header) + System.lineSeparator() //
+				+ "final: " + DURATION_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + "(?:\\r?\\n)?" //
+		);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertSame(thrown, assertThrows(Throwable.class, () -> ProcessLogger.follow(context, header, () -> {
+				ProcessLogger.trace(() -> message);
+				throw thrown;
+			})));
+		}
+
+		assertNull(ProcessLogger.fork(), "process left bound after an abrupt completion");
+	}
+
+	@Test
+	public void testNestedFollowReportsAndUnbindsWhenTheTaskThrows() {
+		final var header = IdGenerator.generateId();
+		final var subHeader = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+		final var thrown = new Throwable(IdGenerator.generateId());
+
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1: " + header);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1.1: " + subHeader);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "end 1.1: " + subHeader);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "complete 1: " + header
+				+ System.lineSeparator() + "(?s).*" + msgRegex("<1.1: " + subHeader) + "(?s).*");
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				// the enclosing process must be restored, and the sub-process closed out,
+				// even though the sub-process completed abruptly
+				assertSame(thrown, assertThrows(Throwable.class,
+						() -> ProcessLogger.follow(context, subHeader, () -> {
+							throw thrown;
+						})));
+				assertNotNull(ProcessLogger.fork(), "enclosing process not restored");
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testJoinUnbindsWhenTheTaskThrows() throws Throwable {
+		final var header = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+		final var thrown = new RuntimeException(IdGenerator.generateId());
+
+		IuTestLogger.allow(ProcessLogger.class.getName(), Level.INFO);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				final var forked = ProcessLogger.fork();
+
+				runInWorker(() -> {
+					assertSame(thrown, assertThrows(RuntimeException.class, () -> ProcessLogger.join(forked, () -> {
+						throw thrown;
+					})));
+					assertNull(ProcessLogger.fork(), "process left bound to the worker thread");
+					assertNull(activeJoinId(), "join ID left bound to the worker thread");
+				});
+
+				assertSame(forked, ProcessLogger.fork(), "forking thread lost its process");
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testJoinRejectsAForeignHandle() {
+		final var handle = new Object();
+		final var invoked = new boolean[1];
+
+		final var e = assertThrows(IllegalArgumentException.class,
+				() -> ProcessLogger.join(handle, () -> invoked[0] = true));
+		assertEquals(Object.class.getName() + " did not come from fork(); see IuLogContext.fork()", e.getMessage());
+		assertFalse(invoked[0], "task invoked with a handle that did not come from fork()");
+		assertNull(ProcessLogger.fork(), "process bound by a rejected handle");
+	}
+
+	@Test
+	public void testNestedFollowInsideJoinDropsTheJoinPrefix() {
+		final var header = IdGenerator.generateId();
+		final var nestedHeader = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+
+		final var beforeNested = IdGenerator.generateId();
+		final var withinNested = IdGenerator.generateId();
+		final var afterNested = IdGenerator.generateId();
+
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1: " + header);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "begin 1.1: " + nestedHeader);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "end 1.1: " + nestedHeader);
+		IuTestLogger.expect(ProcessLogger.class.getName(), Level.INFO, "complete 1: " + header + System.lineSeparator() //
+				+ "init: " + TIME_REGEX + " " + MEM_REGEX + System.lineSeparator() //
+				+ msgRegex("begin 1: " + header) + System.lineSeparator() //
+				+ msgRegex("1> " + beforeNested) + System.lineSeparator() //
+				+ msgRegex(">1.1: " + nestedHeader) + System.lineSeparator() //
+				// a nested process' own messages belong to neither the forking thread nor the
+				// join, so they must not be labelled as part of the join
+				+ msgRegex(" " + withinNested) + System.lineSeparator() //
+				+ msgRegex("<1.1: " + nestedHeader) + System.lineSeparator() //
+				+ msgRegex("1> " + afterNested) + System.lineSeparator() //
+				+ msgRegex("end 1: " + header) + System.lineSeparator() //
+				+ "final: " + DURATION_REGEX + " " + SIZE_REGEX + " " + MEM_REGEX + "(?:\\r?\\n)?" //
+		);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				final var forked = ProcessLogger.fork();
+
+				// joined on the forking thread: a mocked static applies only to the thread
+				// that installed it, so a worker would build its sub-process against the real
+				// LogEnvironment and stamp its markers with whatever application that names
+				ProcessLogger.join(forked, () -> {
+					ProcessLogger.trace(() -> beforeNested);
+					assertDoesNotThrow(() -> ProcessLogger.follow(context, nestedHeader, () -> {
+						ProcessLogger.trace(() -> withinNested);
+						return null;
+					}));
+					ProcessLogger.trace(() -> afterNested);
+				});
+
+				return null;
+			}));
+		}
+	}
+
+	@Test
+	public void testTraceIsCapped() {
+		final var header = IdGenerator.generateId();
+		final var context = mock(LogContext.class);
+
+		IuTestLogger.allow(ProcessLogger.class.getName(), Level.INFO);
+
+		final var env = mock(LogEnvironment.class);
+		try (final var mockBootstrap = mockStatic(Bootstrap.class)) {
+			mockBootstrap.when(() -> Bootstrap.getEnvironment()).thenReturn(env);
+			assertDoesNotThrow(() -> ProcessLogger.follow(context, header, () -> {
+				for (int i = 0; i < ProcessLogger.MAX_TRACED_MESSAGES + 100; i++)
+					ProcessLogger.trace(IdGenerator::generateId);
+
+				final var exported = ProcessLogger.export();
+				final var lines = exported.split("\\R");
+
+				// init, the process' own "begin" marker -- appended directly, so it does not
+				// draw on the budget -- the budgeted messages, then the overflow marker in
+				// place of everything after them
+				assertEquals(ProcessLogger.MAX_TRACED_MESSAGES + 3, lines.length, exported::toString);
+				assertTrue(
+						lines[lines.length - 1]
+								.startsWith("... process trace truncated at " + ProcessLogger.MAX_TRACED_MESSAGES),
+						() -> lines[lines.length - 1]);
 
 				return null;
 			}));

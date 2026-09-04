@@ -99,7 +99,26 @@ public interface IuLogContext {
 	/**
 	 * Applies full context attributes to log events generated during the invocation
 	 * of an application-defined {@link UnsafeSupplier}.
-	 * 
+	 *
+	 * <p>
+	 * Every record published within the boundary is also appended to the process
+	 * trace, whatever its level, and the accumulated trace is attached to each
+	 * event at {@link java.util.logging.Level#WARNING} or above &mdash; so an
+	 * 80-character prefix of a message logged at {@link
+	 * java.util.logging.Level#FINE} reaches whatever destination a later warning
+	 * reaches, including the error log and every {@link IuLogEvent#subscribe()
+	 * subscriber}. Nothing logged inside the boundary is level-gated for the
+	 * purpose of the trace, so credentials and personal data must be kept out of
+	 * records at <em>every</em> level, not only the ones normally published.
+	 * </p>
+	 *
+	 * <p>
+	 * The trace is bounded, and messages past the bound are dropped with a marker
+	 * in their place rather than retained, so a long-lived or high-volume boundary
+	 * does not grow without limit. The whole of it is reported when the boundary
+	 * completes, whether the task returned or threw.
+	 * </p>
+	 *
 	 * @param <T>      return type
 	 * @param context  {@link IuLogContext}
 	 * @param message  short message to augment trace behavior
@@ -127,6 +146,14 @@ public interface IuLogContext {
 	 * The forking thread <em>must</em> ensure joined tasks complete before it stops
 	 * following the process; messages traced by a task that outlives the process are
 	 * not guaranteed to be reported.
+	 * </p>
+	 *
+	 * <p>
+	 * The handle is valid only for the lifetime of the process that produced it. It
+	 * <em>must not</em> be retained across a logging reconfiguration: while it is
+	 * held it keeps the logging implementation's {@link ClassLoader} reachable, and
+	 * once that implementation has been replaced {@link #join(Object, Runnable)}
+	 * rejects it with {@link IllegalArgumentException}.
 	 * </p>
 	 *
 	 * <pre>
@@ -162,6 +189,8 @@ public interface IuLogContext {
 	 *
 	 * @param forkedContext opaque handle returned by {@link #fork()}
 	 * @param task          task to run with the forked process applied
+	 * @throws IllegalArgumentException if {@code forkedContext} did not come from
+	 *                                  {@link #fork()}
 	 */
 	static void join(Object forkedContext, Runnable task) {
 		IuLoggingBootstrap.join(forkedContext, task);
