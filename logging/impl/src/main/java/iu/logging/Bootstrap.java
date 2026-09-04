@@ -35,6 +35,7 @@ import java.lang.ModuleLayer.Controller;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
@@ -67,7 +68,22 @@ import iu.logging.internal.ProcessLogger;
  */
 public final class Bootstrap {
 
-	private static final Map<ClassLoader, LogEnvironmentImpl> ENVIRONMENT = new WeakHashMap<>();
+	/**
+	 * Registered environments, by context {@link ClassLoader}.
+	 *
+	 * <p>
+	 * Synchronized because {@link #getEnvironment()} is on the hot path &mdash;
+	 * every {@link iu.logging.internal.ProcessLogger#follow} constructs a process
+	 * that reads it &mdash; while {@link #initializeContext} writes it, and a read
+	 * of a {@link WeakHashMap} concurrent with a write can observe a partially
+	 * rehashed table. The compound check-then-put in {@link #initializeContext}
+	 * holds this same monitor, since
+	 * {@link Collections#synchronizedMap(Map) synchronizedMap} locks on the wrapper
+	 * it returns.
+	 * </p>
+	 */
+	private static final Map<ClassLoader, LogEnvironmentImpl> ENVIRONMENT = Collections
+			.synchronizedMap(new WeakHashMap<>());
 	private static final LogEnvironmentImpl PLATFORM = new LogEnvironmentImpl();
 
 	private Bootstrap() {

@@ -31,7 +31,9 @@
  */
 package edu.iu.util.el;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.regex.Pattern;
 
 import edu.iu.client.IuJson;
 import jakarta.json.Json;
@@ -67,11 +69,79 @@ final class ElUtils {
 	 */
 	static JsonString EMPTY = Json.createValue("");
 
+	/**
+	 * Matches literal text to read as a JSON number.
+	 *
+	 * <p>
+	 * Exponent notation is excluded so that a literal's magnitude stays bounded by
+	 * its length.
+	 * </p>
+	 */
+	private static final Pattern NUMBER = Pattern.compile("-?\\d+(?:\\.\\d+)?");
+
 	static {
 		Arrays.sort(CONTROL_CHARS);
 	}
 
 	private ElUtils() {
+	}
+
+	/**
+	 * Finds the end of the operand that follows a match operator.
+	 *
+	 * <p>
+	 * The operand ends at the first {@code ?} or {@code !} outside an inline
+	 * template so that a match may be followed by a conditional.
+	 * </p>
+	 *
+	 * @param expression expression beginning with {@code =}
+	 * @return index at which the operand ends, exclusive
+	 */
+	static int getMatchOperandEnd(String expression) {
+		final var ifPos = getIndexFrom(expression, '?', 1);
+		final var unlessPos = getIndexFrom(expression, '!', 1);
+		if (ifPos == -1)
+			return unlessPos == -1 ? expression.length() : unlessPos;
+		else if (unlessPos == -1)
+			return ifPos;
+		else
+			return Math.min(ifPos, unlessPos);
+	}
+
+	/**
+	 * Determines whether a match operand is literal text rather than an expression.
+	 *
+	 * @param operand match operand
+	 * @return {@code true} unless the operand begins with {@code $}, {@code _}, or a
+	 *         {@link #CONTROL_CHARS control character}
+	 */
+	static boolean isLiteral(String operand) {
+		if (operand.isEmpty())
+			return true;
+
+		final var c = operand.charAt(0);
+		return c != '$' //
+				&& c != '_' //
+				&& Arrays.binarySearch(CONTROL_CHARS, c) < 0;
+	}
+
+	/**
+	 * Converts literal match operand text to a JSON value.
+	 *
+	 * @param operand match operand
+	 * @return {@link JsonNumber} when the operand is numeric text, otherwise
+	 *         {@link JsonString}
+	 */
+	static JsonValue literal(String operand) {
+		if (!operand.isEmpty()) {
+			final var c = operand.charAt(0);
+			if ((c == '-' //
+					|| (c >= '0' && c <= '9')) //
+					&& NUMBER.matcher(operand).matches())
+				return IuJson.number(new BigDecimal(operand));
+		}
+
+		return IuJson.string(operand);
 	}
 
 	/**
@@ -181,16 +251,22 @@ final class ElUtils {
 	 * path returns {@code selected} unchanged.
 	 * </p>
 	 *
+	 * <p>
+	 * A missing or JSON null {@code selected} reports {@code size} as zero and
+	 * {@code blank} and {@code empty} as true, and returns null for every other
+	 * path, so that a path may be applied to an optional value without guarding
+	 * it.
+	 * </p>
+	 *
 	 * @param selected    object, array, string, or null from which to select
 	 * @param pathElement JSON Pointer, property name, array size, array emptiness,
 	 *                    array index, or empty string
-	 * @return selected JSON value
+	 * @return selected JSON value; null if undefined
 	 * @throws IllegalArgumentException if a path other than {@code blank} or
-	 *                                  {@code empty} is applied to a string, a path
-	 *                                  other than {@code size}, {@code blank}, or
-	 *                                  {@code empty} is applied to a null value, a
-	 *                                  non-empty path is applied to another scalar
-	 *                                  value, or an array index is not numeric
+	 *                                  {@code empty} is applied to a string, a
+	 *                                  non-empty path is applied to another
+	 *                                  non-null scalar value, or an array index is
+	 *                                  not numeric
 	 */
 	static JsonValue select(JsonValue selected, String pathElement) {
 		if (pathElement.startsWith("/")) {

@@ -84,19 +84,27 @@ public class IuRuntimeEnvironment {
 	/**
 	 * Checks for the presence of a system property, then defaults to an environment
 	 * variable if not set.
-	 * 
-	 * @param <T>  value type
-	 * @param name property name
-	 * @return system property value if set, environment variable if not set
+	 *
+	 * @param <T>                 value type
+	 * @param name                property name
 	 * @param textToValueFunction converts a non-null property value to the target
-	 *                            type; not applied to null
-	 * @throws NullPointerException if the system property is blank or both are
-	 *                              missing
+	 *                            type; not applied to null. A null return rejects
+	 *                            the configured value.
+	 * @return converted system property value if set, converted environment
+	 *         variable if not set
+	 * @throws NullPointerException if the system property is blank, both are
+	 *                              missing, or {@code textToValueFunction} returns
+	 *                              null
 	 */
 	public static <T> T env(String name, Function<String, T> textToValueFunction) {
-		return Objects.requireNonNull(envOptional(name, textToValueFunction),
-				"Missing system property " + name + " or environment variable " + envName(name));
+		final var value = Objects.requireNonNull(envOptional(name),
+				() -> "Missing system property " + name + " or environment variable " + envName(name));
 
+		// reported separately from a missing value, since the opposite is true: the
+		// property is set and its value was rejected. The value is not named because
+		// this accessor reads secrets as well as switches
+		return Objects.requireNonNull(textToValueFunction.apply(value),
+				() -> "Invalid system property " + name + " or environment variable " + envName(name));
 	}
 
 	/**
@@ -120,86 +128,121 @@ public class IuRuntimeEnvironment {
 	}
 
 	/**
-	 * Reads one optional boolean flag.
+	 * Reads an optional boolean flag.
 	 *
 	 * <p>
-	 * Only the exact value {@code true} enables a flag. Every one of these turns
-	 * off a protection or trusts a header, so a typo has to read as "off" rather
-	 * than as anything a truthiness rule might accept.
+	 * Only the exact value {@code true} enables a flag. A flag gates behavior that
+	 * is off by default, so a typo has to read as off rather than as anything a
+	 * truthiness rule might accept.
 	 * </p>
 	 *
-	 * @param name environment variable name
-	 * @return true when the variable is exactly {@code true}; else false
+	 * <p>
+	 * Like every accessor in this class, the value is resolved as a system property
+	 * first and only then as an environment variable. A flag intended to be
+	 * controlled by the deployment environment can therefore also be set with
+	 * {@code -Dname=true}, or by {@link System#setProperty(String, String)} from
+	 * anywhere in the JVM at any point in its life. A flag that must not be
+	 * settable in-process has to read {@link System#getenv(String)} directly
+	 * instead.
+	 * </p>
+	 *
+	 * @param name property name, resolved as a system property first and then as
+	 *             the corresponding environment variable; see
+	 *             {@link #envOptional(String)}
+	 * @return true when the value is exactly {@code true}; false when it is any
+	 *         other value, is blank, or is unset
 	 */
 	public static boolean flag(String name) {
 		return "true".equals(envOptional(name));
 	}
 
 	/**
-	 * Reads one optional positive-integer bound.
+	 * Reads an optional positive {@code int} bound.
 	 *
 	 * <p>
-	 * Shared by every numeric setting the container accepts, so that each reports a
-	 * bad value the same way &mdash; naming the variable, since an operator setting
-	 * several of these needs to be told which one was rejected rather than only
-	 * that some number would not parse.
+	 * Equivalent to {@link #bound(String, int, int)} with {@link Integer#MAX_VALUE}
+	 * as the upper limit: any positive value that fits in an {@code int} is
+	 * accepted.
 	 * </p>
 	 *
-	 * @param name         environment variable name
-	 * @param defaultValue value to apply when the variable is unset
+	 * @param name         property name, resolved as a system property first and
+	 *                     then as the corresponding environment variable; see
+	 *                     {@link #envOptional(String)}
+	 * @param defaultValue value to apply when neither is set
 	 * @return configured bound, or {@code defaultValue}
-	 * @throws IllegalArgumentException if the configured value is not a positive
-	 *                                  integer &mdash; including zero, which would
-	 *                                  configure a bound that permits nothing
+	 * @throws IllegalArgumentException if the configured value is not an integer,
+	 *                                  or is less than one &mdash; including zero,
+	 *                                  which would configure a bound that permits
+	 *                                  nothing
 	 */
 	public static int bound(String name, int defaultValue) {
 		return (int) longBound(name, defaultValue, Integer.MAX_VALUE);
 	}
 
 	/**
-	 * Reads one optional positive-integer bound.
+	 * Reads an optional positive {@code int} bound with an upper limit.
 	 *
 	 * <p>
-	 * Shared by every numeric setting the container accepts, so that each reports a
-	 * bad value the same way &mdash; naming the variable, since an operator setting
-	 * several of these needs to be told which one was rejected rather than only
-	 * that some number would not parse.
+	 * A value above {@code maxValue} is rejected rather than clamped, so that a
+	 * setting too large to honor is reported where it was configured instead of
+	 * quietly taking effect as something other than what was asked for. Every
+	 * rejection names the property, since an operator setting several of these
+	 * needs to be told which one was refused rather than only that some number
+	 * would not do.
 	 * </p>
 	 *
-	 * @param name         environment variable name
-	 * @param defaultValue value to apply when the variable is unset
-	 * @param maxValue     maximum value to allow
+	 * @param name         property name, resolved as a system property first and
+	 *                     then as the corresponding environment variable; see
+	 *                     {@link #envOptional(String)}
+	 * @param defaultValue value to apply when neither is set
+	 * @param maxValue     largest accepted value
 	 * @return configured bound, or {@code defaultValue}
-	 * @throws IllegalArgumentException if the configured value is not a positive
-	 *                                  integer &mdash; including zero, which would
-	 *                                  configure a bound that permits nothing
+	 * @throws IllegalArgumentException if the configured value is not an integer,
+	 *                                  is less than one, or is greater than
+	 *                                  {@code maxValue}
 	 */
 	public static int bound(String name, int defaultValue, int maxValue) {
 		return (int) longBound(name, defaultValue, maxValue);
 	}
 
 	/**
-	 * Reads one optional positive-long bound.
+	 * Reads an optional positive {@code long} bound.
 	 *
-	 * @param name         environment variable name
-	 * @param defaultValue value to apply when the variable is unset
+	 * <p>
+	 * Equivalent to {@link #longBound(String, long, long)} with
+	 * {@link Long#MAX_VALUE} as the upper limit.
+	 * </p>
+	 *
+	 * @param name         property name, resolved as a system property first and
+	 *                     then as the corresponding environment variable; see
+	 *                     {@link #envOptional(String)}
+	 * @param defaultValue value to apply when neither is set
 	 * @return configured bound, or {@code defaultValue}
-	 * @throws IllegalArgumentException if the configured value is not a positive
-	 *                                  number
+	 * @throws IllegalArgumentException if the configured value is not a number, or
+	 *                                  is less than one
 	 */
 	public static long longBound(String name, long defaultValue) {
 		return longBound(name, defaultValue, Long.MAX_VALUE);
 	}
 
 	/**
-	 * Reads one optional positive-long bound.
+	 * Reads an optional positive {@code long} bound with an upper limit.
 	 *
-	 * @param name         environment variable name
-	 * @param defaultValue value to apply when the variable is unset
-	 * @param maxValue     upper limit
+	 * <p>
+	 * The accessor the other bounds delegate to; see
+	 * {@link #bound(String, int, int)} for why an out-of-range value is rejected
+	 * rather than clamped.
+	 * </p>
+	 *
+	 * @param name         property name, resolved as a system property first and
+	 *                     then as the corresponding environment variable; see
+	 *                     {@link #envOptional(String)}
+	 * @param defaultValue value to apply when neither is set
+	 * @param maxValue     largest accepted value
 	 * @return configured bound, or {@code defaultValue}
-	 * @throws IllegalArgumentException if the configured value is not a positive
-	 *                                  number
+	 * @throws IllegalArgumentException if the configured value is not a number, is
+	 *                                  less than one, or is greater than
+	 *                                  {@code maxValue}
 	 */
 	public static long longBound(String name, long defaultValue, long maxValue) {
 		final var configured = envOptional(name);

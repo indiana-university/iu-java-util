@@ -36,10 +36,14 @@ import static edu.iu.util.el.ElUtils.EMPTY;
 import static edu.iu.util.el.ElUtils.ESC_TOKEN;
 import static edu.iu.util.el.ElUtils.getCloseBracket;
 import static edu.iu.util.el.ElUtils.getIndexFrom;
+import static edu.iu.util.el.ElUtils.getMatchOperandEnd;
+import static edu.iu.util.el.ElUtils.isLiteral;
+import static edu.iu.util.el.ElUtils.literal;
 import static edu.iu.util.el.ElUtils.select;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Date;
@@ -78,9 +82,12 @@ import jakarta.json.JsonValue;
  * {@code &}, a property's name in place of a numeric index.</li>
  * <li>Dot-separated path elements select object members or array indexes. A
  * path element beginning with {@code /} is evaluated as a JSON Pointer; for
- * example, {@code $./items/0/name}. If a selection fails, its exception
- * includes a suppressed diagnostic positioned at the operation that follows the
- * failed path element.</li>
+ * example, {@code $./items/0/name}. Selecting through a missing or JSON null
+ * value yields a missing value rather than failing, so a path may be applied to
+ * an optional value without guarding it; only a path applied to a non-null
+ * scalar fails. If a selection fails, its exception includes a suppressed
+ * diagnostic positioned at the operation that follows the failed path
+ * element.</li>
  * <li>{@code '} quotes the rest of an expression as text, {@code *} starts a
  * comment, and {@code @} returns raw text. Atomic results are HTML-escaped by
  * default.</li>
@@ -89,9 +96,17 @@ import jakarta.json.JsonValue;
  * falsey. The two may be combined as {@code condition?ifTrue!ifFalse}. Missing
  * values, JSON null, false, and numbers whose integer value is zero are
  * falsey.</li>
- * <li>{@code =} compares the current value with the following expression.</li>
- * <li>{@code #} formats numbers with a {@link DecimalFormat} pattern and ISO
- * instant strings with a {@link SimpleDateFormat} pattern.</li>
+ * <li>{@code =} compares the current value with the operand that follows, up to
+ * the first {@code ?} or {@code !} so that a match may be followed by a
+ * conditional. An operand beginning with {@code $}, {@code _}, or a control
+ * character is evaluated as an expression; any other operand is literal text,
+ * read as a JSON number when it is numeric and as a JSON string otherwise.
+ * Numbers compare by {@link java.math.BigDecimal} value, so {@code 3.140} does
+ * not match {@code 3.14}.</li>
+ * <li>{@code #} formats a number with a {@link DecimalFormat} pattern and an
+ * ISO 8601 date or date/time string with a {@link SimpleDateFormat} pattern. An
+ * invalid pattern throws {@link IllegalArgumentException}; text that cannot be
+ * read as a date is left unformatted and reported at {@link Level#FINE}.</li>
  * <li>{@code &} marks the current value, which must be a JSON object, so that
  * the template applied by the expression that follows (see {@code <} below) is
  * applied once per property instead of once for the whole object. {@code &}
@@ -387,9 +402,15 @@ public final class El {
 			}
 
 			case '=': { // equals match
-				evalStack.push(new ElContext(evalContext, evalContext.getContext(), expression.substring(1),
-						evalContext::setMatchResult));
-				evalContext.setPositionAtEnd();
+				final var operandEnd = getMatchOperandEnd(expression);
+				final var operand = expression.substring(1, operandEnd);
+				if (isLiteral(operand))
+					evalContext.setMatchResult(literal(operand));
+				else
+					evalStack.push(
+							new ElContext(evalContext, evalContext.getContext(), operand, evalContext::setMatchResult));
+
+				evalContext.advancePosition(operandEnd);
 				break;
 			}
 
@@ -402,14 +423,22 @@ public final class El {
 				}
 
 				if (cval instanceof JsonString) {
+					// applied before the value is read so that an invalid pattern fails here, as
+					// it does on the number branch above, instead of being absorbed as if the
+					// value were at fault
+					final SimpleDateFormat df = DATE_FMT.get();
+					df.applyPattern(expression.substring(1));
+
+					Date date;
 					try {
-						final var date = IuJsonAdapter.of(Date.class).fromJson(cval);
-						SimpleDateFormat df = DATE_FMT.get();
-						df.applyPattern(expression.substring(1));
-						evalContext.setResult(Json.createValue(df.format(date)));
-					} catch (Exception e) {
-						LOG.log(Level.FINE, e, () -> "Invalid format or date/time string evaluating " + evalContext);
+						date = IuJsonAdapter.of(Date.class).fromJson(cval);
+					} catch (DateTimeException e) {
+						date = null;
+						LOG.log(Level.FINE, e, () -> "Not a date/time value, evaluating " + evalContext);
 					}
+
+					if (date != null)
+						evalContext.setResult(Json.createValue(df.format(date)));
 				}
 
 				evalContext.setPositionAtEnd();

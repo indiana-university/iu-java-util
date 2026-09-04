@@ -96,13 +96,11 @@ public final class JsonSerializer {
 	 * @param value              business object to serialize
 	 * @param propertyNameFormat property name format
 	 * @param adapt              adapter function
-	 * @return {@link JsonObject}; null if value is null
+	 * @return {@link JsonObject}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static <T> JsonObject serialize(Class<T> type, T value, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> adapt) {
-		if (value == null)
-			return null;
 
 		final var valueClass = value.getClass();
 		if (Proxy.isProxyClass(valueClass)) {

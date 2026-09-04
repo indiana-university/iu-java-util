@@ -126,6 +126,17 @@ public final class ProcessLogger {
 		private final AtomicInteger subRequestId = new AtomicInteger();
 		private final AtomicInteger joinId = new AtomicInteger();
 
+		/**
+		 * Counts messages traced anywhere in this process' tree.
+		 *
+		 * <p>
+		 * Shared with the root process rather than held per nesting level, so that the
+		 * budget bounds the trace a single {@link #export()} renders instead of
+		 * bounding it once per sub-process.
+		 * </p>
+		 */
+		private final AtomicInteger traced;
+
 		private ProcessState(LogContext logContext, String header) {
 			this.header = header;
 
@@ -133,10 +144,12 @@ public final class ProcessLogger {
 			if (active == null) {
 				requestId = Long.toString(REQUEST_ID.incrementAndGet());
 				depth = 0;
+				traced = new AtomicInteger();
 			} else {
 				active.children.add(this);
 				requestId = active.requestId + '.' + Integer.toString(active.subRequestId.incrementAndGet());
 				depth = active.depth + 1;
+				traced = active.traced;
 			}
 
 			this.logContext = logContext;
@@ -231,6 +244,21 @@ public final class ProcessLogger {
 	private static final ThreadLocal<Integer> ACTIVE_JOIN_ID = new ThreadLocal<>();
 
 	private static final AtomicLong REQUEST_ID = new AtomicLong();
+
+	/**
+	 * Largest number of messages retained in one process trace.
+	 *
+	 * <p>
+	 * The trace is fed by every record {@link IuLogHandler#publish(java.util.logging.LogRecord)
+	 * published} within the process, so its size tracks the process' log volume
+	 * rather than anything the caller chose to trace. Without a cap, a process
+	 * that is long-lived or high-volume relative to the number of warnings it
+	 * produces retains the whole of it, and {@link IuLogEvent} copies the whole of
+	 * it again for every record at {@link java.util.logging.Level#WARNING} or
+	 * above.
+	 * </p>
+	 */
+	static final int MAX_TRACED_MESSAGES = 10000;
 
 	private static final ThreadLocal<DecimalFormat> DF3 = new ThreadLocal<DecimalFormat>() {
 		@Override
@@ -342,6 +370,14 @@ public final class ProcessLogger {
 	 * Retrieves a value from an {@link UnsafeSupplier} using the provided
 	 * {@link LogContext} bound to the current thread.
 	 * 
+	 * <p>
+	 * The process is closed out and its trace reported whether the supplier returns
+	 * or throws; the outermost process reports the accumulated trace, a nested one
+	 * only that it ended. A nested process does not inherit the
+	 * {@link #join(Object, Runnable) join} ID of the task it opens inside, since
+	 * its own messages belong to neither the forking thread nor the join.
+	 * </p>
+	 *
 	 * @param <T>      return type
 	 * @param context  {@link LogContext}
 	 * @param header   header message for the process log
@@ -350,32 +386,54 @@ public final class ProcessLogger {
 	 * @throws Throwable If an error occurs
 	 */
 	public static <T> T follow(LogContext context, String header, UnsafeSupplier<T> supplier) throws Throwable {
-		final var restore = ACTIVE_PROCESS_STATE.get();
+		final var restoreState = ACTIVE_PROCESS_STATE.get();
+		final var restoreJoinId = ACTIVE_JOIN_ID.get();
 		try {
+			// constructed before the thread-locals are replaced: it reads the process it
+			// nests inside, and the join ID a nested process must not inherit
 			final var state = new ProcessState(context, header);
 
-			ACTIVE_PROCESS_STATE.remove();
 			ACTIVE_PROCESS_STATE.set(state);
+			ACTIVE_JOIN_ID.remove();
 			LOG.info(() -> "begin " + state.requestId + ": " + header);
 
-			final var rv = supplier.get();
+			final T rv;
+			try {
+				rv = supplier.get();
+			} catch (Throwable e) {
+				// closed out and reported on this path too: a process that failed is the one
+				// whose trace is worth the most, and the finally below unbinds it before the
+				// caller can capture it
+				state.end();
+				report(state, header, restoreState == null, "failed");
+				throw e;
+			}
 
 			state.end();
-
-			if (restore == null)
-				LOG.info(() -> "complete " + state.requestId + ": " + header + System.lineSeparator() + state);
-			else
-				LOG.info(() -> "end " + state.requestId + ": " + header);
-			ACTIVE_PROCESS_STATE.remove();
+			report(state, header, restoreState == null, "complete");
 
 			return rv;
 
 		} finally {
-			if (restore == null)
+			if (restoreState == null)
 				ACTIVE_PROCESS_STATE.remove();
 			else
-				ACTIVE_PROCESS_STATE.set(restore);
+				ACTIVE_PROCESS_STATE.set(restoreState);
+
+			if (restoreJoinId == null)
+				ACTIVE_JOIN_ID.remove();
+			else
+				ACTIVE_JOIN_ID.set(restoreJoinId);
 		}
+	}
+
+	// the outcome is reported only by the boundary that renders the trace: a nested
+	// process ends within a process whose own outcome is not yet known
+	private static void report(ProcessState state, String header, boolean outermost, String outcome) {
+		if (outermost)
+			LOG.info(() -> outcome + " " + state.requestId + ": " + header + System.lineSeparator() + state);
+		else
+			LOG.info(() -> "end " + state.requestId + ": " + header);
 	}
 
 	/**
@@ -424,8 +482,21 @@ public final class ProcessLogger {
 	 *
 	 * @param forkedContext opaque handle returned by {@link #fork()}
 	 * @param task          task to run with the forked process bound
+	 * @throws IllegalArgumentException if {@code forkedContext} did not come from
+	 *                                  {@link #fork()}, i.e. a handle retained
+	 *                                  across a logging reconfiguration, which
+	 *                                  names a {@link ProcessState} class this
+	 *                                  module no longer defines
 	 */
 	public static void join(Object forkedContext, Runnable task) {
+		// checked rather than cast so the diagnostic names the contract, and checked
+		// before any thread-local is touched so a rejected handle leaves the joining
+		// thread exactly as it was
+		if (forkedContext != null //
+				&& !(forkedContext instanceof ProcessState))
+			throw new IllegalArgumentException(
+					forkedContext.getClass().getName() + " did not come from fork(); see IuLogContext.fork()");
+
 		final var forked = (ProcessState) forkedContext;
 		final var restoreState = ACTIVE_PROCESS_STATE.get();
 		final var restoreJoinId = ACTIVE_JOIN_ID.get();
@@ -493,6 +564,17 @@ public final class ProcessLogger {
 		final var state = ACTIVE_PROCESS_STATE.get();
 		if (state == null)
 			return;
+
+		final var traced = state.traced.incrementAndGet();
+		if (traced > MAX_TRACED_MESSAGES) {
+			// the marker is offered by whichever caller first crosses the budget, so it
+			// appears exactly once however many threads are tracing into this process
+			if (traced == MAX_TRACED_MESSAGES + 1)
+				state.children.offer(new TracedMessage( //
+						"... process trace truncated at " + MAX_TRACED_MESSAGES + " messages", //
+						state.depth));
+			return;
+		}
 
 		final var joinId = ACTIVE_JOIN_ID.get();
 		state.children.offer(new TracedMessage( //

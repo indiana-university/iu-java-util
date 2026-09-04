@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -124,6 +125,53 @@ public class IuRuntimeEnvironmentTest {
 
 		System.setProperty(id, "3");
 		assertThrows(IllegalArgumentException.class, () -> IuRuntimeEnvironment.longBound(id, 42L, 2L));
+	}
+
+	@Test
+	public void testSystemPropertyOverridesEnvironment() {
+		// PATH is set in every environment this builds in, so it can demonstrate the
+		// precedence every accessor documents: the environment variable is only the
+		// fallback, and an in-process setProperty reaches the same switch
+		final var fromEnvironment = System.getenv("PATH");
+		assumeTrue(fromEnvironment != null && !fromEnvironment.isBlank(), "PATH is not set");
+		assertEquals(fromEnvironment, IuRuntimeEnvironment.envOptional("PATH"));
+
+		System.setProperty("PATH", "true");
+		try {
+			assertEquals("true", IuRuntimeEnvironment.envOptional("PATH"));
+			assertTrue(IuRuntimeEnvironment.flag("PATH"));
+		} finally {
+			System.clearProperty("PATH");
+		}
+
+		assertEquals(fromEnvironment, IuRuntimeEnvironment.envOptional("PATH"));
+		assertFalse(IuRuntimeEnvironment.flag("PATH"));
+	}
+
+	@Test
+	public void testConvertingFunction() {
+		final var id = id();
+		assertNull(IuRuntimeEnvironment.envOptional(id, Integer::valueOf));
+
+		System.setProperty(id, "34");
+		// bound to int before asserting: assertEquals(int, T) is ambiguous against its
+		// long overload while T is still being inferred
+		final int fromOptional = IuRuntimeEnvironment.envOptional(id, Integer::valueOf);
+		final int fromRequired = IuRuntimeEnvironment.env(id, Integer::valueOf);
+		assertEquals(34, fromOptional);
+		assertEquals(34, fromRequired);
+	}
+
+	@Test
+	public void testRejectedByConvertingFunction() {
+		final var id = id();
+		System.setProperty(id, "not-a-known-value");
+
+		// a present but unconvertible value must not be reported as a missing one
+		assertNull(IuRuntimeEnvironment.envOptional(id, a -> null));
+		final var e = assertThrows(NullPointerException.class, () -> IuRuntimeEnvironment.env(id, a -> null));
+		assertEquals("Invalid system property " + id + " or environment variable "
+				+ id.toUpperCase().replace('.', '_').replace('-', '_'), e.getMessage());
 	}
 
 	private String id() {

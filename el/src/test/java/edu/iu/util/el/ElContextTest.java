@@ -125,7 +125,7 @@ public class ElContextTest {
 
 		final var different = Json.createValue("different");
 		context.setResult(different);
-		assertSame(JsonValue.FALSE, context.getResult());
+		assertSame(different, context.getResult());
 		assertSame(different, context.getThis());
 	}
 

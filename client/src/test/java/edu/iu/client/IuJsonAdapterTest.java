@@ -66,6 +66,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -181,6 +182,49 @@ public class IuJsonAdapterTest {
 	public void testFromJavaBeansHandlesNull() {
 		final var adapter = IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
 		assertNull(adapter.fromJson(null));
+	}
+
+	@Test
+	public void testFromJavaBeansNullConvention() {
+		final var adapter = IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertSame(JsonValue.NULL, adapter.toJson(null));
+		assertNull(adapter.fromJson(JsonValue.NULL));
+	}
+
+	@Test
+	public void testFromJavaBeansAsMapValue() {
+		final var bean = new BeanClass();
+		bean.setId(IdGenerator.generateId());
+
+		final Map<String, BeanClass> value = new LinkedHashMap<>();
+		value.put("present", bean);
+		value.put("absent", null);
+
+		final IuJsonAdapter<Map<String, BeanClass>> adapter = IuJsonAdapter.of(Map.class,
+				IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+
+		final var json = adapter.toJson(value).asJsonObject();
+		assertEquals(IuJson.object() //
+				.add("present", IuJson.object().add("id", bean.getId())) //
+				.addNull("absent") //
+				.build(), json);
+		assertNull(adapter.fromJson(json).get("absent"));
+	}
+
+	@Test
+	public void testFromJavaBeansAsListItem() {
+		final var bean = new BeanClass();
+		bean.setId(IdGenerator.generateId());
+
+		final IuJsonAdapter<List<BeanClass>> adapter = IuJsonAdapter.of(List.class,
+				IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+
+		final var json = adapter.toJson(Arrays.asList(bean, null)).asJsonArray();
+		assertEquals(IuJson.array() //
+				.add(IuJson.object().add("id", bean.getId())) //
+				.addNull() //
+				.build(), json);
+		assertNull(adapter.fromJson(json).get(1));
 	}
 
 	@Test
