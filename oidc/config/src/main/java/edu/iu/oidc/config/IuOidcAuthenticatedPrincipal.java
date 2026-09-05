@@ -31,42 +31,56 @@
  */
 package edu.iu.oidc.config;
 
+import java.security.Principal;
+import java.time.Instant;
+
 /**
- * Reads one relying party's registration, whole.
+ * What an upstream identity provider established about the end user.
  *
  * <p>
- * The seam between a provider endpoint and wherever registrations are kept
- * &mdash; a secret store, a set of database tables, a static document. An
- * implementation assembles whatever it reads into an
- * {@link OidcClientConfiguration}: the client's own record, every endpoint it
- * registers, and for each endpoint the credentials it accepts, the roles a
- * request through it may act in, and the resources it may act on.
+ * The seam between a provider endpoint and however a deployment authenticates.
+ * SAML, Kerberos, and a container's own login all produce the same four facts,
+ * and those four are everything an authorization endpoint needs: who the end
+ * user is, who vouched for them, when, and until when. A deployment adapts its
+ * own mechanism to this, and nothing about that mechanism reaches the endpoint.
  * </p>
  *
  * <p>
- * How long a registration stays cached, and whether it is cached at all, is an
- * implementation's own. An endpoint reads through this on every request, so a
- * source backed by something expensive to read is the one that decides what to
- * do about it.
+ * {@link #getName()}, inherited from {@link Principal}, is the principal name
+ * a grant is issued for and the {@code sub} that eventually names it.
  * </p>
  */
-public interface OidcClientSource {
+public interface IuOidcAuthenticatedPrincipal extends Principal {
 
 	/**
-	 * Gets one relying party's registration.
+	 * Gets the identity provider that authenticated the end user, which an ID token
+	 * reports as {@code idp}.
+	 *
+	 * @return authentication authority, typically an entity ID
+	 */
+	String getAuthnAuthority();
+
+	/**
+	 * Gets when the end user was authenticated, which an ID token reports as
+	 * {@code auth_time} and a refresh token's lifetime is measured from.
+	 *
+	 * @return {@link Instant}
+	 */
+	Instant getAuthnInstant();
+
+	/**
+	 * Gets when this authentication stops being usable.
 	 *
 	 * <p>
-	 * An unregistered client is one with nothing to read. An implementation may
-	 * answer {@code null} or throw; an endpoint treats the two the same way, as a
-	 * refusal indistinguishable from a client that never existed. A failure
-	 * <em>should not</em> be cached, so a client registered a moment ago costs a
-	 * fresh lookup rather than being refused until a cache expires.
+	 * An authorization endpoint that finds an established principal already expired
+	 * treats it as no principal at all, and sends the end user back to the identity
+	 * provider rather than issuing a grant against an authentication that has run
+	 * out.
 	 * </p>
 	 *
-	 * @param clientId requested {@code client_id}
-	 * @return registration, or {@code null} if no client is registered under that
-	 *         ID
+	 * @return {@link Instant}; {@code null} reads as expired, since an
+	 *         authentication that names no end is one nothing can vouch for
 	 */
-	OidcClientConfiguration client(String clientId);
+	Instant getExpires();
 
 }

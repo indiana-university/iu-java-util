@@ -56,7 +56,7 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import edu.iu.oidc.IuOidcProviderMetadata;
-import edu.iu.oidc.config.OidcProviderConfiguration;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 @SuppressWarnings("javadoc")
 public class OidcTokenAuthorizationTest {
@@ -73,11 +73,11 @@ public class OidcTokenAuthorizationTest {
 	private final WebKey issuerKey = WebKey.builder(Algorithm.ES256).keyId(keyId).ephemeral().build();
 
 	/** Answers a configuration publishing one issuer key. */
-	private OidcProviderConfiguration provider(Iterable<WebKey> jwks) {
+	private IuOidcProviderConfiguration provider(Iterable<WebKey> jwks) {
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getIssuer()).thenReturn(ISSUER);
 
-		return new OidcProviderConfiguration() {
+		return new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {
@@ -91,7 +91,7 @@ public class OidcTokenAuthorizationTest {
 		};
 	}
 
-	private OidcProviderConfiguration provider() {
+	private IuOidcProviderConfiguration provider() {
 		return provider(List.of(issuerKey));
 	}
 
@@ -225,7 +225,7 @@ public class OidcTokenAuthorizationTest {
 
 	@Test
 	void testMetadataIsRequired() {
-		final var provider = mock(OidcProviderConfiguration.class);
+		final var provider = mock(IuOidcProviderConfiguration.class);
 		final var token = accessToken();
 		assertEquals("Missing provider metadata", assertThrows(NullPointerException.class,
 				() -> OidcTokenAuthorization.verify(token, provider, ISSUER)).getMessage());
@@ -246,7 +246,7 @@ public class OidcTokenAuthorizationTest {
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getIssuer()).thenReturn(ISSUER);
 
-		final var provider = new OidcProviderConfiguration() {
+		final var provider = new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {

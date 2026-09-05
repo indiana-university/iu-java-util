@@ -54,7 +54,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.oidc.IuOidcProviderMetadata;
-import edu.iu.oidc.config.OidcProviderConfiguration;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 @SuppressWarnings("javadoc")
 public class OidcProviderMetadataTest {
@@ -82,8 +82,8 @@ public class OidcProviderMetadataTest {
 	}
 
 	/** Answers a configuration over one metadata document and key set. */
-	private static OidcProviderConfiguration provider(IuOidcProviderMetadata metadata, Iterable<WebKey> jwks) {
-		return new OidcProviderConfiguration() {
+	private static IuOidcProviderConfiguration provider(IuOidcProviderMetadata metadata, Iterable<WebKey> jwks) {
+		return new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {

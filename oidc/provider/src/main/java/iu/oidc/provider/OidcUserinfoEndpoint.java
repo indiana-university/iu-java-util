@@ -36,9 +36,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.oidc.IuOidcClaims;
+import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClientConfiguration;
 import edu.iu.oidc.config.IuOidcProviderReference;
-import edu.iu.oidc.config.OidcClaimsSource;
-import edu.iu.oidc.config.OidcClientConfiguration;
 
 /**
  * Answers the OpenID Connect UserInfo request.
@@ -56,7 +56,7 @@ import edu.iu.oidc.config.OidcClientConfiguration;
  * doing. It cannot verify this provider's tokens; it doesn't know which relying
  * party is asking, so it cannot decide which claims that party may see; and it
  * holds neither this provider's signing keys nor the client's encryption key. So
- * an {@link OidcClaimsSource} answers what it knows about a principal and
+ * an {@link IuOidcClaimsSource} answers what it knows about a principal and
  * nothing more, and stays free of OpenID Connect entirely.
  * </p>
  *
@@ -153,7 +153,7 @@ public class OidcUserinfoEndpoint {
 	 * @param clientId {@code client_id} the token names; may be {@code null}
 	 * @return registration, or {@code null} if there is none to read
 	 */
-	private OidcClientConfiguration client(String clientId) {
+	private IuOidcClientConfiguration client(String clientId) {
 		if (clientId == null)
 			return null;
 
@@ -181,7 +181,7 @@ public class OidcUserinfoEndpoint {
 	 * @throws NullPointerException if the client registered an encryption but no key
 	 *                              to encrypt to
 	 */
-	private OidcUserinfoResult secure(String serialized, OidcClientConfiguration client) {
+	private OidcUserinfoResult secure(String serialized, IuOidcClientConfiguration client) {
 		if (client == null)
 			return new OidcUserinfoResult.Json(serialized);
 

@@ -137,7 +137,7 @@ public interface OidcGrant {
 	 * </p>
 	 *
 	 * @return released authorization details; {@code null} if none were released
-	 * @see edu.iu.oidc.config.OidcAuthorizationDetailsSource
+	 * @see edu.iu.oidc.config.IuOidcAuthorizationDetailsSource
 	 */
 	Iterable<? extends IuAuthorizationDetails> getReleasedAuthorizationDetails();
 

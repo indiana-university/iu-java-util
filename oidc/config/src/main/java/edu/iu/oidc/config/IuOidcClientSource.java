@@ -31,45 +31,42 @@
  */
 package edu.iu.oidc.config;
 
-import java.util.List;
-
 /**
- * Maps a role a client endpoint may act in onto the identity roles that entitle
- * an end user to it.
+ * Reads one relying party's registration, whole.
  *
  * <p>
- * The two are not the same thing. {@link #getRole()} is the name the client's
- * application knows &mdash; what it checks a user's role by &mdash; while
- * {@link #getIdRoles()} names the roles the identity system actually grants.
- * Keeping the mapping here lets an application's role names stay stable while
- * the enterprise roles behind them are reorganized, and lets two clients use
- * the same name for different entitlements.
+ * The seam between a provider endpoint and wherever registrations are kept
+ * &mdash; a secret store, a set of database tables, a static document. An
+ * implementation assembles whatever it reads into an
+ * {@link IuOidcClientConfiguration}: the client's own record, every endpoint it
+ * registers, and for each endpoint the credentials it accepts, the roles a
+ * request through it may act in, and the resources it may act on.
  * </p>
  *
  * <p>
- * Property names use lower case with underscores, so {@link #getIdRoles()}
- * reads {@code id_roles}.
+ * How long a registration stays cached, and whether it is cached at all, is an
+ * implementation's own. An endpoint reads through this on every request, so a
+ * source backed by something expensive to read is the one that decides what to
+ * do about it.
  * </p>
  */
-public interface OidcClientRole {
+public interface IuOidcClientSource {
 
 	/**
-	 * Gets the role name the client's application uses.
-	 *
-	 * @return application role name
-	 */
-	String getRole();
-
-	/**
-	 * Gets the identity roles that entitle an end user to {@link #getRole()}.
+	 * Gets one relying party's registration.
 	 *
 	 * <p>
-	 * Holding any one of them is enough; an end user holding none does not act in
-	 * this role.
+	 * An unregistered client is one with nothing to read. An implementation may
+	 * answer {@code null} or throw; an endpoint treats the two the same way, as a
+	 * refusal indistinguishable from a client that never existed. A failure
+	 * <em>should not</em> be cached, so a client registered a moment ago costs a
+	 * fresh lookup rather than being refused until a cache expires.
 	 * </p>
 	 *
-	 * @return identity role names
+	 * @param clientId requested {@code client_id}
+	 * @return registration, or {@code null} if no client is registered under that
+	 *         ID
 	 */
-	List<String> getIdRoles();
+	IuOidcClientConfiguration client(String clientId);
 
 }

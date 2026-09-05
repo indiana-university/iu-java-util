@@ -50,9 +50,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IuIterable;
-import edu.iu.oidc.config.OidcClientConfiguration;
-import edu.iu.oidc.config.OidcClientEndpoint;
-import edu.iu.oidc.config.OidcClientResource;
+import edu.iu.oidc.config.IuOidcClientConfiguration;
+import edu.iu.oidc.config.IuOidcClientEndpoint;
+import edu.iu.oidc.config.IuOidcClientResource;
 
 @SuppressWarnings("javadoc")
 public class OidcProviderUtilsTest {
@@ -61,27 +61,27 @@ public class OidcProviderUtilsTest {
 	private static final URI EXTERNAL = URI.create("https://api.example.iu.edu");
 
 	/** Answers a resource entry; a null URI names this provider's own issuer. */
-	private static OidcClientResource resource(URI uri, Set<String> scope) {
-		final var resource = mock(OidcClientResource.class);
+	private static IuOidcClientResource resource(URI uri, Set<String> scope) {
+		final var resource = mock(IuOidcClientResource.class);
 		when(resource.getUri()).thenReturn(uri);
 		when(resource.getScope()).thenReturn(scope);
 		return resource;
 	}
 
-	private static OidcClientEndpoint endpoint(Iterable<OidcClientResource> resources) {
-		final var endpoint = mock(OidcClientEndpoint.class);
+	private static IuOidcClientEndpoint endpoint(Iterable<IuOidcClientResource> resources) {
+		final var endpoint = mock(IuOidcClientEndpoint.class);
 		when(endpoint.getResources()).thenReturn(resources);
 		return endpoint;
 	}
 
-	private static OidcClientEndpoint endpointAt(URI redirectUri) {
-		final var endpoint = mock(OidcClientEndpoint.class);
+	private static IuOidcClientEndpoint endpointAt(URI redirectUri) {
+		final var endpoint = mock(IuOidcClientEndpoint.class);
 		when(endpoint.getRedirectUri()).thenReturn(redirectUri);
 		return endpoint;
 	}
 
-	private static OidcClientConfiguration client(Iterable<OidcClientEndpoint> endpoints) {
-		final var client = mock(OidcClientConfiguration.class);
+	private static IuOidcClientConfiguration client(Iterable<IuOidcClientEndpoint> endpoints) {
+		final var client = mock(IuOidcClientConfiguration.class);
 		when(client.getEndpoints()).thenReturn(endpoints);
 		return client;
 	}

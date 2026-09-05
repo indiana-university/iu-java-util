@@ -40,7 +40,7 @@ import java.util.Set;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
-import edu.iu.oidc.config.OidcProviderConfiguration;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 /**
  * What an access token this provider issued authorizes, once verified.
@@ -87,7 +87,7 @@ public class OidcTokenAuthorization {
 	 * @throws NullPointerException if the provider declares no metadata, issuer,
 	 *                              keys, or access token time to live
 	 */
-	public static OidcTokenAuthorization verify(String accessToken, OidcProviderConfiguration provider, URI audience) {
+	public static OidcTokenAuthorization verify(String accessToken, IuOidcProviderConfiguration provider, URI audience) {
 		final var issuer = Objects.requireNonNull(
 				Objects.requireNonNull(provider.getMetadata(), "Missing provider metadata").getIssuer(),
 				"Missing issuer");
@@ -125,7 +125,7 @@ public class OidcTokenAuthorization {
 	 * @throws SecurityException if the token names no key, or names one this
 	 *                           provider doesn't publish
 	 */
-	private static WebKey issuerKey(String accessToken, OidcProviderConfiguration provider) {
+	private static WebKey issuerKey(String accessToken, IuOidcProviderConfiguration provider) {
 		final String keyId;
 		try {
 			keyId = WebCryptoHeader.getProtectedHeader(accessToken).getKeyId();

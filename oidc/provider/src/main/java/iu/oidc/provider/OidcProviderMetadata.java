@@ -38,7 +38,7 @@ import java.util.Set;
 
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.oidc.IuOidcProviderMetadata;
-import edu.iu.oidc.config.OidcProviderConfiguration;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 /**
  * Derived view of an OpenID Connect provider's discovery metadata.
@@ -77,7 +77,7 @@ import edu.iu.oidc.config.OidcProviderConfiguration;
  * </p>
  *
  * <p>
- * An instance wraps one read of {@link OidcProviderConfiguration}, so a caller
+ * An instance wraps one read of {@link IuOidcProviderConfiguration}, so a caller
  * constructs one per request rather than holding it: a configuration change
  * then takes effect on the next request, and what a request reports cannot
  * change while it is being read.
@@ -121,7 +121,7 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 		return URI.create(base + path);
 	}
 
-	private final OidcProviderConfiguration provider;
+	private final IuOidcProviderConfiguration provider;
 	private final IuOidcProviderMetadata metadata;
 
 	/**
@@ -130,7 +130,7 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 	 * @param provider provider configuration
 	 * @throws NullPointerException if the configuration declares no metadata
 	 */
-	public OidcProviderMetadata(OidcProviderConfiguration provider) {
+	public OidcProviderMetadata(IuOidcProviderConfiguration provider) {
 		this.provider = provider;
 		this.metadata = Objects.requireNonNull(provider.getMetadata(), "Missing provider metadata");
 	}

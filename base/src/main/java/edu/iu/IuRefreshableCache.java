@@ -460,7 +460,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		}
 
 		/**
-		 * Accepts a value retrieved by inspecting the result of another key's call.
+		 * Accepts a value read at a known position in the invalidation sequence.
 		 *
 		 * <p>
 		 * The embedded value is exactly as fresh as the result carrying it, so it is
@@ -472,19 +472,23 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		 *
 		 * <p>
 		 * Declined when this entry already holds a value read more recently than the
-		 * result carrying the embedded one, so a slow call cannot publish stale
-		 * related values over fresher ones. The comparison is made under this entry's
-		 * own monitor, so it cannot race the update it guards.
+		 * one offered, so a slow call cannot publish stale values over fresher ones.
+		 * An entry holding no value has nothing worth keeping and accepts whatever it
+		 * is offered: it is stamped with the current sequence when it is created, so
+		 * declining on sequence alone would reject every value read before the moment
+		 * the entry happened to be allocated. The comparison is made under this
+		 * entry's own monitor, so it cannot race the update it guards.
 		 * </p>
 		 *
 		 * @param refreshedAt publication time of the result carrying this value
 		 * @param readSeq     sequence position at which that result read the backing
 		 *                    source
-		 * @param v           embedded value
+		 * @param v           value to publish
 		 * @return true if the value was published; false if it was declined as stale
 		 */
-		synchronized boolean acceptEmbedded(Instant refreshedAt, long readSeq, V v) {
-			if (readSeq < this.readSeq)
+		synchronized boolean accept(Instant refreshedAt, long readSeq, V v) {
+			if (value != null //
+					&& readSeq < this.readSeq)
 				return false;
 
 			this.refreshedAt = refreshedAt;
@@ -922,13 +926,18 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 								&& !embeddedValues.isEmpty())
 							embeddedValues.forEach((k, v) -> {
 
+								// per key, so a write to something this result says nothing
+								// about does not discard every value it carried
+								if (invalidatedSince(k, readAtSeq))
+									return;
+
 								var embeddedResult = cache.get(k);
 								if (embeddedResult == null)
 									embeddedResult = cache.computeIfAbsent(k, a -> new CachedResult());
 
 								// stored again only when the value was actually taken, so
 								// an entry left as it stands keeps its own expiration
-								if (embeddedResult.acceptEmbedded(now, readAtSeq, v))
+								if (embeddedResult.accept(now, readAtSeq, v))
 									cache.put(k, embeddedResult);
 							});
 
@@ -989,6 +998,123 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			cause.addSuppressed(e);
 			throw cause;
 		}
+	}
+
+	/**
+	 * Reads this cache's current position in the invalidation sequence, for
+	 * publishing a value that is about to be read from the backing source.
+	 *
+	 * <p>
+	 * Take a mark <em>before</em> reading the value it will be published with, so
+	 * that an invalidation raised while that read is in progress is newer than the
+	 * value and correctly discards it. Taking it afterward would stamp the value as
+	 * though it had observed a change it could not have seen.
+	 * </p>
+	 *
+	 * <p>
+	 * The one case that wants the opposite order is a caller republishing a value
+	 * it has just written: take the mark <em>after</em> the invalidation describing
+	 * that write, so the replacement outranks it rather than being discarded by it.
+	 * </p>
+	 *
+	 * @return opaque sequence position, for {@link #publish(Object, Object, long)}
+	 * @see #publish(Object, Object, long)
+	 */
+	public long mark() {
+		return eventSeq.get();
+	}
+
+	/**
+	 * Determines whether an invalidation raised since a mark applies to one key.
+	 *
+	 * <p>
+	 * The sequence is shared by every key, so comparing positions alone answers
+	 * "has anything been invalidated since?" — which any write to any key makes
+	 * true. The queue walk is what narrows that to the key actually being
+	 * published. The position comparison remains as the fast path, since the common
+	 * case is that nothing has been invalidated at all.
+	 * </p>
+	 *
+	 * @param key  key to test
+	 * @param mark sequence position the value being published was read at
+	 * @return true if an invalidation newer than {@code mark} matches {@code key}
+	 */
+	private boolean invalidatedSince(K key, long mark) {
+		if (mark >= eventSeq.get())
+			return false;
+
+		for (final var event : hintQueue)
+			if (event.seq > mark //
+					&& event.hint.shouldClear(key))
+				return true;
+
+		return false;
+	}
+
+	/**
+	 * Publishes a value obtained outside this cache, as though the cache had
+	 * resolved it itself.
+	 *
+	 * <p>
+	 * Intended for a caller that has already paid for a value the cache would
+	 * otherwise have to fetch — a read performed for another purpose, or the state
+	 * a write just established — so that the next reader is served without a call.
+	 * </p>
+	 *
+	 * <p>
+	 * The value is published as though read at {@code mark}, so every invalidation
+	 * raised since then still applies to it. It is declined, and this method
+	 * returns false, when an invalidation newer than {@code mark} matches
+	 * {@code key}, or when the entry already holds a value read more recently. A
+	 * declined value is simply not published; nothing else about the entry changes.
+	 * </p>
+	 *
+	 * <p>
+	 * Publishing supersedes a refresh already in flight for {@code key}. Under a
+	 * refresh TTL short enough for the load the cache is carrying, a value lost
+	 * that way is re-read within one refresh interval.
+	 * </p>
+	 *
+	 * @param key   cache key
+	 * @param value value to publish; may be null, which publishes a cached null
+	 * @param mark  sequence position from {@link #mark()}, read before the value
+	 * @return true if the value was published; false if it was declined as stale,
+	 *         or if caching is disabled by the configuration in effect
+	 * @throws IllegalStateException if this cache has been closed
+	 * @see #mark()
+	 */
+	public boolean publish(K key, V value, long mark) {
+		if (closed)
+			throw new IllegalStateException("Refreshable cache is closed");
+
+		final var start = Instant.now();
+		final var config = this.config.get();
+		final var refreshTtl = refreshTtl(config);
+		if (refreshTtl == null)
+			// caching is disabled, so there is no entry for this value to occupy
+			return false;
+
+		final var cache = cache(cacheTtl(config, refreshTtl));
+
+		if (invalidatedSince(key, mark)) {
+			fine("publish-stale", key, start);
+			return false;
+		}
+
+		var published = cache.get(key);
+		if (published == null)
+			published = cache.computeIfAbsent(key, a -> new CachedResult());
+
+		if (!published.accept(start, mark, value)) {
+			fine("publish-superseded", key, start);
+			return false;
+		}
+
+		// stored again so the entry carries a full cache TTL from this publication,
+		// as it would have had the cache resolved the value itself
+		cache.put(key, published);
+		fine("publish", key, start);
+		return true;
 	}
 
 	/**

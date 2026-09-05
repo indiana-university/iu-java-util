@@ -64,11 +64,11 @@ import edu.iu.crypt.WebSignedPayload;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcClaims;
 import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClientConfiguration;
+import edu.iu.oidc.config.IuOidcClientSource;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 import edu.iu.oidc.config.IuOidcProviderReference;
-import edu.iu.oidc.config.OidcClaimsSource;
-import edu.iu.oidc.config.OidcClientConfiguration;
-import edu.iu.oidc.config.OidcClientSource;
-import edu.iu.oidc.config.OidcProviderConfiguration;
 import edu.iu.test.IuTestLogger;
 import iu.oidc.provider.OidcUserinfoResult.Json;
 import iu.oidc.provider.OidcUserinfoResult.Jwt;
@@ -91,8 +91,8 @@ public class OidcUserinfoEndpointTest {
 	private final String keyId = IdGenerator.generateId();
 	private final WebKey issuerKey = WebKey.builder(Algorithm.ES256).keyId(keyId).ephemeral().build();
 	private final IuOidcProviderReference reference = mock(IuOidcProviderReference.class);
-	private final OidcClientSource clients = mock(OidcClientSource.class);
-	private final OidcClaimsSource claimsSource = mock(OidcClaimsSource.class);
+	private final IuOidcClientSource clients = mock(IuOidcClientSource.class);
+	private final IuOidcClaimsSource claimsSource = mock(IuOidcClaimsSource.class);
 
 	private OidcUserinfoEndpoint endpoint;
 
@@ -103,7 +103,7 @@ public class OidcUserinfoEndpointTest {
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getIssuer()).thenReturn(ISSUER);
 
-		final var configuration = new OidcProviderConfiguration() {
+		final var configuration = new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {
@@ -166,7 +166,7 @@ public class OidcUserinfoEndpointTest {
 
 	/** Registers a client with the given UserInfo response settings. */
 	private void register(Algorithm algorithm, Encryption encryption, WebKey jwk) {
-		final var client = mock(OidcClientConfiguration.class);
+		final var client = mock(IuOidcClientConfiguration.class);
 		when(client.getClientId()).thenReturn(CLIENT_ID);
 		when(client.getUserinfoAlg()).thenReturn(algorithm);
 		when(client.getUserinfoEnc()).thenReturn(encryption);

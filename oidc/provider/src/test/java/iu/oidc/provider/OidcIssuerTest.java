@@ -46,7 +46,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.oidc.IuOidcProviderMetadata;
-import edu.iu.oidc.config.OidcProviderConfiguration;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 @SuppressWarnings("javadoc")
 public class OidcIssuerTest {
@@ -58,11 +58,11 @@ public class OidcIssuerTest {
 	private static final URI ISSUER = URI.create("https://example.iu.edu/oidc");
 
 	/** Answers a configuration over one issuer and key set. */
-	private static OidcProviderConfiguration configuration(URI issuer, Iterable<WebKey> jwks) {
+	private static IuOidcProviderConfiguration configuration(URI issuer, Iterable<WebKey> jwks) {
 		final var metadata = mock(IuOidcProviderMetadata.class);
 		when(metadata.getIssuer()).thenReturn(issuer);
 
-		return new OidcProviderConfiguration() {
+		return new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {

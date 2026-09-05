@@ -75,7 +75,7 @@ import edu.iu.jwt.IuAuthorizationDetails;
  * @see <a href="https://www.rfc-editor.org/info/rfc9396">RFC 9396: OAuth 2.0
  *      Rich Authorization Requests</a>
  */
-public interface OidcAuthorizationDetailsSource {
+public interface IuOidcAuthorizationDetailsSource {
 
 	/**
 	 * Decides what to release to one end user.

@@ -50,7 +50,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  * reads {@code client_id}.
  * </p>
  */
-public interface OidcClientConfiguration {
+public interface IuOidcClientConfiguration {
 
 	/**
 	 * Gets the client ID, which is also the key this registration is read by.
@@ -97,14 +97,14 @@ public interface OidcClientConfiguration {
 	 *
 	 * @return registered endpoints
 	 */
-	Iterable<OidcClientEndpoint> getEndpoints();
+	Iterable<IuOidcClientEndpoint> getEndpoints();
 
 	/**
 	 * Iterates roles mapped for this client.
 	 *
 	 * @return mapped roles
 	 */
-	Iterable<OidcClientRole> getRoles();
+	Iterable<IuOidcClientRole> getRoles();
 
 	/**
 	 * Gets the algorithm a UserInfo response to this client is signed with.

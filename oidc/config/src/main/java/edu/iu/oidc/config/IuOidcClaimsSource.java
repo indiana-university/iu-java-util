@@ -59,7 +59,7 @@ import edu.iu.oidc.IuOidcClaims;
  * was named simply doesn't volunteer it.
  * </p>
  */
-public interface OidcClaimsSource {
+public interface IuOidcClaimsSource {
 
 	/**
 	 * Gets the claims this source holds for one principal, limited to those the

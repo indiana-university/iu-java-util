@@ -42,7 +42,7 @@ import edu.iu.oidc.IuOidcProviderMetadata;
  * <p>
  * Only what is true of the provider as a whole lives here. Each relying party
  * registered with it is described separately, by
- * {@link OidcClientConfiguration}.
+ * {@link IuOidcClientConfiguration}.
  * </p>
  *
  * <p>
@@ -51,7 +51,7 @@ import edu.iu.oidc.IuOidcProviderMetadata;
  * {@code authorization_code_time_to_live}.
  * </p>
  */
-public interface OidcProviderConfiguration {
+public interface IuOidcProviderConfiguration {
 
 	/**
 	 * Gets the discovery metadata this provider publishes, and reads its own

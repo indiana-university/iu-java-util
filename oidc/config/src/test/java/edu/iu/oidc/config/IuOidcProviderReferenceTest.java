@@ -41,12 +41,15 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.crypt.WebKey;
+import edu.iu.pki.IuCertificateAuthority;
+
 @SuppressWarnings("javadoc")
-public class OidcProviderReferenceTest {
+public class IuOidcProviderReferenceTest {
 
 	/** Binds the one resource with no default, leaving every other unbound. */
 	private static IuOidcProviderReference reference() {
-		final var configuration = mock(OidcProviderConfiguration.class);
+		final var configuration = mock(IuOidcProviderConfiguration.class);
 		return () -> configuration;
 	}
 
@@ -64,12 +67,14 @@ public class OidcProviderReferenceTest {
 				assertThrows(UnsupportedOperationException.class, reference::getSessionHandler).getMessage());
 		assertEquals("Missing data store",
 				assertThrows(UnsupportedOperationException.class, reference::getDataStore).getMessage());
-		assertEquals("Missing PKI verifier", assertThrows(UnsupportedOperationException.class,
-				() -> reference.getPkiVerifier(mock(IuCertificateAuthorityStub.class))).getMessage());
-	}
-
-	/** Names the certificate authority type without importing the pki module twice. */
-	private interface IuCertificateAuthorityStub extends edu.iu.pki.IuCertificateAuthority {
+		// which kind of verification a registration warrants is the provider's, so
+		// each kind is bound, and refused, separately
+		assertEquals("Missing certificate authority verifier",
+				assertThrows(UnsupportedOperationException.class,
+						() -> reference.getCertificateAuthorityVerifier(mock(IuCertificateAuthority.class)))
+						.getMessage());
+		assertEquals("Missing self-signed verifier", assertThrows(UnsupportedOperationException.class,
+				() -> reference.getSelfSignedVerifier(mock(WebKey.class))).getMessage());
 	}
 
 	@Test

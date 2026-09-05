@@ -33,6 +33,7 @@ package edu.iu.oidc.config;
 
 import edu.iu.IuDataStore;
 import edu.iu.IuRequestAttributes;
+import edu.iu.crypt.WebKey;
 import edu.iu.pki.IuCertificateAuthority;
 import edu.iu.pki.IuPkiVerifier;
 import edu.iu.session.IuSessionHandler;
@@ -79,27 +80,27 @@ public interface IuOidcProviderReference {
 	 * is what bounds how often that read costs anything.
 	 * </p>
 	 *
-	 * @return {@link OidcProviderConfiguration}
+	 * @return {@link IuOidcProviderConfiguration}
 	 */
-	OidcProviderConfiguration getConfiguration();
+	IuOidcProviderConfiguration getConfiguration();
 
 	/**
 	 * Gets the source a relying party's registration is read through.
 	 *
-	 * @return {@link OidcClientSource}
+	 * @return {@link IuOidcClientSource}
 	 * @throws UnsupportedOperationException if the deployment binds none
 	 */
-	default OidcClientSource getClientSource() {
+	default IuOidcClientSource getClientSource() {
 		throw new UnsupportedOperationException("Missing client source");
 	}
 
 	/**
 	 * Gets the source an end user's claims are read through.
 	 *
-	 * @return {@link OidcClaimsSource}
+	 * @return {@link IuOidcClaimsSource}
 	 * @throws UnsupportedOperationException if the deployment binds none
 	 */
-	default OidcClaimsSource getClaimsSource() {
+	default IuOidcClaimsSource getClaimsSource() {
 		throw new UnsupportedOperationException("Missing claims source");
 	}
 
@@ -112,9 +113,9 @@ public interface IuOidcProviderReference {
 	 * grants nothing this way needs no binding.
 	 * </p>
 	 *
-	 * @return {@link OidcAuthorizationDetailsSource}
+	 * @return {@link IuOidcAuthorizationDetailsSource}
 	 */
-	default OidcAuthorizationDetailsSource getAuthorizationDetailsSource() {
+	default IuOidcAuthorizationDetailsSource getAuthorizationDetailsSource() {
 		return (details, principalName) -> null;
 	}
 
@@ -164,10 +165,10 @@ public interface IuOidcProviderReference {
 	 *
 	 * @param attributes incoming request attributes, which is how a session is
 	 *                   found
-	 * @return {@link OidcAuthenticatedPrincipal}; {@code null} if nothing is
+	 * @return {@link IuOidcAuthenticatedPrincipal}; {@code null} if nothing is
 	 *         established
 	 */
-	default OidcAuthenticatedPrincipal getAuthenticatedPrincipal(IuRequestAttributes attributes) {
+	default IuOidcAuthenticatedPrincipal getAuthenticatedPrincipal(IuRequestAttributes attributes) {
 		return null;
 	}
 
@@ -175,20 +176,42 @@ public interface IuOidcProviderReference {
 	 * Gets a verifier for one client's registered certificate authority.
 	 *
 	 * <p>
-	 * The provider decides <em>which</em> registration warrants verification and
-	 * what a failure means; the deployment decides what does the verifying, since
-	 * an implementation of {@link IuPkiVerifier} lives in a module a library has no
-	 * business compiling against.
+	 * Which registration warrants which kind of verification is the provider's
+	 * &mdash; a registration carrying a revocation list is an authority, one
+	 * without is a bare or self-signed key &mdash; and so is what a failure means.
+	 * What does the verifying is the deployment's, since every implementation of
+	 * {@link IuPkiVerifier} lives in a module a library has no business compiling
+	 * against.
 	 * </p>
 	 *
-	 * @param certificateAuthority authority a client's key must chain to
+	 * @param certificateAuthority authority a client's certificate must chain to
 	 * @return {@link IuPkiVerifier}
 	 * @throws UnsupportedOperationException if the deployment binds none, which
 	 *                                       refuses every client authenticating by
-	 *                                       certificate
+	 *                                       a CA-issued certificate
 	 */
-	default IuPkiVerifier getPkiVerifier(IuCertificateAuthority certificateAuthority) {
-		throw new UnsupportedOperationException("Missing PKI verifier");
+	default IuPkiVerifier getCertificateAuthorityVerifier(IuCertificateAuthority certificateAuthority) {
+		throw new UnsupportedOperationException("Missing certificate authority verifier");
+	}
+
+	/**
+	 * Gets a verifier for a client's own self-signed key.
+	 *
+	 * <p>
+	 * Separate from {@link #getCertificateAuthorityVerifier} because the two are
+	 * built from different things &mdash; an authority from the registration, a
+	 * self-signed key from the key itself &mdash; and because a provider knows
+	 * which it needs before it needs one.
+	 * </p>
+	 *
+	 * @param jwk key carrying the self-signed certificate to trust
+	 * @return {@link IuPkiVerifier}
+	 * @throws UnsupportedOperationException if the deployment binds none, which
+	 *                                       refuses every client registered with a
+	 *                                       self-signed certificate
+	 */
+	default IuPkiVerifier getSelfSignedVerifier(WebKey jwk) {
+		throw new UnsupportedOperationException("Missing self-signed verifier");
 	}
 
 	/**

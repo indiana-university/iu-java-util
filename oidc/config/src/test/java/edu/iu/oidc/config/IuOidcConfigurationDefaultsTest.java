@@ -48,12 +48,12 @@ import edu.iu.oidc.IuOidcProviderMetadata;
  * shape a proxy over a record without the optional ones produces.
  */
 @SuppressWarnings("javadoc")
-public class OidcConfigurationDefaultsTest {
+public class IuOidcConfigurationDefaultsTest {
 
 	/** Declares only the required properties, leaving every default in place. */
-	private static OidcProviderConfiguration provider() {
+	private static IuOidcProviderConfiguration provider() {
 		final var metadata = mock(IuOidcProviderMetadata.class);
-		return new OidcProviderConfiguration() {
+		return new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {
@@ -85,8 +85,8 @@ public class OidcConfigurationDefaultsTest {
 	}
 
 	/** Declares only the required properties, leaving every default in place. */
-	private static OidcClientConfiguration client() {
-		return new OidcClientConfiguration() {
+	private static IuOidcClientConfiguration client() {
+		return new IuOidcClientConfiguration() {
 
 			@Override
 			public String getClientId() {
@@ -104,12 +104,12 @@ public class OidcConfigurationDefaultsTest {
 			}
 
 			@Override
-			public Iterable<OidcClientEndpoint> getEndpoints() {
+			public Iterable<IuOidcClientEndpoint> getEndpoints() {
 				return null;
 			}
 
 			@Override
-			public Iterable<OidcClientRole> getRoles() {
+			public Iterable<IuOidcClientRole> getRoles() {
 				return null;
 			}
 		};

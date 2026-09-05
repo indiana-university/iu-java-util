@@ -62,7 +62,7 @@ import edu.iu.pki.IuCertificateAuthority;
  * reads {@code assertion_ttl}.
  * </p>
  */
-public interface OidcClientAuthorization extends IuCertificateAuthority {
+public interface IuOidcClientAuthorization extends IuCertificateAuthority {
 
 	/**
 	 * Returns the client's signing certificate, from the first entry in the

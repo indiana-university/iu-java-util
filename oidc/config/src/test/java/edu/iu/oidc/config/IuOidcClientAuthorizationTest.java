@@ -47,15 +47,15 @@ import org.junit.jupiter.api.Test;
 import edu.iu.crypt.WebKey;
 
 /**
- * Covers what {@link OidcClientAuthorization} derives, using implementations
+ * Covers what {@link IuOidcClientAuthorization} derives, using implementations
  * that declare only the properties a registration record holds.
  */
 @SuppressWarnings("javadoc")
-public class OidcClientAuthorizationTest {
+public class IuOidcClientAuthorizationTest {
 
 	/** Answers an authorization record over one client key. */
-	private static OidcClientAuthorization authorization(WebKey jwk) {
-		return new OidcClientAuthorization() {
+	private static IuOidcClientAuthorization authorization(WebKey jwk) {
+		return new IuOidcClientAuthorization() {
 
 			@Override
 			public WebKey getJwk() {

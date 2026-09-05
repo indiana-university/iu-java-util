@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
-import edu.iu.oidc.config.OidcProviderConfiguration;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 /**
  * This provider's own identity: what it publishes as its issuer, and the keys
@@ -67,7 +67,7 @@ import edu.iu.oidc.config.OidcProviderConfiguration;
  */
 public class OidcIssuer {
 
-	private final Supplier<OidcProviderConfiguration> configuration;
+	private final Supplier<IuOidcProviderConfiguration> configuration;
 
 	/**
 	 * Binds a provider to its configuration.
@@ -75,17 +75,17 @@ public class OidcIssuer {
 	 * @param configuration supplies this provider's configuration, read afresh on
 	 *                      each use
 	 */
-	public OidcIssuer(Supplier<OidcProviderConfiguration> configuration) {
+	public OidcIssuer(Supplier<IuOidcProviderConfiguration> configuration) {
 		this.configuration = Objects.requireNonNull(configuration, "Missing provider configuration");
 	}
 
 	/**
 	 * Reads this provider's configuration.
 	 *
-	 * @return {@link OidcProviderConfiguration}
+	 * @return {@link IuOidcProviderConfiguration}
 	 * @throws NullPointerException if the supplier answers nothing
 	 */
-	public OidcProviderConfiguration configuration() {
+	public IuOidcProviderConfiguration configuration() {
 		return Objects.requireNonNull(configuration.get(), "Missing provider configuration");
 	}
 

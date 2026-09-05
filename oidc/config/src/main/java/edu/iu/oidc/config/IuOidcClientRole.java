@@ -31,36 +31,45 @@
  */
 package edu.iu.oidc.config;
 
-import java.net.URI;
-import java.util.Set;
+import java.util.List;
 
 /**
- * Names one resource a client endpoint may act on, and the scopes acting on it
- * requires.
+ * Maps a role a client endpoint may act in onto the identity roles that entitle
+ * an end user to it.
  *
  * <p>
- * An authorization request selects entries by its {@code resource} parameter. A
- * request naming no resource matches the entry registered with no
- * {@link #getUri() URI}, which is how a client that acts on a single resource
- * registers it without every request having to name it.
+ * The two are not the same thing. {@link #getRole()} is the name the client's
+ * application knows &mdash; what it checks a user's role by &mdash; while
+ * {@link #getIdRoles()} names the roles the identity system actually grants.
+ * Keeping the mapping here lets an application's role names stay stable while
+ * the enterprise roles behind them are reorganized, and lets two clients use
+ * the same name for different entitlements.
+ * </p>
+ *
+ * <p>
+ * Property names use lower case with underscores, so {@link #getIdRoles()}
+ * reads {@code id_roles}.
  * </p>
  */
-public interface OidcClientResource {
+public interface IuOidcClientRole {
 
 	/**
-	 * Gets the application resource URI a request must name to select this entry,
-	 * or {@code null} for the entry a request naming no resource selects.
+	 * Gets the role name the client's application uses.
 	 *
-	 * @return application resource URI
+	 * @return application role name
 	 */
-	URI getUri();
+	String getRole();
 
 	/**
-	 * Gets the scopes this resource grants, each of which an authorization request
-	 * may then ask for.
+	 * Gets the identity roles that entitle an end user to {@link #getRole()}.
 	 *
-	 * @return scopes; {@code null} or empty if this entry grants none
+	 * <p>
+	 * Holding any one of them is enough; an end user holding none does not act in
+	 * this role.
+	 * </p>
+	 *
+	 * @return identity role names
 	 */
-	Set<String> getScope();
+	List<String> getIdRoles();
 
 }

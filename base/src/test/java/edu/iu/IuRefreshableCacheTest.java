@@ -8,6 +8,7 @@ package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -1329,22 +1330,58 @@ public class IuRefreshableCacheTest {
 					started.countDown();
 					assertTrue(release.await(5L, TimeUnit.SECONDS));
 					return "root";
+				}, key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("embedded");
+					}
+				} : publishesEmbedded())) {
+
+			final var waiter = new Thread(() -> assertDoesNotThrow(() -> cache.apply("root")));
+			waiter.start();
+			assertTrue(started.await(5L, TimeUnit.SECONDS));
+
+			// an invalidation naming the embedded key is raised while the parent call
+			// is in flight, so the value that call carries predates it
+			assertEquals("write/2", cache.apply("write"));
+
+			release.countDown();
+			waiter.join(5000L);
+
+			// the embedded value is stale relative to that invalidation and is not
+			// published; the key resolves on its own instead
+			assertTrue(cache.apply("embedded").startsWith("embedded/"), "a stale embedded value was published");
+		}
+	}
+
+	@Test
+	public void testEmbeddedValueSurvivesAnInvalidationOfAnotherKey() throws Throwable {
+		final var started = new CountDownLatch(1);
+		final var release = new CountDownLatch(1);
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofSeconds(10L), 4), key -> {
+					final var call = calls.incrementAndGet();
+					if (!key.equals("root"))
+						return key + "/" + call;
+					started.countDown();
+					assertTrue(release.await(5L, TimeUnit.SECONDS));
+					return "root";
 				}, key -> key.equals("write") ? writeOnly("write") : publishesEmbedded())) {
 
 			final var waiter = new Thread(() -> assertDoesNotThrow(() -> cache.apply("root")));
 			waiter.start();
 			assertTrue(started.await(5L, TimeUnit.SECONDS));
 
-			// an invalidation is published while the parent call is in flight, so the
-			// entry created for the embedded value takes a later position in the
-			// sequence than the result carrying it
+			// the invalidation names only its own key, and the sequence it advances is
+			// shared by every key, so comparing positions alone would discard a value
+			// nothing invalidated
 			assertEquals("write/2", cache.apply("write"));
 
 			release.countDown();
 			waiter.join(5000L);
 
-			// the embedded value is stale relative to that entry and is not published
-			assertTrue(cache.apply("embedded").startsWith("embedded/"), "a stale embedded value was published");
+			assertEquals("published", cache.apply("embedded"));
 		}
 	}
 
@@ -1498,5 +1535,195 @@ public class IuRefreshableCacheTest {
 			assertThrows(IllegalStateException.class, () -> cache.apply("target"),
 					"the invalidation was skipped for a value published before it");
 		}
+	}
+
+	@Test
+	public void testPublishedValueIsServedWithoutACall() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet())) {
+			final var mark = cache.mark();
+			assertTrue(cache.publish("key", "published", mark));
+
+			assertEquals("published", cache.apply("key"));
+			assertEquals("published", cache.apply("key"));
+			assertEquals(0, calls.get(), "a published value must not be resolved again");
+		}
+	}
+
+	@Test
+	public void testPublishedNullIsServedWithoutACall() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> {
+			calls.incrementAndGet();
+			return "resolved";
+		})) {
+			assertTrue(cache.publish("key", null, cache.mark()));
+			assertEquals(null, cache.apply("key"));
+			assertEquals(0, calls.get());
+		}
+	}
+
+	@Test
+	public void testPublishIsDeclinedByAnInvalidationNewerThanItsMark() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("target");
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+
+			// taken as a caller would, before reading the value it will publish
+			final var mark = cache.mark();
+			assertEquals("write/1", cache.apply("write"));
+
+			// the write invalidated the key while that read was notionally in flight
+			assertFalse(cache.publish("target", "read before the write", mark));
+			assertEquals("target/2", cache.apply("target"));
+		}
+	}
+
+	@Test
+	public void testPublishSurvivesAnInvalidationOlderThanItsMark() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? new IuRefreshableCacheHint<String, String>() {
+					@Override
+					public boolean shouldClear(String candidate) {
+						return candidate.equals("write") || candidate.equals("target");
+					}
+				} : IuRefreshableCacheHint.useDefaults())) {
+			assertEquals("write/1", cache.apply("write"));
+
+			// the mark is taken after the invalidation, as a caller republishing what
+			// it has just written does, so the replacement outranks it
+			assertTrue(cache.publish("target", "written", cache.mark()));
+			assertEquals("written", cache.apply("target"));
+			assertEquals(1, calls.get());
+		}
+	}
+
+	@Test
+	public void testPublishIsDeclinedByAValueReadMoreRecently() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? writeOnly("write") : IuRefreshableCacheHint.useDefaults())) {
+
+			final var stale = cache.mark();
+
+			// advances the sequence without invalidating "target", so the queue walk
+			// finds nothing and the entry's own position is what declines the value
+			assertEquals("write/1", cache.apply("write"));
+			assertTrue(cache.publish("target", "current", cache.mark()));
+
+			assertFalse(cache.publish("target", "stale", stale));
+			assertEquals("current", cache.apply("target"));
+		}
+	}
+
+	@Test
+	public void testPublishIntoAnEmptyEntryIsNotDeclinedOnSequenceAlone() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.equals("write") ? writeOnly("write") : IuRefreshableCacheHint.useDefaults())) {
+
+			// a long-lived mark, as a caller holding a value across a transaction has
+			final var mark = cache.mark();
+
+			// unrelated writes advance the shared sequence well past that mark
+			for (var i = 0; i < 5; i++)
+				cache.apply("write");
+
+			// the entry is created here and stamped with the current position, so
+			// declining on sequence alone would reject a value nothing invalidated
+			assertTrue(cache.publish("target", "read long ago", mark));
+			assertEquals("read long ago", cache.apply("target"));
+		}
+	}
+
+	@Test
+	public void testEmbeddedValueIsDeclinedByANewerDirectRead() throws Throwable {
+		final var started = new CountDownLatch(1);
+		final var release = new CountDownLatch(1);
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L), Duration.ofSeconds(10L), 4), key -> {
+					final var call = calls.incrementAndGet();
+					if (!key.equals("root"))
+						return key + "/" + call;
+					started.countDown();
+					assertTrue(release.await(5L, TimeUnit.SECONDS));
+					return "root";
+				}, key -> key.equals("write") ? writeOnly("write") : publishesEmbedded())) {
+
+			final var waiter = new Thread(() -> assertDoesNotThrow(() -> cache.apply("root")));
+			waiter.start();
+			assertTrue(started.await(5L, TimeUnit.SECONDS));
+
+			// advances the sequence without naming the embedded key, so the direct
+			// read below is positioned after the call that is still in flight
+			assertEquals("write/2", cache.apply("write"));
+
+			// resolved on its own while that call runs, so the entry ends up holding a
+			// value read more recently than the one the call is carrying
+			final var direct = cache.apply("embedded");
+			assertTrue(direct.startsWith("embedded/"));
+
+			release.countDown();
+			waiter.join(5000L);
+
+			assertEquals(direct, cache.apply("embedded"), "a stale embedded value displaced a newer read");
+		}
+	}
+
+	@Test
+	public void testPublishWalksPastInvalidationsOlderThanItsMark() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = new IuRefreshableCache<String, String>(
+				() -> config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet(),
+				key -> key.startsWith("write") ? writeOnly(key) : IuRefreshableCacheHint.useDefaults())) {
+
+			// queued before the mark, so the walk has to step over it rather than
+			// treating the first event it meets as newer
+			assertEquals("writeA/1", cache.apply("writeA"));
+			final var mark = cache.mark();
+
+			// queued after the mark, but names only its own key
+			assertEquals("writeB/2", cache.apply("writeB"));
+
+			assertTrue(cache.publish("target", "published", mark));
+			assertEquals("published", cache.apply("target"));
+			assertEquals(2, calls.get());
+		}
+	}
+
+	@Test
+	public void testPublishIsInertWhenCachingIsDisabled() throws Throwable {
+		final var calls = new AtomicInteger();
+		final var configuration = new MutableConfiguration();
+		configuration.refreshTtl = null;
+		try (final var cache = cache(() -> configuration, key -> key + "/" + calls.incrementAndGet())) {
+			assertFalse(cache.publish("key", "published", cache.mark()));
+			assertEquals("key/1", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testPublishFailsOnceClosed() {
+		final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> key);
+		cache.close();
+		assertEquals("Refreshable cache is closed",
+				assertThrows(IllegalStateException.class, () -> cache.publish("key", "value", 0L)).getMessage());
 	}
 }

@@ -54,7 +54,7 @@ import edu.iu.crypt.WebKey.Algorithm;
  * {@code encrypt_jwk}.
  * </p>
  */
-public interface OidcClientEndpoint {
+public interface IuOidcClientEndpoint {
 
 	/**
 	 * Gets how a client redeeming a code issued to this endpoint authenticates
@@ -77,7 +77,7 @@ public interface OidcClientEndpoint {
 	 * @return authorization records, tried in order; {@code null} or empty to
 	 *         accept no credential at all
 	 */
-	Iterable<OidcClientAuthorization> getAuthorization();
+	Iterable<IuOidcClientAuthorization> getAuthorization();
 
 	/**
 	 * Gets the identity roles that entitle an end user to a token from this
@@ -122,7 +122,7 @@ public interface OidcClientEndpoint {
 	 *
 	 * @return roles; null or empty if the client makes no role claims
 	 */
-	Iterable<OidcClientRole> getRoles();
+	Iterable<IuOidcClientRole> getRoles();
 
 	/**
 	 * Gets the algorithm an ID token issued to this endpoint is signed with.
@@ -160,12 +160,12 @@ public interface OidcClientEndpoint {
 	 * <p>
 	 * The requested {@code resource} selects among these, and the scopes the
 	 * matching entries declare are what the request may ask for. An entry with no
-	 * {@link OidcClientResource#getUri() URI} is the one a request naming no
+	 * {@link IuOidcClientResource#getUri() URI} is the one a request naming no
 	 * resource matches.
 	 * </p>
 	 *
 	 * @return resources
 	 */
-	Iterable<OidcClientResource> getResources();
+	Iterable<IuOidcClientResource> getResources();
 
 }

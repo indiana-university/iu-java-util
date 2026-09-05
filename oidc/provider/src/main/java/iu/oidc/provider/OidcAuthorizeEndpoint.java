@@ -53,11 +53,11 @@ import java.util.logging.Logger;
 
 import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
+import edu.iu.oidc.config.IuOidcAuthenticatedPrincipal;
+import edu.iu.oidc.config.IuOidcClientConfiguration;
+import edu.iu.oidc.config.IuOidcClientEndpoint;
+import edu.iu.oidc.config.IuOidcClientResource;
 import edu.iu.oidc.config.IuOidcProviderReference;
-import edu.iu.oidc.config.OidcAuthenticatedPrincipal;
-import edu.iu.oidc.config.OidcClientConfiguration;
-import edu.iu.oidc.config.OidcClientEndpoint;
-import edu.iu.oidc.config.OidcClientResource;
 import edu.iu.session.IuSessionHandler;
 
 /**
@@ -249,8 +249,8 @@ public class OidcAuthorizeEndpoint {
 	 * @return registration
 	 * @throws IuBadRequestException if the client is not registered
 	 */
-	private OidcClientConfiguration client(String clientId) {
-		final OidcClientConfiguration client;
+	private IuOidcClientConfiguration client(String clientId) {
+		final IuOidcClientConfiguration client;
 		try {
 			client = reference.getClientSource().client(clientId);
 		} catch (Exception e) {
@@ -279,7 +279,7 @@ public class OidcAuthorizeEndpoint {
 	 * @return what the request came to
 	 * @throws AuthorizationError if the request is invalid
 	 */
-	private OidcAuthorizeResult grant(OidcAuthorizeRequest request, String clientId, OidcClientEndpoint endpoint,
+	private OidcAuthorizeResult grant(OidcAuthorizeRequest request, String clientId, IuOidcClientEndpoint endpoint,
 			String state) {
 
 		final var responseType = request.getResponseType();
@@ -304,7 +304,7 @@ public class OidcAuthorizeEndpoint {
 
 		final var granted = grantedResources(endpoint, issuerUri, resources);
 		for (final var requested : scopes)
-			if (granted.stream().map(OidcClientResource::getScope).flatMap(Set::stream).noneMatch(requested::equals))
+			if (granted.stream().map(IuOidcClientResource::getScope).flatMap(Set::stream).noneMatch(requested::equals))
 				throw new AuthorizationError("invalid_scope", "Scope " + requested + " is not granted to this client");
 
 		// PKCE is optional, but a challenge this provider can't verify is not.
@@ -384,7 +384,7 @@ public class OidcAuthorizeEndpoint {
 	 * @see <a href="https://www.rfc-editor.org/rfc/rfc8707#section-2">RFC 8707
 	 *      &sect;2</a>
 	 */
-	private static Set<String> requestedResources(OidcAuthorizeRequest request, OidcClientEndpoint endpoint, URI issuer,
+	private static Set<String> requestedResources(OidcAuthorizeRequest request, IuOidcClientEndpoint endpoint, URI issuer,
 			Set<String> scopes) {
 		final Set<String> resources = new LinkedHashSet<>();
 
@@ -460,7 +460,7 @@ public class OidcAuthorizeEndpoint {
 	 * </p>
 	 *
 	 * <p>
-	 * How an {@link OidcAuthorizationDetailsSource} fails decides who hears about
+	 * How an {@link IuOidcAuthorizationDetailsSource} fails decides who hears about
 	 * it. {@link IuBadRequestException} says the client asked for something
 	 * malformed, which the client can act on, so it is relayed to the redirect URI
 	 * as {@value #INVALID_AUTHORIZATION_DETAILS}. Every other failure propagates
@@ -476,7 +476,7 @@ public class OidcAuthorizeEndpoint {
 	 * @return redirect to the client, carrying a code or
 	 *         {@value #INVALID_AUTHORIZATION_DETAILS}
 	 */
-	private OidcAuthorizeResult issue(OidcGrant grant, OidcAuthenticatedPrincipal principal) {
+	private OidcAuthorizeResult issue(OidcGrant grant, IuOidcAuthenticatedPrincipal principal) {
 		final var clientId = grant.getClientId();
 		final var principalName = principal.getName();
 		final var redirectUri = grant.getRedirectUri();
@@ -536,10 +536,10 @@ public class OidcAuthorizeEndpoint {
 	 * </p>
 	 *
 	 * @param request incoming request, which is how a session is found
-	 * @return {@link OidcAuthenticatedPrincipal}, or {@code null} if not
+	 * @return {@link IuOidcAuthenticatedPrincipal}, or {@code null} if not
 	 *         authenticated
 	 */
-	private OidcAuthenticatedPrincipal authenticated(OidcAuthorizeRequest request) {
+	private IuOidcAuthenticatedPrincipal authenticated(OidcAuthorizeRequest request) {
 		try {
 			return reference.getAuthenticatedPrincipal(request);
 		} catch (Exception e) {

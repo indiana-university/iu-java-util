@@ -40,9 +40,9 @@ import java.util.Set;
 import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
-import edu.iu.oidc.config.OidcClientConfiguration;
-import edu.iu.oidc.config.OidcClientEndpoint;
-import edu.iu.oidc.config.OidcClientResource;
+import edu.iu.oidc.config.IuOidcClientConfiguration;
+import edu.iu.oidc.config.IuOidcClientEndpoint;
+import edu.iu.oidc.config.IuOidcClientResource;
 
 /**
  * Request-shaping logic shared by this provider's endpoints.
@@ -157,7 +157,7 @@ final class OidcProviderUtils {
 	 * URI.
 	 *
 	 * <p>
-	 * An entry with no {@link OidcClientResource#getUri() URI} names this
+	 * An entry with no {@link IuOidcClientResource#getUri() URI} names this
 	 * provider's own issuer identifier rather than an external resource, so a
 	 * request naming the issuer itself matches it the same as one naming an
 	 * external resource matches an entry registered for that URI.
@@ -169,7 +169,7 @@ final class OidcProviderUtils {
 	 * @return {@code true} if the endpoint registers an entry naming that URI; else
 	 *         {@code false}
 	 */
-	static boolean isRegisteredResource(OidcClientEndpoint endpoint, URI issuer, String resource) {
+	static boolean isRegisteredResource(IuOidcClientEndpoint endpoint, URI issuer, String resource) {
 		final var resources = endpoint.getResources();
 		if (resources == null)
 			return false;
@@ -203,7 +203,7 @@ final class OidcProviderUtils {
 	 * @return resource URIs whose registered scope overlaps a requested one; empty
 	 *         if none do
 	 */
-	static Set<String> resourcesGrantingScope(OidcClientEndpoint endpoint, URI issuer, Set<String> scopes) {
+	static Set<String> resourcesGrantingScope(IuOidcClientEndpoint endpoint, URI issuer, Set<String> scopes) {
 		final Set<String> resources = new LinkedHashSet<>();
 
 		final var clientResources = endpoint.getResources();
@@ -251,8 +251,8 @@ final class OidcProviderUtils {
 	 * @return resources granting at least one scope the request may ask for; empty
 	 *         if the endpoint registers none matching
 	 */
-	static Set<OidcClientResource> grantedResources(OidcClientEndpoint endpoint, URI issuer, Set<String> resources) {
-		final Set<OidcClientResource> granted = new LinkedHashSet<>();
+	static Set<IuOidcClientResource> grantedResources(IuOidcClientEndpoint endpoint, URI issuer, Set<String> resources) {
+		final Set<IuOidcClientResource> granted = new LinkedHashSet<>();
 
 		final var clientResources = endpoint.getResources();
 		if (clientResources == null)
@@ -291,7 +291,7 @@ final class OidcProviderUtils {
 	 * @return registered endpoint, or {@code null} if the parameter is missing or
 	 *         names no registered endpoint
 	 */
-	static OidcClientEndpoint registeredEndpoint(OidcClientConfiguration client, String redirectUri) {
+	static IuOidcClientEndpoint registeredEndpoint(IuOidcClientConfiguration client, String redirectUri) {
 		if (redirectUri == null)
 			return null;
 

@@ -166,7 +166,7 @@ public interface OidcAuthorizeRequest extends IuRequestAttributes {
 	 * {@link IuAuthorizationDetails} implementation the deployment carries. The
 	 * endpoint reads nothing but
 	 * {@link IuAuthorizationDetails#getType() the type} and hands the rest to an
-	 * {@link edu.iu.oidc.config.OidcAuthorizationDetailsSource} untouched.
+	 * {@link edu.iu.oidc.config.IuOidcAuthorizationDetailsSource} untouched.
 	 * </p>
 	 *
 	 * <p>

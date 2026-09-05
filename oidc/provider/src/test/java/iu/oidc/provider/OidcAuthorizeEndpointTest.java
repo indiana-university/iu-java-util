@@ -70,14 +70,14 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcAuthenticatedPrincipal;
+import edu.iu.oidc.config.IuOidcAuthorizationDetailsSource;
+import edu.iu.oidc.config.IuOidcClientConfiguration;
+import edu.iu.oidc.config.IuOidcClientEndpoint;
+import edu.iu.oidc.config.IuOidcClientResource;
+import edu.iu.oidc.config.IuOidcClientSource;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 import edu.iu.oidc.config.IuOidcProviderReference;
-import edu.iu.oidc.config.OidcAuthenticatedPrincipal;
-import edu.iu.oidc.config.OidcAuthorizationDetailsSource;
-import edu.iu.oidc.config.OidcClientConfiguration;
-import edu.iu.oidc.config.OidcClientEndpoint;
-import edu.iu.oidc.config.OidcClientResource;
-import edu.iu.oidc.config.OidcClientSource;
-import edu.iu.oidc.config.OidcProviderConfiguration;
 import edu.iu.session.IuSession;
 import edu.iu.session.IuSessionHandler;
 import edu.iu.test.IuTestLogger;
@@ -252,10 +252,10 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	private final IuOidcProviderReference reference = mock(IuOidcProviderReference.class);
-	private final OidcClientSource clients = mock(OidcClientSource.class);
+	private final IuOidcClientSource clients = mock(IuOidcClientSource.class);
 	private final IuSessionHandler sessionHandler = mock(IuSessionHandler.class);
 	private final IuDataStore dataStore = mock(IuDataStore.class);
-	private final OidcAuthorizationDetailsSource authorizationDetails = mock(OidcAuthorizationDetailsSource.class);
+	private final IuOidcAuthorizationDetailsSource authorizationDetails = mock(IuOidcAuthorizationDetailsSource.class);
 	private final IuSession session = mock(IuSession.class);
 	private final Grant grant = new Grant();
 
@@ -272,7 +272,7 @@ public class OidcAuthorizeEndpointTest {
 		when(metadata.getIssuer()).thenReturn(ISSUER);
 
 		final var issuerKey = WebKey.builder(Algorithm.ES256).keyId(IdGenerator.generateId()).ephemeral().build();
-		final var configuration = new OidcProviderConfiguration() {
+		final var configuration = new IuOidcProviderConfiguration() {
 
 			@Override
 			public IuOidcProviderMetadata getMetadata() {
@@ -310,26 +310,26 @@ public class OidcAuthorizeEndpointTest {
 	 * @param principal established principal; null when nobody is signed in
 	 * @return what the request came to
 	 */
-	private OidcAuthorizeResult authorize(OidcAuthorizeRequest request, OidcAuthenticatedPrincipal principal) {
+	private OidcAuthorizeResult authorize(OidcAuthorizeRequest request, IuOidcAuthenticatedPrincipal principal) {
 		when(reference.getAuthenticatedPrincipal(any())).thenReturn(principal);
 		return endpoint.authorize(request);
 	}
 
 	/** Answers a resource entry; a null URI names this provider's own issuer. */
-	private static OidcClientResource resource(URI uri, Set<String> scope) {
-		final var resource = mock(OidcClientResource.class);
+	private static IuOidcClientResource resource(URI uri, Set<String> scope) {
+		final var resource = mock(IuOidcClientResource.class);
 		when(resource.getUri()).thenReturn(uri);
 		when(resource.getScope()).thenReturn(scope);
 		return resource;
 	}
 
 	/** Registers one enabled client with one endpoint over the given resources. */
-	private OidcClientEndpoint register(Iterable<OidcClientResource> resources) {
-		final var endpoint = mock(OidcClientEndpoint.class);
+	private IuOidcClientEndpoint register(Iterable<IuOidcClientResource> resources) {
+		final var endpoint = mock(IuOidcClientEndpoint.class);
 		when(endpoint.getRedirectUri()).thenReturn(REDIRECT);
 		when(endpoint.getResources()).thenReturn(resources);
 
-		final var client = mock(OidcClientConfiguration.class);
+		final var client = mock(IuOidcClientConfiguration.class);
 		when(client.isEnabled()).thenReturn(true);
 		when(client.getEndpoints()).thenReturn(List.of(endpoint));
 		when(clients.client(CLIENT_ID)).thenReturn(client);
@@ -338,7 +338,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	/** Registers a client whose one endpoint grants {@code openid} on the issuer. */
-	private OidcClientEndpoint register() {
+	private IuOidcClientEndpoint register() {
 		return register(List.of(resource(null, Set.of("openid"))));
 	}
 
@@ -363,8 +363,8 @@ public class OidcAuthorizeEndpointTest {
 		return request;
 	}
 
-	private static OidcAuthenticatedPrincipal authenticated(Instant expires) {
-		final var principal = mock(OidcAuthenticatedPrincipal.class);
+	private static IuOidcAuthenticatedPrincipal authenticated(Instant expires) {
+		final var principal = mock(IuOidcAuthenticatedPrincipal.class);
 		when(principal.getName()).thenReturn("someone");
 		when(principal.getAuthnAuthority()).thenReturn("https://idp.iu.edu");
 		when(principal.getAuthnInstant()).thenReturn(Instant.now().minusSeconds(30L));
@@ -372,7 +372,7 @@ public class OidcAuthorizeEndpointTest {
 		return principal;
 	}
 
-	private static OidcAuthenticatedPrincipal unauthenticated() {
+	private static IuOidcAuthenticatedPrincipal unauthenticated() {
 		return null;
 	}
 
@@ -419,7 +419,7 @@ public class OidcAuthorizeEndpointTest {
 
 	@Test
 	void testADisabledClientIsRefusedAsIfItNeverExisted() {
-		final var client = mock(OidcClientConfiguration.class);
+		final var client = mock(IuOidcClientConfiguration.class);
 		when(client.isEnabled()).thenReturn(false);
 		when(clients.client(CLIENT_ID)).thenReturn(client);
 
