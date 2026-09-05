@@ -32,19 +32,38 @@
 package edu.iu;
 
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Backing data storage interface for use in implementing data management
  * resources.
  */
 public interface IuDataStore {
-	
+
 	/**
-	 * Returns a listing of all entries in the data store (without contents).
-	 * 
+	 * Returns a listing of all entries in the data store, without their contents.
+	 *
+	 * <p>
+	 * A listing is a point-in-time approximation, not a transaction: entries added
+	 * or removed while it is being taken may or may not appear, and an entry that
+	 * appears may already be gone by the time it is read. Callers <em>should</em>
+	 * treat it as a diagnostic view of the store rather than as a set they can act
+	 * on element by element.
+	 * </p>
+	 *
+	 * <p>
+	 * Not every backing store can enumerate itself, and one that shares its
+	 * namespace with other tenants may not be able to tell its own entries from
+	 * theirs. An implementation that cannot produce a listing it can stand behind
+	 * throws {@link UnsupportedOperationException} rather than an approximation of
+	 * one.
+	 * </p>
+	 *
 	 * @return data entry listing
+	 * @throws UnsupportedOperationException if the store cannot enumerate its
+	 *                                       entries
 	 */
-	Iterable<?> list();
+	Iterable<IuDataStoreEntry> list();
 
 	/**
 	 * Get the binary value representation from Redis stored for the given key.
@@ -52,6 +71,30 @@ public interface IuDataStore {
 	 * @return {@literal null} if key does not exist.
 	 */
 	byte[] get(byte[] key);
+
+	/**
+	 * Gets the instant the data stored for a given key was last written.
+	 *
+	 * <p>
+	 * Intended as a freshness check that does not transfer the value, so a caller
+	 * holding a copy can decide whether to read it again. Implementations
+	 * <em>should</em> resolve it without reading the value itself.
+	 * </p>
+	 *
+	 * <p>
+	 * Not every backing store records a write time, and one that does may lose it
+	 * separately from the value it describes. A null return therefore means "no
+	 * write time is available", which does <em>not</em> imply the key is absent:
+	 * verify with {@link #get(byte[])} rather than inferring existence from this
+	 * method. An implementation that never records one returns null for every key.
+	 * </p>
+	 *
+	 * @param key data key. Must not be {@literal null}.
+	 * @return instant the value stored for {@code key} was last written;
+	 *         {@literal null} if the key does not exist or the store cannot
+	 *         determine when it was written
+	 */
+	Instant lastModified(byte[] key);
 
 	/**
 	 * Puts or deletes data represented by a given key.

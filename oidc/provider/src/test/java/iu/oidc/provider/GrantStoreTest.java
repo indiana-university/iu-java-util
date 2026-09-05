@@ -41,6 +41,7 @@ import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.logging.Level;
@@ -50,6 +51,8 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuBadRequestException;
 import edu.iu.IuDataStore;
+import edu.iu.IuDataStoreEntry;
+import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -70,10 +73,35 @@ public class GrantStoreTest {
 	private static final class MemoryDataStore implements IuDataStore {
 
 		private final Map<String, byte[]> entries = new LinkedHashMap<>();
+		private final Map<String, Instant> modified = new LinkedHashMap<>();
+
+		/** Listing entry over the fixture's own maps. */
+		private final class Entry implements IuDataStoreEntry {
+			private final String name;
+
+			private Entry(String name) {
+				this.name = name;
+			}
+
+			@Override
+			public String getName() {
+				return name;
+			}
+
+			@Override
+			public Instant getModified() {
+				return modified.get(name);
+			}
+
+			@Override
+			public byte[] getData() {
+				return entries.get(name);
+			}
+		}
 
 		@Override
-		public Iterable<?> list() {
-			return entries.keySet();
+		public Iterable<IuDataStoreEntry> list() {
+			return IuIterable.map(entries.keySet(), Entry::new);
 		}
 
 		@Override
@@ -82,11 +110,19 @@ public class GrantStoreTest {
 		}
 
 		@Override
+		public Instant lastModified(byte[] key) {
+			return modified.get(IuText.base64Url(key));
+		}
+
+		@Override
 		public void put(byte[] key, byte[] data) {
-			if (data == null)
+			if (data == null) {
 				entries.remove(IuText.base64Url(key));
-			else
+				modified.remove(IuText.base64Url(key));
+			} else {
 				entries.put(IuText.base64Url(key), data);
+				modified.put(IuText.base64Url(key), Instant.now());
+			}
 		}
 
 		@Override

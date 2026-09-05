@@ -19,12 +19,18 @@ Grouped by the problem each family solves, since the flat package listing does n
 - **Exception adaptation** — `IuException` plus the `Unsafe*` functional interfaces (`UnsafeRunnable`, `UnsafeSupplier`, `UnsafeFunction`, `UnsafeConsumer`, `UnsafeBiFunction`, `UnsafeBiConsumer`). These exist so no other module writes exception-translation boilerplate. `unchecked(...)` wraps and rethrows; `checked(SomeException.class, ...)` narrows back to a declared checked type. `Error` and `IllegalStateException` always pass through unwrapped.
 - **Object contracts** — `IuObject`: `require`/`requireType` for validation, `once` for write-exactly-once fields on builders, `first` for coalescing, `assertNotOpen` for module-boundary checks, `isPlatformName` for distinguishing JDK/framework names from application names, plus null-safe `hashCode`/`equals`/`compareTo`/`typeCheck` helpers.
 - **Async and concurrency** — `IuAsynchronousPipe`, `IuAsynchronousSubject`, `IuAsynchronousSubscription`, `IuTaskController`, `IuUtilityTaskController`, `IuParallelWorkloadController`, `IuRateLimitter`.
-- **Caching and data** — `IuCachedValue`, `IuCacheMap`, `IuDataStore`, `InMemoryDataStore`, `IuEnumerableQueue`, `IuIterable`, `IuVisitor`.
+- **Caching and data** — `IuCachedValue`, `IuCacheMap`, `IuDataStore`, `IuDataStoreEntry`, `InMemoryDataStore`, `IuEnumerableQueue`, `IuIterable`, `IuVisitor`.
 - **HTTP/web primitives with no servlet dependency** — `IuWebUtils`, `IuForwardedHeader`, `IuWebAuthenticationChallenge`, `IuStatefulRedirect`, `IuRequestAttributes`.
 - **Bootstrap configuration** — `IuRuntimeEnvironment`. This is the *only* sanctioned reader of system properties and environment variables in the repository, and its Javadoc is explicit that it should be used sparingly, sufficient only to bootstrap the real configuration layer (`edu.iu.config.IuConfig`).
 - **Standard exceptions** — `IuBadRequestException`, `IuAuthorizationFailedException`, `IuNotFoundException`, `IuOutOfServiceException`. Higher modules map these to protocol responses, so throw these rather than inventing new types for the same conditions.
 - **Observation** — `IuListener` (a `uses` service in `module-info.java`) and `IuObservableEvent`. `jdbc/monitor` publishes through this.
 - **Misc** — `IdGenerator`, `IuDigest`, `IuText`, `IuStream`, `IuFixedLimitOutputBuffer`, `IuProcess`, `IuClassLoaderContext`.
+
+## `IuDataStore` implementations agree on names, not on keys
+
+`IuDataStoreEntry.getName()` is the store key Base64 URL-encoded, in every implementation. That is the only identity a listing can carry portably: a store that keys by arbitrary bytes still has to name them in something printable, and `IuText.base64Url` round-trips exactly. Code that lists and then acts converts the name back rather than expecting the key it put.
+
+Attributes other than the name resolve on access, and may resolve afresh each time — `InMemoryDataStore` reads its map, `LettuceConnection` makes a round trip. An entry is a name plus a way to ask, not a snapshot.
 
 ## Editing notes
 
