@@ -33,10 +33,14 @@ package iu.oidc.provider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
@@ -48,8 +52,10 @@ import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuText;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -58,6 +64,7 @@ import edu.iu.crypt.WebSignedPayload;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcClaims;
 import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.oidc.config.OidcClaimsSource;
 import edu.iu.oidc.config.OidcClientConfiguration;
 import edu.iu.oidc.config.OidcClientSource;
@@ -78,9 +85,12 @@ public class OidcUserinfoEndpointTest {
 	private static final String SUB = "someone";
 	private static final String CLIENT_ID = "some-client";
 
+	/** What a source renders; opaque to the endpoint, which publishes it as-is. */
+	private static final String DOCUMENT = "{\"sub\":\"someone\",\"email\":\"someone@iu.edu\"}";
+
 	private final String keyId = IdGenerator.generateId();
 	private final WebKey issuerKey = WebKey.builder(Algorithm.ES256).keyId(keyId).ephemeral().build();
-	private final OidcIssuer issuer = mock(OidcIssuer.class);
+	private final IuOidcProviderReference reference = mock(IuOidcProviderReference.class);
 	private final OidcClientSource clients = mock(OidcClientSource.class);
 	private final OidcClaimsSource claimsSource = mock(OidcClaimsSource.class);
 
@@ -106,11 +116,11 @@ public class OidcUserinfoEndpointTest {
 			}
 		};
 
-		when(issuer.configuration()).thenReturn(configuration);
-		when(issuer.issuer()).thenReturn(ISSUER);
-		when(issuer.issuerKey(Algorithm.ES256)).thenReturn(issuerKey);
+		when(reference.getConfiguration()).thenReturn(configuration);
+		when(reference.getClientSource()).thenReturn(clients);
+		when(reference.getClaimsSource()).thenReturn(claimsSource);
 
-		endpoint = new OidcUserinfoEndpoint(issuer, clients, claimsSource);
+		endpoint = new OidcUserinfoEndpoint(reference);
 	}
 
 	/** Issues an access token the way this provider's token endpoint would. */
@@ -130,101 +140,135 @@ public class OidcUserinfoEndpointTest {
 		return OidcJose.sign(builder.build().toString(), "at+jwt", issuerKey);
 	}
 
-	/** Holds a name and an email address, and nothing else. */
+	/**
+	 * Answers claims that render themselves, which is what the contract requires
+	 * and the only thing the endpoint reads besides {@code sub}.
+	 */
+	private static IuOidcClaims claims(String sub, String document) {
+		return new IuOidcClaims() {
+
+			@Override
+			public String getSub() {
+				return sub;
+			}
+
+			@Override
+			public String toString() {
+				return document;
+			}
+		};
+	}
+
+	/** Answers claims for the subject the token names. */
 	private void sourceHolds() {
-		final var claims = mock(IuOidcClaims.class);
-		when(claims.getName()).thenReturn("Some One");
-		when(claims.getEmail()).thenReturn("someone@iu.edu");
-		when(claimsSource.claims(SUB)).thenReturn(claims);
+		when(claimsSource.claims(eq(SUB), any())).thenReturn(claims(SUB, DOCUMENT));
 	}
 
 	/** Registers a client with the given UserInfo response settings. */
-	private OidcClientConfiguration register(Algorithm algorithm, Encryption encryption, WebKey jwk) {
+	private void register(Algorithm algorithm, Encryption encryption, WebKey jwk) {
 		final var client = mock(OidcClientConfiguration.class);
 		when(client.getClientId()).thenReturn(CLIENT_ID);
 		when(client.getUserinfoAlg()).thenReturn(algorithm);
 		when(client.getUserinfoEnc()).thenReturn(encryption);
 		when(client.getUserinfoJwk()).thenReturn(jwk);
 		when(clients.client(CLIENT_ID)).thenReturn(client);
-		return client;
 	}
 
-	/** Renders what the endpoint admitted, the way a transport would. */
-	private static String render(IuOidcClaims claims) {
-		return "{\"sub\":\"" + claims.getSub() + "\",\"name\":" + quote(claims.getName()) + ",\"email\":"
-				+ quote(claims.getEmail()) + "}";
-	}
-
-	private static String quote(String value) {
-		return value == null ? "null" : "\"" + value + "\"";
+	/** Answers the claim names the endpoint asked its source for. */
+	@SuppressWarnings("unchecked")
+	private Set<String> admitted() {
+		final var captor = ArgumentCaptor.forClass(Set.class);
+		verify(claimsSource).claims(eq(SUB), captor.capture());
+		return captor.getValue();
 	}
 
 	@Test
-	void testEveryCollaboratorIsRequired() {
-		assertEquals("Missing issuer", assertThrows(NullPointerException.class,
-				() -> new OidcUserinfoEndpoint(null, clients, claimsSource)).getMessage());
-		assertEquals("Missing client source", assertThrows(NullPointerException.class,
-				() -> new OidcUserinfoEndpoint(issuer, null, claimsSource)).getMessage());
-		assertEquals("Missing claims source", assertThrows(NullPointerException.class,
-				() -> new OidcUserinfoEndpoint(issuer, clients, null)).getMessage());
+	void testTheReferenceIsRequired() {
+		assertEquals("Missing provider reference",
+				assertThrows(NullPointerException.class, () -> new OidcUserinfoEndpoint(null)).getMessage());
 	}
 
 	@Test
 	void testAnUnverifiableTokenIsRefusedBeforeAnythingIsRead() {
-		assertThrows(SecurityException.class, () -> endpoint.userinfo("not a token", OidcUserinfoEndpointTest::render));
+		assertThrows(SecurityException.class, () -> endpoint.userinfo("not a token"));
 
-		// nothing was asked of the claims source, and no serializer ran
-		org.mockito.Mockito.verify(claimsSource, org.mockito.Mockito.never()).claims(SUB);
+		// nothing was asked of the claims source
+		verify(claimsSource, never()).claims(any(), any());
 	}
 
 	@Test
-	void testTheGrantsScopeIsWhatTheResponseCarries() {
+	void testTheGrantsScopeIsWhatTheSourceIsAskedFor() {
 		sourceHolds();
 		register(null, null, null);
 
-		final var result = assertInstanceOf(Json.class, //
-				endpoint.userinfo(accessToken("openid profile"), OidcUserinfoEndpointTest::render));
+		endpoint.userinfo(accessToken("openid email"));
 
-		// profile admits the name; nothing granted email
-		assertEquals("{\"sub\":\"someone\",\"name\":\"Some One\",\"email\":null}", result.content());
+		// email admits the address and whether it was verified; nothing granted profile
+		assertIterableEquals(List.of("sub", "email", "email_verified"), admitted());
+	}
+
+	@Test
+	void testATokenCarryingNoScopeAdmitsOnlyTheSubject() {
+		sourceHolds();
+		register(null, null, null);
+
+		endpoint.userinfo(accessToken(null));
+		assertIterableEquals(List.of("sub"), admitted());
+	}
+
+	@Test
+	void testAnUnrecognizedScopeAdmitsNothingExtra() {
+		sourceHolds();
+		register(null, null, null);
+
+		endpoint.userinfo(accessToken("openid offline_access read"));
+		assertIterableEquals(List.of("sub"), admitted());
+	}
+
+	@Test
+	void testProfileAdmitsTheProfileClaims() {
+		sourceHolds();
+		register(null, null, null);
+
+		endpoint.userinfo(accessToken("profile address phone"));
+
+		final var admitted = admitted();
+		// sub, plus fourteen from profile, one from address, two from phone
+		assertEquals(18, admitted.size(), admitted::toString);
+		assertEquals(true, admitted.containsAll(List.of("sub", "name", "given_name", "updated_at", "address",
+				"phone_number", "phone_number_verified")), admitted::toString);
+	}
+
+	@Test
+	void testWhatTheSourceRendersIsWhatIsPublished() {
+		sourceHolds();
+		register(null, null, null);
+
+		final var result = assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid email")));
+		assertEquals(DOCUMENT, result.content());
 		assertEquals("application/json", result.contentType());
 	}
 
 	@Test
-	void testATokenCarryingNoScopeCarriesNoClaims() {
-		sourceHolds();
+	void testASourceAnsweringAboutSomebodyElseIsRefused() {
+		// a relying party matches sub against the ID token it holds, so publishing
+		// claims about anyone else would be worse than answering nothing
+		when(claimsSource.claims(eq(SUB), any())).thenReturn(claims("somebody-else", DOCUMENT));
 		register(null, null, null);
 
-		final var result = endpoint.userinfo(accessToken(null), OidcUserinfoEndpointTest::render);
-		assertEquals("{\"sub\":\"someone\",\"name\":null,\"email\":null}", result.content());
+		final var token = accessToken("openid");
+		assertEquals("Claims source answered for somebody-else rather than someone",
+				assertThrows(IllegalStateException.class, () -> endpoint.userinfo(token)).getMessage());
 	}
 
 	@Test
-	void testTheSubjectIsBoundToTheTokenNotTheSource() {
-		final var claims = mock(IuOidcClaims.class);
-		when(claims.getSub()).thenReturn("some-other-sub");
-		when(claimsSource.claims(SUB)).thenReturn(claims);
+	void testASourceAnsweringNothingIsAServerFault() {
+		when(claimsSource.claims(eq(SUB), any())).thenReturn(null);
 		register(null, null, null);
 
-		final var result = endpoint.userinfo(accessToken("openid"), OidcUserinfoEndpointTest::render);
-		assertTrue(result.content().startsWith("{\"sub\":\"someone\""), result::content);
-	}
-
-	@Test
-	void testASourceHoldingNothingStillNamesTheSubject() {
-		when(claimsSource.claims(SUB)).thenReturn(null);
-		register(null, null, null);
-
-		final var result = endpoint.userinfo(accessToken("openid profile email"), OidcUserinfoEndpointTest::render);
-		assertEquals("{\"sub\":\"someone\",\"name\":null,\"email\":null}", result.content());
-	}
-
-	@Test
-	void testAClientRegisteringNothingGetsAPlainDocument() {
-		sourceHolds();
-		register(null, null, null);
-
-		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid"), OidcUserinfoEndpointTest::render));
+		final var token = accessToken("openid");
+		assertEquals("Missing claims for someone",
+				assertThrows(NullPointerException.class, () -> endpoint.userinfo(token)).getMessage());
 	}
 
 	@Test
@@ -234,7 +278,7 @@ public class OidcUserinfoEndpointTest {
 		final var token = OidcJose.sign(WebToken.builder().jti().iss(ISSUER).sub(SUB).aud(ISSUER).iat()
 				.exp(Instant.now().plus(Duration.ofMinutes(5L))).build().toString(), "at+jwt", issuerKey);
 
-		assertInstanceOf(Json.class, endpoint.userinfo(token, OidcUserinfoEndpointTest::render));
+		assertInstanceOf(Json.class, endpoint.userinfo(token));
 	}
 
 	@Test
@@ -242,7 +286,7 @@ public class OidcUserinfoEndpointTest {
 		sourceHolds();
 		when(clients.client(CLIENT_ID)).thenReturn(null);
 
-		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid"), OidcUserinfoEndpointTest::render));
+		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid")));
 	}
 
 	@Test
@@ -250,7 +294,7 @@ public class OidcUserinfoEndpointTest {
 		sourceHolds();
 		when(clients.client(CLIENT_ID)).thenThrow(new IllegalStateException("no such registration"));
 
-		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid"), OidcUserinfoEndpointTest::render));
+		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid")));
 	}
 
 	@Test
@@ -258,13 +302,11 @@ public class OidcUserinfoEndpointTest {
 		sourceHolds();
 		register(Algorithm.ES256, null, null);
 
-		final var result = assertInstanceOf(Jwt.class,
-				endpoint.userinfo(accessToken("openid email"), OidcUserinfoEndpointTest::render));
+		final var result = assertInstanceOf(Jwt.class, endpoint.userinfo(accessToken("openid email")));
 		assertEquals("application/jwt", result.contentType());
 
 		final var jws = WebSignedPayload.parse(result.content());
-		assertEquals("{\"sub\":\"someone\",\"name\":null,\"email\":\"someone@iu.edu\"}",
-				edu.iu.IuText.utf8(jws.getPayload()));
+		assertEquals(DOCUMENT, IuText.utf8(jws.getPayload()));
 		assertEquals("JWT", jws.getSignatures().iterator().next().getHeader().getType());
 		jws.verify(issuerKey);
 	}
@@ -275,15 +317,14 @@ public class OidcUserinfoEndpointTest {
 		final var clientKey = WebKey.builder(Algorithm.ECDH_ES).ephemeral().build();
 		register(null, Encryption.AES_128_CBC_HMAC_SHA_256, clientKey);
 
-		final var result = assertInstanceOf(Jwt.class,
-				endpoint.userinfo(accessToken("openid email"), OidcUserinfoEndpointTest::render));
+		final var result = assertInstanceOf(Jwt.class, endpoint.userinfo(accessToken("openid email")));
 
 		final var jwe = WebEncryption.parse(result.content());
 		// no cty: the plaintext is the claims, not a nested JOSE object
 		assertNull(jwe.getRecipients().iterator().next().getHeader().getContentType());
 
 		IuTestLogger.allow("iu.crypt", Level.FINE);
-		assertEquals("{\"sub\":\"someone\",\"name\":null,\"email\":\"someone@iu.edu\"}", jwe.decryptText(clientKey));
+		assertEquals(DOCUMENT, jwe.decryptText(clientKey));
 	}
 
 	@Test
@@ -292,16 +333,14 @@ public class OidcUserinfoEndpointTest {
 		final var clientKey = WebKey.builder(Algorithm.ECDH_ES).ephemeral().build();
 		register(Algorithm.ES256, Encryption.AES_128_CBC_HMAC_SHA_256, clientKey);
 
-		final var result = assertInstanceOf(Jwt.class,
-				endpoint.userinfo(accessToken("openid profile"), OidcUserinfoEndpointTest::render));
+		final var result = assertInstanceOf(Jwt.class, endpoint.userinfo(accessToken("openid profile")));
 
 		final var jwe = WebEncryption.parse(result.content());
 		assertEquals("JWT", jwe.getRecipients().iterator().next().getHeader().getContentType());
 
 		IuTestLogger.allow("iu.crypt", Level.FINE);
 		final var jws = WebSignedPayload.parse(jwe.decryptText(clientKey));
-		assertEquals("{\"sub\":\"someone\",\"name\":\"Some One\",\"email\":null}",
-				edu.iu.IuText.utf8(jws.getPayload()));
+		assertEquals(DOCUMENT, IuText.utf8(jws.getPayload()));
 		jws.verify(issuerKey);
 	}
 
@@ -311,26 +350,8 @@ public class OidcUserinfoEndpointTest {
 		register(null, Encryption.AES_128_CBC_HMAC_SHA_256, null);
 
 		final var token = accessToken("openid");
-		assertEquals("Missing userinfo encryption key for some-client", assertThrows(NullPointerException.class,
-				() -> endpoint.userinfo(token, OidcUserinfoEndpointTest::render)).getMessage());
-	}
-
-	@Test
-	void testTheSerializerIsCalledOnceOnWhatWasAdmitted() {
-		sourceHolds();
-		register(null, null, null);
-
-		final var calls = new int[1];
-		endpoint.userinfo(accessToken("openid email"), claims -> {
-			calls[0]++;
-			assertEquals(SUB, claims.getSub());
-			assertEquals("someone@iu.edu", claims.getEmail());
-			assertNull(claims.getName());
-			assertEquals(Set.of(), Set.of());
-			return "{}";
-		});
-
-		assertEquals(1, calls[0]);
+		assertEquals("Missing userinfo encryption key for some-client",
+				assertThrows(NullPointerException.class, () -> endpoint.userinfo(token)).getMessage());
 	}
 
 }

@@ -36,9 +36,11 @@ module iu.util.oidc.config {
 	exports edu.iu.oidc.config;
 	opens edu.iu.oidc.config;
 
-	requires iu.util;
+	requires transitive iu.util;
 	requires transitive iu.util.crypt;
+	requires transitive iu.util.jwt.api;
 	requires transitive iu.util.oidc;
 	requires transitive iu.util.pki;
+	requires transitive iu.util.session;
 
 }

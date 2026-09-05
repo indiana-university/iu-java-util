@@ -31,6 +31,8 @@
  */
 package edu.iu.oidc.config;
 
+import java.util.Set;
+
 import edu.iu.oidc.IuOidcClaims;
 
 /**
@@ -43,27 +45,52 @@ import edu.iu.oidc.IuOidcClaims;
  * answer came from. That keeps an identity service free of OpenID Connect
  * &mdash; it neither verifies tokens nor knows which relying party is asking
  * &mdash; while the provider keeps the parts that are its own: which claims a
- * grant's scope admits, and how what it publishes is signed and encrypted.
+ * grant's scope admits, whether what came back is who was asked about, and how
+ * what it publishes is signed and encrypted.
  * </p>
  *
+ * <h2>Who decides what is withheld</h2>
+ *
  * <p>
- * An implementation answers everything it knows about the principal and filters
- * nothing. The provider suppresses what a grant doesn't cover, and does so
- * deny-by-default, so a source that volunteers more than a relying party may
- * see does not thereby disclose it.
+ * Not this. A provider works out which claims a grant's scope admits &mdash;
+ * from the sets OpenID Connect defines, deny-by-default &mdash; and names them.
+ * An implementation answers those and no others, and never has to reason about
+ * scope or about which relying party is asking. A source that holds more than
+ * was named simply doesn't volunteer it.
  * </p>
  */
 public interface OidcClaimsSource {
 
 	/**
-	 * Gets the claims this source holds for one principal.
+	 * Gets the claims this source holds for one principal, limited to those the
+	 * provider named.
 	 *
-	 * @param principalName principal name, which the provider has already settled
-	 *                      from a verified grant
-	 * @return claims held for {@code principalName}; <em>should</em> answer the
-	 *         principal name back as {@link IuOidcClaims#getSub() sub}, though a
-	 *         provider binds that claim to the grant regardless
+	 * <p>
+	 * The answer is what a provider publishes, so
+	 * {@link Object#toString() toString()} <em>must</em> render it as the claims
+	 * document a UserInfo response carries &mdash; a deployment configures that
+	 * rendering for itself, and the provider signs and encrypts the result without
+	 * looking at it.
+	 * </p>
+	 *
+	 * <p>
+	 * {@link IuOidcClaims#getSub() sub} <em>must</em> answer {@code principalName}
+	 * back. A relying party matches it against the ID token it holds and refuses
+	 * the response when the two disagree, so a source that resolves a principal
+	 * name to some other form &mdash; a username for a numeric ID, say &mdash;
+	 * would break that comparison. A provider checks rather than trusting, and
+	 * refuses to publish claims about anyone else.
+	 * </p>
+	 *
+	 * @param principalName  principal name, which the provider has already settled
+	 *                       from a verified grant, and which is also the
+	 *                       {@code sub} the answer must carry
+	 * @param admittedClaims names of the claims the grant admits, {@code sub}
+	 *                       among them; anything else this source holds is not to
+	 *                       be answered
+	 * @return claims held for {@code principalName}, limited to
+	 *         {@code admittedClaims}, rendering as a claims document
 	 */
-	IuOidcClaims claims(String principalName);
+	IuOidcClaims claims(String principalName, Set<String> admittedClaims);
 
 }

@@ -32,14 +32,13 @@
 package iu.oidc.provider;
 
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.oidc.IuOidcClaims;
+import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.oidc.config.OidcClaimsSource;
 import edu.iu.oidc.config.OidcClientConfiguration;
-import edu.iu.oidc.config.OidcClientSource;
 
 /**
  * Answers the OpenID Connect UserInfo request.
@@ -62,25 +61,24 @@ import edu.iu.oidc.config.OidcClientSource;
  * </p>
  *
  * <p>
- * Rendering claims as JSON isn't here either. The caller passes a
- * {@code serializer}, which is called once, on the filtered claims. That keeps
- * this module free of any opinion about how a claim prints &mdash; including
- * the two that a general-purpose converter gets wrong, {@code updated_at} being
- * a NumericDate and {@code address} being nested. Signing covers exact bytes, so
- * the serialization has to happen before the crypto and after the filtering;
- * taking it as a function is what lets all three stay in one call while only
- * the middle one belongs to the caller.
+ * Rendering claims as JSON isn't here either. What a source answers renders
+ * itself, so this publishes {@link Object#toString() toString()} without
+ * looking at it &mdash; which keeps the module free of any opinion about how a
+ * claim prints, including the two a general-purpose converter gets wrong,
+ * {@code updated_at} being a NumericDate and {@code address} being nested.
  * </p>
  *
- * <h2>The subject is bound to the token</h2>
+ * <h2>The subject is checked against the token</h2>
  *
  * <p>
- * {@link IuOidcClaims#getSub() sub} is answered from the verified access token,
- * not from the claims source, whatever the source says. A relying party matches
- * it against the ID token it holds and refuses the response when the two
- * disagree, so a source that resolves a principal name to some other form
- * &mdash; a username for a numeric ID, say &mdash; must not be able to break
- * that comparison.
+ * A source is told which principal to answer about and <em>must</em> answer
+ * that principal's name back as {@link IuOidcClaims#getSub() sub}. This checks
+ * rather than trusting: a relying party matches {@code sub} against the ID
+ * token it holds and refuses the response when the two disagree, so a source
+ * that resolves a principal name to some other form &mdash; a username for a
+ * numeric ID, say &mdash; would break that comparison silently. Checking is all
+ * that is available now that the document renders itself; there is no longer a
+ * view in between to bind the claim from.
  * </p>
  */
 public class OidcUserinfoEndpoint {
@@ -90,22 +88,18 @@ public class OidcUserinfoEndpoint {
 	/** {@code typ} of a signed UserInfo response. */
 	private static final String TYPE = "JWT";
 
+	private final IuOidcProviderReference reference;
 	private final OidcIssuer issuer;
-	private final OidcClientSource clients;
-	private final OidcClaimsSource claimsSource;
 
 	/**
 	 * Creates a UserInfo endpoint.
 	 *
-	 * @param issuer       this provider's own identity and signing keys
-	 * @param clients      reads a relying party's registration, for how a response
-	 *                     to it is signed and encrypted
-	 * @param claimsSource holds what is known about an end user
+	 * @param reference application resources this provider's endpoints read
+	 *                  through
 	 */
-	public OidcUserinfoEndpoint(OidcIssuer issuer, OidcClientSource clients, OidcClaimsSource claimsSource) {
-		this.issuer = Objects.requireNonNull(issuer, "Missing issuer");
-		this.clients = Objects.requireNonNull(clients, "Missing client source");
-		this.claimsSource = Objects.requireNonNull(claimsSource, "Missing claims source");
+	public OidcUserinfoEndpoint(IuOidcProviderReference reference) {
+		this.reference = Objects.requireNonNull(reference, "Missing provider reference");
+		this.issuer = new OidcIssuer(reference::getConfiguration);
 	}
 
 	/**
@@ -113,28 +107,35 @@ public class OidcUserinfoEndpoint {
 	 *
 	 * @param accessToken bearer token presented, as the transport read it out of
 	 *                    the {@code Authorization} header
-	 * @param serializer  renders the admitted claims; called exactly once, and only
-	 *                    once the token has been verified
 	 * @return the response, and what to call it
-	 * @throws SecurityException    if the access token can't be verified, or its
-	 *                              registered claims don't hold; a caller answers
-	 *                              {@code invalid_token}
-	 * @throws NullPointerException if this provider or the client is configured for
-	 *                              something it hasn't supplied a key for
+	 * @throws SecurityException     if the access token can't be verified, or its
+	 *                               registered claims don't hold; a caller answers
+	 *                               {@code invalid_token}
+	 * @throws IllegalStateException if the claims source answers about somebody
+	 *                               other than the principal it was asked about
+	 * @throws NullPointerException  if this provider or the client is configured
+	 *                               for something it hasn't supplied a key for, or
+	 *                               the claims source answers nothing
 	 */
-	public OidcUserinfoResult userinfo(String accessToken, Function<IuOidcClaims, String> serializer) {
+	public OidcUserinfoResult userinfo(String accessToken) {
 		final var authorization = OidcTokenAuthorization.verify(accessToken, issuer.configuration(), issuer.issuer());
 
 		final var sub = authorization.getSubject();
 		final var scope = authorization.getScope();
 
-		final var claims = new OidcScopedClaims(sub, claimsSource.claims(sub), scope);
-		final var serialized = serializer.apply(claims);
+		final var claims = Objects.requireNonNull(
+				reference.getClaimsSource().claims(sub, OidcClaimScopes.admitted(scope)), "Missing claims for " + sub);
+
+		// checked rather than trusted: a relying party refuses a response whose sub
+		// disagrees with the ID token it holds, and publishing claims about somebody
+		// else would be worse than answering nothing
+		if (!sub.equals(claims.getSub()))
+			throw new IllegalStateException("Claims source answered for " + claims.getSub() + " rather than " + sub);
 
 		final var clientId = authorization.getClientId();
 		LOG.info(() -> "userinfo:" + clientId + ":" + sub + " " + scope);
 
-		return secure(serialized, client(clientId));
+		return secure(claims.toString(), client(clientId));
 	}
 
 	/**
@@ -157,7 +158,7 @@ public class OidcUserinfoEndpoint {
 			return null;
 
 		try {
-			return clients.client(clientId);
+			return reference.getClientSource().client(clientId);
 		} catch (Exception e) {
 			LOG.log(Level.INFO, e, () -> "userinfo-unregistered-client:" + clientId);
 			return null;

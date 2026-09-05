@@ -48,17 +48,16 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
+import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.oidc.config.OidcAuthenticatedPrincipal;
 import edu.iu.oidc.config.OidcClientConfiguration;
 import edu.iu.oidc.config.OidcClientEndpoint;
 import edu.iu.oidc.config.OidcClientResource;
-import edu.iu.oidc.config.OidcClientSource;
 import edu.iu.session.IuSessionHandler;
 
 /**
@@ -91,10 +90,10 @@ import edu.iu.session.IuSessionHandler;
  * </p>
  *
  * <p>
- * The principal arrives as a {@link Supplier} rather than a value, so it is
- * looked up only once the request is worth looking one up for &mdash; a request
- * naming an unregistered client is refused without ever asking who the end user
- * is.
+ * Who the end user is comes from the
+ * {@link IuOidcProviderReference reference}, and is asked for only once the
+ * request is worth asking about &mdash; one naming an unregistered client is
+ * refused without ever consulting it.
  * </p>
  *
  * <h2>Granted scope</h2>
@@ -145,6 +144,9 @@ public class OidcAuthorizeEndpoint {
 	/** The only {@code code_challenge_method} this provider accepts. */
 	private static final String S256 = "S256";
 
+	/** Error a client hears when its {@code authorization_details} are refused. */
+	private static final String INVALID_AUTHORIZATION_DETAILS = "invalid_authorization_details";
+
 	/**
 	 * Names an OAuth 2.0 error to relay to the client's redirect URI.
 	 *
@@ -165,56 +167,52 @@ public class OidcAuthorizeEndpoint {
 		}
 	}
 
+	private final IuOidcProviderReference reference;
 	private final OidcIssuer issuer;
-	private final OidcClientSource clients;
 	private final IuSessionHandler sessionHandler;
 	private final GrantStore grantStore;
 
 	/**
 	 * Creates an authorization endpoint.
 	 *
-	 * @param issuer         this provider's own identity and signing keys
-	 * @param clients        reads a relying party's registration
-	 * @param sessionHandler holds the validated request across the round trip to
-	 *                       the identity provider; <em>must</em> be a handler of
-	 *                       its own, since a handler shared with the
-	 *                       authentication mechanism would have each overwrite the
-	 *                       other's cookie
-	 * @param grantStore     hands the completed grant to the token endpoint
+	 * <p>
+	 * The session handler and data store are read once, here, since an endpoint
+	 * cannot usefully outlive either. Everything else is read per request, so a
+	 * configuration change takes effect on the next one.
+	 * </p>
+	 *
+	 * @param reference application resources this provider's endpoints read through
 	 */
-	public OidcAuthorizeEndpoint(OidcIssuer issuer, OidcClientSource clients, IuSessionHandler sessionHandler,
-			GrantStore grantStore) {
-		this.issuer = Objects.requireNonNull(issuer, "Missing issuer");
-		this.clients = Objects.requireNonNull(clients, "Missing client source");
-		this.sessionHandler = Objects.requireNonNull(sessionHandler, "Missing session handler");
-		this.grantStore = Objects.requireNonNull(grantStore, "Missing grant store");
+	public OidcAuthorizeEndpoint(IuOidcProviderReference reference) {
+		this.reference = Objects.requireNonNull(reference, "Missing provider reference");
+		this.issuer = new OidcIssuer(reference::getConfiguration);
+		this.sessionHandler = reference.getSessionHandler();
+		this.grantStore = new GrantStore(reference.getDataStore());
 	}
 
 	/**
 	 * Answers an authorization request, or resumes one the identity provider has
 	 * returned from.
 	 *
-	 * @param request   incoming request
-	 * @param principal supplies the principal the identity provider has
-	 *                  established, answering {@code null} when it has established
-	 *                  none. The supplier itself is required; it is
-	 *                  <em>the value it supplies</em> that may be absent, which is
-	 *                  the ordinary first pass rather than a failure. Consulted at
-	 *                  most once, and only once a request is worth consulting it
-	 *                  for
+	 * <p>
+	 * Who the end user is comes from
+	 * {@link IuOidcProviderReference#getAuthenticatedPrincipal(edu.iu.IuRequestAttributes)},
+	 * and is asked for at most once &mdash; only once a request is worth asking
+	 * about, so one naming an unregistered client is refused without ever
+	 * consulting it.
+	 * </p>
+	 *
+	 * @param request incoming request
 	 * @return what the request came to
 	 * @throws IuBadRequestException if the request names no verified client and
 	 *                               redirect URI to relay an error to
-	 * @throws NullPointerException  if {@code principal} is null
 	 */
-	public OidcAuthorizeResult authorize(OidcAuthorizeRequest request, Supplier<OidcAuthenticatedPrincipal> principal) {
-		Objects.requireNonNull(principal, "Missing principal supplier");
-
+	public OidcAuthorizeResult authorize(OidcAuthorizeRequest request) {
 		// The return target carries no parameters, so their absence is what marks a
 		// request as the second pass of one already validated.
 		final var clientId = request.getClientId();
 		if (clientId == null)
-			return resume(request, principal);
+			return resume(request);
 
 		// A bad client_id or redirect_uri can't be relayed to the client: there is no
 		// URI yet that this provider has agreed to send a user agent to.
@@ -235,7 +233,7 @@ public class OidcAuthorizeEndpoint {
 
 		final var state = request.getState();
 		try {
-			return grant(request, principal, clientId, endpoint, state);
+			return grant(request, clientId, endpoint, state);
 		} catch (AuthorizationError e) {
 			LOG.log(Level.INFO, e, () -> "authorize-error:" + e.error + ":" + clientId);
 			return new OidcAuthorizeResult.Redirect(
@@ -254,7 +252,7 @@ public class OidcAuthorizeEndpoint {
 	private OidcClientConfiguration client(String clientId) {
 		final OidcClientConfiguration client;
 		try {
-			client = clients.client(clientId);
+			client = reference.getClientSource().client(clientId);
 		} catch (Exception e) {
 			LOG.log(Level.INFO, e, () -> "authorize-deny:unregistered-client:" + clientId);
 			throw deny("invalid_client", "Unregistered client_id");
@@ -281,8 +279,8 @@ public class OidcAuthorizeEndpoint {
 	 * @return what the request came to
 	 * @throws AuthorizationError if the request is invalid
 	 */
-	private OidcAuthorizeResult grant(OidcAuthorizeRequest request, Supplier<OidcAuthenticatedPrincipal> principal,
-			String clientId, OidcClientEndpoint endpoint, String state) {
+	private OidcAuthorizeResult grant(OidcAuthorizeRequest request, String clientId, OidcClientEndpoint endpoint,
+			String state) {
 
 		final var responseType = request.getResponseType();
 		if (responseType == null)
@@ -320,6 +318,7 @@ public class OidcAuthorizeEndpoint {
 		final var session = sessionHandler.create();
 		final var pending = session.getDetail(OidcGrant.class);
 		pending.setImpersonatedPrincipalName(request.getImpersonatedPrincipal());
+		pending.setRequestedAuthorizationDetails(request.getAuthorizationDetails());
 		pending.setClientId(clientId);
 		pending.setRedirectUri(endpoint.getRedirectUri());
 		pending.setScope(scope);
@@ -328,7 +327,7 @@ public class OidcAuthorizeEndpoint {
 		pending.setNonce(request.getNonce());
 		pending.setCodeChallenge(codeChallenge);
 
-		final var authenticated = authenticated(principal);
+		final var authenticated = authenticated(request);
 		if (authenticated != null) {
 			final var expires = authenticated.getExpires();
 			if (expires == null || expires.isBefore(Instant.now()))
@@ -429,7 +428,7 @@ public class OidcAuthorizeEndpoint {
 	 * @throws IuBadRequestException if no request was recorded, or the identity
 	 *                               provider established no principal
 	 */
-	private OidcAuthorizeResult resume(OidcAuthorizeRequest request, Supplier<OidcAuthenticatedPrincipal> principal) {
+	private OidcAuthorizeResult resume(OidcAuthorizeRequest request) {
 		final var cookies = request.getCookies();
 		final var session = sessionHandler.activate(cookies);
 		final var pending = session == null ? null : session.getDetail(OidcGrant.class);
@@ -441,7 +440,7 @@ public class OidcAuthorizeEndpoint {
 
 		sessionHandler.remove(cookies);
 
-		final var authenticated = authenticated(principal);
+		final var authenticated = authenticated(request);
 		if (authenticated == null) {
 			LOG.info(() -> "authorize-deny:unauthenticated:" + pending.getClientId());
 			throw deny("login_required", "User is not authenticated");
@@ -460,9 +459,22 @@ public class OidcAuthorizeEndpoint {
 	 * no cookie, and no session left behind for a replayed request to resume.
 	 * </p>
 	 *
+	 * <p>
+	 * How an {@link OidcAuthorizationDetailsSource} fails decides who hears about
+	 * it. {@link IuBadRequestException} says the client asked for something
+	 * malformed, which the client can act on, so it is relayed to the redirect URI
+	 * as {@value #INVALID_AUTHORIZATION_DETAILS}. Every other failure propagates
+	 * untouched, and a caller's error boundary answers the user agent by type
+	 * &mdash; {@link edu.iu.IuAuthorizationFailedException} forbidden,
+	 * {@link edu.iu.IuOutOfServiceException} unavailable, anything else a server
+	 * error. Redirecting those to the client would tell it a decision was made
+	 * when none was.
+	 * </p>
+	 *
 	 * @param grant     validated request, completed here
 	 * @param principal authenticated principal
-	 * @return redirect to the client
+	 * @return redirect to the client, carrying a code or
+	 *         {@value #INVALID_AUTHORIZATION_DETAILS}
 	 */
 	private OidcAuthorizeResult issue(OidcGrant grant, OidcAuthenticatedPrincipal principal) {
 		final var clientId = grant.getClientId();
@@ -472,6 +484,20 @@ public class OidcAuthorizeEndpoint {
 		grant.setPrincipalName(principalName);
 		grant.setAuthnAuthority(principal.getAuthnAuthority());
 		grant.setAuthnInstant(principal.getAuthnInstant());
+
+		// decided here, not at redemption: the end user is known now, and a client
+		// redeeming this grant -- or a refresh token descending from it -- should read
+		// a decision already made rather than one remade on every redemption
+		try {
+			grant.setReleasedAuthorizationDetails(
+					reference.getAuthorizationDetailsSource().authorize(grant.getRequestedAuthorizationDetails(), principalName));
+		} catch (IuBadRequestException e) {
+			// the one failure the client can do something about, so the only one it hears
+			// about; everything else reaches the caller's error boundary as a status
+			LOG.log(Level.INFO, e, () -> "authorize-error:" + INVALID_AUTHORIZATION_DETAILS + ":" + clientId);
+			return new OidcAuthorizeResult.Redirect(
+					errorUri(redirectUri, INVALID_AUTHORIZATION_DETAILS, e.getMessage(), grant.getState()));
+		}
 
 		final var code = grantStore.put(GrantStore.CODE, issuer.issuer(), issuer.issuerKey(),
 				issuer.configuration().getAuthorizationCodeTimeToLive(), grant);
@@ -501,20 +527,21 @@ public class OidcAuthorizeEndpoint {
 	 * </p>
 	 *
 	 * <p>
-	 * What this deliberately does <em>not</em> absorb is a missing supplier, which
-	 * {@link #authorize} rejects outright: a caller that passes none has made a
-	 * programming error, and swallowing its {@link NullPointerException} here would
-	 * report that as an ordinary unauthenticated request and send every end user to
-	 * authenticate forever.
+	 * A deployment binding no authentication at all reads the same way, since
+	 * {@link IuOidcProviderReference#getAuthenticatedPrincipal} defaults to
+	 * answering {@code null}. That is the one case worth knowing about: it sends
+	 * every end user off to authenticate and never recognizes any of them coming
+	 * back, so a provider that redirects in a loop has a missing binding rather
+	 * than a broken flow.
 	 * </p>
 	 *
-	 * @param principal supplies the established principal
+	 * @param request incoming request, which is how a session is found
 	 * @return {@link OidcAuthenticatedPrincipal}, or {@code null} if not
 	 *         authenticated
 	 */
-	private static OidcAuthenticatedPrincipal authenticated(Supplier<OidcAuthenticatedPrincipal> principal) {
+	private OidcAuthenticatedPrincipal authenticated(OidcAuthorizeRequest request) {
 		try {
-			return principal.get();
+			return reference.getAuthenticatedPrincipal(request);
 		} catch (Exception e) {
 			LOG.log(Level.FINE, e, () -> "no established principal");
 			return null;

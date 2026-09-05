@@ -78,6 +78,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -225,6 +227,64 @@ public class IuJsonAdapterTest {
 				.addNull() //
 				.build(), json);
 		assertNull(adapter.fromJson(json).get(1));
+	}
+
+	/** Declares the two forms that name a bound rather than a type. */
+	public interface BoundedBean<T extends CharSequence> {
+
+		/** @return items typed by a wildcard over a JavaBean */
+		Iterable<? extends BeanClass> getBeans();
+
+		/** @return items typed by a wildcard the factory knows by name */
+		Iterable<? extends CharSequence> getNames();
+
+		/** @return items typed by a variable */
+		Iterable<T> getVariable();
+	}
+
+	private static Type itemsOf(String property) throws Exception {
+		return BoundedBean.class.getMethod(property).getGenericReturnType();
+	}
+
+	@Test
+	public void testWildcardOverAJavaBeanAdaptsAsItsBound() throws Exception {
+		// the caller's function is what knows a bound converts as a JavaBean, so
+		// resolving a wildcard has to go back out through it
+		final var bean = new BeanClass();
+		bean.setId(IdGenerator.generateId());
+
+		final IuJsonAdapter<Iterable<BeanClass>> adapter = IuJsonAdapter.of(itemsOf("getBeans"),
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.IDENTITY));
+
+		assertEquals(IuJson.array().add(IuJson.object().add("id", bean.getId())).build(),
+				adapter.toJson(List.of(bean)).asJsonArray());
+	}
+
+	@Test
+	public void testAWildcardResolvesThroughTheCallersAdapter() throws Exception {
+		// the bound alone, rather than an Iterable over it: whether a bound converts
+		// as a JavaBean is the caller's to decide, so resolution goes back out to it
+		final var wildcard = ((ParameterizedType) itemsOf("getBeans")).getActualTypeArguments()[0];
+
+		final var bean = new BeanClass();
+		bean.setId(IdGenerator.generateId());
+
+		final IuJsonAdapter<BeanClass> adapter = IuJsonAdapter.of(wildcard,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.IDENTITY));
+
+		assertEquals(IuJson.object().add("id", bean.getId()).build(), adapter.toJson(bean).asJsonObject());
+	}
+
+	@Test
+	public void testWildcardOverAKnownTypeAdaptsAsItsBound() throws Exception {
+		final IuJsonAdapter<Iterable<CharSequence>> adapter = IuJsonAdapter.of(itemsOf("getNames"));
+		assertEquals(IuJson.array().add("a").build(), adapter.toJson(List.of("a")).asJsonArray());
+	}
+
+	@Test
+	public void testATypeVariableAdaptsAsItsBound() throws Exception {
+		final IuJsonAdapter<Iterable<CharSequence>> adapter = IuJsonAdapter.of(itemsOf("getVariable"));
+		assertEquals(IuJson.array().add("b").build(), adapter.toJson(List.of("b")).asJsonArray());
 	}
 
 	@Test

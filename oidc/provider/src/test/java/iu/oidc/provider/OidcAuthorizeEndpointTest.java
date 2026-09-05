@@ -34,9 +34,14 @@ package iu.oidc.provider;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -50,16 +55,24 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
+import edu.iu.IuAuthorizationFailedException;
 import edu.iu.IuBadRequestException;
+import edu.iu.IuDataStore;
 import edu.iu.IuIterable;
+import edu.iu.IuOutOfServiceException;
 import edu.iu.crypt.WebKey;
+import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.jwt.IuAuthorizationDetails;
+import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.oidc.config.OidcAuthenticatedPrincipal;
+import edu.iu.oidc.config.OidcAuthorizationDetailsSource;
 import edu.iu.oidc.config.OidcClientConfiguration;
 import edu.iu.oidc.config.OidcClientEndpoint;
 import edu.iu.oidc.config.OidcClientResource;
@@ -80,6 +93,12 @@ public class OidcAuthorizeEndpointTest {
 	private static final String CLIENT_ID = "some-client";
 	private static final String CODE = "the-code";
 
+	/** What a client asked for; the module reads nothing but the type. */
+	private static final Iterable<? extends IuAuthorizationDetails> REQUESTED_DETAILS = List.of(() -> "record");
+
+	/** Distinct, so releasing is visibly not echoing. */
+	private static final Iterable<? extends IuAuthorizationDetails> RELEASED_DETAILS = List.of(() -> "record-readonly");
+
 	/** Mutable grant, standing in for what a session handler proxies. */
 	private static final class Grant implements OidcGrant {
 		private String principalName;
@@ -93,6 +112,8 @@ public class OidcAuthorizeEndpointTest {
 		private String state;
 		private String nonce;
 		private String codeChallenge;
+		private Iterable<? extends IuAuthorizationDetails> requestedAuthorizationDetails;
+		private Iterable<? extends IuAuthorizationDetails> releasedAuthorizationDetails;
 
 		@Override
 		public String getPrincipalName() {
@@ -203,12 +224,38 @@ public class OidcAuthorizeEndpointTest {
 		public void setCodeChallenge(String codeChallenge) {
 			this.codeChallenge = codeChallenge;
 		}
+
+		@Override
+		public Iterable<? extends IuAuthorizationDetails> getRequestedAuthorizationDetails() {
+			return requestedAuthorizationDetails;
+		}
+
+		@Override
+		public void setRequestedAuthorizationDetails(Iterable<? extends IuAuthorizationDetails> requestedAuthorizationDetails) {
+			this.requestedAuthorizationDetails = requestedAuthorizationDetails;
+		}
+
+		@Override
+		public Iterable<? extends IuAuthorizationDetails> getReleasedAuthorizationDetails() {
+			return releasedAuthorizationDetails;
+		}
+
+		@Override
+		public void setReleasedAuthorizationDetails(Iterable<? extends IuAuthorizationDetails> releasedAuthorizationDetails) {
+			this.releasedAuthorizationDetails = releasedAuthorizationDetails;
+		}
 	}
 
-	private final OidcIssuer issuer = mock(OidcIssuer.class);
+	static {
+		edu.iu.crypt.Init.init();
+		iu.jwt.spi.Init.init();
+	}
+
+	private final IuOidcProviderReference reference = mock(IuOidcProviderReference.class);
 	private final OidcClientSource clients = mock(OidcClientSource.class);
 	private final IuSessionHandler sessionHandler = mock(IuSessionHandler.class);
-	private final GrantStore grantStore = mock(GrantStore.class);
+	private final IuDataStore dataStore = mock(IuDataStore.class);
+	private final OidcAuthorizationDetailsSource authorizationDetails = mock(OidcAuthorizationDetailsSource.class);
 	private final IuSession session = mock(IuSession.class);
 	private final Grant grant = new Grant();
 
@@ -219,24 +266,53 @@ public class OidcAuthorizeEndpointTest {
 		IuTestLogger.allow(OidcAuthorizeEndpoint.class.getName(), Level.INFO);
 		IuTestLogger.allow(OidcAuthorizeEndpoint.class.getName(), Level.FINE);
 
-		when(issuer.issuer()).thenReturn(ISSUER);
-		when(issuer.endpointUri(OidcProviderMetadata.AUTHORIZE_PATH))
-				.thenReturn(URI.create("https://example.iu.edu/oidc/authorize"));
+		// the issuer and grant store are built inside the endpoint now, so the
+		// configuration has to carry a key that can really sign
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getIssuer()).thenReturn(ISSUER);
 
-		final var configuration = mock(OidcProviderConfiguration.class);
-		when(configuration.getAuthorizationCodeTimeToLive()).thenReturn(Duration.ofMinutes(1L));
-		when(issuer.configuration()).thenReturn(configuration);
-		when(issuer.issuerKey()).thenReturn(mock(WebKey.class));
+		final var issuerKey = WebKey.builder(Algorithm.ES256).keyId(IdGenerator.generateId()).ephemeral().build();
+		final var configuration = new OidcProviderConfiguration() {
+
+			@Override
+			public IuOidcProviderMetadata getMetadata() {
+				return metadata;
+			}
+
+			@Override
+			public Iterable<WebKey> getJwks() {
+				return List.of(issuerKey);
+			}
+
+			@Override
+			public Duration getAuthorizationCodeTimeToLive() {
+				return Duration.ofMinutes(1L);
+			}
+		};
 
 		when(session.getDetail(OidcGrant.class)).thenReturn(grant);
 		when(sessionHandler.create()).thenReturn(session);
 		when(sessionHandler.store(session)).thenReturn("oidc=abc; HttpOnly");
 
-		when(grantStore.put(org.mockito.ArgumentMatchers.eq(GrantStore.CODE), org.mockito.ArgumentMatchers.any(),
-				org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-				org.mockito.ArgumentMatchers.any())).thenReturn(CODE);
+		when(reference.getConfiguration()).thenReturn(configuration);
+		when(reference.getClientSource()).thenReturn(clients);
+		when(reference.getSessionHandler()).thenReturn(sessionHandler);
+		when(reference.getDataStore()).thenReturn(dataStore);
+		when(reference.getAuthorizationDetailsSource()).thenReturn(authorizationDetails);
 
-		endpoint = new OidcAuthorizeEndpoint(issuer, clients, sessionHandler, grantStore);
+		endpoint = new OidcAuthorizeEndpoint(reference);
+	}
+
+	/**
+	 * Binds the principal the reference reports, then answers the request.
+	 *
+	 * @param request   incoming request
+	 * @param principal established principal; null when nobody is signed in
+	 * @return what the request came to
+	 */
+	private OidcAuthorizeResult authorize(OidcAuthorizeRequest request, OidcAuthenticatedPrincipal principal) {
+		when(reference.getAuthenticatedPrincipal(any())).thenReturn(principal);
+		return endpoint.authorize(request);
 	}
 
 	/** Answers a resource entry; a null URI names this provider's own issuer. */
@@ -287,17 +363,25 @@ public class OidcAuthorizeEndpointTest {
 		return request;
 	}
 
-	private static Supplier<OidcAuthenticatedPrincipal> authenticated(Instant expires) {
+	private static OidcAuthenticatedPrincipal authenticated(Instant expires) {
 		final var principal = mock(OidcAuthenticatedPrincipal.class);
 		when(principal.getName()).thenReturn("someone");
 		when(principal.getAuthnAuthority()).thenReturn("https://idp.iu.edu");
 		when(principal.getAuthnInstant()).thenReturn(Instant.now().minusSeconds(30L));
 		when(principal.getExpires()).thenReturn(expires);
-		return () -> principal;
+		return principal;
 	}
 
-	private static Supplier<OidcAuthenticatedPrincipal> unauthenticated() {
-		return () -> null;
+	private static OidcAuthenticatedPrincipal unauthenticated() {
+		return null;
+	}
+
+	/** Asserts a code redirect, and answers the code it carries. */
+	private String issuedCode(OidcAuthorizeResult result) {
+		final var query = redirectQuery(result);
+		assertTrue(query.startsWith("code="), query);
+		final var end = query.indexOf('&');
+		return end < 0 ? query.substring(5) : query.substring(5, end);
 	}
 
 	/** Asserts a redirect to the client, and answers its query string. */
@@ -308,24 +392,9 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testEveryCollaboratorIsRequired() {
-		assertEquals("Missing issuer", assertThrows(NullPointerException.class,
-				() -> new OidcAuthorizeEndpoint(null, clients, sessionHandler, grantStore)).getMessage());
-		assertEquals("Missing client source", assertThrows(NullPointerException.class,
-				() -> new OidcAuthorizeEndpoint(issuer, null, sessionHandler, grantStore)).getMessage());
-		assertEquals("Missing session handler", assertThrows(NullPointerException.class,
-				() -> new OidcAuthorizeEndpoint(issuer, clients, null, grantStore)).getMessage());
-		assertEquals("Missing grant store", assertThrows(NullPointerException.class,
-				() -> new OidcAuthorizeEndpoint(issuer, clients, sessionHandler, null)).getMessage());
-	}
-
-	@Test
-	void testAPrincipalSupplierIsRequired() {
-		// a caller that passes none has made a programming error; absorbing it would
-		// read as an ordinary unauthenticated request and never stop redirecting
-		final var request = request();
-		assertEquals("Missing principal supplier",
-				assertThrows(NullPointerException.class, () -> endpoint.authorize(request, null)).getMessage());
+	void testTheReferenceIsRequired() {
+		assertEquals("Missing provider reference",
+				assertThrows(NullPointerException.class, () -> new OidcAuthorizeEndpoint(null)).getMessage());
 	}
 
 	@Test
@@ -335,7 +404,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 		final var principal = unauthenticated();
 		assertEquals("invalid_client; Unregistered client_id",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 	}
 
 	@Test
@@ -345,7 +414,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 		final var principal = unauthenticated();
 		assertEquals("invalid_client; Unregistered client_id",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 	}
 
 	@Test
@@ -357,7 +426,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 		final var principal = unauthenticated();
 		assertEquals("invalid_client; Unregistered client_id",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 	}
 
 	@Test
@@ -369,7 +438,7 @@ public class OidcAuthorizeEndpointTest {
 
 		final var principal = unauthenticated();
 		assertEquals("invalid_request; Unregistered redirect_uri",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 	}
 
 	@Test
@@ -377,15 +446,9 @@ public class OidcAuthorizeEndpointTest {
 		// a request naming an unregistered client is refused without ever asking
 		when(clients.client(CLIENT_ID)).thenReturn(null);
 
-		final var consulted = new int[1];
-		final Supplier<OidcAuthenticatedPrincipal> principal = () -> {
-			consulted[0]++;
-			return null;
-		};
-
 		final var request = request();
-		assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal));
-		assertEquals(0, consulted[0]);
+		assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request));
+		verify(reference, never()).getAuthenticatedPrincipal(any());
 	}
 
 	@Test
@@ -395,7 +458,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getResponseType()).thenReturn(null);
 
 		assertEquals("error=invalid_request&error_description=Missing+response_type",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -406,7 +469,7 @@ public class OidcAuthorizeEndpointTest {
 
 		assertEquals(
 				"error=unsupported_response_type&error_description=Only+the+code+response_type+is+supported",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -417,7 +480,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getState()).thenReturn("s1");
 
 		assertEquals("error=invalid_request&error_description=Missing+response_type&state=s1",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -426,7 +489,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 
 		assertEquals("error=invalid_scope&error_description=No+resource+is+registered+for+the+requested+scope",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -436,7 +499,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getScope()).thenReturn("openid admin");
 
 		assertEquals("error=invalid_scope&error_description=Scope+admin+is+not+granted+to+this+client",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -446,7 +509,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getResource()).thenReturn(List.of("/relative"));
 
 		assertEquals("error=invalid_target&error_description=Malformed+resource+parameter",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -456,7 +519,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getResource()).thenReturn(Arrays.asList((String) null));
 
 		assertEquals("error=invalid_target&error_description=Malformed+resource+parameter",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -466,7 +529,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getResource()).thenReturn(List.of(EXTERNAL.toString()));
 
 		assertEquals("error=invalid_target&error_description=Unregistered+resource+" + EXTERNAL,
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -475,7 +538,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 		when(request.getResource()).thenReturn(List.of(EXTERNAL.toString(), EXTERNAL.toString()));
 
-		endpoint.authorize(request, authenticated(Instant.now().plusSeconds(60L)));
+		authorize(request, authenticated(Instant.now().plusSeconds(60L)));
 		assertArrayEquals(new String[] { EXTERNAL.toString() }, grant.getResource());
 	}
 
@@ -487,7 +550,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getCodeChallengeMethod()).thenReturn("plain");
 
 		assertEquals("error=invalid_request&error_description=Only+the+S256+code_challenge_method+is+supported",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -497,7 +560,7 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getCodeChallengeMethod()).thenReturn("S256");
 
 		assertEquals("error=invalid_request&error_description=Missing+code_challenge",
-				redirectQuery(endpoint.authorize(request, unauthenticated())));
+				redirectQuery(authorize(request, unauthenticated())));
 	}
 
 	@Test
@@ -507,11 +570,12 @@ public class OidcAuthorizeEndpointTest {
 		when(request.getNonce()).thenReturn("n1");
 		when(request.getState()).thenReturn("s1");
 		when(request.getImpersonatedPrincipal()).thenReturn("someone-else");
+		doReturn(REQUESTED_DETAILS).when(request).getAuthorizationDetails();
 		when(request.getCodeChallenge()).thenReturn("abc");
 		when(request.getCodeChallengeMethod()).thenReturn("S256");
 
 		final var result = assertInstanceOf(AuthenticationRequired.class,
-				endpoint.authorize(request, unauthenticated()));
+				authorize(request, unauthenticated()));
 		assertEquals("oidc=abc; HttpOnly", result.setCookie());
 		assertEquals(URI.create("https://example.iu.edu/oidc/authorize"), result.returnUri());
 
@@ -525,6 +589,11 @@ public class OidcAuthorizeEndpointTest {
 		assertEquals("abc", grant.getCodeChallenge());
 		assertEquals("someone-else", grant.getImpersonatedPrincipalName());
 
+		// recorded before the end user is known, since a client states what it wants
+		// without waiting to find out who is asking
+		assertSame(REQUESTED_DETAILS, grant.getRequestedAuthorizationDetails());
+		assertNull(grant.getReleasedAuthorizationDetails());
+
 		// the end user comes back on a request this provider never issued
 		verify(session).setStrict(false);
 	}
@@ -534,9 +603,8 @@ public class OidcAuthorizeEndpointTest {
 		register();
 		final var request = request();
 
-		assertInstanceOf(AuthenticationRequired.class, endpoint.authorize(request, () -> {
-			throw new IllegalStateException("no session");
-		}));
+		when(reference.getAuthenticatedPrincipal(any())).thenThrow(new IllegalStateException("no session"));
+		assertInstanceOf(AuthenticationRequired.class, endpoint.authorize(request));
 	}
 
 	@Test
@@ -545,7 +613,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 
 		assertInstanceOf(AuthenticationRequired.class,
-				endpoint.authorize(request, authenticated(Instant.now().minusSeconds(1L))));
+				authorize(request, authenticated(Instant.now().minusSeconds(1L))));
 	}
 
 	@Test
@@ -553,7 +621,7 @@ public class OidcAuthorizeEndpointTest {
 		register();
 		final var request = request();
 
-		assertInstanceOf(AuthenticationRequired.class, endpoint.authorize(request, authenticated(null)));
+		assertInstanceOf(AuthenticationRequired.class, authorize(request, authenticated(null)));
 	}
 
 	@Test
@@ -561,7 +629,7 @@ public class OidcAuthorizeEndpointTest {
 		register();
 		final var request = request();
 
-		assertEquals("code=" + CODE, redirectQuery(endpoint.authorize(request, authenticated(Instant.now().plusSeconds(60L)))));
+		assertNotNull(issuedCode(authorize(request, authenticated(Instant.now().plusSeconds(60L)))));
 
 		assertEquals("someone", grant.getPrincipalName());
 		assertEquals("https://idp.iu.edu", grant.getAuthnAuthority());
@@ -576,8 +644,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = request();
 		when(request.getState()).thenReturn("s1");
 
-		assertEquals("code=" + CODE + "&state=s1",
-				redirectQuery(endpoint.authorize(request, authenticated(Instant.now().plusSeconds(60L)))));
+		assertTrue(redirectQuery(authorize(request, authenticated(Instant.now().plusSeconds(60L)))).endsWith("&state=s1"));
 	}
 
 	@Test
@@ -588,8 +655,7 @@ public class OidcAuthorizeEndpointTest {
 		when(sessionHandler.activate(org.mockito.ArgumentMatchers.any())).thenReturn(session);
 
 		final var request = resumption();
-		assertEquals("code=" + CODE + "&state=s1",
-				redirectQuery(endpoint.authorize(request, authenticated(Instant.now().plusSeconds(60L)))));
+		assertTrue(redirectQuery(authorize(request, authenticated(Instant.now().plusSeconds(60L)))).endsWith("&state=s1"));
 
 		// good for exactly one return, so a replay finds nothing to resume
 		verify(sessionHandler).remove(request.getCookies());
@@ -602,7 +668,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = resumption();
 		final var principal = authenticated(Instant.now().plusSeconds(60L));
 		assertEquals("invalid_request; Missing client_id request parameter",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 	}
 
 	@Test
@@ -612,7 +678,7 @@ public class OidcAuthorizeEndpointTest {
 		final var request = resumption();
 		final var principal = authenticated(Instant.now().plusSeconds(60L));
 		assertEquals("invalid_request; Missing client_id request parameter",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 	}
 
 	@Test
@@ -623,21 +689,135 @@ public class OidcAuthorizeEndpointTest {
 		final var request = resumption();
 		final var principal = unauthenticated();
 		assertEquals("login_required; User is not authenticated",
-				assertThrows(IuBadRequestException.class, () -> endpoint.authorize(request, principal)).getMessage());
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
 
 		// spent before a principal was even looked for
 		verify(sessionHandler).remove(request.getCookies());
 	}
 
 	@Test
+	void testAuthorizationDetailsAreReleasedAgainstTheAuthenticatedPrincipal() {
+		register();
+		final var request = request();
+		doReturn(REQUESTED_DETAILS).when(request).getAuthorizationDetails();
+		doReturn(RELEASED_DETAILS).when(authorizationDetails).authorize(REQUESTED_DETAILS, "someone");
+
+		authorize(request, authenticated(Instant.now().plusSeconds(60L)));
+
+		verify(authorizationDetails).authorize(REQUESTED_DETAILS, "someone");
+		assertSame(REQUESTED_DETAILS, grant.getRequestedAuthorizationDetails());
+		assertSame(RELEASED_DETAILS, grant.getReleasedAuthorizationDetails());
+	}
+
+	@Test
+	void testTheDecisionIsMadeBeforeTheGrantIsHandedOver() {
+		// a client redeeming this grant reads a decision already made, rather than one
+		// remade on every redemption
+		register();
+		doReturn(RELEASED_DETAILS).when(authorizationDetails).authorize(any(), org.mockito.ArgumentMatchers.eq("someone"));
+
+		// the grant is serialized into the store, so what the store receives is proof
+		// the decision was already on it
+		doAnswer(a -> {
+			assertSame(RELEASED_DETAILS, grant.getReleasedAuthorizationDetails());
+			return null;
+		}).when(dataStore).put(any(), any(), any());
+
+		authorize(request(), authenticated(Instant.now().plusSeconds(60L)));
+		verify(dataStore).put(any(), any(), any());
+	}
+
+	@Test
+	void testASourceReleasingNothingReleasesNothing() {
+		register();
+		doReturn(null).when(authorizationDetails).authorize(any(), any());
+
+		authorize(request(), authenticated(Instant.now().plusSeconds(60L)));
+		assertNull(grant.getReleasedAuthorizationDetails());
+	}
+
+	@Test
+	void testAResumptionReleasesAgainstTheReturningPrincipal() {
+		// both authenticated paths converge on the same decision point
+		grant.setClientId(CLIENT_ID);
+		grant.setRedirectUri(REDIRECT);
+		grant.setRequestedAuthorizationDetails(REQUESTED_DETAILS);
+		when(sessionHandler.activate(org.mockito.ArgumentMatchers.any())).thenReturn(session);
+		doReturn(RELEASED_DETAILS).when(authorizationDetails).authorize(REQUESTED_DETAILS, "someone");
+
+		authorize(resumption(), authenticated(Instant.now().plusSeconds(60L)));
+
+		assertSame(RELEASED_DETAILS, grant.getReleasedAuthorizationDetails());
+	}
+
+	@Test
+	void testMalformedDetailsAreTheOneRefusalTheClientHearsAbout() {
+		register();
+		doThrow(new IuBadRequestException("type is not registered")).when(authorizationDetails).authorize(any(), any());
+
+		assertEquals("error=invalid_authorization_details&error_description=type+is+not+registered",
+				redirectQuery(authorize(request(), authenticated(Instant.now().plusSeconds(60L)))));
+	}
+
+	@Test
+	void testMalformedDetailsAreRelayedOnAResumptionToo() {
+		// the resumption path has no error-to-redirect boundary of its own, so the
+		// redirect is built from what the grant already recorded
+		grant.setClientId(CLIENT_ID);
+		grant.setRedirectUri(REDIRECT);
+		grant.setState("s1");
+		when(sessionHandler.activate(org.mockito.ArgumentMatchers.any())).thenReturn(session);
+		doThrow(new IuBadRequestException("nope")).when(authorizationDetails).authorize(any(), any());
+
+		assertEquals("error=invalid_authorization_details&error_description=nope&state=s1",
+				redirectQuery(authorize(resumption(), authenticated(Instant.now().plusSeconds(60L)))));
+	}
+
+	@Test
+	void testARefusedEndUserIsNotToldAsIfADecisionWasMade() {
+		// forbidden at the caller's error boundary, not an OAuth error the client
+		// could mistake for an answer
+		register();
+		doThrow(new IuAuthorizationFailedException("not delegated")).when(authorizationDetails).authorize(any(), any());
+
+		final var request = request();
+		final var principal = authenticated(Instant.now().plusSeconds(60L));
+		assertEquals("not delegated", assertThrows(IuAuthorizationFailedException.class,
+				() -> authorize(request, principal)).getMessage());
+	}
+
+	@Test
+	void testAnUnreachableSourceSaysSoRatherThanRefusing() {
+		register();
+		doThrow(new IuOutOfServiceException("directory is down")).when(authorizationDetails).authorize(any(), any());
+
+		final var request = request();
+		final var principal = authenticated(Instant.now().plusSeconds(60L));
+		assertEquals("directory is down", assertThrows(IuOutOfServiceException.class,
+				() -> authorize(request, principal)).getMessage());
+	}
+
+	@Test
+	void testAnyOtherFailureIsAServerFault() {
+		register();
+		doThrow(new IllegalStateException("bug")).when(authorizationDetails).authorize(any(), any());
+
+		final var request = request();
+		final var principal = authenticated(Instant.now().plusSeconds(60L));
+		assertEquals("bug",
+				assertThrows(IllegalStateException.class, () -> authorize(request, principal)).getMessage());
+	}
+
+	@Test
 	void testTheGrantIsHandedOverUnderTheConfiguredLifetime() {
 		register();
-		final var issuerKey = mock(WebKey.class);
-		when(issuer.issuerKey()).thenReturn(issuerKey);
 
-		endpoint.authorize(request(), authenticated(Instant.now().plusSeconds(60L)));
+		final var code = issuedCode(authorize(request(), authenticated(Instant.now().plusSeconds(60L))));
 
-		verify(grantStore).put(GrantStore.CODE, ISSUER, issuerKey, Duration.ofMinutes(1L), grant);
+		// the reference the client carries is the key the entry is encrypted to, and
+		// the entry lives exactly as long as the code remains redeemable
+		verify(dataStore).put(any(), any(), org.mockito.ArgumentMatchers.eq(Duration.ofMinutes(1L)));
+		assertNotNull(code);
 	}
 
 	@Test

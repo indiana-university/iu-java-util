@@ -34,6 +34,8 @@ package iu.oidc.provider;
 import java.net.URI;
 import java.time.Instant;
 
+import edu.iu.jwt.IuAuthorizationDetails;
+
 /**
  * Authorization state bound to the end user's provider session.
  *
@@ -97,6 +99,54 @@ public interface OidcGrant {
 	 * @param impersonatedPrincipalName impersonated principal name
 	 */
 	void setImpersonatedPrincipalName(String impersonatedPrincipalName);
+
+	/**
+	 * Gets the authorization details the client asked for, as its transport parsed
+	 * them.
+	 *
+	 * <p>
+	 * Recorded before the end user is known, since a client states what it wants
+	 * without waiting to find out who is asking. What was actually granted is
+	 * {@link #getReleasedAuthorizationDetails()}, and the two are kept apart so a
+	 * grant says both what was sought and what came of it.
+	 * </p>
+	 *
+	 * @return requested authorization details; {@code null} if the request asked
+	 *         for none
+	 * @see <a href="https://www.rfc-editor.org/info/rfc9396">RFC 9396: OAuth 2.0
+	 *      Rich Authorization Requests</a>
+	 */
+	Iterable<? extends IuAuthorizationDetails> getRequestedAuthorizationDetails();
+
+	/**
+	 * Sets the authorization details the client asked for.
+	 *
+	 * @param requestedAuthorizationDetails requested authorization details
+	 */
+	void setRequestedAuthorizationDetails(Iterable<? extends IuAuthorizationDetails> requestedAuthorizationDetails);
+
+	/**
+	 * Gets the authorization details released to the end user.
+	 *
+	 * <p>
+	 * Decided once, after the end user is authenticated and before an authorization
+	 * code is issued, so a client redeeming this grant &mdash; directly, or through
+	 * a refresh token descending from it &mdash; reads a decision already made
+	 * rather than one remade on every redemption. This is what a token endpoint
+	 * publishes as the granted {@code authorization_details}.
+	 * </p>
+	 *
+	 * @return released authorization details; {@code null} if none were released
+	 * @see edu.iu.oidc.config.OidcAuthorizationDetailsSource
+	 */
+	Iterable<? extends IuAuthorizationDetails> getReleasedAuthorizationDetails();
+
+	/**
+	 * Sets the authorization details released to the end user.
+	 *
+	 * @param releasedAuthorizationDetails released authorization details
+	 */
+	void setReleasedAuthorizationDetails(Iterable<? extends IuAuthorizationDetails> releasedAuthorizationDetails);
 
 	/**
 	 * Gets the entity ID of the identity provider that authenticated the principal.

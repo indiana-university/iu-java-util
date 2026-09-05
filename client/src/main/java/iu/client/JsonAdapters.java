@@ -100,13 +100,30 @@ public final class JsonAdapters {
 
 	/**
 	 * {@link IuJsonAdapter} factory method.
-	 * 
+	 *
+	 * <p>
+	 * A {@link WildcardType} or {@link TypeVariable} resolves to its first upper
+	 * bound and is adapted as that instead, so a property declared
+	 * {@code Iterable<? extends Foo>} converts the same way {@code Iterable<Foo>}
+	 * does. Resolution goes back out through {@code valueAdapter} rather than
+	 * recursing here, because whether the bound converts as a JavaBean is the
+	 * caller's to decide &mdash; this factory only knows the types it handles by
+	 * name, and would refuse a bound it has no case for.
+	 * </p>
+	 *
 	 * @param type         Java type
 	 * @param valueAdapter value type adapter
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		final var bound = bound(type);
+		if (bound != null)
+			if (valueAdapter != null)
+				return valueAdapter.apply(bound);
+			else
+				return adapt(bound, null);
+
 		Class erased = erase(type);
 
 		if (erased == Object.class)
@@ -288,6 +305,28 @@ public final class JsonAdapters {
 		}
 
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
+	}
+
+	/**
+	 * Gets the upper bound a type is a stand-in for.
+	 *
+	 * <p>
+	 * Answers only for the two forms that name a bound rather than a type: a
+	 * wildcard, as in {@code Iterable<? extends Foo>}, and a type variable, as in
+	 * a generic bean's {@code Iterable<T>}. Both erase to their bound, so both
+	 * convert as it.
+	 * </p>
+	 *
+	 * @param type Java type
+	 * @return first upper bound; null if {@code type} names a type of its own
+	 */
+	private static Type bound(Type type) {
+		if (type instanceof WildcardType)
+			return ((WildcardType) type).getUpperBounds()[0];
+		else if (type instanceof TypeVariable)
+			return ((TypeVariable<?>) type).getBounds()[0];
+		else
+			return null;
 	}
 
 	/**

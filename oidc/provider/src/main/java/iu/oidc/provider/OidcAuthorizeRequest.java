@@ -32,6 +32,7 @@
 package iu.oidc.provider;
 
 import edu.iu.IuRequestAttributes;
+import edu.iu.jwt.IuAuthorizationDetails;
 
 /**
  * An authorization request, as the transport that received it reports it.
@@ -156,16 +157,29 @@ public interface OidcAuthorizeRequest extends IuRequestAttributes {
 	String getImpersonatedPrincipal();
 
 	/**
-	 * Gets the {@code delegating_principal} parameter, naming the principal the end
-	 * user expects to have been delegated access by.
-	 * 
+	 * Gets the {@code authorization_details} parameter, stating what the client is
+	 * asking to be authorized for.
+	 *
 	 * <p>
-	 * This parameter is an authorization server hint facilitating preselection for
-	 * users with multiple delegated authorization records.
+	 * An adapter parses and validates whatever its transport received &mdash; a
+	 * JSON array, in the ordinary case &mdash; into whatever
+	 * {@link IuAuthorizationDetails} implementation the deployment carries. The
+	 * endpoint reads nothing but
+	 * {@link IuAuthorizationDetails#getType() the type} and hands the rest to an
+	 * {@link edu.iu.oidc.config.OidcAuthorizationDetailsSource} untouched.
 	 * </p>
-	 * 
-	 * @return delegating user principal name
+	 *
+	 * <p>
+	 * This is where a deployment expresses whose authority a request is being made
+	 * on, if it works that way: naming the delegating user is one thing a rich
+	 * authorization request can say, and the provider needs no notion of delegation
+	 * to carry it.
+	 * </p>
+	 *
+	 * @return authorization details requested; null if the request asked for none
+	 * @see <a href="https://www.rfc-editor.org/info/rfc9396">RFC 9396: OAuth 2.0
+	 *      Rich Authorization Requests</a>
 	 */
-	String getDelegatingPrincipal();
+	Iterable<? extends IuAuthorizationDetails> getAuthorizationDetails();
 
 }
