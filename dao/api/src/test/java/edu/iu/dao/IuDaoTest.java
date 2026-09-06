@@ -46,11 +46,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuRefreshableCacheConfiguration;
 import edu.iu.dao.spi.IuDaoSpi;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.TransactionSynchronizationRegistry;
@@ -106,6 +108,42 @@ public class IuDaoTest {
 		assertThrows(NullPointerException.class, () -> IuDao.of(null, transactionManager, registry));
 		assertThrows(NullPointerException.class, () -> IuDao.of(dataSource, null, registry));
 		assertThrows(NullPointerException.class, () -> IuDao.of(dataSource, transactionManager, null));
+	}
+
+	@Test
+	public void testOfWithACacheConfigurationDelegatesToInstalledProvider() {
+		final var dataSource = mock(DataSource.class);
+		final var transactionManager = mock(TransactionManager.class);
+		final var registry = mock(TransactionSynchronizationRegistry.class);
+		final Supplier<IuRefreshableCacheConfiguration> config = () -> null;
+		final var dao = mock(IuDao.class);
+		final var provider = mock(IuDaoSpi.class);
+		when(provider.create(dataSource, transactionManager, registry, config)).thenReturn(dao);
+
+		withProviders(List.of(provider),
+				() -> assertSame(dao, IuDao.of(dataSource, transactionManager, registry, config)));
+		verify(provider).create(dataSource, transactionManager, registry, config);
+	}
+
+	@Test
+	public void testOfWithACacheConfigurationRequiresAProvider() {
+		final var dataSource = mock(DataSource.class);
+		final var transactionManager = mock(TransactionManager.class);
+		final var registry = mock(TransactionSynchronizationRegistry.class);
+		withProviders(List.of(), () -> assertThrows(IllegalStateException.class,
+				() -> IuDao.of(dataSource, transactionManager, registry, () -> null)));
+	}
+
+	@Test
+	public void testOfWithACacheConfigurationRejectsNullArguments() {
+		final var dataSource = mock(DataSource.class);
+		final var transactionManager = mock(TransactionManager.class);
+		final var registry = mock(TransactionSynchronizationRegistry.class);
+		final Supplier<IuRefreshableCacheConfiguration> config = () -> null;
+		assertThrows(NullPointerException.class, () -> IuDao.of(null, transactionManager, registry, config));
+		assertThrows(NullPointerException.class, () -> IuDao.of(dataSource, null, registry, config));
+		assertThrows(NullPointerException.class, () -> IuDao.of(dataSource, transactionManager, null, config));
+		assertThrows(NullPointerException.class, () -> IuDao.of(dataSource, transactionManager, registry, null));
 	}
 
 	@Test

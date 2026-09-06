@@ -11,7 +11,7 @@
 	</parent>
 
 	<artifactId>iu-java-oidc-client</artifactId>
-	<name>IU OpenID Connect and OAuth 2.0 Client Utilities</name>
+	<name>IU OpenID Connect and OAuth 2.0 Client</name>
 
 	<dependencies>
 		<dependency>

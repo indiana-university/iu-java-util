@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -275,7 +276,12 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 		public V setValue(V value) {
 			K key = getKey();
 			V oldValue = this.value;
-			entry.setValue(ref(key, value));
+
+			// replaced in place, so a traversal in progress over the backing map is
+			// not disturbed, then cleared to cancel its pending expiration. The
+			// backing map holds no null values, so there is always one to release.
+			entry.setValue(ref(key, value)).clear();
+
 			this.value = value;
 			return oldValue;
 		}
@@ -406,17 +412,27 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 			return ref.get();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * The replacement is stored in one atomic step, so the key is never
+	 * momentarily absent, and the value it replaced is then cleared to cancel its
+	 * pending expiration.
+	 * </p>
+	 */
 	@Override
 	public V put(K key, V value) {
-		final var ref = cache.get(key);
-		final V rv;
-		if (ref == null)
-			rv = null;
-		else {
-			rv = ref.get();
-			ref.clear();
-		}
-		cache.put(key, ref(key, value));
+		final var replaced = cache.put(key, ref(key, value));
+		if (replaced == null)
+			return null;
+
+		final var rv = replaced.get();
+
+		// releases the replaced value's expiration; its removal is keyed by identity
+		// so it cannot disturb the replacement just stored
+		replaced.clear();
+
 		return rv;
 	}
 
@@ -471,9 +487,19 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Equivalent to {@link #put} for each entry, so a value already stored under
+	 * one of these keys is cleared rather than merely dropped from the map. A value
+	 * that is dropped without being cleared keeps its scheduled expiration, which
+	 * removes by key and would evict its replacement when it came due.
+	 * </p>
+	 */
 	@Override
 	public void putAll(Map<? extends K, ? extends V> m) {
-		m.forEach((k, v) -> cache.put(k, ref(k, v)));
+		m.forEach(this::put);
 	}
 
 	@Override
@@ -503,8 +529,26 @@ public class IuCacheMap<K, V> implements Map<K, V> {
 		return entrySet;
 	}
 
+	/**
+	 * Wraps a value for storage under a key.
+	 *
+	 * <p>
+	 * The expiration thunk removes the key only while <em>this</em> value is still
+	 * the one mapped to it. Expiration is scheduled per value and cannot be
+	 * unscheduled without running, so a value that has been replaced still expires
+	 * on its own original schedule; keying the removal by identity as well as by
+	 * key stops that expiration from evicting whatever replaced it.
+	 * </p>
+	 *
+	 * @param key   cache key
+	 * @param value value to wrap
+	 * @return cached value reference
+	 */
 	private IuCachedValue<V> ref(K key, V value) {
-		return new IuCachedValue<>(value, cacheTimeToLive, () -> cache.remove(key));
+		final var self = new AtomicReference<IuCachedValue<V>>();
+		final var ref = new IuCachedValue<V>(value, cacheTimeToLive, () -> cache.remove(key, self.get()));
+		self.set(ref);
+		return ref;
 	}
 
 }

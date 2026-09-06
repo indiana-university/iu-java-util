@@ -262,11 +262,17 @@ class ElContext {
 	/**
 	 * Sets the current result without changing the current JSON context.
 	 *
+	 * <p>
+	 * A pending match is discarded, so that a conditional following a match reports
+	 * its own result rather than the comparison.
+	 * </p>
+	 *
 	 * @param result result to set, or {@code null}
 	 */
 	void setResult(JsonValue result) {
 		this.result = result;
 		this.introspect = false;
+		this.matchResult = null;
 	}
 
 	/**

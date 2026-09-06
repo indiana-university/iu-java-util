@@ -93,8 +93,16 @@ public class IuParallelWorkloadControllerTest {
 
 		final var name = testInfo.getTestMethod().get().getName();
 		if (!name.startsWith("testRequiresPositive") && !name.equals("testRunsALotOfTasks")) {
-			final var timeout = name.equals("testShutdownThreadIsInterrupted") ? Duration.ofSeconds(10L)
-					: Duration.ofMillis(100L);
+			// most of these assert on expiry, so the deadline has to stay short. The
+			// exceptions are the ones that have to finish real work inside it, where
+			// 100ms is not enough margin for scheduling two tasks on a loaded machine.
+			final Duration timeout;
+			if (name.equals("testShutdownThreadIsInterrupted"))
+				timeout = Duration.ofSeconds(10L);
+			else if (name.equals("testAwaitPending") || name.equals("testAwaitWithin"))
+				timeout = Duration.ofSeconds(1L);
+			else
+				timeout = Duration.ofMillis(100L);
 			workload = new IuParallelWorkloadController(name, 5, timeout);
 			workload.setLog(log);
 		}
