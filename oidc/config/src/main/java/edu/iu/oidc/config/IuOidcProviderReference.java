@@ -105,6 +105,18 @@ public interface IuOidcProviderReference {
 	}
 
 	/**
+	 * Gets the source an end user's identity roles are checked through.
+	 *
+	 * @return {@link IuOidcIdentitySource}
+	 * @throws UnsupportedOperationException if the deployment binds none, which
+	 *                                       refuses every grant answering for an
+	 *                                       end user
+	 */
+	default IuOidcIdentitySource getIdentitySource() {
+		throw new UnsupportedOperationException("Missing identity source");
+	}
+
+	/**
 	 * Gets the source that decides what a client's requested authorization details
 	 * release to an end user.
 	 *

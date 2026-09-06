@@ -1709,6 +1709,80 @@ public class IuRefreshableCacheTest {
 	}
 
 	@Test
+	public void testInvalidateDiscardsMatchingEntriesWithoutACall() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet())) {
+			assertEquals("one/1", cache.apply("one"));
+			assertEquals("two/2", cache.apply("two"));
+
+			// raised by a caller that performed the write itself, so no call is made
+			cache.invalidate(new IuRefreshableCacheHint<String, String>() {
+				@Override
+				public boolean shouldClear(String candidate) {
+					return candidate.equals("one");
+				}
+			});
+
+			assertEquals("one/3", cache.apply("one"));
+			assertEquals("two/2", cache.apply("two"));
+		}
+	}
+
+	@Test
+	public void testInvalidateClearAllDiscardsEverythingAndDrainsTheQueue() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet())) {
+			final var queue = hintQueue(cache);
+
+			assertEquals("one/1", cache.apply("one"));
+			cache.invalidate(new IuRefreshableCacheHint<String, String>() {
+				@Override
+				public boolean shouldClear(String candidate) {
+					return candidate.equals("never");
+				}
+			});
+			assertEquals(1, queue.size());
+
+			cache.invalidate(IuRefreshableCacheHint.clearAll());
+			assertEquals(0, queue.size(), "clear-all left an invalidation queued");
+			assertEquals("one/2", cache.apply("one"));
+		}
+	}
+
+	@Test
+	public void testInvalidateIgnoresANullHint() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)),
+				key -> key + "/" + calls.incrementAndGet())) {
+			assertEquals("key/1", cache.apply("key"));
+			cache.invalidate(null);
+			assertEquals("key/1", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testInvalidateIsInertWhenCachingIsDisabled() throws Throwable {
+		final var configuration = new MutableConfiguration();
+		configuration.refreshTtl = null;
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(() -> configuration, key -> key + "/" + calls.incrementAndGet())) {
+			assertEquals("key/1", cache.apply("key"));
+			assertDoesNotThrow(() -> cache.invalidate(IuRefreshableCacheHint.clearAll()));
+			assertEquals("key/2", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testInvalidateFailsOnceClosed() {
+		final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> key);
+		cache.close();
+		assertEquals("Refreshable cache is closed", assertThrows(IllegalStateException.class,
+				() -> cache.invalidate(IuRefreshableCacheHint.clearAll())).getMessage());
+	}
+
+	@Test
 	public void testPublishIsInertWhenCachingIsDisabled() throws Throwable {
 		final var calls = new AtomicInteger();
 		final var configuration = new MutableConfiguration();

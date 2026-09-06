@@ -32,6 +32,8 @@
 package iu.oidc.provider;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -168,6 +170,47 @@ public class OidcIssuer {
 			}
 
 		throw new IllegalStateException("No issuer signing key" + (algorithm == null ? "" : " for " + algorithm.alg));
+	}
+
+	/**
+	 * Renders the JWK Set this provider publishes, which is what a relying party
+	 * verifies an issued token against.
+	 *
+	 * <p>
+	 * Every key is reduced to {@link WebKey#wellKnown() its well-known form} before
+	 * it goes in, so nothing but public material is published however a deployment
+	 * configured its keys. A key with nothing left after that reduction &mdash; a
+	 * shared secret, which has no public half to publish &mdash; is skipped rather
+	 * than emitted as an empty entry.
+	 * </p>
+	 *
+	 * <p>
+	 * Serialized here, unlike the discovery document, because a JWK Set is a
+	 * cryptographic representation rather than a document a deployment has any say
+	 * in: RFC 7517 fixes what it looks like, and getting it wrong would publish the
+	 * wrong key material. Serving it at
+	 * {@link OidcProviderMetadata#JWKS_PATH the path the discovery document
+	 * advertises} is still the transport's.
+	 * </p>
+	 *
+	 * @return JWK Set document
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc7517">RFC 7517</a>
+	 */
+	public String publishedJwks() {
+		final List<WebKey> published = new ArrayList<>();
+
+		final var jwks = configuration().getJwks();
+		if (jwks != null)
+			for (final var jwk : jwks) {
+				if (jwk == null)
+					continue;
+
+				final var wellKnown = jwk.wellKnown();
+				if (wellKnown.getPublicKey() != null)
+					published.add(wellKnown);
+			}
+
+		return WebKey.asJwks(published);
 	}
 
 }

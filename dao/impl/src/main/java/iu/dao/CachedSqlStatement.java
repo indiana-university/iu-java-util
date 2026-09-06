@@ -31,46 +31,70 @@
  */
 package iu.dao;
 
-import java.util.function.Supplier;
+import java.sql.PreparedStatement;
 
-import javax.sql.DataSource;
-
-import edu.iu.IuRefreshableCacheConfiguration;
-
-import edu.iu.dao.IuDao;
-import edu.iu.dao.spi.IuDaoSpi;
-import jakarta.transaction.TransactionManager;
-import jakarta.transaction.TransactionSynchronizationRegistry;
+import edu.iu.dao.SqlStatement;
 
 /**
- * Default {@link IuDaoSpi} provider, creating {@link JdbcDao} instances backed by
- * {@link IuSqlBuilderImpl}.
+ * A {@link SqlStatement} that invalidates what it changed once it has run.
+ *
+ * <p>
+ * The invalidation is raised whether or not the statement reported success. A
+ * statement that failed part way through has still changed rows, and one that
+ * never reached the database has only cost an invalidation — the cheaper of the
+ * two mistakes to make.
+ * </p>
+ *
+ * <p>
+ * {@link #execute()} may be called repeatedly, and each call invalidates again,
+ * because each call re-runs the SQL.
+ * </p>
  */
-public final class DaoSpi implements IuDaoSpi {
+final class CachedSqlStatement implements SqlStatement {
+
+	/** Statement this one runs. */
+	private final SqlStatement delegate;
+
+	/** Raises the invalidation the statement implies. */
+	private final Runnable invalidation;
 
 	/**
-	 * Default constructor, required to be public and no-argument so that
-	 * {@link java.util.ServiceLoader} can instantiate this provider.
+	 * Constructor.
+	 *
+	 * @param delegate     statement to run
+	 * @param invalidation raises the invalidation the statement implies
 	 */
-	public DaoSpi() {
+	CachedSqlStatement(SqlStatement delegate, Runnable invalidation) {
+		this.delegate = delegate;
+		this.invalidation = invalidation;
 	}
 
 	@Override
-	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
-			TransactionSynchronizationRegistry transactionSynchronizationRegistry) {
-		return new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, new IuSqlBuilderImpl());
+	public int execute() {
+		try {
+			return delegate.execute();
+		} finally {
+			invalidation.run();
+		}
 	}
 
 	@Override
-	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
-			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
-			Supplier<IuRefreshableCacheConfiguration> config) {
-		// one builder, shared: the cache reads an entity's mapped key with the same
-		// builder the delegate generates its statements with, so the key it publishes
-		// a row under is the one a load of that row would be made with
-		final var sqlBuilder = new IuSqlBuilderImpl();
-		return new CachedDao(
-				new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, sqlBuilder), sqlBuilder,
-				transactionManager, transactionSynchronizationRegistry, config);
+	public String getQuery() {
+		return delegate.getQuery();
+	}
+
+	@Override
+	public Iterable<?> getArguments() {
+		return delegate.getArguments();
+	}
+
+	@Override
+	public PreparedStatement getPreparedStatement() {
+		return delegate.getPreparedStatement();
+	}
+
+	@Override
+	public void close() {
+		delegate.close();
 	}
 }

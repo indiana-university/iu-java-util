@@ -68,6 +68,18 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * {@code updated_at} being a NumericDate and {@code address} being nested.
  * </p>
  *
+ * <h2>A signed response names both parties</h2>
+ *
+ * <p>
+ * OpenID Connect &sect;5.3.2 requires a signed response to carry {@code iss} and
+ * {@code aud}, so one lifted out of its response and replayed to a different
+ * relying party doesn't verify there. An unsigned response carries neither: it
+ * is a plain claims document with nothing to lift. Which of the two it will be
+ * is settled from the registration before the claims are asked for, and the
+ * source is told what to render rather than the document being edited
+ * afterwards &mdash; nothing here parses what it publishes.
+ * </p>
+ *
  * <h2>The subject is checked against the token</h2>
  *
  * <p>
@@ -122,9 +134,18 @@ public class OidcUserinfoEndpoint {
 
 		final var sub = authorization.getSubject();
 		final var scope = authorization.getScope();
+		final var clientId = authorization.getClientId();
+
+		// read before the claims are asked for, since whether the response will be
+		// signed decides what the rendered document has to carry
+		final var client = client(clientId);
+		final var signed = client != null //
+				&& client.getUserinfoAlg() != null;
 
 		final var claims = Objects.requireNonNull(
-				reference.getClaimsSource().claims(sub, OidcClaimScopes.admitted(scope)), "Missing claims for " + sub);
+				reference.getClaimsSource().claims(sub, OidcClaimScopes.admitted(scope),
+						signed ? issuer.issuer() : null, signed ? clientId : null),
+				"Missing claims for " + sub);
 
 		// checked rather than trusted: a relying party refuses a response whose sub
 		// disagrees with the ID token it holds, and publishing claims about somebody
@@ -132,10 +153,9 @@ public class OidcUserinfoEndpoint {
 		if (!sub.equals(claims.getSub()))
 			throw new IllegalStateException("Claims source answered for " + claims.getSub() + " rather than " + sub);
 
-		final var clientId = authorization.getClientId();
 		LOG.info(() -> "userinfo:" + clientId + ":" + sub + " " + scope);
 
-		return secure(claims.toString(), client(clientId));
+		return secure(claims.toString(), client);
 	}
 
 	/**

@@ -843,17 +843,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 			// successful at this point, invalidate cache entries by hint
 			if (cacheHint != null)
-				if (cacheHint == IuRefreshableCacheHint.CLEAR_ALL) {
-					// drained before the cache, so an event queued concurrently with this
-					// clear survives to invalidate entries repopulated after it; every
-					// event already queued is made moot by the clear that follows
-					hintQueue.clear();
-					cache.clear();
-					fine("clear-cache", key, start);
-				} else {
-					hintQueue.offer(new HintEvent(cacheHint));
-					fine("cache-hint", key, start);
-				}
+				fine(raise(cache, cacheHint), key, start);
 
 			else // no cache hint -> skip cache
 				fine("skip-cache", key, start);
@@ -998,6 +988,73 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			cause.addSuppressed(e);
 			throw cause;
 		}
+	}
+
+	/**
+	 * Applies a hint's invalidation to a cache.
+	 *
+	 * @param cache     cache to invalidate
+	 * @param cacheHint hint describing what to invalidate
+	 * @return log outcome describing what was done
+	 */
+	private String raise(IuCacheMap<K, CachedResult> cache, IuRefreshableCacheHint<K, V> cacheHint) {
+		if (cacheHint == IuRefreshableCacheHint.CLEAR_ALL) {
+			// drained before the cache, so an event queued concurrently with this
+			// clear survives to invalidate entries repopulated after it; every
+			// event already queued is made moot by the clear that follows
+			hintQueue.clear();
+			cache.clear();
+			return "clear-cache";
+		}
+
+		hintQueue.offer(new HintEvent(cacheHint));
+		return "cache-hint";
+	}
+
+	/**
+	 * Invalidates cached results without resolving a value.
+	 *
+	 * <p>
+	 * {@link #apply(Object)} raises a hint's invalidation for a caller whose write
+	 * the cache performed. This raises the same invalidation for a caller that
+	 * performed the write itself — one that could not delegate it because the write
+	 * has to run on the calling thread, inside a transaction the cache knows
+	 * nothing about.
+	 * </p>
+	 *
+	 * <p>
+	 * Raise the invalidation only once the write it describes has <em>succeeded</em>,
+	 * and, when it is transactional, only once it has committed. An invalidation
+	 * raised before the change it describes is visible discards entries that a
+	 * concurrent reader then repopulates from the state being replaced, leaving the
+	 * stale value in place until the refresh TTL expires.
+	 * </p>
+	 *
+	 * <p>
+	 * {@link IuRefreshableCacheHint#clearAll()} discards every cached result along
+	 * with every invalidation still pending. Any other hint is queued, and applies
+	 * to each entry as it is next read.
+	 * </p>
+	 *
+	 * @param cacheHint hint describing the entries to invalidate; ignored when null
+	 * @throws IllegalStateException if this cache has been closed
+	 * @see #publish(Object, Object, long)
+	 */
+	public void invalidate(IuRefreshableCacheHint<K, V> cacheHint) {
+		if (closed)
+			throw new IllegalStateException("Refreshable cache is closed");
+
+		if (cacheHint == null)
+			return;
+
+		final var start = Instant.now();
+		final var config = this.config.get();
+		final var refreshTtl = refreshTtl(config);
+		if (refreshTtl == null)
+			// caching is disabled, so there is nothing cached to invalidate
+			return;
+
+		fine(raise(cache(cacheTtl(config, refreshTtl)), cacheHint), null, start);
 	}
 
 	/**

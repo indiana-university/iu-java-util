@@ -312,6 +312,103 @@ final class OidcProviderUtils {
 		return null;
 	}
 
+	/**
+	 * Names the audience an access token issued to an endpoint is addressed to.
+	 *
+	 * <p>
+	 * Derived from the resources the endpoint registers whose scope is among those
+	 * granted, so a token scoped to one resource isn't also addressed to another
+	 * the request never asked for. A resource with no URI names this provider's own
+	 * issuer identifier rather than an external resource &mdash; that entry is what
+	 * a request naming no {@code resource} matches, so registering it with a
+	 * granted scope such as {@code openid} is how a deployment explicitly addresses
+	 * a token to itself, without embedding its own issuer URI in the registration
+	 * to do it.
+	 * </p>
+	 *
+	 * <p>
+	 * Nothing is added when nothing matches: an endpoint that registers no resource
+	 * for a granted scope hasn't said what that scope's token should be addressed
+	 * to, and answering with this provider's issuer anyway would grant an audience
+	 * nobody configured.
+	 * </p>
+	 *
+	 * @param issuer    this provider's issuer identifier
+	 * @param endpoint  endpoint that authenticated
+	 * @param resources resources the token is addressed to; empty to consider every
+	 *                  one of the endpoint's resources whose scope was granted
+	 * @param scopes    granted scopes
+	 * @return audience URIs; empty if the endpoint registers no resource for any
+	 *         granted scope
+	 */
+	static Set<URI> audience(URI issuer, IuOidcClientEndpoint endpoint, Set<String> resources, Set<String> scopes) {
+		final Set<URI> audience = new LinkedHashSet<>();
+
+		final var clientResources = endpoint.getResources();
+		if (clientResources == null)
+			return audience;
+
+		for (final var clientResource : clientResources) {
+			if (clientResource == null)
+				continue;
+
+			final var scope = clientResource.getScope();
+			if (scope == null)
+				continue;
+
+			final var uri = clientResource.getUri() == null ? issuer : clientResource.getUri();
+			if ((resources.isEmpty() //
+					|| resources.contains(uri.toString())) //
+					&& scope.stream().anyMatch(scopes::contains))
+				audience.add(uri);
+		}
+
+		return audience;
+	}
+
+	/**
+	 * Determines the scope a {@code client_credentials} request is granted.
+	 *
+	 * <p>
+	 * Starts from every resource-backed scope the authenticating endpoint registers
+	 * for the named {@code resource}, the same set {@link #grantedResources}
+	 * computes for the authorization code flow. {@code openid} is not excluded
+	 * specially, but nothing ever issues an ID token for it: this grant acts for
+	 * the client itself, with no end user to claim one for, and a token endpoint
+	 * only ever adds one alongside a redeemed grant.
+	 * </p>
+	 *
+	 * <p>
+	 * A {@code scope} parameter narrows that set to what it names rather than
+	 * rejecting the request when it asks for less than everything registered; RFC
+	 * 6749 &sect;5.1 allows answering with a narrower scope than requested, so long
+	 * as the response says what was actually granted.
+	 * </p>
+	 *
+	 * @param endpoint  endpoint that authenticated
+	 * @param issuer    this provider's issuer identifier
+	 * @param scope     {@code scope} parameter value, or {@code null} to grant
+	 *                  everything the resource registers
+	 * @param resources {@code resource} parameter values; empty if the request
+	 *                  named none
+	 * @return granted scopes
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc6749#section-5.1">RFC 6749
+	 *      &sect;5.1</a>
+	 */
+	static Set<String> clientCredentialsScopes(IuOidcClientEndpoint endpoint, URI issuer, String scope,
+			Set<String> resources) {
+		final var requestedScopes = scope == null ? null : scopes(scope);
+
+		final Set<String> granted = new LinkedHashSet<>();
+		for (final var clientResource : grantedResources(endpoint, issuer, resources))
+			for (final var grantedScope : clientResource.getScope())
+				if (requestedScopes == null //
+						|| requestedScopes.contains(grantedScope))
+					granted.add(grantedScope);
+
+		return granted;
+	}
+
 	private OidcProviderUtils() {
 	}
 

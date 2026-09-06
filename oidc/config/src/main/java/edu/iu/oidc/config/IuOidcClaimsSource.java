@@ -31,6 +31,7 @@
  */
 package edu.iu.oidc.config;
 
+import java.net.URI;
 import java.util.Set;
 
 import edu.iu.oidc.IuOidcClaims;
@@ -82,15 +83,34 @@ public interface IuOidcClaimsSource {
 	 * refuses to publish claims about anyone else.
 	 * </p>
 	 *
+	 * <p>
+	 * OpenID Connect &sect;5.3.2 requires a <em>signed</em> UserInfo response to
+	 * name the provider as {@code iss} and the relying party as {@code aud}, so
+	 * that one lifted out of its response and replayed to a different party
+	 * doesn't verify there. Whether a response will be signed is the provider's to
+	 * know and the values are the provider's to supply, but the rendering is this
+	 * source's &mdash; so they arrive here. When {@code issuer} is non-null the
+	 * rendered document <em>must</em> carry both; when it is null the caller is not
+	 * publishing the document at all, and neither claim belongs in it.
+	 * </p>
+	 *
 	 * @param principalName  principal name, which the provider has already settled
 	 *                       from a verified grant, and which is also the
 	 *                       {@code sub} the answer must carry
 	 * @param admittedClaims names of the claims the grant admits, {@code sub}
 	 *                       among them; anything else this source holds is not to
 	 *                       be answered
+	 * @param issuer         provider's issuer identifier, to render as {@code iss};
+	 *                       null when the rendered document is not being published,
+	 *                       which is every use but a signed UserInfo response
+	 * @param audience       relying party's client ID, to render as {@code aud};
+	 *                       null on the same terms as {@code issuer}
 	 * @return claims held for {@code principalName}, limited to
 	 *         {@code admittedClaims}, rendering as a claims document
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse">OpenID
+	 *      Connect Core 1.0 &sect;5.3.2</a>
 	 */
-	IuOidcClaims claims(String principalName, Set<String> admittedClaims);
+	IuOidcClaims claims(String principalName, Set<String> admittedClaims, URI issuer, String audience);
 
 }

@@ -29,48 +29,81 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.dao;
+package iu.oidc.provider;
 
-import java.util.function.Supplier;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-import javax.sql.DataSource;
-
-import edu.iu.IuRefreshableCacheConfiguration;
-
-import edu.iu.dao.IuDao;
-import edu.iu.dao.spi.IuDaoSpi;
-import jakarta.transaction.TransactionManager;
-import jakarta.transaction.TransactionSynchronizationRegistry;
+import edu.iu.IuDataStore;
+import edu.iu.IuDataStoreEntry;
+import edu.iu.IuIterable;
+import edu.iu.IuText;
 
 /**
- * Default {@link IuDaoSpi} provider, creating {@link JdbcDao} instances backed by
- * {@link IuSqlBuilderImpl}.
+ * Stands in for whatever store a deployment binds.
  */
-public final class DaoSpi implements IuDaoSpi {
+@SuppressWarnings("javadoc")
+class MemoryDataStore implements IuDataStore {
 
-	/**
-	 * Default constructor, required to be public and no-argument so that
-	 * {@link java.util.ServiceLoader} can instantiate this provider.
-	 */
-	public DaoSpi() {
+	/** Readable by the tests, which assert on what was filed and under what key. */
+	final Map<String, byte[]> entries = new LinkedHashMap<>();
+
+	private final Map<String, Instant> modified = new LinkedHashMap<>();
+
+	/** Listing entry over the fixture's own maps. */
+	private final class Entry implements IuDataStoreEntry {
+		private final String name;
+
+		private Entry(String name) {
+			this.name = name;
+		}
+
+		@Override
+		public String getName() {
+			return name;
+		}
+
+		@Override
+		public Instant getModified() {
+			return modified.get(name);
+		}
+
+		@Override
+		public byte[] getData() {
+			return entries.get(name);
+		}
 	}
 
 	@Override
-	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
-			TransactionSynchronizationRegistry transactionSynchronizationRegistry) {
-		return new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, new IuSqlBuilderImpl());
+	public Iterable<IuDataStoreEntry> list() {
+		return IuIterable.map(entries.keySet(), Entry::new);
 	}
 
 	@Override
-	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
-			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
-			Supplier<IuRefreshableCacheConfiguration> config) {
-		// one builder, shared: the cache reads an entity's mapped key with the same
-		// builder the delegate generates its statements with, so the key it publishes
-		// a row under is the one a load of that row would be made with
-		final var sqlBuilder = new IuSqlBuilderImpl();
-		return new CachedDao(
-				new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, sqlBuilder), sqlBuilder,
-				transactionManager, transactionSynchronizationRegistry, config);
+	public byte[] get(byte[] key) {
+		return entries.get(IuText.base64Url(key));
+	}
+
+	@Override
+	public Instant lastModified(byte[] key) {
+		return modified.get(IuText.base64Url(key));
+	}
+
+	@Override
+	public void put(byte[] key, byte[] data) {
+		if (data == null) {
+			entries.remove(IuText.base64Url(key));
+			modified.remove(IuText.base64Url(key));
+		} else {
+			entries.put(IuText.base64Url(key), data);
+			modified.put(IuText.base64Url(key), Instant.now());
+		}
+	}
+
+	@Override
+	public void put(byte[] key, byte[] value, Duration ttl) {
+		put(key, value);
 	}
 }

@@ -32,6 +32,8 @@
 package iu.oidc.provider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -43,6 +45,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuIterable;
+import edu.iu.IuText;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.oidc.IuOidcProviderMetadata;
@@ -169,6 +173,25 @@ public class OidcIssuerTest {
 		final var issuer = issuer(List.of(key(Algorithm.ES256)));
 		assertEquals("No issuer signing key for ES384",
 				assertThrows(IllegalStateException.class, () -> issuer.issuerKey(Algorithm.ES384)).getMessage());
+	}
+
+	@Test
+	void testTheKeySetPublishesOnlyWhatHasAPublicHalf() {
+		final var signing = WebKey.builder(Algorithm.ES256).keyId("sign").ephemeral().build();
+		final var secret = WebKey.builder(Algorithm.HS256).keyId("secret").key(IuText.utf8("hunter2")).build();
+
+		// a null entry, and a shared secret with no public half to publish, are both
+		// skipped rather than emitted as empty entries
+		final var published = WebKey.parseJwks(issuer(Arrays.asList(null, signing, secret)).publishedJwks());
+		assertIterableEquals(List.of("sign"), IuIterable.map(published, WebKey::getKeyId));
+
+		// and what is published carries no private material, however it was configured
+		assertNull(published.iterator().next().getPrivateKey());
+	}
+
+	@Test
+	void testADeploymentWithNoKeysPublishesAnEmptySet() {
+		assertIterableEquals(List.of(), WebKey.parseJwks(issuer(null).publishedJwks()));
 	}
 
 }

@@ -63,6 +63,8 @@ public class IuOidcProviderReferenceTest {
 				assertThrows(UnsupportedOperationException.class, reference::getClientSource).getMessage());
 		assertEquals("Missing claims source",
 				assertThrows(UnsupportedOperationException.class, reference::getClaimsSource).getMessage());
+		assertEquals("Missing identity source",
+				assertThrows(UnsupportedOperationException.class, reference::getIdentitySource).getMessage());
 		assertEquals("Missing session handler",
 				assertThrows(UnsupportedOperationException.class, reference::getSessionHandler).getMessage());
 		assertEquals("Missing data store",

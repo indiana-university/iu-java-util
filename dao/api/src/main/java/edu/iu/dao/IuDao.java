@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 
 import javax.sql.DataSource;
 
+import edu.iu.IuRefreshableCacheConfiguration;
 import edu.iu.dao.spi.IuDaoSpi;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.TransactionSynchronizationRegistry;
@@ -111,6 +112,62 @@ public interface IuDao {
 		return ServiceLoader.load(IuDaoSpi.class, IuDaoSpi.class.getClassLoader()).findFirst()
 				.orElseThrow(() -> new IllegalStateException("No IuDao service provider is installed"))
 				.create(dataSource, transactionManager, transactionSynchronizationRegistry);
+	}
+
+	/**
+	 * Gets a DAO with a process-wide read cache in front of it.
+	 *
+	 * <p>
+	 * Adopting the cache is only this: supply a configuration whose
+	 * {@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL} is
+	 * non-null. Nothing needs to be annotated, and no method needs to declare what
+	 * it reads or writes — the entity mapping already states which columns identify
+	 * a row, which is the only declaration the cache needs.
+	 * </p>
+	 *
+	 * <p>
+	 * A null refresh TTL leaves the layer inert: every call is delegated on the
+	 * calling thread, exactly as it would be without it. The configuration is read
+	 * on every operation, so caching can be switched on and off in place.
+	 * </p>
+	 *
+	 * <p>
+	 * The cache answers reads made <strong>outside</strong> a transaction. A read
+	 * inside one is delegated, so a transaction continues to see its own writes and
+	 * a consistent view of everything else; the value it read is contributed to the
+	 * cache once the transaction commits, which costs no additional query. Writes
+	 * through the facade invalidate what they affect, also at commit. Direct SQL
+	 * does not, so call {@link #clear()} after modifying rows by other means.
+	 * </p>
+	 *
+	 * <p>
+	 * Every process holding one of these caches refreshes independently, so read
+	 * volume against the database scales with the number of them. Size the refresh
+	 * TTL for the cluster rather than for one process.
+	 * </p>
+	 *
+	 * @param dataSource                          data source
+	 * @param transactionManager                  transaction manager
+	 * @param transactionSynchronizationRegistry  registry in which the DAO stores
+	 *                                            transaction-scoped read caches
+	 * @param config                              supplies the read cache
+	 *                                            configuration in effect;
+	 *                                            <em>should</em> return quickly, as
+	 *                                            it is read on every operation
+	 * @return DAO created by the installed provider
+	 * @throws IllegalStateException if no provider is installed
+	 * @throws NullPointerException  if any argument is {@code null}
+	 */
+	static IuDao of(DataSource dataSource, TransactionManager transactionManager,
+			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
+			Supplier<IuRefreshableCacheConfiguration> config) {
+		Objects.requireNonNull(dataSource, "dataSource");
+		Objects.requireNonNull(transactionManager, "transactionManager");
+		Objects.requireNonNull(transactionSynchronizationRegistry, "transactionSynchronizationRegistry");
+		Objects.requireNonNull(config, "config");
+		return ServiceLoader.load(IuDaoSpi.class, IuDaoSpi.class.getClassLoader()).findFirst()
+				.orElseThrow(() -> new IllegalStateException("No IuDao service provider is installed"))
+				.create(dataSource, transactionManager, transactionSynchronizationRegistry, config);
 	}
 
 	/**

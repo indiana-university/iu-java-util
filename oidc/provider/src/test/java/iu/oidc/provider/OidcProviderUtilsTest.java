@@ -43,6 +43,7 @@ import static org.mockito.Mockito.when;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -221,6 +222,60 @@ public class OidcProviderUtilsTest {
 	@Test
 	void testAClientRegisteringNoEndpointMatchesNone() {
 		assertNull(OidcProviderUtils.registeredEndpoint(client(null), "https://client.example.iu.edu/cb"));
+	}
+
+	@Test
+	void testTheAudienceIsWhatRegistersAGrantedScope() {
+		final var endpoint = endpoint(
+				Arrays.asList(null, resource(EXTERNAL, Set.of("read")), resource(null, Set.of("openid"))));
+
+		// the entry with no URI names this provider, so granting openid addresses the
+		// token to the issuer without the registration naming it
+		assertIterableEquals(List.of(ISSUER), OidcProviderUtils.audience(ISSUER, endpoint, Set.of(), Set.of("openid")));
+		assertIterableEquals(List.of(EXTERNAL), OidcProviderUtils.audience(ISSUER, endpoint, Set.of(), Set.of("read")));
+		assertIterableEquals(List.of(EXTERNAL, ISSUER),
+				OidcProviderUtils.audience(ISSUER, endpoint, Set.of(), Set.of("read", "openid")));
+	}
+
+	@Test
+	void testNamingAResourceNarrowsTheAudienceToIt() {
+		final var endpoint = endpoint(List.of(resource(EXTERNAL, Set.of("read")), resource(null, Set.of("read"))));
+
+		assertIterableEquals(List.of(EXTERNAL),
+				OidcProviderUtils.audience(ISSUER, endpoint, Set.of(EXTERNAL.toString()), Set.of("read")));
+		assertIterableEquals(List.of(ISSUER),
+				OidcProviderUtils.audience(ISSUER, endpoint, Set.of(ISSUER.toString()), Set.of("read")));
+	}
+
+	@Test
+	void testAScopeNoResourceRegistersAddressesNothing() {
+		// answering with the issuer anyway would grant an audience nobody configured
+		final var endpoint = endpoint(List.of(resource(EXTERNAL, Set.of("read")), resource(null, null)));
+		assertIterableEquals(List.of(), OidcProviderUtils.audience(ISSUER, endpoint, Set.of(), Set.of("openid")));
+		assertIterableEquals(List.of(), OidcProviderUtils.audience(ISSUER, endpoint(null), Set.of(), Set.of("read")));
+	}
+
+	@Test
+	void testClientCredentialsGrantsEveryScopeTheResourceRegisters() {
+		final var endpoint = endpoint(List.of(resource(null, Set.of("read")), resource(EXTERNAL, Set.of("write"))));
+
+		// naming no resource selects the entry with no URI, as grantedResources does
+		assertIterableEquals(List.of("read"),
+				OidcProviderUtils.clientCredentialsScopes(endpoint, ISSUER, null, Set.of()));
+		assertIterableEquals(List.of("write"),
+				OidcProviderUtils.clientCredentialsScopes(endpoint, ISSUER, null, Set.of(EXTERNAL.toString())));
+	}
+
+	@Test
+	void testARequestedScopeNarrowsWhatIsGranted() {
+		final var endpoint = endpoint(List.of(resource(null, new LinkedHashSet<>(List.of("read", "write")))));
+
+		assertIterableEquals(List.of("read"),
+				OidcProviderUtils.clientCredentialsScopes(endpoint, ISSUER, "read", Set.of()));
+		// asking for something no resource registers narrows it to nothing rather
+		// than refusing
+		assertIterableEquals(List.of(),
+				OidcProviderUtils.clientCredentialsScopes(endpoint, ISSUER, "admin", Set.of()));
 	}
 
 }

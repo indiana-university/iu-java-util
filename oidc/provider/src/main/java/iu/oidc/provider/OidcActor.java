@@ -29,48 +29,53 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.dao;
-
-import java.util.function.Supplier;
-
-import javax.sql.DataSource;
-
-import edu.iu.IuRefreshableCacheConfiguration;
-
-import edu.iu.dao.IuDao;
-import edu.iu.dao.spi.IuDaoSpi;
-import jakarta.transaction.TransactionManager;
-import jakarta.transaction.TransactionSynchronizationRegistry;
+package iu.oidc.provider;
 
 /**
- * Default {@link IuDaoSpi} provider, creating {@link JdbcDao} instances backed by
- * {@link IuSqlBuilderImpl}.
+ * The {@code act} claim: who is really behind a token issued for somebody else.
+ *
+ * <p>
+ * Set only when an impersonation request is honored, and then on both tokens.
+ * The two carry different amounts of it: an access token names the actor and
+ * nothing more, since a resource server needs to know an action was delegated
+ * and not who the delegate is, while an ID token adds {@code name} and
+ * {@code email} so a relying party can show its user whose session they are
+ * looking through. Both are the actor's own claims, never the subject's.
+ * </p>
+ *
+ * <p>
+ * A bean, so a token builder renders it as the nested object RFC 8693 defines
+ * rather than as a string. The two optional claims are omitted from the
+ * rendering when they answer {@code null}, which is what makes one interface
+ * serve both tokens.
+ * </p>
+ *
+ * @see <a href="https://www.rfc-editor.org/rfc/rfc8693#section-4.1">RFC 8693
+ *      &sect;4.1</a>
  */
-public final class DaoSpi implements IuDaoSpi {
+public interface OidcActor {
 
 	/**
-	 * Default constructor, required to be public and no-argument so that
-	 * {@link java.util.ServiceLoader} can instantiate this provider.
+	 * Gets the actor's own principal name.
+	 *
+	 * @return {@code sub} claim
 	 */
-	public DaoSpi() {
-	}
+	String getSub();
 
-	@Override
-	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
-			TransactionSynchronizationRegistry transactionSynchronizationRegistry) {
-		return new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, new IuSqlBuilderImpl());
-	}
+	/**
+	 * Gets the actor's display name.
+	 *
+	 * @return {@code name} claim; null on an access token, and on an ID token when
+	 *         the claims source holds none
+	 */
+	String getName();
 
-	@Override
-	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
-			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
-			Supplier<IuRefreshableCacheConfiguration> config) {
-		// one builder, shared: the cache reads an entity's mapped key with the same
-		// builder the delegate generates its statements with, so the key it publishes
-		// a row under is the one a load of that row would be made with
-		final var sqlBuilder = new IuSqlBuilderImpl();
-		return new CachedDao(
-				new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, sqlBuilder), sqlBuilder,
-				transactionManager, transactionSynchronizationRegistry, config);
-	}
+	/**
+	 * Gets the actor's email address.
+	 *
+	 * @return {@code email} claim; null on an access token, and on an ID token when
+	 *         the claims source holds none
+	 */
+	String getEmail();
+
 }

@@ -40,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -161,7 +162,7 @@ public class OidcUserinfoEndpointTest {
 
 	/** Answers claims for the subject the token names. */
 	private void sourceHolds() {
-		when(claimsSource.claims(eq(SUB), any())).thenReturn(claims(SUB, DOCUMENT));
+		when(claimsSource.claims(eq(SUB), any(), any(), any())).thenReturn(claims(SUB, DOCUMENT));
 	}
 
 	/** Registers a client with the given UserInfo response settings. */
@@ -178,7 +179,7 @@ public class OidcUserinfoEndpointTest {
 	@SuppressWarnings("unchecked")
 	private Set<String> admitted() {
 		final var captor = ArgumentCaptor.forClass(Set.class);
-		verify(claimsSource).claims(eq(SUB), captor.capture());
+		verify(claimsSource).claims(eq(SUB), captor.capture(), any(), any());
 		return captor.getValue();
 	}
 
@@ -193,7 +194,7 @@ public class OidcUserinfoEndpointTest {
 		assertThrows(SecurityException.class, () -> endpoint.userinfo("not a token"));
 
 		// nothing was asked of the claims source
-		verify(claimsSource, never()).claims(any(), any());
+		verify(claimsSource, never()).claims(any(), any(), any(), any());
 	}
 
 	@Test
@@ -240,6 +241,30 @@ public class OidcUserinfoEndpointTest {
 	}
 
 	@Test
+	void testOnlyASignedResponseIsToldToNameBothParties() {
+		// OIDC §5.3.2: a signed response must carry iss and aud, so one lifted out of
+		// its response doesn't verify at a different relying party
+		sourceHolds();
+		register(Algorithm.ES256, null, null);
+		endpoint.userinfo(accessToken("openid"));
+		verify(claimsSource).claims(SUB, Set.of("sub"), ISSUER, CLIENT_ID);
+
+		// an unsigned response is a plain claims document with nothing to lift, so
+		// the source is told to render neither
+		reset(claimsSource);
+		sourceHolds();
+		register(null, null, null);
+		endpoint.userinfo(accessToken("openid"));
+		verify(claimsSource).claims(SUB, Set.of("sub"), null, null);
+
+		// and a client whose registration has gone missing signs nothing either
+		reset(claimsSource, clients);
+		sourceHolds();
+		endpoint.userinfo(accessToken("openid"));
+		verify(claimsSource).claims(SUB, Set.of("sub"), null, null);
+	}
+
+	@Test
 	void testWhatTheSourceRendersIsWhatIsPublished() {
 		sourceHolds();
 		register(null, null, null);
@@ -253,7 +278,7 @@ public class OidcUserinfoEndpointTest {
 	void testASourceAnsweringAboutSomebodyElseIsRefused() {
 		// a relying party matches sub against the ID token it holds, so publishing
 		// claims about anyone else would be worse than answering nothing
-		when(claimsSource.claims(eq(SUB), any())).thenReturn(claims("somebody-else", DOCUMENT));
+		when(claimsSource.claims(eq(SUB), any(), any(), any())).thenReturn(claims("somebody-else", DOCUMENT));
 		register(null, null, null);
 
 		final var token = accessToken("openid");
@@ -263,7 +288,7 @@ public class OidcUserinfoEndpointTest {
 
 	@Test
 	void testASourceAnsweringNothingIsAServerFault() {
-		when(claimsSource.claims(eq(SUB), any())).thenReturn(null);
+		when(claimsSource.claims(eq(SUB), any(), any(), any())).thenReturn(null);
 		register(null, null, null);
 
 		final var token = accessToken("openid");
