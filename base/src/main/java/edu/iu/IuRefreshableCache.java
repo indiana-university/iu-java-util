@@ -88,8 +88,9 @@ import java.util.logging.Logger;
  *
  * <p>
  * An invocation bypasses the cache when caching is disabled
- * ({@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL} is
- * null), the hint function returned null, or the hint's
+ * ({@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL} is null,
+ * which includes the configuration supplier itself answering null), the hint
+ * function returned null, or the hint's
  * {@link IuRefreshableCacheHint#shouldClear(Object) shouldClear} returns true
  * for its own key. The last case is the <em>write key</em> idiom: a key that
  * mutates the backing source is never itself cached, and on success publishes
@@ -651,7 +652,10 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 *
 	 * @param config            supplies the configuration in effect;
 	 *                          <em>should</em> return quickly, as it is called on
-	 *                          every invocation
+	 *                          every invocation. The supplier itself is required,
+	 *                          but it may answer null, which reads as
+	 *                          {@link IuRefreshableCacheConfiguration#NO_CACHE} and
+	 *                          so skips caching exactly as a null refresh TTL does
 	 * @param refreshFunction   function that resolves cached values on a cache miss
 	 *                          and on each background refresh; invoked on a pooled
 	 *                          thread
@@ -666,6 +670,31 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		this.config = Objects.requireNonNull(config, "Missing configuration supplier");
 		this.refreshFunction = refreshFunction;
 		this.cacheHintFunction = Objects.requireNonNullElse(cacheHintFunction, k -> null);
+	}
+
+	/**
+	 * Takes one configuration snapshot for an invocation.
+	 *
+	 * <p>
+	 * A supplier answering null reads as
+	 * {@link IuRefreshableCacheConfiguration#NO_CACHE}, so an application with
+	 * nothing configured for a cache says so by supplying nothing rather than by
+	 * assembling a configuration to say it. Caching is then skipped exactly as a
+	 * null {@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL}
+	 * skips it, and the call timeout and executor limits take their declared
+	 * defaults.
+	 * </p>
+	 *
+	 * <p>
+	 * Substituted here rather than where the refresh TTL is read, because an
+	 * invocation resolves the call timeout and the executor from the same snapshot
+	 * before it knows whether anything will be cached.
+	 * </p>
+	 *
+	 * @return configuration snapshot; never null
+	 */
+	private IuRefreshableCacheConfiguration config() {
+		return Objects.requireNonNullElse(config.get(), IuRefreshableCacheConfiguration.NO_CACHE);
 	}
 
 	/**
@@ -813,7 +842,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 		// one snapshot per invocation, so a configuration change taking effect
 		// mid-invocation cannot be observed inconsistently
 		final var cacheHint = cacheHintFunction.apply(key);
-		final var config = this.config.get();
+		final var config = config();
 		final var refreshTtl = refreshTtl(config);
 		final var callTtl = callTtl(config);
 		final var exec = exec(config);
@@ -1048,7 +1077,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			return;
 
 		final var start = Instant.now();
-		final var config = this.config.get();
+		final var config = config();
 		final var refreshTtl = refreshTtl(config);
 		if (refreshTtl == null)
 			// caching is disabled, so there is nothing cached to invalidate
@@ -1145,7 +1174,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			throw new IllegalStateException("Refreshable cache is closed");
 
 		final var start = Instant.now();
-		final var config = this.config.get();
+		final var config = config();
 		final var refreshTtl = refreshTtl(config);
 		if (refreshTtl == null)
 			// caching is disabled, so there is no entry for this value to occupy

@@ -1800,4 +1800,46 @@ public class IuRefreshableCacheTest {
 		assertEquals("Refreshable cache is closed",
 				assertThrows(IllegalStateException.class, () -> cache.publish("key", "value", 0L)).getMessage());
 	}
+
+	@Test
+	public void testASupplierAnsweringNullSkipsTheCache() throws Throwable {
+		// an application with nothing configured says so by supplying nothing, rather
+		// than by assembling a configuration whose only purpose is to say it
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(() -> null, key -> key + "/" + calls.incrementAndGet())) {
+			assertEquals("key/1", cache.apply("key"));
+			assertEquals("key/2", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testASupplierAnsweringNullLeavesNothingToInvalidateOrPublish() throws Throwable {
+		final var calls = new AtomicInteger();
+		try (final var cache = cache(() -> null, key -> key + "/" + calls.incrementAndGet())) {
+			// nothing is cached, so there is nothing for either to act on -- and neither
+			// may fail for want of a configuration to read
+			assertFalse(cache.publish("key", "published", cache.mark()));
+			cache.invalidate(IuRefreshableCacheHint.clearAll());
+
+			assertEquals("key/1", cache.apply("key"));
+		}
+	}
+
+	@Test
+	public void testASupplierMayStartAnsweringNull() throws Throwable {
+		// read per invocation like every other configured value, so a deployment turns
+		// caching off the same way it turns it on
+		final var calls = new AtomicInteger();
+		final var configuration = new AtomicReference<IuRefreshableCacheConfiguration>(
+				config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)));
+
+		try (final var cache = cache(configuration::get, key -> key + "/" + calls.incrementAndGet())) {
+			assertEquals("key/1", cache.apply("key"));
+			assertEquals("key/1", cache.apply("key"));
+
+			configuration.set(null);
+			assertEquals("key/2", cache.apply("key"));
+			assertEquals("key/3", cache.apply("key"));
+		}
+	}
 }

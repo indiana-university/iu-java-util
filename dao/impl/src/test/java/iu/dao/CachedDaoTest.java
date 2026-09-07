@@ -43,10 +43,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -79,14 +81,47 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
 @SuppressWarnings("javadoc")
 public class CachedDaoTest {
 
-	/** Entity type used as a cache-key discriminator; never instantiated by SQL. */
+	/**
+	 * Entity type used as a cache-key discriminator; never instantiated by SQL.
+	 *
+	 * <p>
+	 * Mutable, and with the no-argument constructor a class-mapped entity needs,
+	 * because the point of the copying under test is that an application can
+	 * modify what it reads.
+	 * </p>
+	 */
 	public static class Bean {
-		private final String id;
-		private final String value;
+		private String id;
+		private String value;
+
+		Bean() {
+		}
 
 		Bean(String id, String value) {
 			this.id = id;
 			this.value = value;
+		}
+
+		String value() {
+			return value;
+		}
+
+		void value(String value) {
+			this.value = value;
+		}
+
+		// value semantics, so that a test can assert what a read answered with
+		// without asserting that it answered with the cache's own instance
+		@Override
+		public boolean equals(Object obj) {
+			return obj instanceof Bean other //
+					&& Objects.equals(id, other.id) //
+					&& Objects.equals(value, other.value);
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(id, value);
 		}
 
 		@Override
@@ -122,6 +157,19 @@ public class CachedDaoTest {
 		private final AtomicInteger queryReads = new AtomicInteger();
 		private final Map<String, Bean> rows = new LinkedHashMap<>();
 
+		/** Rows of an interface-mapped entity, materialized as proxies. */
+		private final List<Object> viewRows = new ArrayList<>();
+
+		/**
+		 * Gets the rows this delegate holds for an entity type.
+		 *
+		 * @param beanClass entity type
+		 * @return stored rows
+		 */
+		private Collection<?> source(Class<?> beanClass) {
+			return beanClass.isInterface() ? viewRows : rows.values();
+		}
+
 		/** Records a write; only {@link Bean} instances are stored. */
 		private void store(Object bean) {
 			if (bean instanceof Bean row)
@@ -139,7 +187,7 @@ public class CachedDaoTest {
 		private <B> SqlQuery<B> query(String call, Class<B> beanClass) {
 			passthrough.add(call);
 			final List<B> results = new ArrayList<>();
-			rows.values().forEach(row -> results.add(beanClass.cast(row)));
+			source(beanClass).forEach(row -> results.add(beanClass.cast(row)));
 			return new StubQuery<>(call, results, queryReads);
 		}
 
@@ -158,6 +206,9 @@ public class CachedDaoTest {
 		@Override
 		public <B> B loadBean(Class<B> beanClass, Map<String, ?> idParams) {
 			loads.incrementAndGet();
+			if (beanClass.isInterface())
+				return viewRows.isEmpty() ? null : beanClass.cast(viewRows.get(0));
+
 			return beanClass.cast(rows.get(idParams.get("id")));
 		}
 
@@ -165,7 +216,7 @@ public class CachedDaoTest {
 		public <B> List<B> searchBeans(Class<B> beanClass, Map<String, ?> idParams, boolean observe, int maxResults) {
 			searches.incrementAndGet();
 			final List<B> results = new ArrayList<>();
-			rows.values().forEach(row -> results.add(beanClass.cast(row)));
+			source(beanClass).forEach(row -> results.add(beanClass.cast(row)));
 			return Collections.unmodifiableList(results);
 		}
 
@@ -571,7 +622,7 @@ public class CachedDaoTest {
 
 		final var first = dao.loadBean(Bean.class, id("a"));
 		assertEquals("a=one", first.toString());
-		assertSame(first, dao.loadBean(Bean.class, id("a")));
+		assertEquals(first, dao.loadBean(Bean.class, id("a")));
 		assertEquals(1, delegate.loads.get(), "a cached load reached the delegate");
 	}
 
@@ -585,8 +636,8 @@ public class CachedDaoTest {
 
 		// the search already read these rows, so loading one individually is answered
 		// without any further call
-		assertSame(results.get(0), dao.loadBean(Bean.class, id("a")));
-		assertSame(results.get(1), dao.loadBean(Bean.class, id("b")));
+		assertEquals(results.get(0), dao.loadBean(Bean.class, id("a")));
+		assertEquals(results.get(1), dao.loadBean(Bean.class, id("b")));
 		assertEquals(0, delegate.loads.get(), "a row published by a search was loaded again");
 		assertEquals(1, delegate.searches.get());
 	}
@@ -615,7 +666,7 @@ public class CachedDaoTest {
 		transaction.complete(Status.STATUS_COMMITTED);
 
 		// the value it paid for is now serving readers outside the transaction
-		assertSame(again, dao.loadBean(Bean.class, id("a")));
+		assertEquals(again, dao.loadBean(Bean.class, id("a")));
 		assertEquals(2, delegate.loads.get());
 		assertNotSame(null, inTransaction);
 	}
@@ -653,7 +704,7 @@ public class CachedDaoTest {
 		// the write committed
 		assertEquals(1, dao.searchBeans(Bean.class, Map.of(), false, 0).size());
 		assertEquals(3, delegate.searches.get());
-		assertSame(replacement, dao.loadBean(Bean.class, id("a")));
+		assertEquals(replacement, dao.loadBean(Bean.class, id("a")));
 		assertEquals(0, delegate.loads.get(), "the row a write republished was loaded again");
 	}
 
@@ -661,7 +712,7 @@ public class CachedDaoTest {
 	public void testDeleteInvalidatesTheRowItRemoved() {
 		final var row = new Bean("a", "one");
 		delegate.rows.put("a", row);
-		assertSame(row, dao.loadBean(Bean.class, id("a")));
+		assertEquals(row, dao.loadBean(Bean.class, id("a")));
 
 		dao.deleteBean(row);
 
@@ -676,7 +727,7 @@ public class CachedDaoTest {
 
 		dao.clear(Other.class);
 
-		assertSame(cached, dao.loadBean(Bean.class, id("a")));
+		assertEquals(cached, dao.loadBean(Bean.class, id("a")));
 		assertEquals(1, delegate.loads.get());
 		assertEquals(List.of("clear:Other"), delegate.writes);
 	}
@@ -750,6 +801,99 @@ public class CachedDaoTest {
 		assertEquals(1, dao.searchBeans(Bean.class, Map.of(), false, 0).size());
 		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
 		assertEquals(1, delegate.loads.get());
+	}
+
+	@Test
+	public void testAReaderCannotCorruptACachedRow() {
+		delegate.rows.put("a", new Bean("a", "one"));
+
+		final var first = dao.loadBean(Bean.class, id("a"));
+		first.value("corrupted");
+
+		// the reader modified its own copy, not the entry every later reader is
+		// about to be answered with
+		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
+		assertEquals(1, delegate.loads.get(), "the row stopped being cached");
+	}
+
+	@Test
+	public void testAReaderCannotCorruptACachedSearch() {
+		delegate.rows.put("a", new Bean("a", "one"));
+		delegate.rows.put("b", new Bean("b", "two"));
+
+		final var first = dao.searchBeans(Bean.class, Map.of(), false, 0);
+		first.get(0).value("corrupted");
+
+		final var second = dao.searchBeans(Bean.class, Map.of(), false, 0);
+		assertEquals("a=one", second.get(0).toString());
+		assertEquals(1, delegate.searches.get(), "the search stopped being cached");
+
+		// each read gets its own rows, so one reader's changes reach no other
+		assertNotSame(first.get(0), second.get(0));
+
+		// and the rows a search published are copies too
+		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
+		assertEquals(0, delegate.loads.get());
+	}
+
+	@Test
+	public void testAWriterCannotCorruptTheRowItRepublished() {
+		final var written = new Bean("a", "one");
+		dao.saveBean(written);
+
+		// the caller still holds this bean after the write that published it
+		written.value("corrupted");
+
+		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
+		assertEquals(0, delegate.loads.get(), "the republished row was not cached");
+	}
+
+	@Test
+	public void testATransactionalReaderCannotCorruptWhatItInjects() {
+		delegate.rows.put("a", new Bean("a", "one"));
+
+		transaction.beginTransaction();
+		final var inTransaction = dao.loadBean(Bean.class, id("a"));
+
+		// modified before the commit that publishes what was read
+		inTransaction.value("corrupted");
+		transaction.complete(Status.STATUS_COMMITTED);
+
+		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
+		assertEquals(1, delegate.loads.get());
+	}
+
+	@Test
+	public void testAQueryReaderCannotCorruptWhatItPublished() {
+		delegate.rows.put("a", new Bean("a", "one"));
+
+		final List<Bean> results;
+		try (var query = dao.getBeanQuery(Bean.class, Map.of())) {
+			results = query.getResults();
+		}
+		results.get(0).value("corrupted");
+
+		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
+		assertEquals(0, delegate.loads.get(), "the row a query published was not cached");
+	}
+
+	@Test
+	public void testAnInterfaceMappedRowIsSharedRatherThanCopied() {
+		final var view = (BeanView) Proxy.newProxyInstance(BeanView.class.getClassLoader(),
+				new Class<?>[] { BeanView.class }, (proxy, method, args) -> "a");
+		sqlBuilder.key = bean -> ((BeanView) bean).getId();
+		delegate.viewRows.add(view);
+
+		final var first = dao.searchBeans(BeanView.class, Map.of(), false, 0);
+		final var second = dao.searchBeans(BeanView.class, Map.of(), false, 0);
+
+		// nothing about a proxy over a resolved row can be modified, so there is
+		// nothing for a copy to protect — the list and its rows are shared whole
+		assertSame(first, second);
+		assertSame(view, first.get(0));
+		assertSame(view, dao.loadBean(BeanView.class, id("a")));
+		assertEquals(1, delegate.searches.get());
+		assertEquals(0, delegate.loads.get());
 	}
 
 	@Test
@@ -828,8 +972,8 @@ public class CachedDaoTest {
 		assertEquals(2, results.size());
 
 		// the query already read these rows, so loading one costs nothing further
-		assertSame(results.get(0), dao.loadBean(Bean.class, id("a")));
-		assertSame(results.get(1), dao.loadBean(Bean.class, id("b")));
+		assertEquals(results.get(0), dao.loadBean(Bean.class, id("a")));
+		assertEquals(results.get(1), dao.loadBean(Bean.class, id("b")));
 		assertEquals(0, delegate.loads.get(), "a row published by a query was loaded again");
 	}
 
@@ -958,8 +1102,9 @@ public class CachedDaoTest {
 	@Test
 	public void testAGeneratedStatementInvalidatesTheRowItWrites() {
 		delegate.rows.put("a", new Bean("a", "one"));
-		final var cached = dao.loadBean(Bean.class, id("a"));
-		assertSame(cached, dao.loadBean(Bean.class, id("a")));
+		dao.loadBean(Bean.class, id("a"));
+		dao.loadBean(Bean.class, id("a"));
+		assertEquals(1, delegate.loads.get(), "the row was not cached before the write");
 
 		delegate.rows.put("a", new Bean("a", "two"));
 		assertEquals(1, dao.getBeanUpdate(new Bean("a", "x")).execute());
@@ -981,14 +1126,17 @@ public class CachedDaoTest {
 			delegate.rows.put("a", new Bean("a", "one"));
 			final var statement = generator.apply(new Bean("a", "x"));
 
-			final var before = dao.loadBean(Bean.class, id("a"));
-			assertSame(before, dao.loadBean(Bean.class, id("a")), "the row was not cached before the write");
+			final var reads = delegate.loads.get();
+			dao.loadBean(Bean.class, id("a"));
+			dao.loadBean(Bean.class, id("a"));
+			assertEquals(reads + 1, delegate.loads.get(), "the row was not cached before the write");
 
 			final var replacement = new Bean("a", "two");
 			delegate.rows.put("a", replacement);
 			assertEquals(1, statement.execute());
 
-			assertSame(replacement, dao.loadBean(Bean.class, id("a")), statement.getQuery());
+			assertEquals(replacement, dao.loadBean(Bean.class, id("a")), statement.getQuery());
+			assertEquals(reads + 2, delegate.loads.get(), statement.getQuery());
 		}
 	}
 
@@ -1001,7 +1149,7 @@ public class CachedDaoTest {
 
 		// raw SQL names neither an entity type nor a row, so there is nothing to
 		// invalidate by; the caller still has to clear() after modifying rows this way
-		assertSame(cached, dao.loadBean(Bean.class, id("a")));
+		assertEquals(cached, dao.loadBean(Bean.class, id("a")));
 		assertEquals(1, delegate.loads.get());
 		assertEquals(List.of("getStatement:delete from bean[]"), delegate.executions);
 	}
@@ -1103,7 +1251,7 @@ public class CachedDaoTest {
 		final var replacement = new Bean("a", "two");
 		dao.updateBean(replacement);
 
-		assertSame(replacement, dao.loadBean(Bean.class, id("a")));
+		assertEquals(replacement, dao.loadBean(Bean.class, id("a")));
 		assertEquals(1, delegate.loads.get());
 	}
 
@@ -1131,7 +1279,7 @@ public class CachedDaoTest {
 
 		refreshTtl = Duration.ofMinutes(5L);
 		final var cached = dao.loadBean(Bean.class, id("a"));
-		assertSame(cached, dao.loadBean(Bean.class, id("a")));
+		assertEquals(cached, dao.loadBean(Bean.class, id("a")));
 		assertEquals(3, delegate.loads.get());
 	}
 }

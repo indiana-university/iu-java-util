@@ -298,10 +298,26 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 							<additionalOption>iu-javadoc.css</additionalOption>
 							<additionalOption>--add-stylesheet</additionalOption>
 							<additionalOption>rivet.min.css</additionalOption>
+							<!-- Several linked artifacts (Jakarta Transactions, Commons,
+								Lettuce, OpenSAML) publish non-modular API docs. Downgrade the resulting
+								modularity mismatch from a warning to an informational message so failOnWarnings
+								remains meaningful. -->
+							<additionalOption>--link-modularity-mismatch</additionalOption>
+							<additionalOption>info</additionalOption>
 						</additionalOptions>
 						<links>
 							<link>https://jakarta.ee/specifications/annotations/3.0/apidocs/</link>
 							<link>https://jakarta.ee/specifications/interceptors/2.2/apidocs/</link>
+							<link>https://jakarta.ee/specifications/jsonp/2.1/apidocs/</link>
+							<link>https://jakarta.ee/specifications/jsonb/3.0/apidocs/</link>
+							<link>https://jakarta.ee/specifications/persistence/3.2/apidocs/</link>
+							<link>https://jakarta.ee/specifications/transactions/2.0/apidocs/</link>
+							<link>https://docs.junit.org/${junit-jupiter.version}/api/</link>
+							<link>https://javadoc.io/doc/org.mockito/mockito-core/${mockito.version}/</link>
+							<link>https://commons.apache.org/proper/commons-text/apidocs/</link>
+							<link>https://commons.apache.org/proper/commons-pool/apidocs/</link>
+							<link>https://javadoc.io/doc/io.lettuce/lettuce-core/${lettuce.version}/</link>
+							<link>https://shibboleth.net/api/java-opensaml/${opensaml.version}/</link>
 						</links>
 						<failOnError>true</failOnError>
 						<failOnWarnings>true</failOnWarnings>
@@ -518,9 +534,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 				<module>type</module>
 				<module>el</module>
 				<module>logging</module>
-				<module>web</module>
-				<module>site</module>
 				<module>redis</module>
+				<module>site</module>
 			</modules>
 		</profile>
 		<profile>

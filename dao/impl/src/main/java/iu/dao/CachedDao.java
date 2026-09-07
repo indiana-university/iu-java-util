@@ -55,7 +55,6 @@ import edu.iu.dao.SqlStatement;
 import edu.iu.dao.TableDefinition;
 import jakarta.transaction.Status;
 import jakarta.transaction.Synchronization;
-import jakarta.transaction.SystemException;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.TransactionSynchronizationRegistry;
 
@@ -140,6 +139,31 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  * a projection that omits an id column, or an entity that declares no key,
  * publishes nothing rather than publishing a row under a key no load would have
  * produced.
+ * </p>
+ *
+ * <h2>Nothing cached is ever handed out</h2>
+ *
+ * <p>
+ * An uncached DAO materializes a fresh row for every read, so an application
+ * may modify what it reads. A cache would otherwise break that: it answers
+ * every reader with the one instance it holds, and a reader that modified it
+ * would be modifying what the next reader is about to receive.
+ * </p>
+ *
+ * <p>
+ * So rows are {@link DaoCopy copied} at both boundaries. A read copies on the
+ * way out. A read or write that publishes a row the caller also holds copies on
+ * the way in, at the moment of the call rather than at commit, since the caller
+ * may go on modifying it in between.
+ * </p>
+ *
+ * <p>
+ * An entity mapped as an <strong>interface</strong> pays none of this. Its rows
+ * materialize as immutable proxies over the values they were read with, so both
+ * the rows and the unmodifiable list holding them are shared as they stand, and
+ * one instance serves every reader. Mapping an entity as an interface is the
+ * cheapest way to cache it, and the difference grows with the size of the
+ * result.
  * </p>
  *
  * <h2>Queries and statements the caller drives</h2>
@@ -433,9 +457,14 @@ final class CachedDao implements IuDao {
 	 * @param mark sequence position taken before the read
 	 */
 	private void publishRead(DaoKey key, List<?> rows, long mark) {
-		publish(key, rows, mark);
+		// copied on the way in, and now rather than at commit: these rows have
+		// already been handed to the caller, who may modify them before the
+		// transaction ends and would otherwise be modifying what is published
+		final var published = DaoCopy.copyOf(key.type(), rows);
+
+		publish(key, published, mark);
 		if (!key.isLoad())
-			embedded(key.type(), rows).forEach((embeddedKey, value) -> publish(embeddedKey, value, mark));
+			embedded(key.type(), published).forEach((embeddedKey, value) -> publish(embeddedKey, value, mark));
 	}
 
 	/**
@@ -538,7 +567,9 @@ final class CachedDao implements IuDao {
 		invalidate(writeHint(type, republish ? null : loadKey));
 
 		if (republish)
-			publish(loadKey, Collections.singletonList(bean), cache.mark());
+			// copied now, not at commit: the caller still holds this bean and may go
+			// on modifying it after the write that published it
+			publish(loadKey, Collections.singletonList(DaoCopy.copyOf(bean)), cache.mark());
 	}
 
 	@Override
@@ -548,7 +579,9 @@ final class CachedDao implements IuDao {
 
 		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), DaoKey.LOAD);
 		if (!transactional())
-			return beanClass.cast(IuException.unchecked(() -> cache.apply(key)).get(0));
+			// copied on the way out: the cache answers every reader with the one
+			// instance it holds, and the caller is free to modify what it is given
+			return beanClass.cast(DaoCopy.copyOf(IuException.unchecked(() -> cache.apply(key)).get(0)));
 
 		final var mark = cache.mark();
 		final var bean = delegate.loadBean(beanClass, idParams);
@@ -567,7 +600,7 @@ final class CachedDao implements IuDao {
 
 		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), maxResults);
 		if (!transactional())
-			return castResults(IuException.unchecked(() -> cache.apply(key)));
+			return castResults(DaoCopy.copyOf(beanClass, IuException.unchecked(() -> cache.apply(key))));
 
 		final var mark = cache.mark();
 		final var results = delegate.searchBeans(beanClass, idParams, observe, maxResults);
@@ -677,7 +710,11 @@ final class CachedDao implements IuDao {
 
 		return new CachedSqlQuery<>(query, () -> {
 			final var mark = cache.mark();
-			return rows -> embedded(beanClass, rows).forEach((key, value) -> publish(key, value, mark));
+
+			// the query answers its caller with the rows it drained, so what is
+			// published has to be a copy of them rather than the rows themselves
+			return rows -> embedded(beanClass, DaoCopy.copyOf(beanClass, rows))
+					.forEach((key, value) -> publish(key, value, mark));
 		});
 	}
 
