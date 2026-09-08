@@ -71,21 +71,21 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  *
  * <dl>
  * <dt>inside a transaction</dt>
- * <dd>The read is delegated, so it is answered by the transaction's own cache or
- * by the database — never by this one. A transaction sees its own writes and a
- * consistent view of everything else, and a value published by some other
+ * <dd>The read is delegated, so it is answered by the transaction's own cache
+ * or by the database — never by this one. A transaction sees its own writes and
+ * a consistent view of everything else, and a value published by some other
  * caller could honor neither.</dd>
  * <dt>outside a transaction</dt>
  * <dd>The read is answered by this cache, which resolves a miss on a pooled
- * thread. That thread is in no transaction, so the delegate reads through to the
- * database and its own cache stays out of the way.</dd>
+ * thread. That thread is in no transaction, so the delegate reads through to
+ * the database and its own cache stays out of the way.</dd>
  * </dl>
  *
  * <p>
  * A transactional read is still worth something to this cache: it has already
  * paid for a value a later non-transactional reader would have to fetch again.
- * It is therefore <em>injected</em> once the transaction commits, which costs no
- * additional query.
+ * It is therefore <em>injected</em> once the transaction commits, which costs
+ * no additional query.
  * </p>
  *
  * <h2>Why everything waits for the commit</h2>
@@ -200,10 +200,10 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  * <p>
  * Reading a cursor to exhaustion is what allows a query to publish the rows it
  * carried, and it is also the one place this layer changes a caller's memory
- * profile: {@link SqlQuery#getResults(int)} still pages, but over rows that have
- * already been materialized. A result set too large to hold in memory therefore
- * needs a DAO built without a refresh TTL, where every operation is passed
- * through unwrapped.
+ * profile: {@link SqlQuery#getResults(int)} still pages, but over rows that
+ * have already been materialized. A result set too large to hold in memory
+ * therefore needs a DAO built without a refresh TTL, where every operation is
+ * passed through unwrapped.
  * </p>
  */
 final class CachedDao implements IuDao {
@@ -249,8 +249,8 @@ final class CachedDao implements IuDao {
 	 * @param transactionSynchronizationRegistry transaction resource registry, for
 	 *                                           buffering work until commit
 	 * @param config                             supplies the cache configuration in
-	 *                                           effect; a null refresh TTL leaves
-	 *                                           this layer inert
+	 *                                           effect; no configuration or a null
+	 *                                           refresh TTL leaves this layer inert
 	 */
 	CachedDao(IuDao delegate, IuSqlBuilder sqlBuilder, TransactionManager transactionManager,
 			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
@@ -269,17 +269,21 @@ final class CachedDao implements IuDao {
 	 * Determines whether the configuration in effect enables caching.
 	 *
 	 * <p>
-	 * A null refresh TTL leaves this layer inert rather than merely empty: reads
-	 * are delegated on the calling thread, exactly as they would be without it, so
-	 * enabling the layer without configuring it changes nothing a caller can
-	 * observe — not the thread a read runs on, and not the interval it is bounded
-	 * by.
+	 * No configuration, or a configuration with a null refresh TTL, leaves this
+	 * layer inert rather than merely empty: reads are delegated on the calling
+	 * thread, exactly as they would be without it, so enabling the layer without
+	 * configuring it changes nothing a caller can observe — not the thread a read
+	 * runs on, and not the interval it is bounded by.
 	 * </p>
 	 *
 	 * @return true if reads should be resolved through the cache
 	 */
 	private boolean caching() {
-		return config.get().getRefreshTtl() != null;
+		final var config = this.config.get();
+		if (config == null)
+			return false;
+		else
+			return config.getRefreshTtl() != null;
 	}
 
 	/**
@@ -292,8 +296,16 @@ final class CachedDao implements IuDao {
 	private List<?> resolve(DaoKey key) throws Exception {
 		if (key.isLoad())
 			return Collections.singletonList(delegate.loadBean(key.type(), key.parameters()));
-
-		return delegate.searchBeans(key.type(), key.parameters(), false, key.maxResults());
+		else if (key.isQuery())
+			if (key.where() != null)
+				if (key.order() != null)
+					return delegate.getBeanQuery(key.type(), key.where(), key.order(), key.args()).getResults();
+				else
+					return delegate.getBeanQuery(key.type(), key.where(), key.args()).getResults();
+			else
+				return delegate.getBeanQuery(key.type(), key.parameters()).getResults();
+		else
+			return delegate.searchBeans(key.type(), key.parameters(), false, key.maxResults());
 	}
 
 	/**
@@ -310,13 +322,13 @@ final class CachedDao implements IuDao {
 	private IuRefreshableCacheHint<DaoKey, List<?>> cacheHint(DaoKey key) {
 		if (key.isLoad())
 			return IuRefreshableCacheHint.useDefaults();
-
-		return new IuRefreshableCacheHint<DaoKey, List<?>>() {
-			@Override
-			public Map<DaoKey, List<?>> inspect(List<?> rows) {
-				return embedded(key.type(), rows);
-			}
-		};
+		else
+			return new IuRefreshableCacheHint<DaoKey, List<?>>() {
+				@Override
+				public Map<DaoKey, List<?>> inspect(List<?> rows) {
+					return embedded(key.type(), rows);
+				}
+			};
 	}
 
 	/**
@@ -337,7 +349,8 @@ final class CachedDao implements IuDao {
 		for (final var row : rows) {
 			final var parameters = primaryKeyParameters(row, type);
 			if (parameters != null)
-				published.put(new DaoKey(type, parameters, DaoKey.LOAD), Collections.singletonList(row));
+				published.put(new DaoKey(type, parameters, null, null, null, DaoKey.LOAD),
+						Collections.singletonList(row));
 		}
 		return published;
 	}
@@ -560,7 +573,7 @@ final class CachedDao implements IuDao {
 			return;
 		}
 
-		final var loadKey = new DaoKey(type, parameters, DaoKey.LOAD);
+		final var loadKey = new DaoKey(type, parameters, null, null, null, DaoKey.LOAD);
 
 		// a republished row is not invalidated by the write that produced it, so the
 		// hint spares its key and the mark below is taken after the hint is raised
@@ -577,7 +590,8 @@ final class CachedDao implements IuDao {
 		if (!caching())
 			return delegate.loadBean(beanClass, idParams);
 
-		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), DaoKey.LOAD);
+		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), null, null, null,
+				DaoKey.LOAD);
 		if (!transactional())
 			// copied on the way out: the cache answers every reader with the one
 			// instance it holds, and the caller is free to modify what it is given
@@ -598,7 +612,8 @@ final class CachedDao implements IuDao {
 		if (maxResults < 0)
 			throw new IllegalArgumentException("maxResults must not be negative");
 
-		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), maxResults);
+		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), null, null, null,
+				maxResults);
 		if (!transactional())
 			return castResults(DaoCopy.copyOf(beanClass, IuException.unchecked(() -> cache.apply(key))));
 
@@ -647,9 +662,9 @@ final class CachedDao implements IuDao {
 	 * Discards everything this cache holds, after a write too broad to describe.
 	 *
 	 * <p>
-	 * Only this cache: the delegate has already evicted what it changed by the
-	 * time a bulk write returns, so routing through {@link #clear()} would clear it
-	 * a second time and leave this layer doing work of its own on a DAO configured
+	 * Only this cache: the delegate has already evicted what it changed by the time
+	 * a bulk write returns, so routing through {@link #clear()} would clear it a
+	 * second time and leave this layer doing work of its own on a DAO configured
 	 * with no refresh TTL.
 	 * </p>
 	 */
@@ -690,54 +705,30 @@ final class CachedDao implements IuDao {
 	}
 
 	/**
-	 * Wraps a query generated from an entity mapping, so that the rows it reads
-	 * are published as loads of their own.
+	 * Wraps a generated bean query with the cache's result list.
 	 *
 	 * <p>
-	 * Safe to publish from because the builder selects the entity's full mapped
-	 * column list, so every row materializes as a complete entity — the same thing
-	 * a load of that row would have produced.
+	 * The operation is created lazily so a cache miss resolves exactly one query,
+	 * on the cache's pooled thread, rather than opening one query for the wrapper
+	 * and another for its cached rows. Asking for JDBC state, including a result
+	 * set, creates a separate delegate operation and bypasses the list cache; a
+	 * transaction also receives the delegate operation directly so its reads stay
+	 * within its own transactional view.
 	 * </p>
 	 *
 	 * @param beanClass entity type the rows are read as
-	 * @param query     query to wrap
+	 * @param query     creates the delegate operation if one is required
+	 * @param key       cache key for the query's complete result list
 	 * @param <B>       entity type
-	 * @return wrapped query, or {@code query} when the cache is inert
+	 * @return cached query, or a delegate query when caching is inactive or the
+	 *         caller is transactional
 	 */
-	private <B> SqlQuery<B> cachedBeanQuery(Class<B> beanClass, SqlQuery<B> query) {
-		if (!caching())
-			return query;
+	private <B> SqlQuery<B> cachedBeanQuery(Class<B> beanClass, Supplier<SqlQuery<B>> query, DaoKey key) {
+		if (!caching() || transactional())
+			return query.get();
 
-		return new CachedSqlQuery<>(query, () -> {
-			final var mark = cache.mark();
-
-			// the query answers its caller with the rows it drained, so what is
-			// published has to be a copy of them rather than the rows themselves
-			return rows -> embedded(beanClass, DaoCopy.copyOf(beanClass, rows))
-					.forEach((key, value) -> publish(key, value, mark));
-		});
-	}
-
-	/**
-	 * Wraps a query built from caller-supplied SQL.
-	 *
-	 * <p>
-	 * The rows are drained and answered from the list, but never published: the
-	 * SQL is the caller's, so a row may be a partial projection of an entity, or
-	 * carry no entity at all. Publishing one as a load would answer a later
-	 * {@link #loadBean(Class, Map)} with a half-populated bean.
-	 * </p>
-	 *
-	 * @param query query to wrap
-	 * @param <B>   materialized row type
-	 * @return wrapped query, or {@code query} when the cache is inert
-	 */
-	private <B> SqlQuery<B> cachedQuery(SqlQuery<B> query) {
-		if (!caching())
-			return query;
-
-		return new CachedSqlQuery<>(query, () -> rows -> {
-		});
+		return new CachedSqlQuery<>(query,
+				() -> castResults(DaoCopy.copyOf(beanClass, IuException.unchecked(key, cache))));
 	}
 
 	/**
@@ -781,18 +772,21 @@ final class CachedDao implements IuDao {
 
 	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<?> args) {
-		return cachedBeanQuery(beanClass, delegate.getBeanQuery(beanClass, where, args));
+		return cachedBeanQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, args),
+				new DaoKey(beanClass, null, where, null, args, DaoKey.QUERY));
 	}
 
 	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<String> order,
 			Iterable<?> args) {
-		return cachedBeanQuery(beanClass, delegate.getBeanQuery(beanClass, where, order, args));
+		return cachedBeanQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, order, args),
+				new DaoKey(beanClass, null, where, order, args, DaoKey.QUERY));
 	}
 
 	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Map<String, ?> idParams) {
-		return cachedBeanQuery(beanClass, delegate.getBeanQuery(beanClass, idParams));
+		return cachedBeanQuery(beanClass, () -> delegate.getBeanQuery(beanClass, idParams),
+				new DaoKey(beanClass, idParams, null, null, null, DaoKey.QUERY));
 	}
 
 	@Override
@@ -817,11 +811,11 @@ final class CachedDao implements IuDao {
 
 	@Override
 	public <B> SqlQuery<B> getQuery(Class<B> beanClass, String sql, Iterable<?> args) {
-		return cachedQuery(delegate.getQuery(beanClass, sql, args));
+		return delegate.getQuery(beanClass, sql, args);
 	}
 
 	@Override
 	public <B> SqlQuery<B> getFactoryQuery(Function<ResultSet, B> factory, String sql, Iterable<?> args) {
-		return cachedQuery(delegate.getFactoryQuery(factory, sql, args));
+		return delegate.getFactoryQuery(factory, sql, args);
 	}
 }

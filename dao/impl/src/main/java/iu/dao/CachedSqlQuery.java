@@ -34,7 +34,6 @@ package iu.dao;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -57,9 +56,9 @@ import jakarta.persistence.NonUniqueResultException;
  *
  * <p>
  * The cost is that {@link #getResults(int)} is no longer lazy. It still pages —
- * each call returns the next {@code maxRows} rows and leaves the cursor where it
- * stopped — but the rows behind those pages have already been materialized, so
- * paging bounds what the caller handles at once rather than what the query
+ * each call returns the next {@code maxRows} rows and leaves the cursor where
+ * it stopped — but the rows behind those pages have already been materialized,
+ * so paging bounds what the caller handles at once rather than what the query
  * holds. A query over a result set too large to hold in memory should not be
  * wrapped.
  * </p>
@@ -70,34 +69,33 @@ import jakarta.persistence.NonUniqueResultException;
  * The cursor is honored as {@link SqlQuery} describes it. Accessors read
  * forward from the current position; {@link #getSingleResult()},
  * {@link #getFirstRecord()} and {@link #getResults()} are terminal and close;
- * {@link #getResults(int)} leaves the position where it stopped. Closing rewinds
- * to the first row, and because the rows are already held, reopening replays
- * them rather than re-reading the database — which is what makes this a cache
- * and not merely a buffer.
+ * {@link #getResults(int)} leaves the position where it stopped. Closing
+ * rewinds to the first row, and because the rows are already held, reopening
+ * replays them rather than re-reading the database — which is what makes this a
+ * cache and not merely a buffer.
  * </p>
  *
  * <p>
  * {@link #getResultSet()} is the one accessor a list cannot answer, since it
- * hands the caller the driver's own cursor. It discards whatever has been
- * drained and returns the delegate's result set, so a later list accessor reads
- * forward from wherever the caller left that cursor.
+ * hands the caller the driver's own cursor. It bypasses the cached rows and
+ * returns a fresh delegate cursor, so a later list accessor reads forward from
+ * wherever the caller left that cursor.
  * </p>
  *
  * @param <B> materialized row type
  */
 final class CachedSqlQuery<B> implements SqlQuery<B> {
 
-	/** Query this one reads through. */
-	private final SqlQuery<B> delegate;
+	/** Creates the delegate operation only when an accessor needs it. */
+	private final Supplier<SqlQuery<B>> query;
 
-	/**
-	 * Opened immediately before the delegate is read and applied immediately
-	 * after, so that whatever sequence position the publisher captures precedes
-	 * the read it publishes.
-	 */
-	private final Supplier<Consumer<List<B>>> publisher;
+	/** Query this one reads through, once an accessor has needed it. */
+	private SqlQuery<B> delegate;
 
-	/** Rows read from the delegate; null until drained. */
+	/** Supplies cached rows until the caller takes the underlying result set. */
+	private Supplier<List<B>> cached;
+
+	/** Cached rows read. */
 	private List<B> rows;
 
 	/** Cursor position within {@link #rows}. */
@@ -106,29 +104,40 @@ final class CachedSqlQuery<B> implements SqlQuery<B> {
 	/**
 	 * Constructor.
 	 *
-	 * @param delegate  query to read through
-	 * @param publisher publishes the rows read; opened before the read and applied
-	 *                  after it
+	 * @param query  creates the query to read through when cached rows cannot
+	 *               answer an accessor
+	 * @param cached supplies rows read through the cache
 	 */
-	CachedSqlQuery(SqlQuery<B> delegate, Supplier<Consumer<List<B>>> publisher) {
-		this.delegate = delegate;
-		this.publisher = publisher;
+	CachedSqlQuery(Supplier<SqlQuery<B>> query, Supplier<List<B>> cached) {
+		this.query = query;
+		this.cached = cached;
 	}
 
 	/**
-	 * Reads the delegate to exhaustion, once, and publishes what it read.
+	 * Gets the delegate operation, creating it only once.
+	 *
+	 * @return delegate operation
+	 */
+	private SqlQuery<B> delegate() {
+		if (delegate == null)
+			delegate = query.get();
+
+		return delegate;
+	}
+
+	/**
+	 * Resolves the remaining rows from the cache, or from a result set the caller
+	 * previously chose to take directly.
 	 */
 	private void drain() {
 		if (rows != null)
 			return;
 
-		// opened first: an invalidation raised while the cursor is open is newer
-		// than every row this query is about to carry, and has to outrank them
-		final var publish = publisher.get();
-		final var drained = List.copyOf(delegate.getResults());
-		rows = drained;
+		if (cached != null)
+			rows = cached.get();
+		else
+			rows = List.copyOf(delegate().getResults());
 		position = 0;
-		publish.accept(drained);
 	}
 
 	/**
@@ -199,31 +208,33 @@ final class CachedSqlQuery<B> implements SqlQuery<B> {
 	@Override
 	public ResultSet getResultSet() {
 		// the caller is taking the driver's cursor, which no list can stand in for;
-		// drop what was drained so that a later accessor reads forward from wherever
-		// the caller leaves it
+		// drop cached rows so a later accessor reads forward from wherever the caller
+		// leaves that cursor
 		rows = null;
+		cached = null;
 		position = 0;
-		return delegate.getResultSet();
+		return delegate().getResultSet();
 	}
 
 	@Override
 	public String getQuery() {
-		return delegate.getQuery();
+		return delegate().getQuery();
 	}
 
 	@Override
 	public Iterable<?> getArguments() {
-		return delegate.getArguments();
+		return delegate().getArguments();
 	}
 
 	@Override
 	public PreparedStatement getPreparedStatement() {
-		return delegate.getPreparedStatement();
+		return delegate().getPreparedStatement();
 	}
 
 	@Override
 	public void close() {
-		delegate.close();
+		if (delegate != null)
+			delegate.close();
 
 		// the rows are kept: this query already paid for them, and a reopened query
 		// reads from the first row again

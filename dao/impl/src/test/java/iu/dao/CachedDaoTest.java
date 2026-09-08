@@ -917,7 +917,7 @@ public class CachedDaoTest {
 	}
 
 	@Test
-	public void testEveryQueryAndStatementReachesTheDelegateWithItsArguments() {
+	public void testOperationsReachTheDelegateWithTheirArguments() {
 		assertNull(dao.getTableDefinition("T"));
 		dao.getStatement("sql", List.of("a"));
 		dao.getBeanQuery(Bean.class, List.of("w"), List.of("a"));
@@ -933,9 +933,6 @@ public class CachedDaoTest {
 		assertEquals(List.of( //
 				"getTableDefinition:T", //
 				"getStatement:sql[a]", //
-				"getBeanQuery:Bean[w][a]", //
-				"getBeanQuery:Bean[w][o][a]", //
-				"getBeanQuery:Bean{id=a}", //
 				"getBeanUpdate:bean", //
 				"getBeanUpdate:bean:passive", //
 				"getBeanInsert:bean", //
@@ -995,6 +992,29 @@ public class CachedDaoTest {
 	}
 
 	@Test
+	public void testBeanQueriesWithWhereClausesAreCachedSeparately() {
+		delegate.rows.put("a", new Bean("a", "one"));
+
+		assertEquals(1, dao.getBeanQuery(Bean.class, List.of("id = ?"), List.of("a")).getResults().size());
+		assertEquals(1,
+				dao.getBeanQuery(Bean.class, List.of("id = ?"), List.of("id"), List.of("a")).getResults().size());
+
+		assertEquals(2, delegate.queryReads.get(), "the distinct generated queries were not resolved");
+	}
+
+	@Test
+	public void testBeanQueriesInTransactionsBypassTheProcessWideCache() {
+		delegate.rows.put("a", new Bean("a", "one"));
+		transaction.beginTransaction();
+
+		assertEquals(1, dao.getBeanQuery(Bean.class, id("a")).getResults().size());
+		transaction.complete(Status.STATUS_COMMITTED);
+
+		assertEquals("a=one", dao.loadBean(Bean.class, id("a")).toString());
+		assertEquals(1, delegate.loads.get(), "a transactional query populated the process-wide cache");
+	}
+
+	@Test
 	public void testAClosedQueryReplaysItsRowsWithoutReadingAgain() {
 		delegate.rows.put("a", new Bean("a", "one"));
 		delegate.rows.put("b", new Bean("b", "two"));
@@ -1009,6 +1029,19 @@ public class CachedDaoTest {
 	}
 
 	@Test
+	public void testDaoKeyDescriptionsIdentifyEachReadKind() {
+		assertEquals("load:" + Bean.class.getName() + "{id=a}",
+				new DaoKey(Bean.class, id("a"), null, null, null, DaoKey.LOAD).toString());
+		assertEquals("query:" + Bean.class.getName() + "{id=a}",
+				new DaoKey(Bean.class, id("a"), null, null, null, DaoKey.QUERY).toString());
+		assertEquals("query:" + Bean.class.getName() + "[id = ?][id][a]",
+				new DaoKey(Bean.class, null, List.of("id = ?"), List.of("id"), List.of("a"), DaoKey.QUERY)
+						.toString());
+		assertEquals("search:" + Bean.class.getName() + "{id=a}",
+				new DaoKey(Bean.class, id("a"), null, null, null, 0).toString());
+	}
+
+	@Test
 	public void testTheTerminalSingleRowAccessors() {
 		delegate.rows.put("a", new Bean("a", "one"));
 		assertEquals("a=one", dao.getBeanQuery(Bean.class, id("a")).getSingleResult().toString());
@@ -1019,6 +1052,7 @@ public class CachedDaoTest {
 		assertThrows(NonUniqueResultException.class, () -> dao.getBeanQuery(Bean.class, Map.of()).getSingleResult());
 
 		delegate.rows.clear();
+		dao.clear();
 		assertThrows(EntityNotFoundException.class, () -> dao.getBeanQuery(Bean.class, Map.of()).getSingleResult());
 		assertThrows(EntityNotFoundException.class, () -> dao.getBeanQuery(Bean.class, Map.of()).getFirstRecord());
 	}
@@ -1064,25 +1098,25 @@ public class CachedDaoTest {
 		try (var query = dao.getBeanQuery(Bean.class, Map.of())) {
 			assertEquals(2, query.getResults(2).size());
 
-			// a drained list can no longer say where the caller's cursor is, so it is
-			// dropped and the next accessor goes back to the delegate — which has by
-			// now been read to the end
+			// a result set always bypasses the cached list, so this starts a fresh
+			// cursor. The caller consumes its first row before the list accessor
+			// reads the remainder.
 			assertNull(query.getResultSet());
-			assertEquals(0, query.getResults().size());
+			assertEquals(List.of("b=two"), query.getResults().stream().map(Object::toString).toList());
 		}
 
-		assertEquals(2, delegate.queryReads.get(), "the discarded list was replayed");
+		assertEquals(2, delegate.queryReads.get(), "the result set did not bypass the cached list");
 	}
 
 	@Test
-	public void testARawQueryIsDrainedButPublishesNothing() {
+	public void testARawQueryIsNotCached() {
 		delegate.rows.put("a", new Bean("a", "one"));
 
 		try (var query = dao.getQuery(Bean.class, "select id", List.of())) {
 			assertEquals(1, query.getResults().size());
-			assertEquals(1, query.getResults().size());
+			assertEquals(0, query.getResults().size());
 		}
-		assertEquals(1, delegate.queryReads.get());
+		assertEquals(2, delegate.queryReads.get());
 
 		// the projection is the caller's, so a row it carried is not a row this
 		// layer can claim a load would have produced
@@ -1091,12 +1125,12 @@ public class CachedDaoTest {
 	}
 
 	@Test
-	public void testAFactoryQueryIsDrainedButPublishesNothing() {
+	public void testAFactoryQueryIsNotCached() {
 		try (var query = dao.getFactoryQuery(rs -> "row", "select 1", List.of())) {
 			assertEquals(List.of("row"), query.getResults());
-			assertEquals(List.of("row"), query.getResults());
+			assertEquals(List.of(), query.getResults());
 		}
-		assertEquals(1, delegate.queryReads.get());
+		assertEquals(2, delegate.queryReads.get());
 	}
 
 	@Test
@@ -1266,6 +1300,20 @@ public class CachedDaoTest {
 		dao.searchBeans(Bean.class, Map.of(), false, 0);
 
 		assertEquals(2, delegate.loads.get(), "a read was cached while caching was disabled");
+		assertEquals(2, delegate.searches.get());
+	}
+
+	@Test
+	public void testNullConfigurationLeavesTheLayerInert() {
+		dao = new CachedDao(delegate, sqlBuilder.builder(), transaction, transaction, () -> null);
+		delegate.rows.put("a", new Bean("a", "one"));
+
+		dao.loadBean(Bean.class, id("a"));
+		dao.loadBean(Bean.class, id("a"));
+		dao.searchBeans(Bean.class, Map.of(), false, 0);
+		dao.searchBeans(Bean.class, Map.of(), false, 0);
+
+		assertEquals(2, delegate.loads.get(), "a read was cached without a configuration");
 		assertEquals(2, delegate.searches.get());
 	}
 
