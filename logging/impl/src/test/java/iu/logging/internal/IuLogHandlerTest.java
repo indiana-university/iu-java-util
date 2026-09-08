@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -306,6 +307,24 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 			throw e;
 		}
 
+	}
+
+	@Test
+	public void testRejectsOutOfRangeFileSettings() {
+		// zero would be accepted by a plain parse and then wedge LogFilePublisher.flush()
+		// on its first rotation, holding the cross-process lock while it spins
+		for (final var property : new String[] { "iu.logging.file.nLimit", "iu.logging.file.maxSize" })
+			try {
+				System.setProperty(property, "0");
+				final var e = assertThrows(IllegalArgumentException.class, () -> {
+					try (final var logHandler = new IuLogHandler()) {
+						fail("expected " + property + " 0 to be rejected, got " + logHandler);
+					}
+				});
+				assertEquals("Invalid " + property + " 0", e.getMessage());
+			} finally {
+				System.getProperties().remove(property);
+			}
 	}
 
 	@Test

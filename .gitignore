@@ -4,7 +4,11 @@
 target
 
 .claude
+.vscode
 
 dependency-reduced-pom.xml
 __review
 *.vpp.*
+
+# Review files
+.review*

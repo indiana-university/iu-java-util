@@ -1,1 +1,13 @@
+# LF in the repository and in every working tree, whatever core.autocrlf a
+# checkout has set. Tooling across this project reads LF without complaint;
+# several parts of it choke on CRLF, and the build treats some resources as
+# byte-exact, so a mixed-ending file is a defect rather than a preference.
+* text=auto eol=lf
+
+# EL template fixtures render verbatim, so their line endings are part of the expected output
+el/src/test/resources/el/** text eol=lf
+
+# never normalized: content is not text, or is deliberately malformed
 *.jpg binary
+*.vpp binary
+*.class binary

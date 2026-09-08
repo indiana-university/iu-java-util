@@ -36,23 +36,27 @@ import static edu.iu.util.el.ElUtils.EMPTY;
 import static edu.iu.util.el.ElUtils.ESC_TOKEN;
 import static edu.iu.util.el.ElUtils.getCloseBracket;
 import static edu.iu.util.el.ElUtils.getIndexFrom;
+import static edu.iu.util.el.ElUtils.getMatchOperandEnd;
+import static edu.iu.util.el.ElUtils.isLiteral;
+import static edu.iu.util.el.ElUtils.literal;
 import static edu.iu.util.el.ElUtils.select;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.time.DateTimeException;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuCacheMap;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import jakarta.json.Json;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
@@ -78,9 +82,12 @@ import jakarta.json.JsonValue;
  * {@code &}, a property's name in place of a numeric index.</li>
  * <li>Dot-separated path elements select object members or array indexes. A
  * path element beginning with {@code /} is evaluated as a JSON Pointer; for
- * example, {@code $./items/0/name}. If a selection fails, its exception
- * includes a suppressed diagnostic positioned at the operation that follows the
- * failed path element.</li>
+ * example, {@code $./items/0/name}. Selecting through a missing or JSON null
+ * value yields a missing value rather than failing, so a path may be applied to
+ * an optional value without guarding it; only a path applied to a non-null
+ * scalar fails. If a selection fails, its exception includes a suppressed
+ * diagnostic positioned at the operation that follows the failed path
+ * element.</li>
  * <li>{@code '} quotes the rest of an expression as text, {@code *} starts a
  * comment, and {@code @} returns raw text. Atomic results are HTML-escaped by
  * default.</li>
@@ -89,9 +96,17 @@ import jakarta.json.JsonValue;
  * falsey. The two may be combined as {@code condition?ifTrue!ifFalse}. Missing
  * values, JSON null, false, and numbers whose integer value is zero are
  * falsey.</li>
- * <li>{@code =} compares the current value with the following expression.</li>
- * <li>{@code #} formats numbers with a {@link DecimalFormat} pattern and ISO
- * instant strings with a {@link SimpleDateFormat} pattern.</li>
+ * <li>{@code =} compares the current value with the operand that follows, up to
+ * the first {@code ?} or {@code !} so that a match may be followed by a
+ * conditional. An operand beginning with {@code $}, {@code _}, or a control
+ * character is evaluated as an expression; any other operand is literal text,
+ * read as a JSON number when it is numeric and as a JSON string otherwise.
+ * Numbers compare by {@link java.math.BigDecimal} value, so {@code 3.140} does
+ * not match {@code 3.14}.</li>
+ * <li>{@code #} formats a number with a {@link DecimalFormat} pattern and an
+ * ISO 8601 date or date/time string with a {@link SimpleDateFormat} pattern. An
+ * invalid pattern throws {@link IllegalArgumentException}; text that cannot be
+ * read as a date is left unformatted and reported at {@link Level#FINE}.</li>
  * <li>{@code &} marks the current value, which must be a JSON object, so that
  * the template applied by the expression that follows (see {@code <} below) is
  * applied once per property instead of once for the whole object. {@code &}
@@ -113,6 +128,8 @@ import jakarta.json.JsonValue;
  */
 public final class El {
 
+	private static final Logger LOG = Logger.getLogger(El.class.getName());
+
 	private static final ThreadLocal<DecimalFormat> DECIMAL_FMT = new ThreadLocal<DecimalFormat>() {
 		@Override
 		protected DecimalFormat initialValue() {
@@ -124,13 +141,6 @@ public final class El {
 		@Override
 		protected SimpleDateFormat initialValue() {
 			return new SimpleDateFormat();
-		}
-	};
-
-	private static final ThreadLocal<DateTimeFormatter> DATE_TIME_FMT = new ThreadLocal<DateTimeFormatter>() {
-		@Override
-		protected DateTimeFormatter initialValue() {
-			return DateTimeFormatter.ISO_INSTANT;
 		}
 	};
 
@@ -335,18 +345,21 @@ public final class El {
 			case '.': {
 				final var endOfReference = getIndexFrom(expression, ANY, 1);
 				final JsonValue result;
-				if (endOfReference == -1) {
-					result = select(evalContext.getResult(), expression.substring(1));
-					evalContext.setPositionAtEnd();
-				} else {
+				try {
 					try {
-						result = select(evalContext.getResult(), expression.substring(1, endOfReference));
-					} catch (RuntimeException e) {
-						evalContext.advancePosition(endOfReference);
-						e.addSuppressed(new Throwable("Evaluating " + evalContext));
-						throw e;
+						if (endOfReference == -1)
+							result = select(evalContext.getResult(), expression.substring(1));
+						else
+							result = select(evalContext.getResult(), expression.substring(1, endOfReference));
+					} finally {
+						if (endOfReference == -1)
+							evalContext.setPositionAtEnd();
+						else
+							evalContext.advancePosition(endOfReference);
 					}
-					evalContext.advancePosition(endOfReference);
+				} catch (RuntimeException e) {
+					e.addSuppressed(new Throwable("Evaluating " + evalContext));
+					throw e;
 				}
 				evalContext.setResult(result);
 				break;
@@ -389,9 +402,15 @@ public final class El {
 			}
 
 			case '=': { // equals match
-				evalStack.push(new ElContext(evalContext, evalContext.getContext(), expression.substring(1),
-						evalContext::setMatchResult));
-				evalContext.setPositionAtEnd();
+				final var operandEnd = getMatchOperandEnd(expression);
+				final var operand = expression.substring(1, operandEnd);
+				if (isLiteral(operand))
+					evalContext.setMatchResult(literal(operand));
+				else
+					evalStack.push(
+							new ElContext(evalContext, evalContext.getContext(), operand, evalContext::setMatchResult));
+
+				evalContext.advancePosition(operandEnd);
 				break;
 			}
 
@@ -402,20 +421,26 @@ public final class El {
 					df.applyPattern(expression.substring(1));
 					evalContext.setResult(Json.createValue(df.format(((JsonNumber) cval).numberValue())));
 				}
-				// Expect the value is formatted as ISO 8601, treat it as a date and apply the
-				// format pattern
+
 				if (cval instanceof JsonString) {
+					// applied before the value is read so that an invalid pattern fails here, as
+					// it does on the number branch above, instead of being absorbed as if the
+					// value were at fault
+					final SimpleDateFormat df = DATE_FMT.get();
+					df.applyPattern(expression.substring(1));
+
+					Date date;
 					try {
-						DateTimeFormatter dtf = DATE_TIME_FMT.get();
-						final var instant = dtf.parse(((JsonString) cval).getString(), Instant::from);
-						SimpleDateFormat df = DATE_FMT.get();
-						df.applyPattern(expression.substring(1));
-						evalContext.setResult(Json.createValue(df.format(new Date(instant.toEpochMilli()))));
-					} catch (DateTimeParseException e) {
-						// ignore
-						// will return unformatted value
+						date = IuJsonAdapter.of(Date.class).fromJson(cval);
+					} catch (DateTimeException e) {
+						date = null;
+						LOG.log(Level.FINE, e, () -> "Not a date/time value, evaluating " + evalContext);
 					}
+
+					if (date != null)
+						evalContext.setResult(Json.createValue(df.format(date)));
 				}
+
 				evalContext.setPositionAtEnd();
 				break;
 			}

@@ -219,12 +219,19 @@ public interface IuJsonAdapter<T> {
 	 *                           unless it is an interface
 	 * @param propertyNameFormat property name format to use for converting to JSON
 	 * @param valueAdapter       value adapter function
-	 * @return {@link IuJsonAdapter}
+	 * @return {@link IuJsonAdapter}; {@link #toJson(Object) toJson} converts a null
+	 *         business object to {@link JsonValue#NULL}, and
+	 *         {@link #fromJson(JsonValue) fromJson} converts {@link JsonValue#NULL}
+	 *         and an undefined value to null
 	 */
 	static <T> IuJsonAdapter<T> from(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		return from(v -> v == null ? null : JsonDeserializer.deserialize(type, v.asJsonObject(), valueAdapter),
-				v -> JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
+		return from(v -> v == null || JsonValue.NULL.equals(v) //
+				? null //
+				: JsonDeserializer.deserialize(type, v.asJsonObject(), valueAdapter), //
+				v -> v == null //
+						? JsonValue.NULL //
+						: JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
 	}
 
 	/**

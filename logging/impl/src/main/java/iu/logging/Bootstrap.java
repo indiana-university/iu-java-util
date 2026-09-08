@@ -35,6 +35,7 @@ import java.lang.ModuleLayer.Controller;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
@@ -67,7 +68,22 @@ import iu.logging.internal.ProcessLogger;
  */
 public final class Bootstrap {
 
-	private static final Map<ClassLoader, LogEnvironmentImpl> ENVIRONMENT = new WeakHashMap<>();
+	/**
+	 * Registered environments, by context {@link ClassLoader}.
+	 *
+	 * <p>
+	 * Synchronized because {@link #getEnvironment()} is on the hot path &mdash;
+	 * every {@link iu.logging.internal.ProcessLogger#follow} constructs a process
+	 * that reads it &mdash; while {@link #initializeContext} writes it, and a read
+	 * of a {@link WeakHashMap} concurrent with a write can observe a partially
+	 * rehashed table. The compound check-then-put in {@link #initializeContext}
+	 * holds this same monitor, since
+	 * {@link Collections#synchronizedMap(Map) synchronizedMap} locks on the wrapper
+	 * it returns.
+	 * </p>
+	 */
+	private static final Map<ClassLoader, LogEnvironmentImpl> ENVIRONMENT = Collections
+			.synchronizedMap(new WeakHashMap<>());
 	private static final LogEnvironmentImpl PLATFORM = new LogEnvironmentImpl();
 
 	private Bootstrap() {
@@ -231,6 +247,51 @@ public final class Bootstrap {
 	public static Object follow(Object context, String header, Object supplier) throws Throwable {
 		return ProcessLogger.follow(IuLoggingProxy.adapt(LogContext.class, context), header,
 				IuLoggingProxy.adapt(UnsafeSupplier.class, supplier));
+	}
+
+	/**
+	 * Proxy method for {@link ProcessLogger#fork()}.
+	 *
+	 * <p>
+	 * The value returned is an opaque handle on the process active in this
+	 * implementation module; it carries no externally defined contract and is only
+	 * useful as the {@code forkedContext} argument to
+	 * {@link #join(Object, Runnable)}. It is null when the current thread is not
+	 * {@link #follow(Object, String, Object) following} a process.
+	 * </p>
+	 *
+	 * <p>
+	 * It is up to the forking thread to ensure joined tasks complete before it
+	 * stops following the forked process; messages traced after the process ends
+	 * are not guaranteed to be reported.
+	 * </p>
+	 *
+	 * @return opaque handle on the active process; null if not following
+	 */
+	public static Object fork() {
+		return ProcessLogger.fork();
+	}
+
+	/**
+	 * Proxy method for {@link ProcessLogger#join(Object, Runnable)}.
+	 *
+	 * <p>
+	 * {@link Runnable} is defined by {@code java.base} so, unlike
+	 * {@link #follow(Object, String, Object)}, the task requires no
+	 * {@link IuLoggingProxy adapter} to cross the module boundary.
+	 * </p>
+	 *
+	 * <p>
+	 * Each joined task is assigned the next sequential join ID for the forked
+	 * process, and messages it {@link #trace(Supplier) traces} are prefixed with
+	 * {@code joinId + "> "}.
+	 * </p>
+	 *
+	 * @param forkedContext opaque handle returned by {@link #fork()}
+	 * @param task          task to run with the forked process bound
+	 */
+	public static void join(Object forkedContext, Runnable task) {
+		ProcessLogger.join(forkedContext, task);
 	}
 
 	/**

@@ -279,6 +279,25 @@ public class BootstrapTest extends IuLoggingTestCase {
 		}
 	}
 
+	@Test
+	public void testFork() {
+		final var forked = new Object();
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class)) {
+			mockProcessLogger.when(() -> ProcessLogger.fork()).thenReturn(forked);
+			assertSame(forked, Bootstrap.fork());
+		}
+	}
+
+	@Test
+	public void testJoin() {
+		final var forked = new Object();
+		final var task = mock(Runnable.class);
+		try (final var mockProcessLogger = mockStatic(ProcessLogger.class)) {
+			assertDoesNotThrow(() -> Bootstrap.join(forked, task));
+			mockProcessLogger.verify(() -> ProcessLogger.join(forked, task));
+		}
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testTrace() {
