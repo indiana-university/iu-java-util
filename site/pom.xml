@@ -224,6 +224,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 			<artifactId>iu-java-redis-impl</artifactId>
 			<version>${project.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>iu-java-validation</artifactId>
+			<version>${project.version}</version>
+		</dependency>
 
 		<!-- Optional dependencies of the modules above. These are declared
 			"requires static" in module-info.java and provided/optional in the owning

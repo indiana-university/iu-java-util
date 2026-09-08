@@ -232,6 +232,9 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 
 		final Principal firstPrincipal = () -> "first";
 		final Principal secondPrincipal = () -> "second";
+		final var principalKey = first.new Key(firstPrincipal, echo, serialized);
+		assertEquals("Key [principal=" + firstPrincipal + ", method=" + echo + ", serializedArgs=" + serialized + "]",
+				principalKey.toString());
 		assertNotEquals(first.new Key(firstPrincipal, echo, serialized), first.new Key(secondPrincipal, echo, serialized));
 		assertNotEquals(first.cacheKey(echo, serialized), first.new Key(null, method(A.class, "b"), serialized));
 		assertNotEquals(first.cacheKey(echo, serialized), "not a key");

@@ -98,7 +98,7 @@ public class IuConfig {
 					final var keyedValue = vault.get(prefix + key).getValue();
 					final var config = IuJson.parse(keyedValue).asJsonObject();
 
-					final var value = IuJson.wrap(config, configType, IuConfig::adaptJson);
+					final var value = adaptJson(configType).fromJson(config);
 					cache.put(key, value);
 					this.value = value;
 				}

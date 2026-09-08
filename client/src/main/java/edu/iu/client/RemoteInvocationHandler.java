@@ -138,6 +138,11 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 		private RemoteInvocationHandler outer() {
 			return RemoteInvocationHandler.this;
 		}
+
+		@Override
+		public String toString() {
+			return "Key [principal=" + principal + ", method=" + method + ", serializedArgs=" + serializedArgs + "]";
+		}
 	}
 
 	private final IuRefreshableCache<Key, Object> callCache;
