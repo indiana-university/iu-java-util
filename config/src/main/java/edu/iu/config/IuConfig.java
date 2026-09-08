@@ -262,21 +262,11 @@ public class IuConfig {
 	 * @param cacheTtl   time period for caching config objects
 	 * @param vault      vault to use for loading configuration
 	 */
+	@SuppressWarnings("unchecked")
 	public static synchronized <T> void registerInterface(String prefix, Class<T> configType, Duration cacheTtl,
 			IuVault... vault) {
 		if (sealed)
 			throw new IllegalStateException("sealed");
-
-		final var propertyAdapter = IuJsonAdapter.from(configType, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
-				IuConfig::adaptJson);
-		final var adapter = IuJsonAdapter.from(v -> {
-			if (v instanceof JsonString)
-				return load(configType, ((JsonString) v).getString());
-			else
-				return IuObject.convert(v, propertyAdapter::fromJson);
-		}, //
-				propertyAdapter::toJson);
-		registerAdapter(configType, adapter);
 
 		IuObject.require(Objects.requireNonNull(prefix, "Missing prefix"), a -> a.matches("\\p{Lower}+"),
 				"invalid prefix " + prefix);
@@ -284,6 +274,23 @@ public class IuConfig {
 		if (CONFIG.containsKey(configType))
 			throw new IllegalArgumentException("already configured");
 
+		// upgrades existing property adapter to support references to stored values
+		// without changing previously configured format; common case -> allow storage
+		// for registered defaults; creates automatic snake_case adapter if not already
+		// registered
+		final var propertyAdapter = Objects.requireNonNullElseGet((IuJsonAdapter<T>) JSON.get(configType),
+				() -> IuJsonAdapter.from(configType, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
+						IuConfig::adaptJson));
+
+		final var adapter = IuJsonAdapter.from(v -> {
+			if (v instanceof JsonString)
+				return load(configType, ((JsonString) v).getString());
+			else
+				return IuObject.convert(v, propertyAdapter::fromJson);
+		}, //
+				propertyAdapter::toJson);
+
+		JSON.put(configType, adapter);
 		CONFIG.put(configType, Objects.requireNonNull(new StorageConfig<>(prefix + '/', configType, cacheTtl, vault)));
 	}
 
@@ -333,12 +340,13 @@ public class IuConfig {
 	 * requested type.
 	 *
 	 * <p>
-	 * Mirrors {@link IuJsonAdapter#adapt(Type, IuJsonPropertyNameFormat)}, resolving
-	 * nested property values through this method so registered adapters apply at
-	 * every level. A {@link IuObject#isPlatformName(String) non-platform} interface
-	 * or class converts as a JavaBeans type; {@link Class#isPrimitive() primitive},
-	 * {@link Class#isArray() array}, and {@link Class#isEnum() enum} types are
-	 * handled by {@link IuJsonAdapter#of(Type, Function)} even when non-platform.
+	 * Mirrors {@link IuJsonAdapter#adapt(Type, IuJsonPropertyNameFormat)},
+	 * resolving nested property values through this method so registered adapters
+	 * apply at every level. A {@link IuObject#isPlatformName(String) non-platform}
+	 * interface or class converts as a JavaBeans type; {@link Class#isPrimitive()
+	 * primitive}, {@link Class#isArray() array}, and {@link Class#isEnum() enum}
+	 * types are handled by {@link IuJsonAdapter#of(Type, Function)} even when
+	 * non-platform.
 	 * </p>
 	 *
 	 * @param type type

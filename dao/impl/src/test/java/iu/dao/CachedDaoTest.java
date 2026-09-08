@@ -937,7 +937,6 @@ public class CachedDaoTest {
 				"getBeanUpdate:bean:passive", //
 				"getBeanInsert:bean", //
 				"getBeanDelete:bean", //
-				"getQuery:Bean:sql[a]", //
 				"getFactoryQuery:sql[a]"), delegate.passthrough);
 	}
 
@@ -1031,14 +1030,15 @@ public class CachedDaoTest {
 	@Test
 	public void testDaoKeyDescriptionsIdentifyEachReadKind() {
 		assertEquals("load:" + Bean.class.getName() + "{id=a}",
-				new DaoKey(Bean.class, id("a"), null, null, null, DaoKey.LOAD).toString());
+				DaoKey.load(Bean.class, id("a")).toString());
 		assertEquals("query:" + Bean.class.getName() + "{id=a}",
-				new DaoKey(Bean.class, id("a"), null, null, null, DaoKey.QUERY).toString());
-		assertEquals("query:" + Bean.class.getName() + "[id = ?][id][a]",
-				new DaoKey(Bean.class, null, List.of("id = ?"), List.of("id"), List.of("a"), DaoKey.QUERY)
-						.toString());
+				DaoKey.query(Bean.class, id("a")).toString());
+		assertEquals("query:" + Bean.class.getName() + "[id = ?][id]+args",
+				DaoKey.query(Bean.class, List.of("id = ?"), List.of("id"), List.of("a")).toString());
 		assertEquals("search:" + Bean.class.getName() + "{id=a}",
-				new DaoKey(Bean.class, id("a"), null, null, null, 0).toString());
+				DaoKey.search(Bean.class, id("a"), 0).toString());
+		assertEquals("sql:" + Bean.class.getName() + ":select id+args",
+				DaoKey.sql(Bean.class, "select id", List.of("a")).toString());
 	}
 
 	@Test
@@ -1109,14 +1109,15 @@ public class CachedDaoTest {
 	}
 
 	@Test
-	public void testARawQueryIsNotCached() {
+	public void testARawQueryIsCachedButDoesNotPublishItsRows() {
 		delegate.rows.put("a", new Bean("a", "one"));
 
 		try (var query = dao.getQuery(Bean.class, "select id", List.of())) {
 			assertEquals(1, query.getResults().size());
-			assertEquals(0, query.getResults().size());
+			assertEquals(1, query.getResults().size());
 		}
-		assertEquals(2, delegate.queryReads.get());
+		assertEquals(1, dao.getQuery(Bean.class, "select id", List.of()).getResults().size());
+		assertEquals(1, delegate.queryReads.get(), "a cached raw query was resolved again");
 
 		// the projection is the caller's, so a row it carried is not a row this
 		// layer can claim a load would have produced

@@ -290,7 +290,7 @@ final class CachedDao implements IuDao {
 	 * Resolves a cache miss, on a pooled thread and therefore in no transaction.
 	 *
 	 * @param key cache key
-	 * @return single-element list for a load; matching rows for a search
+	 * @return single-element list for a load; matching rows for a search or query
 	 * @throws Exception if the read fails
 	 */
 	private List<?> resolve(DaoKey key) throws Exception {
@@ -304,6 +304,8 @@ final class CachedDao implements IuDao {
 					return delegate.getBeanQuery(key.type(), key.where(), key.args()).getResults();
 			else
 				return delegate.getBeanQuery(key.type(), key.parameters()).getResults();
+		else if (key.isSql())
+			return delegate.getQuery(key.type(), key.sql(), key.args()).getResults();
 		else
 			return delegate.searchBeans(key.type(), key.parameters(), false, key.maxResults());
 	}
@@ -312,15 +314,17 @@ final class CachedDao implements IuDao {
 	 * Supplies the hint for a cached read.
 	 *
 	 * <p>
-	 * Reads never invalidate, so only a search declares anything: the rows it read,
-	 * published as loads of their own keys.
+	 * Reads never invalidate. A search or generated bean query declares the rows it
+	 * read as loads of their own keys; a load and a raw SQL query use the default
+	 * hint, because raw SQL can project only part of an entity or something other
+	 * than an entity altogether.
 	 * </p>
 	 *
 	 * @param key cache key
 	 * @return cache hint
 	 */
 	private IuRefreshableCacheHint<DaoKey, List<?>> cacheHint(DaoKey key) {
-		if (key.isLoad())
+		if (key.isLoad() || key.isSql())
 			return IuRefreshableCacheHint.useDefaults();
 		else
 			return new IuRefreshableCacheHint<DaoKey, List<?>>() {
@@ -349,8 +353,7 @@ final class CachedDao implements IuDao {
 		for (final var row : rows) {
 			final var parameters = primaryKeyParameters(row, type);
 			if (parameters != null)
-				published.put(new DaoKey(type, parameters, null, null, null, DaoKey.LOAD),
-						Collections.singletonList(row));
+				published.put(DaoKey.load(type, parameters), Collections.singletonList(row));
 		}
 		return published;
 	}
@@ -573,7 +576,7 @@ final class CachedDao implements IuDao {
 			return;
 		}
 
-		final var loadKey = new DaoKey(type, parameters, null, null, null, DaoKey.LOAD);
+		final var loadKey = DaoKey.load(type, parameters);
 
 		// a republished row is not invalidated by the write that produced it, so the
 		// hint spares its key and the mark below is taken after the hint is raised
@@ -590,8 +593,7 @@ final class CachedDao implements IuDao {
 		if (!caching())
 			return delegate.loadBean(beanClass, idParams);
 
-		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), null, null, null,
-				DaoKey.LOAD);
+		final var key = DaoKey.load(beanClass, Objects.requireNonNull(idParams, "idParams"));
 		if (!transactional())
 			// copied on the way out: the cache answers every reader with the one
 			// instance it holds, and the caller is free to modify what it is given
@@ -612,8 +614,7 @@ final class CachedDao implements IuDao {
 		if (maxResults < 0)
 			throw new IllegalArgumentException("maxResults must not be negative");
 
-		final var key = new DaoKey(beanClass, Objects.requireNonNull(idParams, "idParams"), null, null, null,
-				maxResults);
+		final var key = DaoKey.search(beanClass, Objects.requireNonNull(idParams, "idParams"), maxResults);
 		if (!transactional())
 			return castResults(DaoCopy.copyOf(beanClass, IuException.unchecked(() -> cache.apply(key))));
 
@@ -705,7 +706,7 @@ final class CachedDao implements IuDao {
 	}
 
 	/**
-	 * Wraps a generated bean query with the cache's result list.
+	 * Wraps a query with the cache's result list.
 	 *
 	 * <p>
 	 * The operation is created lazily so a cache miss resolves exactly one query,
@@ -716,14 +717,20 @@ final class CachedDao implements IuDao {
 	 * within its own transactional view.
 	 * </p>
 	 *
-	 * @param beanClass entity type the rows are read as
+	 * <p>
+	 * The key determines whether resolved rows are also published as entity loads:
+	 * generated bean queries can do so because their mappings select complete
+	 * entities, whereas raw SQL queries cache only their complete result list.
+	 * </p>
+	 *
+	 * @param beanClass row type the query materializes
 	 * @param query     creates the delegate operation if one is required
 	 * @param key       cache key for the query's complete result list
 	 * @param <B>       entity type
 	 * @return cached query, or a delegate query when caching is inactive or the
 	 *         caller is transactional
 	 */
-	private <B> SqlQuery<B> cachedBeanQuery(Class<B> beanClass, Supplier<SqlQuery<B>> query, DaoKey key) {
+	private <B> SqlQuery<B> cachedQuery(Class<B> beanClass, Supplier<SqlQuery<B>> query, DaoKey key) {
 		if (!caching() || transactional())
 			return query.get();
 
@@ -772,21 +779,21 @@ final class CachedDao implements IuDao {
 
 	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<?> args) {
-		return cachedBeanQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, args),
-				new DaoKey(beanClass, null, where, null, args, DaoKey.QUERY));
+		return cachedQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, args),
+				DaoKey.query(beanClass, where, args));
 	}
 
 	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<String> order,
 			Iterable<?> args) {
-		return cachedBeanQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, order, args),
-				new DaoKey(beanClass, null, where, order, args, DaoKey.QUERY));
+		return cachedQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, order, args),
+				DaoKey.query(beanClass, where, order, args));
 	}
 
 	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Map<String, ?> idParams) {
-		return cachedBeanQuery(beanClass, () -> delegate.getBeanQuery(beanClass, idParams),
-				new DaoKey(beanClass, idParams, null, null, null, DaoKey.QUERY));
+		return cachedQuery(beanClass, () -> delegate.getBeanQuery(beanClass, idParams),
+				DaoKey.query(beanClass, idParams));
 	}
 
 	@Override
@@ -811,11 +818,13 @@ final class CachedDao implements IuDao {
 
 	@Override
 	public <B> SqlQuery<B> getQuery(Class<B> beanClass, String sql, Iterable<?> args) {
-		return delegate.getQuery(beanClass, sql, args);
+		return cachedQuery(beanClass, () -> delegate.getQuery(beanClass, sql, args),
+				DaoKey.sql(beanClass, sql, args));
 	}
 
 	@Override
 	public <B> SqlQuery<B> getFactoryQuery(Function<ResultSet, B> factory, String sql, Iterable<?> args) {
 		return delegate.getFactoryQuery(factory, sql, args);
 	}
+
 }

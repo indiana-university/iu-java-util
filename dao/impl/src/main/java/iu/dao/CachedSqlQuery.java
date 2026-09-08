@@ -49,9 +49,10 @@ import jakarta.persistence.NonUniqueResultException;
  *
  * <p>
  * The delegate is read to exhaustion on the first accessor that returns rows,
- * and the rows are handed to a publisher so that a query can populate the
- * process-wide cache with the individual rows it read. That is the point of
- * this class: one query answers many later loads.
+ * and the complete list is held by the process-wide cache. A generated bean
+ * query can also publish its complete mapped rows as individual loads; a raw
+ * SQL query deliberately does not, because it may select a partial entity or a
+ * value with no entity mapping. This class only replays the query's own list.
  * </p>
  *
  * <p>
