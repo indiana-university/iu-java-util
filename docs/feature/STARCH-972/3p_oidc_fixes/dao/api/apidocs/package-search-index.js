@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.dao","l":"edu.iu.dao"},{"m":"iu.util.dao","l":"edu.iu.dao.spi"}];updateSearchResults();

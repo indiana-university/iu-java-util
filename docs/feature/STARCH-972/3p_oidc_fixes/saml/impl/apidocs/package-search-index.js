@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.saml.impl","l":"iu.saml"},{"m":"iu.util.saml.impl","l":"iu.saml.config"}];updateSearchResults();

@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.session.impl","l":"iu.session"},{"m":"iu.util.session.impl","l":"iu.session.config"}];updateSearchResults();
