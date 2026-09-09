@@ -127,6 +127,12 @@ public class IuJsonAdapterTest {
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(getClass()));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentHashMap.class));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentLinkedQueue.class));
+
+		// no adapter for void, Void, or Character, despite what of(Type) once claimed
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(void.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(Void.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(char.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(Character.class));
 	}
 
 	@Test
@@ -1299,6 +1305,119 @@ public class IuJsonAdapterTest {
 
 		assertEquals(object, adapter.toJson(m));
 		assertEquals(m, adapter.fromJson(object));
+	}
+
+	public static class NestingBean {
+		public BeanClass getNested() {
+			return new BeanClass();
+		}
+
+		public List<BeanClass> getList() {
+			return List.of(new BeanClass());
+		}
+
+		public Map<String, BeanClass> getMap() {
+			return Map.of("k", new BeanClass());
+		}
+	}
+
+	public static class NullNestingBean {
+		public BeanClass getNested() {
+			return null;
+		}
+	}
+
+	@Test
+	public void testFromJavaBeansOmitsNullPropertiesByDefault() {
+		final var adapter = IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertEquals(IuJson.object().build(), adapter.toJson(new BeanClass()));
+	}
+
+	@Test
+	public void testFromJavaBeansIncludesNullProperties() {
+		final var adapter = IuJsonAdapter.from(BeanClass.class, () -> IuJsonSerializationOptions.INCLUDE_NULLS,
+				IuJsonAdapter::of);
+		assertEquals(IuJson.object().addNull("id").build(), adapter.toJson(new BeanClass()));
+
+		// an explicitly null property is a defined value, so it converts back
+		assertNull(adapter.fromJson(adapter.toJson(new BeanClass())).getId());
+	}
+
+	@Test
+	public void testFromJavaBeansObservesOptionsChangeWithoutBeingRecreated() {
+		final var options = new IuJsonSerializationOptions[] { IuJsonSerializationOptions.DEFAULT };
+		final var adapter = IuJsonAdapter.from(BeanClass.class, () -> options[0], IuJsonAdapter::of);
+		final var value = new BeanClass();
+
+		assertEquals(IuJson.object().build(), adapter.toJson(value));
+
+		options[0] = IuJsonSerializationOptions.INCLUDE_NULLS;
+		assertEquals(IuJson.object().addNull("id").build(), adapter.toJson(value));
+
+		options[0] = IuJsonSerializationOptions.DEFAULT;
+		assertEquals(IuJson.object().build(), adapter.toJson(value));
+	}
+
+	@Test
+	public void testAdaptOmitsNestedNullPropertiesByDefault() {
+		final var adapter = IuJsonAdapter.adapt(NestingBean.class, IuJsonPropertyNameFormat.IDENTITY);
+		assertEquals(IuJson.object() //
+				.add("nested", IuJson.object()) //
+				.add("list", IuJson.array().add(IuJson.object())) //
+				.add("map", IuJson.object().add("k", IuJson.object())) //
+				.build(), adapter.toJson(new NestingBean()));
+	}
+
+	@Test
+	public void testAdaptIncludesNestedNullProperties() {
+		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.INCLUDE_NULLS;
+		final var adapter = IuJsonAdapter.adapt(NestingBean.class, options);
+		assertEquals(IuJson.object() //
+				.add("nested", IuJson.object().addNull("id")) //
+				.add("list", IuJson.array().add(IuJson.object().addNull("id"))) //
+				.add("map", IuJson.object().add("k", IuJson.object().addNull("id"))) //
+				.build(), adapter.toJson(new NestingBean()));
+	}
+
+	@Test
+	public void testAdaptIncludesNullBusinessObjectPropertyAsNull() {
+		final var adapter = IuJsonAdapter.adapt(NullNestingBean.class,
+				(Supplier<IuJsonSerializationOptions>) () -> IuJsonSerializationOptions.INCLUDE_NULLS);
+
+		// a null business object is null, not an object of all-null properties
+		assertEquals(IuJson.object().addNull("nested").build(), adapter.toJson(new NullNestingBean()));
+	}
+
+	@Test
+	public void testAdaptTypeWithOptionsHandlesSimpleTypes() {
+		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.INCLUDE_NULLS;
+		assertEquals(IuJson.number(34), IuJsonAdapter.adapt(int.class, options).toJson(34));
+		assertEquals(IuJson.string("foo"), IuJsonAdapter.adapt(String.class, options).toJson("foo"));
+	}
+
+	public static class DefaultedBean {
+		private String id = "assigned by constructor";
+
+		public String getId() {
+			return id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
+	}
+
+	@Test
+	public void testExplicitNullOverwritesConstructorAssignedValue() {
+		final var adapter = IuJsonAdapter.from(DefaultedBean.class, IuJsonPropertyNameFormat.IDENTITY,
+				IuJsonAdapter::of);
+
+		// an undefined property leaves the constructor-assigned value intact
+		assertEquals("assigned by constructor", adapter.fromJson(IuJson.object().build()).getId());
+
+		// an explicitly null property is a defined value, so it is applied; this is
+		// why including nulls is an egress format rather than a round-trip format
+		assertNull(adapter.fromJson(IuJson.object().addNull("id").build()).getId());
 	}
 
 }

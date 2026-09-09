@@ -37,14 +37,17 @@ import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
 
 /**
@@ -80,26 +83,61 @@ public final class JsonSerializer {
 	}
 
 	/**
-	 * Serializes a business object as JSON.
-	 * 
-	 * <p>
-	 * Includes an entry for each readable JavaBeans property of {@code type},
-	 * including properties inherited from superclasses and declared as interface
-	 * default methods. Properties declared by {@link Object}, in particular
-	 * {@link Object#getClass() class}, are skipped, as are properties with a null
-	 * value. When more than one declaration maps to the same formatted property
-	 * name, the declaration nearest {@code type} wins.
-	 * </p>
-	 * 
+	 * Serializes a business object as JSON, with default options apart from the
+	 * property name format.
+	 *
 	 * @param <T>                value type
 	 * @param type               value type for introspection
 	 * @param value              business object to serialize
 	 * @param propertyNameFormat property name format
 	 * @param adapt              adapter function
 	 * @return {@link JsonObject}
+	 * @see #serialize(Class, Object, Supplier, Function)
+	 */
+	public static <T> JsonObject serialize(Class<T> type, T value, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> adapt) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return serialize(type, value, () -> options, adapt);
+	}
+
+	/**
+	 * Serializes a business object as JSON.
+	 *
+	 * <p>
+	 * Includes an entry for each readable JavaBeans property of {@code type},
+	 * including properties inherited from superclasses and declared as interface
+	 * default methods. Properties declared by {@link Object}, in particular
+	 * {@link Object#getClass() class}, are skipped. A property with a null value is
+	 * skipped unless
+	 * {@link IuJsonSerializationOptions#isIncludeNullProperties()}. When more than
+	 * one declaration maps to the same formatted property name, the declaration
+	 * nearest {@code type} wins.
+	 * </p>
+	 *
+	 * <p>
+	 * A value wrapped by {@link IuJson#wrap(JsonObject, Class)} is returned as its
+	 * source {@link JsonObject}, without introspection, so no option applies to it.
+	 * This preserves properties the wrapped interface doesn't declare, as when a
+	 * value is handled through a stub.
+	 * </p>
+	 *
+	 * <p>
+	 * One options snapshot is read for each invocation, so an adapter that captured
+	 * {@code options} observes a configuration change without being recreated. A
+	 * supplier that answers null, or an option that answers null, reads as the
+	 * default for this invocation.
+	 * </p>
+	 *
+	 * @param <T>     value type
+	 * @param type    value type for introspection
+	 * @param value   business object to serialize
+	 * @param options supplies the options in effect; <em>should</em> return
+	 *                quickly, as it is called on every invocation
+	 * @param adapt   adapter function
+	 * @return {@link JsonObject}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public static <T> JsonObject serialize(Class<T> type, T value, IuJsonPropertyNameFormat propertyNameFormat,
+	public static <T> JsonObject serialize(Class<T> type, T value, Supplier<IuJsonSerializationOptions> options,
 			Function<Type, IuJsonAdapter<?>> adapt) {
 
 		final var valueClass = value.getClass();
@@ -108,6 +146,13 @@ public final class JsonSerializer {
 			if (invocationHandler instanceof JsonProxy)
 				return JsonProxy.unwrap(value);
 		}
+
+		// one snapshot per invocation, so an options change takes effect without
+		// recreating the adapters that captured the supplier
+		final var snapshot = Objects.requireNonNullElse(options.get(), IuJsonSerializationOptions.DEFAULT);
+		final var propertyNameFormat = Objects.requireNonNullElse(snapshot.getPropertyNameFormat(),
+				IuJsonSerializationOptions.PROPERTY_NAME_FORMAT);
+		final var includeNullProperties = snapshot.isIncludeNullProperties();
 
 		final var builder = IuJson.object();
 
@@ -128,7 +173,10 @@ public final class JsonSerializer {
 
 				final var propertyValue = IuException.uncheckedInvocation(() -> readMethod.invoke(value));
 				final var adapter = adapt.apply(readMethod.getGenericReturnType());
-				IuJson.add(builder, propertyName, () -> propertyValue, (IuJsonAdapter) adapter);
+				if (propertyValue == null && includeNullProperties)
+					builder.addNull(propertyName);
+				else
+					IuJson.add(builder, propertyName, () -> propertyValue, (IuJsonAdapter) adapter);
 			}
 
 			for (final var i : next.getInterfaces())

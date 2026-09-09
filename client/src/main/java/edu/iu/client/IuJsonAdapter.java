@@ -76,6 +76,7 @@ import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -226,12 +227,44 @@ public interface IuJsonAdapter<T> {
 	 */
 	static <T> IuJsonAdapter<T> from(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return from(type, () -> options, valueAdapter);
+	}
+
+	/**
+	 * Creates a JSON type adapter that converts from a JavaBeans business object
+	 * type to and from JSON, with dynamically supplied options.
+	 * 
+	 * <p>
+	 * Behaves as {@link #from(Class, IuJsonPropertyNameFormat, Function)}, except
+	 * that {@code options} is read once for each conversion, so this adapter
+	 * observes an options change without being recreated. Whether a property with
+	 * a null value is included is controlled by
+	 * {@link IuJsonSerializationOptions#isIncludeNullProperties()}.
+	 * </p>
+	 * 
+	 * @param <T>          business object type
+	 * @param type         business object class; <em>must</em> declare an
+	 *                     accessible no-arg constructor to convert from JSON
+	 *                     unless it is an interface
+	 * @param options      supplies the options in effect for converting to JSON;
+	 *                     <em>should</em> return quickly, as it is called on every
+	 *                     conversion. A null value reads as
+	 *                     {@link IuJsonSerializationOptions#DEFAULT}
+	 * @param valueAdapter value adapter function
+	 * @return {@link IuJsonAdapter}; {@link #toJson(Object) toJson} converts a
+	 *         null business object to {@link JsonValue#NULL}, and
+	 *         {@link #fromJson(JsonValue) fromJson} converts
+	 *         {@link JsonValue#NULL} and an undefined value to null
+	 */
+	static <T> IuJsonAdapter<T> from(Class<T> type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return from(v -> v == null || JsonValue.NULL.equals(v) //
 				? null //
 				: JsonDeserializer.deserialize(type, v.asJsonObject(), valueAdapter), //
 				v -> v == null //
 						? JsonValue.NULL //
-						: JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
+						: JsonSerializer.serialize(type, v, options, valueAdapter));
 	}
 
 	/**
@@ -251,14 +284,45 @@ public interface IuJsonAdapter<T> {
 	 * @return {@link IuJsonAdapter}
 	 */
 	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return adapt(type, () -> options);
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, with
+	 * dynamically supplied options.
+	 * 
+	 * <p>
+	 * Behaves as {@link #adapt(Type, IuJsonPropertyNameFormat)}, except that
+	 * {@code options} is read once for each conversion, so an adapter observes an
+	 * options change without being recreated.
+	 * </p>
+	 * 
+	 * <p>
+	 * The same supplier is used for every nested value type, so options apply to
+	 * business object properties, and to business objects nested in an array,
+	 * {@link java.util.Collection Collection}, {@link java.util.Map Map},
+	 * {@link java.util.Optional Optional}, or {@link java.util.stream.Stream
+	 * Stream}, at any depth.
+	 * </p>
+	 * 
+	 * @param type    business object class
+	 * @param options supplies the options in effect for converting to JSON;
+	 *                <em>should</em> return quickly, as it is called on every
+	 *                conversion. A null value reads as
+	 *                {@link IuJsonSerializationOptions#DEFAULT}
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options) {
 		final var c = JsonAdapters.erase(type);
 		if (!IuObject.isPlatformName(c.getName()) //
 				&& !c.isPrimitive() //
 				&& !c.isArray() //
 				&& !c.isEnum())
-			return from(c, propertyNameFormat, a -> adapt(a, propertyNameFormat));
+			return from(c, options, a -> adapt(a, options));
 
-		return IuJsonAdapter.of(type, a -> adapt(a, propertyNameFormat));
+		return IuJsonAdapter.of(type, a -> adapt(a, options));
 	}
 
 	/**
@@ -274,6 +338,25 @@ public interface IuJsonAdapter<T> {
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> adapt(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat) {
 		return (IuJsonAdapter<T>) adapt((Type) type, propertyNameFormat);
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, with
+	 * dynamically supplied options.
+	 * 
+	 * @param <T>     business object type
+	 * @param type    business object class
+	 * @param options supplies the options in effect for converting to JSON;
+	 *                <em>should</em> return quickly, as it is called on every
+	 *                conversion. A null value reads as
+	 *                {@link IuJsonSerializationOptions#DEFAULT}
+	 * @return {@link IuJsonAdapter}
+	 * @see #adapt(Type, Supplier)
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> IuJsonAdapter<T> adapt(Class<T> type, Supplier<IuJsonSerializationOptions> options) {
+		return (IuJsonAdapter<T>) adapt((Type) type, options);
 	}
 
 	/**
@@ -333,7 +416,6 @@ public interface IuJsonAdapter<T> {
 	 * <ul>
 	 * <li>{@link Boolean} and {@link Boolean#TYPE boolean}</li>
 	 * <li>{@link Object}, see {@link #basic()} for Object conversion rules</li>
-	 * <li>{@link Void} and {@link Void#TYPE void}, supporting only null values</li>
 	 * <li>{@link #toJson(Object)} as {@link JsonNumber}
 	 * <ul>
 	 * <li>{@link BigDecimal}</li>
@@ -412,6 +494,14 @@ public interface IuJsonAdapter<T> {
 	 * @param <T>  target type
 	 * @param type target type
 	 * @return {@link IuJsonAdapter}
+	 * @throws UnsupportedOperationException if {@code type}, or a type named by one
+	 *                                       of its generic type arguments, is not
+	 *                                       in the list above. In particular there
+	 *                                       is no adapter for {@link Void},
+	 *                                       {@link Void#TYPE void}, or
+	 *                                       {@link Character}; a method returning
+	 *                                       void is expected to be excluded by the
+	 *                                       caller rather than adapted
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> of(Type type) {

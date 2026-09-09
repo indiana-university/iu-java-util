@@ -16,6 +16,8 @@ Functional-programming adapters over Jakarta JSON Processing and the JDK HTTP cl
 
 `IuJson` is the entry point: parsing, serialization, and the `IuJsonBuilder` fluent construction helper. `IuJsonAdapter<T>` is the bidirectional `JsonValue` ↔ Java binding used throughout the repository — `config`, `crypt`, `el`, `session`, and `oidc` all register or consume adapters. `IuJsonPropertyNameFormat` controls naming strategy (for example camelCase vs. snake_case) when binding an interface.
 
+`IuJsonSerializationOptions` carries the Java → JSON options — the property name format, plus whether a readable property with a null value is included as `JsonValue.NULL` rather than omitted — and is taken as a `Supplier`, so an adapter reads a fresh snapshot per conversion and observes a reconfiguration without being rebuilt. The same supplier propagates into nested value types, so one change reaches a whole captured adapter tree. Nulls are omitted by default, because Java draws no distinction between null and undefined; opt in only for a consumer that does, notably JavaScript UI code. Two things this deliberately does not touch: `IuJson.add` always omits nulls, which is what the JOSE writers in `crypt/impl`, `logging/impl`, and Vault merge patch (where a JSON null *deletes* a key) rely on; and a value wrapped by `IuJson.wrap` still serializes as its source `JsonObject` verbatim, which is what lets hierarchical data handled through a stub interface keep properties the stub doesn't declare.
+
 When a module needs its configuration or wire format expressed as JSON, it defines an `IuJsonAdapter` rather than hand-writing serialization.
 
 ### HTTP
