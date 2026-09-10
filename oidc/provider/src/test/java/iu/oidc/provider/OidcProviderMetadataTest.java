@@ -63,12 +63,14 @@ public class OidcProviderMetadataTest {
 
 	/**
 	 * Properties the wrapper answers for itself, so the delegation sweep below has
-	 * to skip them: the five derived endpoints, the two signing algorithm lists,
-	 * and the one default the interface already supplies.
+	 * to skip them: the five derived endpoints, response and subject types, the
+	 * two signing algorithm lists, and the one default the interface already
+	 * supplies.
 	 */
 	private static final Set<String> NOT_DELEGATED = Set.of( //
 			"getIssuer", "getAuthorizationEndpoint", "getTokenEndpoint", "getUserinfoEndpoint", "getJwksUri",
-			"getIdTokenSigningAlgValuesSupported", "getUserinfoSigningAlgValuesSupported",
+			"getResponseTypesSupported", "getSubjectTypesSupported", "getIdTokenSigningAlgValuesSupported",
+			"getUserinfoSigningAlgValuesSupported",
 			"isRequestUriParameterSupported");
 
 	/** Answers a distinct, comparable value for one metadata property. */
@@ -215,13 +217,17 @@ public class OidcProviderMetadataTest {
 	@Test
 	void testWhatItDerivesOutranksWhatWasConfigured() {
 		final var configured = issuedBy(ISSUER);
-		// a configured endpoint and algorithm the deployment doesn't get to choose
+		// configured values the deployment doesn't get to choose
 		when(configured.getTokenEndpoint()).thenReturn(URI.create("https://elsewhere.iu.edu/token"));
+		when(configured.getResponseTypesSupported()).thenReturn(List.of("id_token", "token"));
+		when(configured.getSubjectTypesSupported()).thenReturn(List.of("pairwise"));
 		when(configured.getIdTokenSigningAlgValuesSupported()).thenReturn(List.of("HS256"));
 		when(configured.getScopesSupported()).thenReturn(List.of("openid", "profile"));
 
 		final var metadata = new OidcProviderMetadata(provider(configured, List.of(key(Algorithm.ES256))));
 		assertEquals(URI.create("https://example.iu.edu/oidc/token"), metadata.getTokenEndpoint());
+		assertIterableEquals(List.of("code"), metadata.getResponseTypesSupported());
+		assertIterableEquals(List.of("public"), metadata.getSubjectTypesSupported());
 		assertIterableEquals(List.of("ES256"), metadata.getIdTokenSigningAlgValuesSupported());
 
 		// everything else passes through, so a property added to the configuration

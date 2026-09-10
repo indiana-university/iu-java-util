@@ -36,6 +36,7 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import edu.iu.IuIterable;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
@@ -77,10 +78,10 @@ import edu.iu.oidc.config.IuOidcProviderConfiguration;
  * </p>
  *
  * <p>
- * An instance wraps one read of {@link IuOidcProviderConfiguration}, so a caller
- * constructs one per request rather than holding it: a configuration change
- * then takes effect on the next request, and what a request reports cannot
- * change while it is being read.
+ * An instance wraps one read of {@link IuOidcProviderConfiguration}, so a
+ * caller constructs one per request rather than holding it: a configuration
+ * change then takes effect on the next request, and what a request reports
+ * cannot change while it is being read.
  * </p>
  *
  * @see <a href=
@@ -172,7 +173,7 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 
 	@Override
 	public Iterable<String> getResponseTypesSupported() {
-		return metadata.getResponseTypesSupported();
+		return IuIterable.iter("code");
 	}
 
 	@Override
@@ -192,7 +193,7 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 
 	@Override
 	public Iterable<String> getSubjectTypesSupported() {
-		return metadata.getSubjectTypesSupported();
+		return IuIterable.iter("public");
 	}
 
 	@Override
