@@ -52,6 +52,12 @@ public interface IuSamlServiceProvider {
 	/**
 	 * Initiate an authentication request.
 	 * 
+	 * <p>
+	 * Creates a pre-authentication session cookie with {@code SameSite=None} so
+	 * that the identity provider can return the SAML response by cross-site HTTP
+	 * POST. The session handler must issue this cookie with {@code Secure}, which
+	 * requires an HTTPS resource URI.
+	 *
 	 * @param postUri           HTTP POST URI for handling the SAML response
 	 * @param returnUri         URI to return the user to after successful
 	 *                          authentication
@@ -63,6 +69,11 @@ public interface IuSamlServiceProvider {
 	/**
 	 * Handles a SAML assertion consumer service POST request.
 	 * 
+	 * <p>
+	 * Replaces the pre-authentication session cookie with an authenticated
+	 * session cookie using {@code SameSite=Lax} before redirecting to the return
+	 * URI.
+	 *
 	 * @param requestAttributes Incoming request attributes
 	 * @param samlResponse      SAML response received from identity provider
 	 *                          after user has been authenticated.

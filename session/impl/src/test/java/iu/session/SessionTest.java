@@ -255,9 +255,19 @@ public class SessionTest {
 	}
 
 	@Test
-	void testStrict() {
-		assertTrue(session.isStrict());
+	void testSameSite() {
+		assertEquals("Strict", session.getSameSite());
+		session.setStrict(true);
+		assertEquals("Strict", session.getSameSite());
+
 		session.setStrict(false);
-		assertFalse(session.isStrict());
+		assertEquals("Lax", session.getSameSite());
+		assertTrue(session.isChanged());
+
+		session.setSameSite("None");
+		assertEquals("None", session.getSameSite());
+
+		session.setSameSite(null);
+		assertNull(session.getSameSite());
 	}
 }

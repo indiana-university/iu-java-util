@@ -340,7 +340,7 @@ public class SamlServiceProviderTest {
 			mockSp.when(() -> SamlServiceProvider.readMetadata(config)).thenReturn(metadata);
 			mockSp.when(() -> SamlServiceProvider.getIdpSSO(entityId, metadata)).thenReturn(idpSso);
 			final var redirect = sp.initRequest(postUri, returnUri);
-			verify(session).setStrict(false);
+			verify(session).setSameSite("None");
 			assertEquals(setCookie, redirect.getSetCookie());
 			assertTrue(redirect.getLocation().toString().startsWith(ssoLocation + "?"),
 					redirect.getLocation().toString());
@@ -423,6 +423,7 @@ public class SamlServiceProviderTest {
 		final var redirect = sp.verifyResponse(requestAttributes, IdGenerator.generateId(), IdGenerator.generateId());
 
 		verify(postAuth).setInvalid(true);
+		verify(session).setSameSite("Lax");
 
 		assertEquals(returnUri, redirect.getLocation());
 		assertEquals(setCookie, redirect.getSetCookie());
@@ -525,6 +526,7 @@ public class SamlServiceProviderTest {
 			verify(postAuth).setAuthnInstant(authnInstant);
 			verify(postAuth).setExpires(expires);
 			verify(postAuth).setAssertions(assertions);
+			verify(session).setSameSite("Lax");
 
 			assertEquals(returnUri, redirect.getLocation());
 			assertEquals(setCookie, redirect.getSetCookie());
@@ -628,6 +630,7 @@ public class SamlServiceProviderTest {
 			verify(postAuth).setAuthnInstant(authnInstant);
 			verify(postAuth).setExpires(expires);
 			verify(postAuth).setAssertions(assertions);
+			verify(session).setSameSite("Lax");
 
 			assertEquals(returnUri, redirect.getLocation());
 			assertEquals(setCookie, redirect.getSetCookie());
