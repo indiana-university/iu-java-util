@@ -34,6 +34,8 @@ package iu.saml;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -658,6 +660,39 @@ public class SamlServiceProviderTest {
 			mockSamlPrincipal.when(() -> SamlPrincipal.from(postAuth)).thenReturn(principal);
 			assertEquals(principal, sp.getPrincipalIdentity(requestAttributes));
 		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalWithoutSession() {
+		final var cookies = mock(Iterable.class);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var sp = new SamlServiceProvider(null, sessionHandler);
+
+		assertNull(sp.getPrincipalIdentity(requestAttributes));
+		verify(sessionHandler).activate(cookies);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testGetPrincipalInvalidSession() {
+		final var cookies = mock(Iterable.class);
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+		final var postAuth = mock(SamlPostAuthentication.class);
+		when(session.getDetail(SamlPostAuthentication.class)).thenReturn(postAuth);
+		when(postAuth.isInvalid()).thenReturn(true);
+
+		final var sp = new SamlServiceProvider(null, sessionHandler);
+		final var error = assertThrows(IllegalStateException.class, () -> sp.getPrincipalIdentity(requestAttributes));
+		assertEquals("invalid session", error.getMessage());
 	}
 
 }

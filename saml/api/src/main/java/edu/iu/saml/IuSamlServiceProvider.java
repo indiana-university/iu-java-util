@@ -87,8 +87,16 @@ public interface IuSamlServiceProvider {
 	/**
 	 * Gets the authenticated SAML principal.
 	 * 
+	 * <p>
+	 * Returns {@code null} when no active session is available, such as for a
+	 * new or expired session. An active session that records a failed SAML
+	 * authentication instead throws {@link IllegalStateException}.
+	 *
 	 * @param requestAttributes Incoming request attributes
-	 * @return {@link IuSamlPrincipal}
+	 * @return authenticated SAML principal, or {@code null} when no active
+	 *         session is available
+	 * @throws IllegalStateException if the active session records a failed SAML
+	 *                               authentication
 	 */
 	IuSamlPrincipal getPrincipalIdentity(IuRequestAttributes requestAttributes);
 

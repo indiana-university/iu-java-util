@@ -505,9 +505,11 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 
 	@Override
 	public IuSamlPrincipal getPrincipalIdentity(IuRequestAttributes requestAttributes) {
-		return SamlPrincipal.from(Objects
-				.requireNonNull(sessionHandler.activate(requestAttributes.getCookies()), "missing or expired session")
-				.getDetail(SamlPostAuthentication.class));
+		final var session = sessionHandler.activate(requestAttributes.getCookies());
+		if (session == null)
+			return null;
+
+		return SamlPrincipal.from(session.getDetail(SamlPostAuthentication.class));
 	}
 
 }
