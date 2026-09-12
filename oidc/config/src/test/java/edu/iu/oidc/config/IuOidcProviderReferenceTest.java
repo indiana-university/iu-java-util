@@ -85,7 +85,7 @@ public class IuOidcProviderReferenceTest {
 	}
 
 	@Test
-	void testNobodyIsAuthenticatedUntilSomethingSaysOtherwise() {
+	void testNobodyIsAuthenticatedUntilSomethingSaysOtherwise() throws Exception {
 		assertNull(reference().getAuthenticatedPrincipal(mock(edu.iu.IuRequestAttributes.class)));
 	}
 

@@ -665,6 +665,110 @@ public class OidcTokenGrantTest {
 		assertTrue(authAge.compareTo(Duration.ofSeconds(10L)) >= 0);
 	}
 
+	/**
+	 * Builds a grant over an ID token dated only by whatever {@code actAuthTime}
+	 * says, which is where an exchanged token carries its authentication age.
+	 */
+	private OidcTokenGrant exchangedGrant(boolean includeAct, Instant actAuthTime, boolean authTimeRequired)
+			throws IOException {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var jwksUri = URI.create(IdGenerator.generateId());
+
+		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA)
+				.keyId(IdGenerator.generateId()).ephemeral().build();
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
+				.build());
+
+		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
+		when(provider.getIssuer()).thenReturn(issuer);
+
+		final var clientId = IdGenerator.generateId();
+		final var client = mock(IuOidcClient.class, CALLS_REAL_METHODS);
+		when(client.getClientId()).thenReturn(clientId);
+		when(client.getDecryptJwk()).thenReturn(null);
+		when(client.getMaxAge()).thenReturn(Duration.ofSeconds(5L));
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.getClient()).thenReturn(client);
+		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
+				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		IuHttpAware.mock.when(() -> IuHttp.get(provider.getMetadataUri(), IuHttp.READ_JSON_OBJECT))
+				.thenReturn(IuJson.object() //
+						.add("issuer", issuer.toString()) //
+						.add("token_endpoint", tokenEndpoint.toString()) //
+						.add("jwks_uri", jwksUri.toString()) //
+						.build());
+
+		final var accessToken = IdGenerator.generateId();
+		final var sha = IuException.unchecked(() -> MessageDigest.getInstance("SHA-" + Algorithm.EDDSA.size));
+		final var hash = sha.digest(IuText.ascii(accessToken));
+		final var atHash = IuText.base64Url(Arrays.copyOfRange(hash, 0, Algorithm.EDDSA.size / 16));
+
+		// no auth_time of its own: an exchanged token's subject never authenticated
+		final var builder = WebToken.builder() //
+				.iss(issuer) //
+				.aud(URI.create(clientId)) //
+				.sub(IdGenerator.generateId()) //
+				.iat() //
+				.exp(Instant.now().plusSeconds(1L)) //
+				.claim("at_hash", atHash, String.class);
+
+		if (includeAct) {
+			final var act = IuJson.object().add("sub", IdGenerator.generateId());
+			if (actAuthTime != null)
+				act.add("auth_time", actAuthTime.getEpochSecond());
+			builder.claim("act", act.build(), jakarta.json.JsonObject.class);
+		}
+
+		final var idToken = builder.build().sign("JWT", Algorithm.EDDSA, issuerKey);
+
+		IuHttpAware.mock
+				.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+						eq(IuHttp.READ_JSON_OBJECT)))
+				.thenReturn(IuJson.object() //
+						.add("access_token", accessToken) //
+						.add("id_token", idToken) //
+						.add("expires_in", 1) //
+						.build());
+
+		return new OidcTokenGrant(config) {
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+
+			@Override
+			protected boolean isAuthTimeRequired() {
+				return authTimeRequired;
+			}
+		};
+	}
+
+	@Test
+	void testAMaximumAgeIsEnforcedAgainstTheActorsAuthentication() throws IOException {
+		// the exchanged token dates no authentication of its own, so the actor's time
+		// inside act is the age worth measuring
+		final var grant = exchangedGrant(true, Instant.now().minusSeconds(10L), false);
+
+		final var error = assertThrows(IllegalArgumentException.class, grant::getTokenResponse);
+		assertTrue(error.getMessage().endsWith(" exceeds maximum PT5S"), error::getMessage);
+	}
+
+	@Test
+	void testATokenDatingNoAuthenticationAtAllIsRefusedUnlessTheGrantSaysOtherwise() throws IOException {
+		assertEquals("Missing auth_time claim",
+				assertThrows(NullPointerException.class, exchangedGrant(false, null, true)::getTokenResponse).getMessage());
+
+		// a grant that tolerates it gets no age to enforce, and is not refused for it
+		assertNotNull(exchangedGrant(false, null, false).getTokenResponse());
+
+		// an act claim that names an actor but never dates them reads the same way
+		assertNotNull(exchangedGrant(true, null, false).getTokenResponse());
+	}
+
 	@Test
 	void testAtHash() throws IOException {
 		final var issuer = URI.create(IdGenerator.generateId());

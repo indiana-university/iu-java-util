@@ -174,13 +174,18 @@ public interface IuOidcProviderReference {
 	 * rather than a failure, and an implementation reports it either by answering
 	 * {@code null} or by refusing the lookup; both read the same way.
 	 * </p>
-	 *
+	 * 
 	 * @param attributes incoming request attributes, which is how a session is
-	 *                   found
+	 *                   found; may be null to force a new login session
 	 * @return {@link IuOidcAuthenticatedPrincipal}; {@code null} if nothing is
-	 *         established
+	 *         established or the authenticated session has expired
+	 * @throws Exception if the authentication provider needs to interrupt the
+	 *                   authorization flow, for example to return login details the
+	 *                   OIDC provider module does not handle; a common case is
+	 *                   sending null attributes to trigger an exception that
+	 *                   includes a login redirect
 	 */
-	default IuOidcAuthenticatedPrincipal getAuthenticatedPrincipal(IuRequestAttributes attributes) {
+	default IuOidcAuthenticatedPrincipal getAuthenticatedPrincipal(IuRequestAttributes attributes) throws Exception {
 		return null;
 	}
 
@@ -230,10 +235,18 @@ public interface IuOidcProviderReference {
 	 * Determines whether this is a production deployment.
 	 *
 	 * <p>
-	 * Gates impersonation, which is honored only outside production and only for a
-	 * principal holding one of the endpoint's backdoor roles. Defaults to
-	 * {@code true}, so a deployment that says nothing is treated as production and
-	 * a forgotten binding closes the backdoor rather than opening it.
+	 * Gates the RFC 8693 token exchange, which is honored only outside production
+	 * and only for a principal holding one of the endpoint's
+	 * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor roles}. A production
+	 * deployment refuses every exchange outright rather than answering one for the
+	 * caller instead, so a client that asked to act as somebody else is told it
+	 * may not rather than handed its own token and left to notice.
+	 * </p>
+	 *
+	 * <p>
+	 * Defaults to {@code true}, so a deployment that says nothing is treated as
+	 * production and a forgotten binding closes the backdoor rather than opening
+	 * it.
 	 * </p>
 	 *
 	 * @return true if this deployment is a production one

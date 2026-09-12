@@ -16,7 +16,7 @@ Note the naming: the second module is `client`, not `impl`. The four are not an 
 
 | Module | Contents |
 |---|---|
-| `api` | `edu.iu.oidc` — the claim contract, and whatever is identical for every RP and OP endpoint: `IuOidcClaims`, `IuOidcAddress`, `IuOidcProviderMetadata`, `IuOidcAuthorization`, `IuOidcPrincipal`, `IuOidcTokenResponse` |
+| `api` | `edu.iu.oidc` — the claim contract, and whatever is identical for every RP and OP endpoint: `IuOidcClaims`, `IuOidcAddress`, `IuOidcActor`, `IuOidcProviderMetadata`, `IuOidcAuthorization`, `IuOidcPrincipal`, `IuOidcTokenResponse` |
 | `client` | `iu.oidc.client` (grants and session details), `iu.oidc.client.config` (exported and `opens`) — the relying party |
 | `config` | `edu.iu.oidc.config` (exported and `opens`) — the OP's integration layer: what a deployment configures, and the SPIs it binds |
 | `provider` | `iu.oidc.provider` — the OP's endpoints and the utilities behind them |
@@ -33,7 +33,7 @@ Every endpoint takes a single `IuOidcProviderReference` and reads everything thr
 public OidcTokenEndpoint(IuOidcProviderReference reference)
 ```
 
-`IuOidcProviderReference` is not a structural interface — an integration declares it explicitly. Only `getConfiguration()` has no default; everything else either refuses by name (`throw new UnsupportedOperationException("Missing client source")`) or defaults safely. `isProduction()` defaults to `true` so a forgotten binding closes the impersonation backdoor rather than opening it.
+`IuOidcProviderReference` is not a structural interface — an integration declares it explicitly. Only `getConfiguration()` has no default; everything else either refuses by name (`throw new UnsupportedOperationException("Missing client source")`) or defaults safely. `isProduction()` defaults to `true` so a forgotten binding closes the token-exchange backdoor rather than opening it.
 
 There is deliberately no `adaptJson` on it. That pattern did not work out on `IuOidcClientReference` and is not repeated here: an OP integration depends on `IuConfig` independently and configures both the JSON its endpoints answer with and the claim adapters a stored grant round-trips through.
 
@@ -76,6 +76,21 @@ Errors follow OAuth 2.0 rather than one convention. The authorization endpoint r
 
 The completed grant is not what the code names. `GrantStore` signs and encrypts it, files it under a digest of the reference, and hands back the content encryption key as the opaque reference — so the store holds nothing it can read, and presenting a reference spends it.
 
+### Impersonation is RFC 8693 token exchange, at the token endpoint
+
+Answering for somebody else is a second token request, not a parameter on the first. A client presents an access token this provider issued as `actor_token`, names the principal it wants instead as `subject_token` under the provider-defined `https://iu.edu/oauth/token-type/principal-name` type, and gets back tokens whose `sub` is that principal and whose `act` claim is the one that authenticated. The subject is *asserted* — nobody holds a token for the party being impersonated — so what authorizes it is `IuOidcClientEndpoint.getBackdoorRoles()` held by the actor, outside production only.
+
+Four things keep an exchange narrower than what it descends from, and each is load-bearing rather than incidental:
+
+- The `actor_token` must name this issuer in its `aud`, so a token issued for an external API resource cannot be exchanged — the token endpoint is a resource server for it here, exactly as `OidcUserinfoEndpoint` is.
+- Granted scope is intersected with the `actor_token`'s own, so exchanging never gains authority.
+- `offline_access` is dropped, so no refresh token descends from an exchange.
+- An `actor_token` that already carries `act` is refused, and so is one whose subject is what the exchange asked for. The first would drop a link from the delegation chain `IuOidcActor` has no room to nest; the second would make an exchange a way to renew a token past the age its authentication was good for.
+
+`auth_time` is the subtle one. An exchanged token's subject never authenticated, so neither token carries a top-level `auth_time` — the actor's own time rides inside `act` as a NumericDate, which is both true and the only age worth measuring. `respond()` and `idToken()` both branch on `Redeemed.impersonated()` for this. Access tokens now carry `auth_time` generally (RFC 9068 §2.2.1) because an exchange has nowhere else to read the actor's authentication back from.
+
+`Redeemed` is what every grant that answers for an end user reaches `respond()` through — `null` means the tokens answer for the client itself, as `client_credentials` does. It exists so a token exchange, which has no stored grant at all, takes the same path as a code or refresh redemption; its `grant()` member is only for re-filing a refresh token, which an exchange never issues.
+
 ### Supporting types
 
 `OidcProviderUtils` holds the request-shaping logic every endpoint shares — scope splitting, resource validation and matching, audience derivation, error URIs. Put shared logic there rather than reaching across endpoints. `OidcClaimScopes.admitted(scope)` maps a granted scope to the OIDC §5.4 claim sets, deny-by-default. `OidcJose` signs and encrypts an already-serialized document and is deliberately unaware of what it is securing. `ClientAuthenticator` verifies a presented credential against one registration and refuses a replayed assertion through `IuDataStore`.
@@ -83,7 +98,7 @@ The completed grant is not what the code names. `GrantStore` signs and encrypts 
 ## The relying party (`iu.oidc.client`)
 
 ```java
-IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName, ...);
+IuStatefulRedirect init(String delegatingPrincipal, ...);
 IuStatefulRedirect authorize(IuRequestAttributes attributes, String code, String state);
 IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes);
 ```
@@ -94,7 +109,9 @@ IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes);
 
 Each grant is its own class implementing the shared `AuthorizationGrant` contract, so adding a grant means adding a class rather than branching an existing one:
 
-`ClientCredentialsGrant`, `PasswordGrant`, `RefreshTokenGrant`, `JwtBearerGrant`, `OnBehalfOfGrant`, `OidcTokenGrant`.
+`ClientCredentialsGrant`, `PasswordGrant`, `RefreshTokenGrant`, `JwtBearerGrant`, `OnBehalfOfGrant`, `OidcTokenExchangeGrant`, `OidcTokenGrant`.
+
+`OidcTokenExchangeGrant` is the second half of a two-step flow: authorize the end user normally, then present the access token they are the subject of as the RFC 8693 `actor_token` and name who to answer for instead. `OidcTokenGrant.isAuthTimeRequired()` exists for it — an exchanged ID token dates the actor inside `act`, never its own subject, so a maximum age is enforced against whatever is found in either place and required only where one must be.
 
 ### Provider discovery
 
@@ -122,3 +139,5 @@ Two things bite repeatedly in `provider` tests:
 - **A mocked `WebKey` cannot be handed to the crypt implementation.** `iu.crypt.JoseBuilder.key` casts every key it receives to `iu.crypt.Jwk`. Anything that signs, verifies, or publishes a key needs a real one; for certificates, generate them with `openssl` through `IuProcess`, following `jwt/impl`'s `JwtTest`. Note that a single self-signed certificate produces an `x5t` header and no `x5c`, while a two-certificate chain produces `x5c` and a null `x5t` — which is exactly what `ClientAuthenticator` branches on.
 
 `MemoryDataStore` in the `provider` test package is the shared `IuDataStore` fixture; use it rather than mocking the store when a test needs a real `GrantStore` round trip.
+
+**A nested bean claim does not get the JWT `Instant` treatment.** `iu.jwt.Jwt.adapt` answers the RFC 7519 NumericDate adapter only when the type *is* `Instant`, and recurses through itself only for `IuAuthorizationDetails`; anything else, a bean interface like `IuOidcActor` included, falls through to `IuConfig.adaptJson`, whose `Instant` adapter is `Instant::parse` — ISO-8601 text. So an `Instant` property on a nested claim serializes as a string no other implementation will read as a date. That is why `IuOidcActor.getAuthTime()` is a `Long`, matching how top-level `auth_time` is already written. Round-trip tests pass either way, since the same adapter reads it back; only the wire is wrong. Declare a NumericDate as `Long` unless you are writing it at the top level.

@@ -84,8 +84,8 @@ public interface IuOidcClientEndpoint {
 	 * endpoint at all.
 	 *
 	 * <p>
-	 * Checked against the effective principal &mdash; the impersonated principal
-	 * when a backdoor request is honored, otherwise the one the identity provider
+	 * Checked against the effective principal &mdash; the principal an honored
+	 * token exchange asked to answer for, otherwise the one the identity provider
 	 * authenticated. Holding any one is enough. {@code null} or empty denies every
 	 * principal; the literal role {@code ALL} is what registers an endpoint as open
 	 * to anyone, since a role check treats it as matching unconditionally.
@@ -97,22 +97,26 @@ public interface IuOidcClientEndpoint {
 
 	/**
 	 * Gets the identity roles that entitle a principal to request another
-	 * principal's token through the {@code impersonated_principal} request
-	 * parameter.
+	 * principal's token through an RFC 8693 token exchange.
 	 *
 	 * <p>
-	 * Checked against the principal the identity provider actually authenticated,
-	 * never the one being impersonated, so holding a backdoor role is what lets a
+	 * Checked against the principal the presented {@code actor_token} was issued
+	 * to, never the one being asked for, so holding a backdoor role is what lets a
 	 * principal act as someone else rather than something the target of
-	 * impersonation grants. Only honored outside a production deployment; a request
-	 * naming one in production is answered as if it had named none, whether or not
-	 * the authenticated principal holds a backdoor role. {@code null} or empty
-	 * denies the backdoor to every principal; {@code ALL} opens it to anyone, the
-	 * same as {@link #getAccessRoles()}.
+	 * impersonation grants. {@code null} or empty denies the backdoor to every
+	 * principal; {@code ALL} opens it to anyone, the same as
+	 * {@link #getAccessRoles()}.
+	 * </p>
+	 *
+	 * <p>
+	 * Only honored outside a production deployment. A production one refuses every
+	 * exchange before reading these at all, so which principals hold a backdoor
+	 * role cannot be learned by probing one.
 	 * </p>
 	 *
 	 * @return identity role names; {@code null} or empty to refuse impersonation
 	 *         to everyone
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc8693">RFC 8693</a>
 	 */
 	Iterable<String> getBackdoorRoles();
 

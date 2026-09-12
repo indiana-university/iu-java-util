@@ -54,10 +54,12 @@ import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
@@ -94,8 +96,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuStatefulRedirect init(String delegatingPrincipal, String backdoorId, Consumer<IuSession> preAuthDetail)
-			throws IOException {
+	public IuStatefulRedirect init(Iterable<IuAuthorizationDetails> authorizationDetails,
+			Consumer<IuSession> preAuthDetail) throws IOException {
 		final var state = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
 		final var oidcClient = config.getClient();
@@ -128,11 +130,10 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (resource != null)
 			params.put("resource", IuIterable.iter(resource.toString()));
 
-		if (delegatingPrincipal != null)
-			params.put("delegating_principal", IuIterable.iter(delegatingPrincipal));
-
-		if (backdoorId != null)
-			params.put("impersonated_principal", IuIterable.iter(backdoorId));
+		if (authorizationDetails != null)
+			params.put("authorization_details",
+					IuIterable.iter(IuJsonAdapter.of(Iterable.class, config.adaptJson(IuAuthorizationDetails.class))
+							.toJson(authorizationDetails).toString()));
 
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
 		final var location = URI
@@ -174,7 +175,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		preAuth.setState(null);
 
 		final var grant = new AuthorizationGrant(config, code, config.getRedirectUri());
-		final var response = grant.getTokenResponse();
+
+		var response = grant.getTokenResponse();
 		final var idToken = Objects.requireNonNull(grant.getIdToken(), "missing verified ID token");
 
 		final var nonce = preAuth.getNonce();
@@ -187,6 +189,10 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		else
 			IuObject.once(nonce, vnonce, "nonce mismatch");
 		preAuth.setNonce(null);
+
+		final var exchangedResponse = config.exchange(requestAttributes, response.getAccessToken());
+		if (exchangedResponse != null)
+			response = exchangedResponse;
 
 		final var userinfoClaims = getUserinfoClaims(config.getClient(), response.getAccessToken());
 
@@ -448,7 +454,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var verifiedAccessToken = verifyAccessToken(accessToken);
 
 		return new OidcPrincipal(grant.getIdToken(), userinfoClaims, setCookie, config, accessToken,
-				verifiedAccessToken, client.getPrincipalNameClaimName());
+				verifiedAccessToken, response.getAuthorizationDetails(), client.getPrincipalNameClaimName());
 	}
 
 }

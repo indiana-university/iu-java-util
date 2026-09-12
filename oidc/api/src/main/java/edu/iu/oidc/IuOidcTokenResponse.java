@@ -33,6 +33,8 @@ package edu.iu.oidc;
 
 import java.net.URI;
 
+import edu.iu.jwt.IuAuthorizationDetails;
+
 /**
  * Encapsulates the response from an OIDC token endpoint.
  * 
@@ -107,5 +109,18 @@ public interface IuOidcTokenResponse {
 	 * @return scopes, space separated
 	 */
 	String getScope();
+
+	/**
+	 * Gets authorization details released by the authorization server.
+	 *
+	 * <p>
+	 * This is the {@code authorization_details} response parameter. Its entries
+	 * may be narrower than the details requested at the authorization endpoint;
+	 * {@code null} means the parameter was omitted.
+	 * </p>
+	 *
+	 * @return released authorization details; null when absent
+	 */
+	Iterable<? extends IuAuthorizationDetails> getAuthorizationDetails();
 
 }

@@ -181,9 +181,25 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 		return metadata.getResponseModesSupported();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Derived rather than configured, for the same reason the endpoint URIs are:
+	 * what discovery advertises and what {@link OidcTokenEndpoint} actually
+	 * answers cannot be allowed to drift. Token exchange is advertised
+	 * unconditionally even though a
+	 * {@link edu.iu.oidc.config.IuOidcProviderReference#isProduction() production}
+	 * deployment refuses every one &mdash; this view is built from the
+	 * configuration, which says nothing about whether the deployment is a
+	 * production one, and a grant type that exists and refuses is a truer thing to
+	 * publish than one that disappears.
+	 * </p>
+	 */
 	@Override
 	public Iterable<String> getGrantTypesSupported() {
-		return metadata.getGrantTypesSupported();
+		return IuIterable.iter("authorization_code", "refresh_token", "client_credentials",
+				OidcTokenEndpoint.TOKEN_EXCHANGE);
 	}
 
 	@Override

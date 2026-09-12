@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
@@ -54,6 +56,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.logging.Level;
 
@@ -67,10 +70,13 @@ import edu.iu.IuRequestAttributes;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
 import edu.iu.oidc.IuOidcProviderMetadata;
@@ -134,6 +140,7 @@ public class OidcAuthorizationTest {
 		assertEquals("code", params.get("response_type").iterator().next());
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
+		assertNull(params.get("authorization_details"));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
 	}
@@ -166,7 +173,7 @@ public class OidcAuthorizationTest {
 
 		final var received = new ArrayDeque<IuSession>();
 		assertEquals(setCookie,
-				new OidcAuthorization(config).init(null, null, received::push).getSetCookie());
+				new OidcAuthorization(config).init(null, received::push).getSetCookie());
 
 		// the session it receives is the one about to be stored, and it is handed over
 		// before the store, so one write carries both this flow's detail and the
@@ -180,7 +187,7 @@ public class OidcAuthorizationTest {
 	}
 
 	@Test
-	void testInitWithExtras() throws IOException {
+	void testInitWithAuthorizationDetails() throws IOException {
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -213,10 +220,13 @@ public class OidcAuthorizationTest {
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getSessionHandler()).thenReturn(sessionHandler);
 
+		final var detailType = IdGenerator.generateId();
+		final Iterable<IuAuthorizationDetails> authorizationDetails = List.of(() -> detailType);
+		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
+				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
 		final var authorization = new OidcAuthorization(config);
-		final var delegatingPrincipal = IdGenerator.generateId();
-		final var impersonatedPrincipal = IdGenerator.generateId();
-		final var redirect = authorization.init(delegatingPrincipal, impersonatedPrincipal);
+		final var redirect = authorization.init(authorizationDetails);
 		assertEquals(setCookie, redirect.getSetCookie());
 
 		final var params = IuWebUtils.parseQueryString(redirect.getLocation().getRawQuery());
@@ -224,8 +234,8 @@ public class OidcAuthorizationTest {
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
 		assertEquals(resourceUri.toString(), params.get("resource").iterator().next());
-		assertEquals(delegatingPrincipal, params.get("delegating_principal").iterator().next());
-		assertEquals(impersonatedPrincipal, params.get("impersonated_principal").iterator().next());
+		assertEquals(IuJson.array().add(IuJson.object().add("type", detailType)).build(),
+				IuJson.parse(params.get("authorization_details").iterator().next()));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
 	}
@@ -409,10 +419,15 @@ public class OidcAuthorizationTest {
 
 		final var authorization = new OidcAuthorization(config);
 		final var response = mock(IuOidcTokenResponse.class);
+		final var exchangedResponse = mock(IuOidcTokenResponse.class);
 		final var idToken = mock(WebToken.class);
 		final var userinfoClaims = IuJson.object().add("sub", IdGenerator.generateId()).build();
-		when(response.getExpiresIn()).thenReturn(1);
-		when(response.getAccessToken()).thenReturn(IdGenerator.generateId());
+		final var accessToken = IdGenerator.generateId();
+		final var exchangedAccessToken = IdGenerator.generateId();
+		when(response.getAccessToken()).thenReturn(accessToken);
+		when(exchangedResponse.getAccessToken()).thenReturn(exchangedAccessToken);
+		when(exchangedResponse.getExpiresIn()).thenReturn(1);
+		when(config.exchange(requestAttributes, accessToken)).thenReturn(exchangedResponse);
 
 		when(idToken.getNonce()).thenReturn(nonce);
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
@@ -425,11 +440,11 @@ public class OidcAuthorizationTest {
 			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
 				final var rb = mock(HttpRequest.Builder.class);
 				assertDoesNotThrow(() -> a.accept(rb));
-				verify(rb).header("Authorization", "Bearer " + response.getAccessToken());
+				verify(rb).header("Authorization", "Bearer " + exchangedAccessToken);
 				return true;
 			}), eq(IuHttp.READ_UTF8))).thenReturn(userinfoClaims.toString());
 			final var redirect = authorization.authorize(requestAttributes, code, state);
-			verify(postAuth).setTokenResponse(response);
+			verify(postAuth).setTokenResponse(exchangedResponse);
 			verify(postAuth).setUserinfoClaims(userinfoClaims);
 			verify(postAuth).setNotAfter(any(Instant.class));
 			assertEquals(resourceUri, redirect.getLocation());
@@ -828,6 +843,11 @@ public class OidcAuthorizationTest {
 		when(response.getAccessToken()).thenReturn(accessToken);
 		when(response.getRefreshToken()).thenReturn(refreshToken);
 		when(response.getExpiresIn()).thenReturn(1);
+		final var authorizationDetailType = IdGenerator.generateId();
+		doReturn(List.of((IuAuthorizationDetails) () -> authorizationDetailType)).when(response)
+				.getAuthorizationDetails();
+		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
+				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var notAfter = Instant.now().plusSeconds(1L);
 		when(postAuth.getTokenResponse()).thenReturn(response);
@@ -861,6 +881,9 @@ public class OidcAuthorizationTest {
 		})) {
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
+			assertIterableEquals(List.of(authorizationDetailType), IuIterable.map(
+					principal.getAuthorizationDetails(IuAuthorizationDetails.class, authorizationDetailType),
+					IuAuthorizationDetails::getType));
 			IuHttpAware.mock.verifyNoInteractions();
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
 

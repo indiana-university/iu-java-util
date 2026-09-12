@@ -31,6 +31,9 @@
  */
 package iu.oidc.provider;
 
+import static iu.oidc.provider.OidcTokenEndpoint.ACCESS_TOKEN_TOKEN_TYPE;
+import static iu.oidc.provider.OidcTokenEndpoint.PRINCIPAL_NAME_TOKEN_TYPE;
+import static iu.oidc.provider.OidcTokenEndpoint.TOKEN_EXCHANGE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -53,6 +56,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -72,6 +76,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
+import edu.iu.oidc.IuOidcActor;
 import edu.iu.oidc.IuOidcClaims;
 import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.config.IuOidcClaimsSource;
@@ -745,69 +750,6 @@ public class OidcTokenEndpointTest {
 	}
 
 	@Test
-	void testImpersonationIsIgnoredInProduction() {
-		when(reference.isProduction()).thenReturn(true);
-		IuTestLogger.expect(OidcTokenEndpoint.class.getName(), Level.WARNING,
-				"token-impersonation-denied:production:" + CLIENT_ID + ":" + PRINCIPAL);
-
-		register();
-		claimsFor(PRINCIPAL);
-
-		final var grant = grant("openid");
-		when(grant.getImpersonatedPrincipalName()).thenReturn("somebody-else");
-
-		// answered as if it had named none, and the backdoor roles are not consulted
-		final var idToken = WebToken.verify(issued(codeRequest(grant)).idToken(), issuerKey);
-		assertEquals(PRINCIPAL, idToken.getSubject());
-		assertNull(idToken.getClaim("act", OidcActor.class));
-	}
-
-	@Test
-	void testImpersonationNeedsABackdoorRole() {
-		final var clientEndpoint = register();
-		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
-		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(false);
-
-		final var grant = grant("openid");
-		when(grant.getImpersonatedPrincipalName()).thenReturn("somebody-else");
-
-		assertError("access_denied", "Not authorized to impersonate another principal", 403, codeRequest(grant));
-	}
-
-	@Test
-	void testAnHonoredImpersonationNamesTheActorOnBothTokens() {
-		final var clientEndpoint = register();
-		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
-		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(true);
-
-		final var impersonatedClaims = claims("somebody-else", null, null);
-		final var actorClaims = claims(PRINCIPAL, "Some One", "someone@iu.edu");
-		when(claimsSource.claims(eq("somebody-else"), any(), any(), any())).thenReturn(impersonatedClaims);
-		when(claimsSource.claims(eq(PRINCIPAL), any(), any(), any())).thenReturn(actorClaims);
-
-		final var grant = grant("openid profile email");
-		when(grant.getImpersonatedPrincipalName()).thenReturn("somebody-else");
-
-		final var issued = issued(codeRequest(grant));
-
-		// the ID token adds name and email so a relying party can show whose session
-		// its user is looking through
-		final var idToken = WebToken.verify(issued.idToken(), issuerKey);
-		assertEquals("somebody-else", idToken.getSubject());
-		final var idActor = (OidcActor) idToken.getClaim("act", OidcActor.class);
-		assertEquals(PRINCIPAL, idActor.getSub());
-		assertEquals("Some One", idActor.getName());
-		assertEquals("someone@iu.edu", idActor.getEmail());
-
-		// the access token names the actor and nothing more
-		final var accessToken = WebToken.verify(issued.accessToken(), issuerKey);
-		final var accessActor = (OidcActor) accessToken.getClaim("act", OidcActor.class);
-		assertEquals(PRINCIPAL, accessActor.getSub());
-		assertNull(accessActor.getName());
-		assertNull(accessActor.getEmail());
-	}
-
-	@Test
 	void testAPrincipalWithoutAnAccessRoleGetsNoToken() {
 		final var clientEndpoint = register();
 		when(clientEndpoint.getAccessRoles()).thenReturn(List.of("staff"));
@@ -958,20 +900,356 @@ public class OidcTokenEndpointTest {
 						IuAuthorizationDetails::getType));
 	}
 
-	@Test
-	void testTheActorRecordCarriesWhatItWasBuiltWith() {
+	/** Signs an access token of this provider's own shape. */
+	private String accessToken(String sub, String clientId, String scope, Instant authTime, URI... audience) {
+		final var builder = WebToken.builder() //
+				.jti() //
+				.iss(ISSUER) //
+				.sub(sub) //
+				.aud(audience) //
+				.iat() //
+				.exp(Instant.now().plus(ACCESS_TTL)) //
+				.claim("client_id", clientId, String.class) //
+				.claim("scope", scope, String.class);
+
+		if (authTime != null)
+			builder.claim("auth_time", authTime.getEpochSecond(), Long.class);
+
+		return OidcJose.sign(builder.build().toString(), "at+jwt", issuerKey);
+	}
+
+	/** An actor token as a plain code redemption would have issued one. */
+	private String actorToken() {
+		return accessToken(PRINCIPAL, CLIENT_ID, "openid", Instant.now().minusSeconds(30L), ISSUER);
+	}
+
+	/** An exchange asking to answer for {@code subject} on the strength of a token. */
+	private static OidcTokenRequest exchangeRequest(String subject, String actorToken) {
+		final var request = request(TOKEN_EXCHANGE);
+		when(request.getSubjectToken()).thenReturn(subject);
+		when(request.getSubjectTokenType()).thenReturn(PRINCIPAL_NAME_TOKEN_TYPE);
+		when(request.getActorToken()).thenReturn(actorToken);
+		when(request.getActorTokenType()).thenReturn(ACCESS_TOKEN_TOKEN_TYPE);
+		return request;
+	}
+
+	/** Registers a client whose endpoint opens the backdoor to a named role. */
+	private IuOidcClientEndpoint registerBackdoor() {
 		final var clientEndpoint = register();
-		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("all"));
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
+		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(true);
+		return clientEndpoint;
+	}
+
+	/** Stands in for an act claim already present on a presented token. */
+	private record TestActor(String sub) implements IuOidcActor {
+		@Override
+		public String getSub() {
+			return sub;
+		}
+
+		@Override
+		public String getName() {
+			return null;
+		}
+
+		@Override
+		public String getEmail() {
+			return null;
+		}
+
+		@Override
+		public Long getAuthTime() {
+			return null;
+		}
+	}
+
+	@Test
+	void testAnExchangeMustNameASubjectToken() {
+		register();
+		assertError("invalid_request", "Missing subject_token", 400, exchangeRequest(null, actorToken()));
+	}
+
+	@Test
+	void testAnExchangeMustNameASubjectTokenType() {
+		register();
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getSubjectTokenType()).thenReturn(null);
+		assertError("invalid_request", "Missing subject_token_type", 400, request);
+	}
+
+	@Test
+	void testOnlyAPrincipalNameSubjectTokenIsAnswered() {
+		// nobody holds a token for the party being impersonated, which is the point
+		// of asking; a caller presenting one is asking for something else entirely
+		register();
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getSubjectTokenType()).thenReturn(ACCESS_TOKEN_TOKEN_TYPE);
+		assertError("invalid_request", "Unsupported subject_token_type " + ACCESS_TOKEN_TOKEN_TYPE, 400, request);
+	}
+
+	@Test
+	void testAnExchangeMustNameAnActorToken() {
+		register();
+		assertError("invalid_request", "Missing actor_token", 400, exchangeRequest("somebody-else", null));
+	}
+
+	@Test
+	void testAnExchangeMustNameAnActorTokenType() {
+		register();
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getActorTokenType()).thenReturn(null);
+		assertError("invalid_request", "Missing actor_token_type", 400, request);
+	}
+
+	@Test
+	void testOnlyAnAccessTokenActsAsTheActorToken() {
+		register();
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getActorTokenType()).thenReturn("urn:ietf:params:oauth:token-type:id_token");
+		assertError("invalid_request", "Unsupported actor_token_type urn:ietf:params:oauth:token-type:id_token", 400,
+				request);
+	}
+
+	@Test
+	void testAnExchangeMayAskForAnAccessTokenExplicitly() {
+		registerBackdoor();
+		claimsForAnyone();
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getRequestedTokenType()).thenReturn(ACCESS_TOKEN_TOKEN_TYPE);
+		assertNotNull(issued(request).accessToken());
+	}
+
+	@Test
+	void testATokenTypeThisProviderDoesNotIssueIsRefused() {
+		// answering with something the client didn't ask for is worse than refusing
+		register();
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getRequestedTokenType()).thenReturn("urn:ietf:params:oauth:token-type:saml2");
+		assertError("invalid_request", "Unsupported requested_token_type urn:ietf:params:oauth:token-type:saml2", 400,
+				request);
+	}
+
+	@Test
+	void testAnActorTokenThisProviderCantVerifyIsRefused() {
+		register();
+		assertError("invalid_grant", "actor_token is not a valid access token addressed to this provider", 400,
+				exchangeRequest("somebody-else", "not.a.token"));
+	}
+
+	@Test
+	void testAnActorTokenAddressedElsewhereIsRefused() {
+		// one issued for an external API resource was never addressed to this
+		// provider, so a signature alone is not enough to honor it here
+		register();
+		assertError("invalid_grant", "actor_token is not a valid access token addressed to this provider", 400,
+				exchangeRequest("somebody-else", accessToken(PRINCIPAL, CLIENT_ID, "openid", null, EXTERNAL)));
+	}
+
+	@Test
+	void testAnActorTokenBelongingToAnotherClientIsRefused() {
+		register();
+		assertError("invalid_grant", "actor_token was issued to a different client", 400,
+				exchangeRequest("somebody-else", accessToken(PRINCIPAL, "other-client", "openid", null, ISSUER)));
+	}
+
+	@Test
+	void testAnExchangeCannotBeChained() {
+		// RFC 8693 wants the previous actor nested inside the new one, and the act
+		// claim has nowhere to put it, so chaining is refused rather than answered
+		// with a token that drops who was really behind the one before it
+		register();
+		final var chained = WebToken.builder().jti().iss(ISSUER).sub("somebody-else").aud(ISSUER).iat()
+				.exp(Instant.now().plus(ACCESS_TTL)) //
+				.claim("client_id", CLIENT_ID, String.class) //
+				.claim("scope", "openid", String.class) //
+				.claim("act", (IuOidcActor) new TestActor(PRINCIPAL), IuOidcActor.class);
+
+		assertError("invalid_grant", "actor_token already names an actor", 400, exchangeRequest("a-third-party",
+				OidcJose.sign(chained.build().toString(), "at+jwt", issuerKey)));
+	}
+
+	@Test
+	void testAnExchangeCannotAnswerForItsOwnActor() {
+		// grants nothing the caller doesn't already hold, and would make an exchange
+		// a way to renew a token past the age its authentication was good for
+		register();
+		assertError("invalid_grant", "actor_token already answers for this subject", 400,
+				exchangeRequest(PRINCIPAL, actorToken()));
+	}
+
+	@Test
+	void testAnExchangeIsRefusedInProduction() {
+		when(reference.isProduction()).thenReturn(true);
+		IuTestLogger.expect(OidcTokenEndpoint.class.getName(), Level.WARNING,
+				"token-impersonation-denied:production:" + CLIENT_ID + ":" + PRINCIPAL);
+
+		registerBackdoor();
+		claimsForAnyone();
+
+		// refused rather than quietly answered for the caller: a client that asked
+		// for somebody else's token must not be handed its own without being told
+		assertError("access_denied", "Token exchange is not available in this deployment", 403,
+				exchangeRequest("somebody-else", actorToken()));
+	}
+
+	@Test
+	void testAnExchangeNeedsABackdoorRole() {
+		final var clientEndpoint = register();
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
+		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(false);
+		claimsFor(PRINCIPAL);
+
+		assertError("access_denied", "Not authorized to impersonate another principal", 403,
+				exchangeRequest("somebody-else", actorToken()));
+	}
+
+	@Test
+	void testAnEndpointNamingNoBackdoorRoleRefusesEveryone() {
+		final var clientEndpoint = register();
+		// a mock answers an unstubbed Iterable with an empty one rather than null,
+		// and refusing everyone has to read the same either way
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(null);
+		claimsFor(PRINCIPAL);
+
+		assertError("access_denied", "Not authorized to impersonate another principal", 403,
+				exchangeRequest("somebody-else", actorToken()));
+	}
+
+	@Test
+	void testAnHonoredExchangeNamesTheActorOnBothTokens() {
+		registerBackdoor();
+
+		final var impersonatedClaims = claims("somebody-else", null, null);
+		final var actorClaims = claims(PRINCIPAL, "Some One", "someone@iu.edu");
+		when(claimsSource.claims(eq("somebody-else"), any(), any(), any())).thenReturn(impersonatedClaims);
+		when(claimsSource.claims(eq(PRINCIPAL), any(), any(), any())).thenReturn(actorClaims);
+
+		final var authTime = Instant.now().minusSeconds(30L).truncatedTo(ChronoUnit.SECONDS);
+		final var request = exchangeRequest("somebody-else",
+				accessToken(PRINCIPAL, CLIENT_ID, "openid profile email", authTime, ISSUER));
+		when(request.getScope()).thenReturn("openid profile email");
+
+		final var issued = issued(request);
+		assertEquals(ACCESS_TOKEN_TOKEN_TYPE, issued.issuedTokenType());
+
+		// the ID token adds name and email so a relying party can show whose session
+		// its user is looking through
+		final var idToken = WebToken.verify(issued.idToken(), issuerKey);
+		assertEquals("somebody-else", idToken.getSubject());
+		final var idActor = (IuOidcActor) idToken.getClaim("act", IuOidcActor.class);
+		assertEquals(PRINCIPAL, idActor.getSub());
+		assertEquals("Some One", idActor.getName());
+		assertEquals("someone@iu.edu", idActor.getEmail());
+		assertEquals(authTime.getEpochSecond(), idActor.getAuthTime());
+
+		// the subject of an exchanged token never authenticated, so nothing claims
+		// they did; the actor's own authentication time rides inside act instead
+		assertNull(idToken.getClaim("auth_time", Instant.class));
+
+		// the access token names the actor and when they authenticated, nothing more
+		final var accessToken = WebToken.verify(issued.accessToken(), issuerKey);
+		final var accessActor = (IuOidcActor) accessToken.getClaim("act", IuOidcActor.class);
+		assertEquals(PRINCIPAL, accessActor.getSub());
+		assertNull(accessActor.getName());
+		assertNull(accessActor.getEmail());
+		assertEquals(authTime.getEpochSecond(), accessActor.getAuthTime());
+	}
+
+	@Test
+	void testAnExchangeCannotBroadenWhatItWasGiven() {
+		// exchanging never gains authority the caller didn't already have
+		final var clientEndpoint = clientEndpoint(REDIRECT,
+				List.of(resource(null, new LinkedHashSet<>(List.of("openid", "profile")))));
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
+		register(List.of(clientEndpoint));
+		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(true);
+		claimsForAnyone();
+
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getScope()).thenReturn("openid profile");
+
+		// the endpoint grants profile and the request asked for it, but the token it
+		// was bought with never carried it
+		assertEquals("openid", issued(request).scope());
+	}
+
+	@Test
+	void testAnExchangeAsksForWhatItHoldsWhenItNamesNoScope() {
+		registerBackdoor();
+		claimsForAnyone();
+		assertEquals("openid", issued(exchangeRequest("somebody-else", actorToken())).scope());
+	}
+
+	@Test
+	void testAnExchangeLeftWithNothingToGrantIsRefused() {
+		registerBackdoor();
+		assertError("invalid_scope", "No scope granted for this exchange", 400,
+				exchangeRequest("somebody-else", accessToken(PRINCIPAL, CLIENT_ID, "something-else", null, ISSUER)));
+	}
+
+	@Test
+	void testAnExchangeNamingAResourceIsBoundedByIt() {
+		final var clientEndpoint = clientEndpoint(REDIRECT, List.of(resource(null, Set.of("openid")),
+				resource(EXTERNAL, new LinkedHashSet<>(List.of("openid", "read")))));
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
+		register(List.of(clientEndpoint));
+		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(true);
+		claimsForAnyone();
+
+		final var request = exchangeRequest("somebody-else",
+				accessToken(PRINCIPAL, CLIENT_ID, "openid read", null, ISSUER));
+		when(request.getResource()).thenReturn(List.of(EXTERNAL.toString()));
+		when(request.getScope()).thenReturn("read");
+
+		assertEquals("read", issued(request).scope());
+	}
+
+	@Test
+	void testNoRefreshTokenDescendsFromAnExchange() {
+		// an impersonated session cannot outlive the token that bought it
+		registerBackdoor();
+		claimsForAnyone();
+
+		final var request = exchangeRequest("somebody-else",
+				accessToken(PRINCIPAL, CLIENT_ID, "openid offline_access", null, ISSUER));
+		when(request.getScope()).thenReturn("openid offline_access");
+
+		final var issued = issued(request);
+		assertNull(issued.refreshToken());
+		assertEquals("openid", issued.scope());
+	}
+
+	@Test
+	void testOnlyAnExchangeNamesWhatItIssued() {
+		// RFC 8693 requires it; every other grant type answers a response shape that
+		// has no such member
+		register();
+		claimsFor(PRINCIPAL);
+		assertNull(issued(codeRequest(grant("openid"))).issuedTokenType());
+	}
+
+	@Test
+	void testAnExchangeRidesOnATokenThisProviderReallyIssued() {
+		// the round trip: redeem a code, then exchange what it answered
+		registerBackdoor();
 		when(claimsSource.claims(any(), any(), any(), any())).thenAnswer(i -> claims(i.getArgument(0), "N", "E"));
 
-		final var grant = grant("openid profile email");
-		when(grant.getImpersonatedPrincipalName()).thenReturn("somebody-else");
+		final var first = issued(codeRequest(grant("openid")));
+		assertEquals(PRINCIPAL, WebToken.verify(first.accessToken(), issuerKey).getSubject());
 
-		final var idToken = WebToken.verify(issued(codeRequest(grant)).idToken(), issuerKey);
-		final var actor = (OidcActor) idToken.getClaim("act", OidcActor.class);
+		final var idToken = WebToken
+				.verify(issued(exchangeRequest("somebody-else", first.accessToken())).idToken(), issuerKey);
+		assertEquals("somebody-else", idToken.getSubject());
+
+		final var actor = (IuOidcActor) idToken.getClaim("act", IuOidcActor.class);
 		assertEquals(PRINCIPAL, actor.getSub());
-		assertEquals("N", actor.getName());
-		assertEquals("E", actor.getEmail());
+		assertNotNull(actor.getAuthTime());
+	}
+
+	/** Binds a claims source answering plainly for whoever is asked about. */
+	private void claimsForAnyone() {
+		when(claimsSource.claims(any(), any(), any(), any())).thenAnswer(i -> claims(i.getArgument(0), null, null));
 	}
 
 	/** Binds a claims source answering plainly for one principal. */

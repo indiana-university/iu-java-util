@@ -84,23 +84,6 @@ public interface OidcGrant {
 	void setPrincipalName(String principalName);
 
 	/**
-	 * Gets the principal name requested via the {@code impersonated_principal}
-	 * request parameter.
-	 *
-	 * @return impersonated principal name, or {@code null} if the request named
-	 *         none
-	 */
-	String getImpersonatedPrincipalName();
-
-	/**
-	 * Sets the principal name requested via the {@code impersonated_principal}
-	 * request parameter.
-	 *
-	 * @param impersonatedPrincipalName impersonated principal name
-	 */
-	void setImpersonatedPrincipalName(String impersonatedPrincipalName);
-
-	/**
 	 * Gets the authorization details the client asked for, as its transport parsed
 	 * them.
 	 *

@@ -142,21 +142,6 @@ public interface OidcAuthorizeRequest extends IuRequestAttributes {
 	String getCodeChallengeMethod();
 
 	/**
-	 * Gets the {@code impersonated_principal} parameter, naming a principal the end
-	 * user is asking to act as.
-	 *
-	 * <p>
-	 * Recorded on the grant whatever the deployment is, and read at redemption:
-	 * whether a request may act on it depends on roles the authenticated principal
-	 * holds and on whether the deployment is a production one, neither of which is
-	 * settled here.
-	 * </p>
-	 *
-	 * @return {@code impersonated_principal}; null if the request named none
-	 */
-	String getImpersonatedPrincipal();
-
-	/**
 	 * Gets the {@code authorization_details} parameter, stating what the client is
 	 * asking to be authorized for.
 	 *

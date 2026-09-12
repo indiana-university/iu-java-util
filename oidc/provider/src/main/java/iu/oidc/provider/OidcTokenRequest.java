@@ -171,7 +171,8 @@ public interface OidcTokenRequest extends IuRequestAttributes {
 	 * Gets the {@code scope} parameter, space-delimited as sent.
 	 *
 	 * <p>
-	 * Read only for {@code client_credentials}. A code or refresh grant carries the
+	 * Read for {@code client_credentials} and for a token exchange, which have no
+	 * recorded grant to take a scope from. A code or refresh grant carries the
 	 * scope it was authorized with, and a redemption request doesn't get to widen
 	 * or narrow it.
 	 * </p>
@@ -202,5 +203,68 @@ public interface OidcTokenRequest extends IuRequestAttributes {
 	 * @return {@code refresh_token}; null if the request named none
 	 */
 	String getRefreshToken();
+
+	/**
+	 * Gets the RFC 8693 {@code subject_token} parameter, naming the party a token
+	 * exchange is asking to answer for.
+	 *
+	 * <p>
+	 * What this carries depends on {@link #getSubjectTokenType()}. This provider
+	 * accepts one type, and under it the value is a bare principal name rather than
+	 * a token &mdash; nobody holds a token for the party being impersonated, which
+	 * is the point of asking.
+	 * </p>
+	 *
+	 * @return {@code subject_token}; null if the request named none
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc8693#section-2.1">RFC 8693
+	 *      &sect;2.1</a>
+	 */
+	String getSubjectToken();
+
+	/**
+	 * Gets the RFC 8693 {@code subject_token_type} parameter, saying how to read
+	 * {@link #getSubjectToken()}.
+	 *
+	 * @return {@code subject_token_type}; null if the request named none
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc8693#section-3">RFC 8693
+	 *      &sect;3</a>
+	 */
+	String getSubjectTokenType();
+
+	/**
+	 * Gets the RFC 8693 {@code actor_token} parameter, carrying the identity of the
+	 * party making the exchange.
+	 *
+	 * <p>
+	 * An access token this provider issued, and the only thing in the request that
+	 * proves anything: the subject is asserted, the actor is demonstrated.
+	 * </p>
+	 *
+	 * @return {@code actor_token}; null if the request named none
+	 */
+	String getActorToken();
+
+	/**
+	 * Gets the RFC 8693 {@code actor_token_type} parameter, saying how to read
+	 * {@link #getActorToken()}.
+	 *
+	 * @return {@code actor_token_type}; null if the request named none
+	 */
+	String getActorTokenType();
+
+	/**
+	 * Gets the RFC 8693 {@code requested_token_type} parameter, naming what the
+	 * client wants back.
+	 *
+	 * <p>
+	 * Optional, and this provider issues an access token either way &mdash; naming
+	 * anything else is refused rather than quietly answered with something the
+	 * client didn't ask for. An ID token still accompanies it whenever
+	 * {@code openid} is granted, the same as any other grant type.
+	 * </p>
+	 *
+	 * @return {@code requested_token_type}; null if the request named none
+	 */
+	String getRequestedTokenType();
 
 }

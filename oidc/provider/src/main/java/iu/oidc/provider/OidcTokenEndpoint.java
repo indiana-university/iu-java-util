@@ -60,6 +60,7 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
+import edu.iu.oidc.IuOidcActor;
 import edu.iu.oidc.IuOidcClaims;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcClientRole;
@@ -115,6 +116,10 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * one good for whatever of that lifetime remains &mdash; so a session can be
  * kept alive by refreshing, but never beyond the age its authentication was
  * good for in the first place.</li>
+ * <li>{@code urn:ietf:params:oauth:grant-type:token-exchange} answers for one
+ * principal on the strength of another's token &mdash; see below. It is the one
+ * grant type with no stored grant behind it: what it answers for is named in
+ * the request and settled there.</li>
  * </ul>
  *
  * <p>
@@ -139,17 +144,36 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  *
  * <p>
  * A code or refresh grant answers for whoever the identity provider
- * authenticated, unless the authorization request named an
- * {@link OidcGrant#getImpersonatedPrincipalName() impersonated principal} the
- * authenticated principal holds a
- * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor role} for and
+ * authenticated. A <strong>token exchange</strong> is how a request answers for
+ * somebody else: it presents an access token this provider already issued as
+ * {@code actor_token}, names the principal it wants to answer for as
+ * {@code subject_token} under the
+ * {@link #PRINCIPAL_NAME_TOKEN_TYPE principal name token type}, and is honored
+ * only when the principal that token was issued to holds one of the endpoint's
+ * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor roles} and
  * {@link IuOidcProviderReference#isProduction() this deployment isn't a
- * production one} &mdash; in which case the impersonated principal is who the
- * tokens answer for instead, and the real principal rides along as the
- * {@code act} claim. Either way, the effective principal must hold one of the
- * endpoint's {@link IuOidcClientEndpoint#getAccessRoles() access roles} to get
- * a token at all, and the {@link IuOidcClientRole application roles} it matches
- * are added as claims to both the access token and the ID token.
+ * production one}. The named principal is then who the tokens answer for, and
+ * the one that authenticated rides along as the {@link IuOidcActor act} claim.
+ * </p>
+ *
+ * <p>
+ * The exchanged tokens are deliberately narrower than what they descend from.
+ * The granted scope cannot exceed what the presented token already carries, so
+ * exchanging never gains authority; {@code offline_access} is dropped, so no
+ * refresh token descends from an exchange and an impersonated session cannot
+ * outlive the token that bought it; and the ID token carries no top-level
+ * {@code auth_time}, because its subject never authenticated &mdash; the
+ * actor's own authentication time rides inside {@code act} instead, where it is
+ * true.
+ * </p>
+ *
+ * <p>
+ * Whichever way the principal is settled, the effective principal must hold one
+ * of the endpoint's {@link IuOidcClientEndpoint#getAccessRoles() access roles}
+ * to get a token at all &mdash; impersonating somebody doesn't inherit the
+ * impersonator's access &mdash; and the {@link IuOidcClientRole application
+ * roles} it matches are added as claims to both the access token and the ID
+ * token.
  * </p>
  *
  * <h2>Claims follow scope</h2>
@@ -186,6 +210,35 @@ public class OidcTokenEndpoint {
 
 	/** A role naming everyone, which needs no identity lookup. */
 	private static final String ALL = "all";
+
+	/**
+	 * RFC 8693 {@code grant_type}.
+	 */
+	static final String TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange";
+
+	/**
+	 * RFC 8693 &sect;3 token type identifier for an OAuth 2.0 access token, which
+	 * is what an {@code actor_token} must be and the only thing an exchange here
+	 * issues.
+	 */
+	static final String ACCESS_TOKEN_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token";
+
+	/**
+	 * Token type identifier for a bare principal name, naming whoever an exchange
+	 * is asking to answer for.
+	 *
+	 * <p>
+	 * Provider-defined, which is what RFC 8693 &sect;3 leaves room for: the
+	 * registry holds the identifiers a token format has earned, and nothing in it
+	 * describes a principal a caller simply names. That is exactly what this is
+	 * &mdash; the caller proves it holds the {@code actor_token} and then
+	 * <em>asserts</em> the subject, so this is impersonation authorized by the
+	 * actor's own role rather than delegation authorized by the subject. RFC 8693
+	 * &sect;4.4's {@code may_act} is the mechanism this deliberately doesn't use,
+	 * and why the whole thing is refused in production.
+	 * </p>
+	 */
+	static final String PRINCIPAL_NAME_TOKEN_TYPE = "https://iu.edu/oauth/token-type/principal-name";
 
 	/** Status for a refusal the client could correct. */
 	private static final int BAD_REQUEST = 400;
@@ -277,10 +330,10 @@ public class OidcTokenEndpoint {
 		final var endpoint = authenticate(providerIssuer, resources, request.getRedirectUri(), clientId, credential);
 
 		final Set<String> scopes;
-		final OidcGrant grant;
+		final Redeemed redeemed;
 		switch (grantType) {
 		case "client_credentials":
-			grant = null;
+			redeemed = null;
 			final var requestedScope = request.getScope();
 
 			// naming no resource doesn't restrict the request to just the endpoint's
@@ -300,21 +353,33 @@ public class OidcTokenEndpoint {
 				throw new TokenError("invalid_target", "No scope granted for the requested resource", BAD_REQUEST);
 			break;
 
-		case "authorization_code":
-			grant = code(endpoint, clientId, request);
+		case "authorization_code": {
+			final var grant = code(endpoint, clientId, request);
+			redeemed = Redeemed.of(grant);
 			scopes = scopes(grant.getScope());
 			break;
+		}
 
-		case "refresh_token":
-			grant = refresh(endpoint, clientId, request);
+		case "refresh_token": {
+			final var grant = refresh(endpoint, clientId, request);
+			redeemed = Redeemed.of(grant);
 			scopes = scopes(grant.getScope());
 			break;
+		}
+
+		case TOKEN_EXCHANGE: {
+			final var actor = exchangeActor(endpoint, clientId, request);
+			redeemed = new Redeemed(actor.getSubject(), required(request.getSubjectToken(), "subject_token"),
+					actor.getToken().getClaim("auth_time", Instant.class), null, null, Set.of(), null, null);
+			scopes = exchangeScopes(endpoint, providerIssuer, request, resources, actor.getScope());
+			break;
+		}
 
 		default:
 			throw new TokenError("unsupported_grant_type", "Unsupported grant_type " + grantType, BAD_REQUEST);
 		}
 
-		return respond(endpoint, clientId, grantType, grant, resources, scopes);
+		return respond(endpoint, clientId, grantType, redeemed, resources, scopes);
 	}
 
 	/**
@@ -649,6 +714,122 @@ public class OidcTokenEndpoint {
 	}
 
 	/**
+	 * Verifies the {@code actor_token} a token exchange presents, and everything
+	 * about the exchange that doesn't depend on what it is asking for.
+	 *
+	 * <p>
+	 * The token must be one this provider issued <em>to itself</em> &mdash; its
+	 * audience must name this issuer, the same thing
+	 * {@link OidcUserinfoEndpoint} requires, since the token endpoint is acting as
+	 * a resource server for it here. A token addressed only to some external API
+	 * resource was never addressed to this provider and is refused rather than
+	 * honored on the strength of a signature alone; a client that wants to use
+	 * token exchange has to register a resource for this provider's own issuer
+	 * identifier.
+	 * </p>
+	 *
+	 * <p>
+	 * An actor token already carrying an {@code act} claim is refused outright.
+	 * RFC 8693 &sect;4.1 wants a further exchange to nest the previous actor
+	 * inside the new one, and {@link IuOidcActor} has nowhere to put it &mdash; so
+	 * rather than issue a token that silently drops who was really behind the one
+	 * before it, chaining is not allowed at all.
+	 * </p>
+	 *
+	 * @param endpoint endpoint that authenticated
+	 * @param clientId authenticated client ID
+	 * @param request  incoming request
+	 * @return verified {@code actor_token}
+	 * @throws TokenError if the exchange names the wrong token types, wants a token
+	 *                    type this provider doesn't issue, presents a token that
+	 *                    doesn't verify or belongs to another client or already
+	 *                    names an actor, or asks to answer for the actor itself
+	 */
+	private OidcTokenAuthorization exchangeActor(IuOidcClientEndpoint endpoint, String clientId,
+			OidcTokenRequest request) {
+		final var subjectToken = required(request.getSubjectToken(), "subject_token");
+		final var subjectTokenType = required(request.getSubjectTokenType(), "subject_token_type");
+		if (!PRINCIPAL_NAME_TOKEN_TYPE.equals(subjectTokenType))
+			throw new TokenError("invalid_request", "Unsupported subject_token_type " + subjectTokenType, BAD_REQUEST);
+
+		final var actorToken = required(request.getActorToken(), "actor_token");
+		final var actorTokenType = required(request.getActorTokenType(), "actor_token_type");
+		if (!ACCESS_TOKEN_TOKEN_TYPE.equals(actorTokenType))
+			throw new TokenError("invalid_request", "Unsupported actor_token_type " + actorTokenType, BAD_REQUEST);
+
+		// optional, and answered with an access token either way; naming something
+		// else is refused rather than quietly answered with what wasn't asked for
+		final var requestedTokenType = request.getRequestedTokenType();
+		if (requestedTokenType != null //
+				&& !ACCESS_TOKEN_TOKEN_TYPE.equals(requestedTokenType))
+			throw new TokenError("invalid_request", "Unsupported requested_token_type " + requestedTokenType,
+					BAD_REQUEST);
+
+		final OidcTokenAuthorization actor;
+		try {
+			actor = OidcTokenAuthorization.verify(actorToken, issuer.configuration(), issuer.issuer());
+		} catch (SecurityException e) {
+			throw new TokenError("invalid_grant",
+					"actor_token is not a valid access token addressed to this provider", BAD_REQUEST, e);
+		}
+
+		if (!clientId.equals(actor.getClientId()))
+			throw new TokenError("invalid_grant", "actor_token was issued to a different client", BAD_REQUEST);
+
+		if (actor.getToken().getClaim("act", IuOidcActor.class) != null)
+			throw new TokenError("invalid_grant", "actor_token already names an actor", BAD_REQUEST);
+
+		// answering for yourself grants nothing you don't already hold, and would
+		// make an exchange a way to renew a token past the age its authentication
+		// was good for
+		if (subjectToken.equals(actor.getSubject()))
+			throw new TokenError("invalid_grant", "actor_token already answers for this subject", BAD_REQUEST);
+
+		return actor;
+	}
+
+	/**
+	 * Settles what a token exchange is granted.
+	 *
+	 * <p>
+	 * Shaped like {@code client_credentials} rather than like a redemption, since
+	 * there is no recorded grant to take a scope from: the request and the
+	 * endpoint's registration decide, and naming no {@code resource} considers
+	 * every resource whose scope overlaps what was asked for. Two things then
+	 * narrow it. It is intersected with what the presented token already carries,
+	 * so exchanging never gains authority the caller didn't already have; and
+	 * {@code offline_access} is dropped, so no refresh token descends from an
+	 * exchange and an impersonated session cannot outlive the token that bought it.
+	 * </p>
+	 *
+	 * @param endpoint       endpoint that authenticated
+	 * @param providerIssuer this provider's issuer identifier
+	 * @param request        incoming request
+	 * @param resources      {@code resource} values from the request
+	 * @param actorScope     scope the presented {@code actor_token} carries
+	 * @return granted scopes
+	 * @throws TokenError if nothing is left to grant
+	 */
+	private static Set<String> exchangeScopes(IuOidcClientEndpoint endpoint, URI providerIssuer,
+			OidcTokenRequest request, Set<String> resources, Set<String> actorScope) {
+		final var requestedScope = request.getScope();
+		final var effectiveScope = requestedScope == null ? String.join(" ", actorScope) : requestedScope;
+
+		final var effectiveResources = resources.isEmpty()
+				? resourcesGrantingScope(endpoint, providerIssuer, scopes(effectiveScope))
+				: resources;
+
+		final var granted = clientCredentialsScopes(endpoint, providerIssuer, effectiveScope, effectiveResources);
+		granted.retainAll(actorScope);
+		granted.remove(OFFLINE_ACCESS);
+
+		if (granted.isEmpty())
+			throw new TokenError("invalid_scope", "No scope granted for this exchange", BAD_REQUEST);
+
+		return granted;
+	}
+
+	/**
 	 * Verifies the PKCE challenge a grant recorded.
 	 *
 	 * @param grant    redeemed grant
@@ -704,20 +885,20 @@ public class OidcTokenEndpoint {
 	 *                    for any of the granted scope
 	 */
 	private OidcTokenResult.Issued respond(IuOidcClientEndpoint endpoint, String clientId, String grantType,
-			OidcGrant grant, Set<String> resources, Set<String> scopes) {
+			Redeemed redeemed, Set<String> resources, Set<String> scopes) {
 		final var configuration = issuer.configuration();
 		final var ttl = Objects.requireNonNull(configuration.getAccessTokenTimeToLive(), "Missing access token TTL");
 
 		final var expires = Instant.now().plus(ttl);
 		final var scope = String.join(" ", scopes);
 		final var providerIssuer = issuer.issuer();
-		final var audience = audience(providerIssuer, endpoint, authorizedResources(grant, resources), scopes);
+		final var audience = audience(providerIssuer, endpoint, authorizedResources(redeemed, resources), scopes);
 
 		// an access token addressed to nothing is a token nobody could ever accept,
 		// and never what was actually configured; issuing one anyway would grant an
 		// audience by omission rather than by an administrator naming it explicitly
 		if (audience.isEmpty()) {
-			LOG.fine(() -> "invalid_target; grant=" + grant + "; endpoint=" + endpoint);
+			LOG.fine(() -> "invalid_target; grant=" + redeemed + "; endpoint=" + endpoint);
 			throw new TokenError("invalid_target", "No resource configured for the granted scope", BAD_REQUEST);
 		}
 
@@ -725,18 +906,18 @@ public class OidcTokenEndpoint {
 
 		final String subject;
 		IuOidcClaims claims = null;
-		OidcActor actor = null;
+		IuOidcActor actor = null;
 		List<String> roles = List.of();
 		Iterable<? extends IuAuthorizationDetails> released = null;
 
-		if (grant != null) {
-			// code or refresh grants only
-			subject = principal(endpoint, clientId, grant);
+		if (redeemed != null) {
+			// every grant that answers for an end user rather than for the client itself
+			subject = principal(endpoint, clientId, redeemed);
 			claims = claims(subject, admitted);
-			if (!subject.equals(grant.getPrincipalName()))
-				actor = actor(grant.getPrincipalName(), admitted);
+			if (!subject.equals(redeemed.principalName()))
+				actor = actor(redeemed.principalName(), redeemed.authnInstant(), admitted);
 			roles = roles(endpoint, subject);
-			released = grant.getReleasedAuthorizationDetails();
+			released = redeemed.released();
 		} else
 			subject = clientId;
 
@@ -751,9 +932,22 @@ public class OidcTokenEndpoint {
 				.claim("scope", scope, String.class);
 
 		// an access token names the actor and nothing else about them: a resource
-		// server needs to know an action was delegated, not who the delegate is
+		// server needs to know an action was delegated, not who the delegate is.
+		// auth_time rides along because it is the actor's own, and an exchange has
+		// nowhere else to read it back from
 		if (actor != null)
-			accessTokenBuilder.claim("act", (OidcActor) new Actor(actor.getSub(), null, null), OidcActor.class);
+			accessTokenBuilder.claim("act", (IuOidcActor) new Actor(actor.getSub(), null, null, actor.getAuthTime()),
+					IuOidcActor.class);
+
+		// when this token answers for the end user who authenticated, RFC 9068 §2.2.1
+		// allows it to say when; a token exchange reads that back off the token it is
+		// presented, which is the only record of the actor's own authentication it
+		// has, and answers it inside act rather than here -- its own subject never
+		// authenticated, so nothing at this level may claim they did
+		if (redeemed != null //
+				&& redeemed.impersonated() == null //
+				&& redeemed.authnInstant() != null)
+			accessTokenBuilder.claim("auth_time", redeemed.authnInstant().getEpochSecond(), Long.class);
 
 		if (!roles.isEmpty())
 			accessTokenBuilder.claim("roles", roles.toArray(String[]::new), String[].class);
@@ -765,13 +959,14 @@ public class OidcTokenEndpoint {
 		String idToken = null;
 		String refreshToken = null;
 
-		if (grant != null) {
-			// code or refresh grants only
+		if (redeemed != null) {
+			// every grant that answers for an end user rather than for the client itself
 			if (scopes.contains(OPENID))
-				idToken = idToken(accessToken, endpoint, clientId, subject, claims, actor, roles, released, grant);
+				idToken = idToken(accessToken, endpoint, clientId, subject, claims, actor, roles, released, redeemed);
 
+			// an exchange never grants offline_access, so it never reaches this
 			if (scopes.contains(OFFLINE_ACCESS)) {
-				final var authAge = Duration.between(grant.getAuthnInstant(), Instant.now());
+				final var authAge = Duration.between(redeemed.authnInstant(), Instant.now());
 				final var maxAge = Objects.requireNonNull(configuration.getRefreshTokenTimeToLive(),
 						"Missing refresh token TTL");
 				final var remaining = maxAge.minus(authAge);
@@ -782,15 +977,20 @@ public class OidcTokenEndpoint {
 				// bottoms out to nothing
 				if (remaining.compareTo(ttl) > 0)
 					refreshToken = grantStore.put(GrantStore.REFRESH, providerIssuer,
-							issuer.issuerKey(endpoint.getAlg()), remaining, grant);
+							issuer.issuerKey(endpoint.getAlg()), remaining, redeemed.grant());
 			}
 		}
 
 		final var subjectName = subject;
-		LOG.info(() -> "token-issue:" + grantType + ":" + clientId + ":" + subjectName + " [" + scope + "] " + grant);
+		LOG.info(() -> "token-issue:" + grantType + ":" + clientId + ":" + subjectName + " [" + scope + "] " + redeemed);
 
-		return new OidcTokenResult.Issued(accessToken, BEARER, ttl.getSeconds(), scope, idToken, refreshToken,
-				released);
+		// RFC 8693 §2.2.1 requires an exchange to name what it issued; every other
+		// grant type answers a response shape that has no such member, so it is left
+		// out rather than written for the sake of being written
+		final var issuedTokenType = TOKEN_EXCHANGE.equals(grantType) ? ACCESS_TOKEN_TOKEN_TYPE : null;
+
+		return new OidcTokenResult.Issued(accessToken, BEARER, ttl.getSeconds(), scope, idToken, refreshToken, released,
+				issuedTokenType);
 	}
 
 	/**
@@ -820,16 +1020,14 @@ public class OidcTokenEndpoint {
 	 * @throws TokenError if the request names a resource the grant did not
 	 *                    authorize
 	 */
-	private static Set<String> authorizedResources(OidcGrant grant, Set<String> requested) {
-		if (grant == null)
+	private static Set<String> authorizedResources(Redeemed redeemed, Set<String> requested) {
+		if (redeemed == null)
 			return requested;
 
-		final var recorded = grant.getResource();
-		if (recorded == null //
-				|| recorded.length == 0)
+		final var authorized = redeemed.resource();
+		if (authorized.isEmpty())
 			return requested;
 
-		final Set<String> authorized = new LinkedHashSet<>(Arrays.asList(recorded));
 		if (requested.isEmpty())
 			return authorized;
 
@@ -841,41 +1039,47 @@ public class OidcTokenEndpoint {
 	}
 
 	/**
-	 * Settles the principal a code or refresh grant's tokens are issued for, and
-	 * enforces the endpoint's access roles against it.
+	 * Settles the principal a grant's tokens are issued for, and enforces the
+	 * endpoint's access roles against it.
 	 *
 	 * <p>
-	 * A backdoor request &mdash; one naming
-	 * {@link OidcGrant#getImpersonatedPrincipalName()} &mdash; is honored only
-	 * outside a production deployment, and only when the principal the identity
-	 * provider actually authenticated holds one of the endpoint's
-	 * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor roles}. A request
-	 * naming one in production is answered as if it had named none, after logging a
-	 * warning; the authenticated principal's own backdoor roles are not even
-	 * checked in that case, since the outcome does not depend on them.
+	 * A {@link Redeemed#impersonated() token exchange naming another principal} is
+	 * honored only outside a production deployment, and only when the principal
+	 * that actually authenticated holds one of the endpoint's
+	 * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor roles}. Production
+	 * refuses rather than quietly answering for the caller instead: a client that
+	 * asked for somebody else's token must not be handed its own without being told.
+	 * The refusal is the same either way, so which principals hold a backdoor role
+	 * cannot be learned by probing a production deployment.
+	 * </p>
+	 *
+	 * <p>
+	 * The access roles are then checked against the <em>effective</em> principal, so
+	 * impersonating somebody does not inherit the impersonator's access.
 	 * </p>
 	 *
 	 * @param endpoint endpoint that authenticated
 	 * @param clientId authenticated client ID, for the log record naming a refused
 	 *                 impersonation attempt
-	 * @param grant    redeemed grant
+	 * @param redeemed what is being redeemed
 	 * @return effective principal name
 	 * @throws TokenError if impersonation was requested but not honored, or the
 	 *                    effective principal holds none of the endpoint's access
 	 *                    roles
 	 */
-	private String principal(IuOidcClientEndpoint endpoint, String clientId, OidcGrant grant) {
-		final var principalName = grant.getPrincipalName();
-		final var impersonatedPrincipalName = grant.getImpersonatedPrincipalName();
+	private String principal(IuOidcClientEndpoint endpoint, String clientId, Redeemed redeemed) {
+		final var principalName = redeemed.principalName();
+		final var impersonated = redeemed.impersonated();
 
 		var effectivePrincipalName = principalName;
-		if (impersonatedPrincipalName != null) {
-			if (reference.isProduction())
+		if (impersonated != null) {
+			if (reference.isProduction()) {
 				LOG.warning(() -> "token-impersonation-denied:production:" + clientId + ":" + principalName);
-			else if (!hasAnyRole(endpoint.getBackdoorRoles(), principalName))
+				throw new TokenError("access_denied", "Token exchange is not available in this deployment", FORBIDDEN);
+			} else if (!hasAnyRole(endpoint.getBackdoorRoles(), principalName))
 				throw new TokenError("access_denied", "Not authorized to impersonate another principal", FORBIDDEN);
 			else
-				effectivePrincipalName = impersonatedPrincipalName;
+				effectivePrincipalName = impersonated;
 		}
 
 		if (!hasAnyRole(endpoint.getAccessRoles(), effectivePrincipalName))
@@ -966,9 +1170,10 @@ public class OidcTokenEndpoint {
 	 * @return actor claims
 	 * @throws TokenError if the principal name is invalid
 	 */
-	private OidcActor actor(String principalName, Set<String> admitted) {
+	private IuOidcActor actor(String principalName, Instant authTime, Set<String> admitted) {
 		final var claims = claims(principalName, admitted);
-		return new Actor(principalName, claims.getName(), claims.getEmail());
+		return new Actor(principalName, claims.getName(), claims.getEmail(),
+				authTime == null ? null : authTime.getEpochSecond());
 	}
 
 	/**
@@ -1014,8 +1219,8 @@ public class OidcTokenEndpoint {
 	 * @return signed, and where the endpoint registers a key, encrypted ID token
 	 */
 	private String idToken(String accessToken, IuOidcClientEndpoint endpoint, String clientId, String subject,
-			IuOidcClaims claims, OidcActor actor, List<String> roles,
-			Iterable<? extends IuAuthorizationDetails> released, OidcGrant grant) {
+			IuOidcClaims claims, IuOidcActor actor, List<String> roles,
+			Iterable<? extends IuAuthorizationDetails> released, Redeemed redeemed) {
 		final var builder = WebToken.builder() //
 				.jti() //
 				.iss(issuer.issuer()) //
@@ -1033,23 +1238,28 @@ public class OidcTokenEndpoint {
 		claim(builder, "middle_name", claims.getMiddleName());
 		claim(builder, "email", claims.getEmail());
 
-		final var nonce = grant.getNonce();
+		final var nonce = redeemed.nonce();
 		if (nonce != null)
 			builder.nonce(nonce);
 
 		final var issuerKey = issuer.issuerKey(endpoint.getAlg());
 		builder.claim("at_hash", atHash(issuerKey.getAlgorithm(), accessToken), String.class);
 
-		final var authnInstant = grant.getAuthnInstant();
-		if (authnInstant != null)
+		// only when this token's own subject is who authenticated: an exchanged token
+		// names somebody a caller asked to answer for, and they never did, so the
+		// actor's authentication time rides inside act instead of standing here as
+		// though it were theirs
+		final var authnInstant = redeemed.authnInstant();
+		if (authnInstant != null //
+				&& redeemed.impersonated() == null)
 			builder.claim("auth_time", authnInstant.getEpochSecond(), Long.class);
 
-		final var authority = grant.getAuthnAuthority();
+		final var authority = redeemed.authnAuthority();
 		if (authority != null)
 			builder.claim("idp", authority, String.class);
 
 		if (actor != null)
-			builder.claim("act", actor, OidcActor.class);
+			builder.claim("act", actor, IuOidcActor.class);
 
 		if (!roles.isEmpty())
 			builder.claim("roles", roles.toArray(String[]::new), String[].class);
@@ -1175,11 +1385,12 @@ public class OidcTokenEndpoint {
 	/**
 	 * The {@code act} claim as this endpoint builds it.
 	 *
-	 * @param sub   actor's principal name
-	 * @param name  actor's display name, or {@code null}
-	 * @param email actor's email address, or {@code null}
+	 * @param sub      actor's principal name
+	 * @param name     actor's display name, or {@code null}
+	 * @param email    actor's email address, or {@code null}
+	 * @param authTime when the actor authenticated as a NumericDate, or {@code null}
 	 */
-	private record Actor(String sub, String name, String email) implements OidcActor {
+	private record Actor(String sub, String name, String email, Long authTime) implements IuOidcActor {
 
 		@Override
 		public String getSub() {
@@ -1194,6 +1405,65 @@ public class OidcTokenEndpoint {
 		@Override
 		public String getEmail() {
 			return email;
+		}
+
+		@Override
+		public Long getAuthTime() {
+			return authTime;
+		}
+	}
+
+	/**
+	 * What a grant contributes to the tokens built from it.
+	 *
+	 * <p>
+	 * Every grant type that answers for an end user reaches
+	 * {@link #respond(IuOidcClientEndpoint, String, String, Redeemed, Set, Set)
+	 * respond} through one of these, which is what lets a token exchange &mdash;
+	 * which has no stored grant at all &mdash; take the same path as a code or
+	 * refresh redemption. {@code null} in place of one means the tokens answer for
+	 * the client itself, as {@code client_credentials} does.
+	 * </p>
+	 *
+	 * <p>
+	 * {@link #grant()} is the only member the tokens themselves don't read. It is
+	 * here because issuing a refresh token means filing the original grant again,
+	 * and an exchange has none to file &mdash; which is consistent, since an
+	 * exchange never grants {@code offline_access} in the first place.
+	 * </p>
+	 *
+	 * @param principalName who authenticated
+	 * @param impersonated  principal an honored token exchange answers for instead,
+	 *                      or {@code null} when the tokens answer for
+	 *                      {@code principalName}
+	 * @param authnInstant  when {@code principalName} authenticated, or
+	 *                      {@code null} if unrecorded
+	 * @param authnAuthority identity provider that authenticated them, or
+	 *                      {@code null} if unrecorded
+	 * @param nonce         {@code nonce} to echo on an ID token, or {@code null}
+	 * @param resource      resource URIs the grant authorized, bounding the
+	 *                      audience of every token derived from it; empty if it
+	 *                      recorded none
+	 * @param released      authorization details the grant released, or
+	 *                      {@code null} if it released none
+	 * @param grant         stored grant to re-file when issuing a refresh token, or
+	 *                      {@code null} when there is none
+	 */
+	private record Redeemed(String principalName, String impersonated, Instant authnInstant, String authnAuthority,
+			String nonce, Set<String> resource, Iterable<? extends IuAuthorizationDetails> released, OidcGrant grant) {
+
+		/**
+		 * Reads what a stored grant contributes.
+		 *
+		 * @param grant redeemed grant
+		 * @return {@link Redeemed}
+		 */
+		static Redeemed of(OidcGrant grant) {
+			final var resource = grant.getResource();
+			return new Redeemed(grant.getPrincipalName(), null, grant.getAuthnInstant(), grant.getAuthnAuthority(),
+					grant.getNonce(),
+					resource == null ? Set.of() : new LinkedHashSet<>(Arrays.asList(resource)),
+					grant.getReleasedAuthorizationDetails(), grant);
 		}
 	}
 

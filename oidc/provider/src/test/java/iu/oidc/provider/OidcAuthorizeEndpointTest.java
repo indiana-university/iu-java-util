@@ -102,7 +102,6 @@ public class OidcAuthorizeEndpointTest {
 	/** Mutable grant, standing in for what a session handler proxies. */
 	private static final class Grant implements OidcGrant {
 		private String principalName;
-		private String impersonatedPrincipalName;
 		private String authnAuthority;
 		private Instant authnInstant;
 		private String clientId;
@@ -123,16 +122,6 @@ public class OidcAuthorizeEndpointTest {
 		@Override
 		public void setPrincipalName(String principalName) {
 			this.principalName = principalName;
-		}
-
-		@Override
-		public String getImpersonatedPrincipalName() {
-			return impersonatedPrincipalName;
-		}
-
-		@Override
-		public void setImpersonatedPrincipalName(String impersonatedPrincipalName) {
-			this.impersonatedPrincipalName = impersonatedPrincipalName;
 		}
 
 		@Override
@@ -310,7 +299,8 @@ public class OidcAuthorizeEndpointTest {
 	 * @param principal established principal; null when nobody is signed in
 	 * @return what the request came to
 	 */
-	private OidcAuthorizeResult authorize(OidcAuthorizeRequest request, IuOidcAuthenticatedPrincipal principal) {
+	private OidcAuthorizeResult authorize(OidcAuthorizeRequest request, IuOidcAuthenticatedPrincipal principal)
+			throws Exception {
 		when(reference.getAuthenticatedPrincipal(any())).thenReturn(principal);
 		return endpoint.authorize(request);
 	}
@@ -442,7 +432,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testTheClientIsNotConsultedAboutWhoTheEndUserIs() {
+	void testTheClientIsNotConsultedAboutWhoTheEndUserIs() throws Exception {
 		// a request naming an unregistered client is refused without ever asking
 		when(clients.client(CLIENT_ID)).thenReturn(null);
 
@@ -452,7 +442,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAMissingResponseTypeIsRelayedToTheClient() {
+	void testAMissingResponseTypeIsRelayedToTheClient() throws Exception {
 		register();
 		final var request = request();
 		when(request.getResponseType()).thenReturn(null);
@@ -462,7 +452,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testOnlyTheCodeResponseTypeIsAnswered() {
+	void testOnlyTheCodeResponseTypeIsAnswered() throws Exception {
 		register();
 		final var request = request();
 		when(request.getResponseType()).thenReturn("token");
@@ -473,7 +463,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testTheStateIsEchoedOnAnError() {
+	void testTheStateIsEchoedOnAnError() throws Exception {
 		register();
 		final var request = request();
 		when(request.getResponseType()).thenReturn(null);
@@ -484,7 +474,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testNoResourceForTheRequestedScopeAuthorizesNothing() {
+	void testNoResourceForTheRequestedScopeAuthorizesNothing() throws Exception {
 		register(List.of(resource(null, Set.of("something-else"))));
 		final var request = request();
 
@@ -493,7 +483,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAScopeTheClientIsntGrantedIsRefused() {
+	void testAScopeTheClientIsntGrantedIsRefused() throws Exception {
 		register(List.of(resource(null, Set.of("openid"))));
 		final var request = request();
 		when(request.getScope()).thenReturn("openid admin");
@@ -503,7 +493,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAMalformedResourceIsRefused() {
+	void testAMalformedResourceIsRefused() throws Exception {
 		register();
 		final var request = request();
 		when(request.getResource()).thenReturn(List.of("/relative"));
@@ -513,7 +503,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testANullResourceValueIsRefused() {
+	void testANullResourceValueIsRefused() throws Exception {
 		register();
 		final var request = request();
 		when(request.getResource()).thenReturn(Arrays.asList((String) null));
@@ -523,7 +513,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAnUnregisteredResourceIsRefused() {
+	void testAnUnregisteredResourceIsRefused() throws Exception {
 		register();
 		final var request = request();
 		when(request.getResource()).thenReturn(List.of(EXTERNAL.toString()));
@@ -533,7 +523,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testANamedResourceIsRecordedOnTheGrant() {
+	void testANamedResourceIsRecordedOnTheGrant() throws Exception {
 		register(List.of(resource(EXTERNAL, Set.of("openid"))));
 		final var request = request();
 		when(request.getResource()).thenReturn(List.of(EXTERNAL.toString(), EXTERNAL.toString()));
@@ -543,7 +533,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAChallengeThisProviderCantVerifyIsRefused() {
+	void testAChallengeThisProviderCantVerifyIsRefused() throws Exception {
 		register();
 		final var request = request();
 		when(request.getCodeChallenge()).thenReturn("abc");
@@ -554,7 +544,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAChallengeMethodWithNoChallengeIsRefused() {
+	void testAChallengeMethodWithNoChallengeIsRefused() throws Exception {
 		register();
 		final var request = request();
 		when(request.getCodeChallengeMethod()).thenReturn("S256");
@@ -564,12 +554,11 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAnUnauthenticatedRequestGoesToTheIdentityProvider() {
+	void testAnUnauthenticatedRequestGoesToTheIdentityProvider() throws Exception {
 		register();
 		final var request = request();
 		when(request.getNonce()).thenReturn("n1");
 		when(request.getState()).thenReturn("s1");
-		when(request.getImpersonatedPrincipal()).thenReturn("someone-else");
 		doReturn(REQUESTED_DETAILS).when(request).getAuthorizationDetails();
 		when(request.getCodeChallenge()).thenReturn("abc");
 		when(request.getCodeChallengeMethod()).thenReturn("S256");
@@ -587,7 +576,6 @@ public class OidcAuthorizeEndpointTest {
 		assertEquals("n1", grant.getNonce());
 		assertEquals("s1", grant.getState());
 		assertEquals("abc", grant.getCodeChallenge());
-		assertEquals("someone-else", grant.getImpersonatedPrincipalName());
 
 		// recorded before the end user is known, since a client states what it wants
 		// without waiting to find out who is asking
@@ -595,20 +583,20 @@ public class OidcAuthorizeEndpointTest {
 		assertNull(grant.getReleasedAuthorizationDetails());
 
 		// the end user comes back on a request this provider never issued
-		verify(session).setStrict(false);
+		verify(session).setSameSite("Lax");
 	}
 
 	@Test
-	void testAPrincipalLookupThatRefusesReadsAsUnauthenticated() {
+	void testAPrincipalLookupPropagatesAuthenticationProviderFailures() throws Exception {
 		register();
 		final var request = request();
-
-		when(reference.getAuthenticatedPrincipal(any())).thenThrow(new IllegalStateException("no session"));
-		assertInstanceOf(AuthenticationRequired.class, endpoint.authorize(request));
+		final var error = new Exception("login details");
+		when(reference.getAuthenticatedPrincipal(any())).thenThrow(error);
+		assertSame(error, assertThrows(Exception.class, () -> endpoint.authorize(request)));
 	}
 
 	@Test
-	void testAnExpiredAuthenticationSendsTheEndUserBack() {
+	void testAnExpiredAuthenticationSendsTheEndUserBack() throws Exception {
 		register();
 		final var request = request();
 
@@ -617,7 +605,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAnAuthenticationNamingNoEndSendsTheEndUserBack() {
+	void testAnAuthenticationNamingNoEndSendsTheEndUserBack() throws Exception {
 		register();
 		final var request = request();
 
@@ -625,7 +613,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAnEstablishedPrincipalSkipsTheRoundTrip() {
+	void testAnEstablishedPrincipalSkipsTheRoundTrip() throws Exception {
 		register();
 		final var request = request();
 
@@ -639,7 +627,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testTheStateIsEchoedWithTheCode() {
+	void testTheStateIsEchoedWithTheCode() throws Exception {
 		register();
 		final var request = request();
 		when(request.getState()).thenReturn("s1");
@@ -648,7 +636,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAResumptionReadsTheRequestBackOutOfTheSession() {
+	void testAResumptionReadsTheRequestBackOutOfTheSession() throws Exception {
 		grant.setClientId(CLIENT_ID);
 		grant.setRedirectUri(REDIRECT);
 		grant.setState("s1");
@@ -696,7 +684,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAuthorizationDetailsAreReleasedAgainstTheAuthenticatedPrincipal() {
+	void testAuthorizationDetailsAreReleasedAgainstTheAuthenticatedPrincipal() throws Exception {
 		register();
 		final var request = request();
 		doReturn(REQUESTED_DETAILS).when(request).getAuthorizationDetails();
@@ -710,7 +698,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testTheDecisionIsMadeBeforeTheGrantIsHandedOver() {
+	void testTheDecisionIsMadeBeforeTheGrantIsHandedOver() throws Exception {
 		// a client redeeming this grant reads a decision already made, rather than one
 		// remade on every redemption
 		register();
@@ -728,7 +716,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testASourceReleasingNothingReleasesNothing() {
+	void testASourceReleasingNothingReleasesNothing() throws Exception {
 		register();
 		doReturn(null).when(authorizationDetails).authorize(any(), any());
 
@@ -737,7 +725,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testAResumptionReleasesAgainstTheReturningPrincipal() {
+	void testAResumptionReleasesAgainstTheReturningPrincipal() throws Exception {
 		// both authenticated paths converge on the same decision point
 		grant.setClientId(CLIENT_ID);
 		grant.setRedirectUri(REDIRECT);
@@ -751,7 +739,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testMalformedDetailsAreTheOneRefusalTheClientHearsAbout() {
+	void testMalformedDetailsAreTheOneRefusalTheClientHearsAbout() throws Exception {
 		register();
 		doThrow(new IuBadRequestException("type is not registered")).when(authorizationDetails).authorize(any(), any());
 
@@ -760,7 +748,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testMalformedDetailsAreRelayedOnAResumptionToo() {
+	void testMalformedDetailsAreRelayedOnAResumptionToo() throws Exception {
 		// the resumption path has no error-to-redirect boundary of its own, so the
 		// redirect is built from what the grant already recorded
 		grant.setClientId(CLIENT_ID);
@@ -809,7 +797,7 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
-	void testTheGrantIsHandedOverUnderTheConfiguredLifetime() {
+	void testTheGrantIsHandedOverUnderTheConfiguredLifetime() throws Exception {
 		register();
 
 		final var code = issuedCode(authorize(request(), authenticated(Instant.now().plusSeconds(60L))));

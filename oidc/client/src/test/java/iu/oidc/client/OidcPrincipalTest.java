@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +53,7 @@ import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcTokenResponse;
 import iu.oidc.client.config.IuOidcClientReference;
@@ -87,7 +90,8 @@ public class OidcPrincipalTest {
 		final var sub = IdGenerator.generateId();
 		final var idToken = WebToken.builder().sub(sub).build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).build();
-		return new OidcPrincipal(idToken, userinfoClaims, null, config, accessToken, verifiedAccessToken, null);
+		return new OidcPrincipal(idToken, userinfoClaims, null, config, accessToken, verifiedAccessToken, null,
+				null);
 	}
 
 	/** Creates a token response reporting {@code accessToken}. */
@@ -110,7 +114,7 @@ public class OidcPrincipalTest {
 		final var accessToken = IdGenerator.generateId();
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, setCookie, config(resourceUri), accessToken,
-				null, null);
+				null, null, null);
 
 		assertEquals(sub, principal.getName());
 		assertEquals(idToken, principal.getIdToken());
@@ -129,13 +133,13 @@ public class OidcPrincipalTest {
 
 		assertEquals("userinfo missing sub claim",
 				assertThrows(IllegalArgumentException.class,
-						() -> new OidcPrincipal(idToken, IuJson.object().build(), null, config, null, null, null))
+						() -> new OidcPrincipal(idToken, IuJson.object().build(), null, config, null, null, null, null))
 						.getMessage());
 
 		assertEquals("userinfo sub claim doesn't match id token",
 				assertThrows(IllegalArgumentException.class,
 						() -> new OidcPrincipal(idToken, IuJson.object().add("sub", IdGenerator.generateId()).build(),
-								null, config, null, null, null)).getMessage());
+								null, config, null, null, null, null)).getMessage());
 	}
 
 	@Test
@@ -145,7 +149,7 @@ public class OidcPrincipalTest {
 		final var idToken = WebToken.builder().sub(sub).build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).add("preferred_username", principalName).build();
 
-		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null,
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
 				"preferred_username");
 
 		assertEquals(principalName, principal.getName());
@@ -159,7 +163,7 @@ public class OidcPrincipalTest {
 		final var idToken = WebToken.builder().sub(sub).claim("preferred_username", principalName, String.class).build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).build();
 
-		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null,
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
 				"preferred_username");
 
 		assertEquals(principalName, principal.getName());
@@ -172,7 +176,7 @@ public class OidcPrincipalTest {
 		final var idToken = WebToken.builder().sub(sub).build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).build();
 
-		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null,
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
 				"preferred_username");
 
 		assertEquals(sub, principal.getName());
@@ -187,10 +191,44 @@ public class OidcPrincipalTest {
 				.build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).add("preferred_username", userinfoUsername).build();
 
-		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null,
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
 				"preferred_username");
 
 		assertEquals(idTokenUsername, principal.getName());
+	}
+
+	@Test
+	void testAuthorizationDetailsFromTokenResponseTakePrecedence() {
+		final var responseType = IdGenerator.generateId();
+		final var idTokenType = IdGenerator.generateId();
+		final var sub = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub)
+				.authorizationDetails((IuAuthorizationDetails) () -> idTokenType, IuAuthorizationDetails.class).build();
+		final var config = config();
+		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
+				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		final var principal = new OidcPrincipal(idToken, IuJson.object().add("sub", sub).build(), null, config, null,
+				null, List.of((IuAuthorizationDetails) () -> responseType), null);
+
+		assertIterableEquals(List.of(responseType), IuIterable.map(
+				principal.getAuthorizationDetails(IuAuthorizationDetails.class, responseType), IuAuthorizationDetails::getType));
+		assertIterableEquals(List.of(), IuIterable.map(
+				principal.getAuthorizationDetails(IuAuthorizationDetails.class, idTokenType), IuAuthorizationDetails::getType));
+	}
+
+	@Test
+	void testAuthorizationDetailsFallBackToIdTokenWhenTokenResponseOmitsThem() {
+		final var detailType = IdGenerator.generateId();
+		final var sub = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub)
+				.authorizationDetails((IuAuthorizationDetails) () -> detailType, IuAuthorizationDetails.class).build();
+
+		final var principal = new OidcPrincipal(idToken, IuJson.object().add("sub", sub).build(), null, config(), null,
+				null, null, null);
+
+		assertIterableEquals(List.of(detailType), IuIterable.map(
+				principal.getAuthorizationDetails(IuAuthorizationDetails.class, detailType), IuAuthorizationDetails::getType));
 	}
 
 	@Test

@@ -74,7 +74,8 @@ public sealed interface OidcTokenResult {
 	 * grant that answers for an end user; {@code refreshToken} only when
 	 * {@code offline_access} was granted and the original authentication is young
 	 * enough for one to be worth issuing. Both are {@code null} otherwise and are
-	 * left out of the response document rather than written empty.
+	 * left out of the response document rather than written empty, as is
+	 * {@code issuedTokenType}, which only a token exchange answers.
 	 * </p>
 	 *
 	 * @param accessToken          {@code access_token}
@@ -88,10 +89,14 @@ public sealed interface OidcTokenResult {
 	 *                             which RFC 9396 &sect;7 has the response state
 	 *                             since what was granted may be narrower than what
 	 *                             was asked for; null when the grant released none
+	 * @param issuedTokenType      {@code issued_token_type}, which RFC 8693
+	 *                             &sect;2.2.1 requires a token exchange to name;
+	 *                             null for every other grant type, which answers a
+	 *                             response shape that has no such member
 	 */
 	record Issued(String accessToken, String tokenType, long expiresIn, String scope, String idToken,
-			String refreshToken, Iterable<? extends IuAuthorizationDetails> authorizationDetails)
-			implements OidcTokenResult {
+			String refreshToken, Iterable<? extends IuAuthorizationDetails> authorizationDetails,
+			String issuedTokenType) implements OidcTokenResult {
 	}
 
 	/**

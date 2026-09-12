@@ -64,12 +64,13 @@ public class OidcProviderMetadataTest {
 	/**
 	 * Properties the wrapper answers for itself, so the delegation sweep below has
 	 * to skip them: the five derived endpoints, response and subject types, the
-	 * two signing algorithm lists, and the one default the interface already
-	 * supplies.
+	 * grant types, the two signing algorithm lists, and the one default the
+	 * interface already supplies.
 	 */
 	private static final Set<String> NOT_DELEGATED = Set.of( //
 			"getIssuer", "getAuthorizationEndpoint", "getTokenEndpoint", "getUserinfoEndpoint", "getJwksUri",
-			"getResponseTypesSupported", "getSubjectTypesSupported", "getIdTokenSigningAlgValuesSupported",
+			"getResponseTypesSupported", "getSubjectTypesSupported", "getGrantTypesSupported",
+			"getIdTokenSigningAlgValuesSupported",
 			"getUserinfoSigningAlgValuesSupported",
 			"isRequestUriParameterSupported");
 
@@ -221,6 +222,7 @@ public class OidcProviderMetadataTest {
 		when(configured.getTokenEndpoint()).thenReturn(URI.create("https://elsewhere.iu.edu/token"));
 		when(configured.getResponseTypesSupported()).thenReturn(List.of("id_token", "token"));
 		when(configured.getSubjectTypesSupported()).thenReturn(List.of("pairwise"));
+		when(configured.getGrantTypesSupported()).thenReturn(List.of("implicit"));
 		when(configured.getIdTokenSigningAlgValuesSupported()).thenReturn(List.of("HS256"));
 		when(configured.getScopesSupported()).thenReturn(List.of("openid", "profile"));
 
@@ -228,6 +230,8 @@ public class OidcProviderMetadataTest {
 		assertEquals(URI.create("https://example.iu.edu/oidc/token"), metadata.getTokenEndpoint());
 		assertIterableEquals(List.of("code"), metadata.getResponseTypesSupported());
 		assertIterableEquals(List.of("public"), metadata.getSubjectTypesSupported());
+		assertIterableEquals(List.of("authorization_code", "refresh_token", "client_credentials",
+				"urn:ietf:params:oauth:grant-type:token-exchange"), metadata.getGrantTypesSupported());
 		assertIterableEquals(List.of("ES256"), metadata.getIdTokenSigningAlgValuesSupported());
 
 		// everything else passes through, so a property added to the configuration

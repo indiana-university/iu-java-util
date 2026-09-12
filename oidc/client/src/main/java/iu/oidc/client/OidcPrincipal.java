@@ -38,7 +38,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
 import iu.oidc.client.config.IuOidcClientReference;
@@ -65,6 +67,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	private final IuOidcClientReference config;
 	private final String accessToken;
 	private final WebToken verifiedAccessToken;
+	private final Iterable<? extends IuAuthorizationDetails> authorizationDetails;
 	private final String principalNameClaimName;
 
 	/** On-behalf-of grants by API root resource URI; synchronized on itself. */
@@ -87,11 +90,15 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 *                               JWT issued by the OpenID Provider; null if it
 	 *                               couldn't be verified as such, in which case its
 	 *                               audience is not considered
+	 * @param authorizationDetails   authorization details released by the
+	 *                               authorization server; considered before details
+	 *                               released via token claim
 	 * @param principalNameClaimName claim name for principal name; null to use
 	 *                               "sub"
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie, IuOidcClientReference config,
-			String accessToken, WebToken verifiedAccessToken, String principalNameClaimName) {
+			String accessToken, WebToken verifiedAccessToken,
+			Iterable<? extends IuAuthorizationDetails> authorizationDetails, String principalNameClaimName) {
 		this.idToken = idToken;
 
 		if (!userinfoClaims.containsKey("sub"))
@@ -105,7 +112,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		this.config = config;
 		this.accessToken = accessToken;
 		this.verifiedAccessToken = verifiedAccessToken;
-
+		this.authorizationDetails = authorizationDetails;
 		this.principalNameClaimName = principalNameClaimName;
 	}
 
@@ -143,6 +150,18 @@ public class OidcPrincipal implements IuOidcPrincipal {
 			return null;
 
 		return type.cast(config.adaptJson(type).fromJson(userinfoClaimValue));
+	}
+
+	@Override
+	public <T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface,
+			String type) {
+		if (authorizationDetails != null) {
+			final var detailAdapter = config.adaptJson(detailInterface);
+			final var unwrap = config.adaptJson(IuAuthorizationDetails.class);
+			return IuIterable.map(IuIterable.filter(authorizationDetails, a -> type.equals(a.getType())),
+					a -> detailAdapter.fromJson(unwrap.toJson(a)));
+		} else
+			return idToken.getAuthorizationDetails(detailInterface, type);
 	}
 
 	@Override
