@@ -85,7 +85,7 @@ public interface IuOidcAuthorization {
 	 * @return authorization redirect
 	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	IuStatefulRedirect init(Iterable<IuAuthorizationDetails> authorizationDetails, Consumer<IuSession> preAuthDetail)
+	IuStatefulRedirect init(Iterable<? extends IuAuthorizationDetails> authorizationDetails, Consumer<IuSession> preAuthDetail)
 			throws IOException;
 
 	/**

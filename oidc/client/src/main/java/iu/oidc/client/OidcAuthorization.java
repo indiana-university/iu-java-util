@@ -96,7 +96,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuStatefulRedirect init(Iterable<IuAuthorizationDetails> authorizationDetails,
+	public IuStatefulRedirect init(Iterable<? extends IuAuthorizationDetails> authorizationDetails,
 			Consumer<IuSession> preAuthDetail) throws IOException {
 		final var state = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
