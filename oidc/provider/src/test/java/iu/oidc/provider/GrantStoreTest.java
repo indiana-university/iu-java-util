@@ -41,7 +41,6 @@ import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;

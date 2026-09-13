@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -54,6 +55,8 @@ import org.junit.jupiter.api.Test;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 @SuppressWarnings("javadoc")
@@ -64,15 +67,18 @@ public class OidcProviderMetadataTest {
 	/**
 	 * Properties the wrapper answers for itself, so the delegation sweep below has
 	 * to skip them: the five derived endpoints, response and subject types, the
-	 * grant types, the two signing algorithm lists, and the one default the
-	 * interface already supplies.
+	 * grant types, the two signing algorithm lists, the supported scopes and the
+	 * claims derived from them, and the one default the interface already supplies.
+	 *
+	 * <p>
+	 * Each needs an assertion of its own, since the sweep no longer reaches it.
+	 * </p>
 	 */
 	private static final Set<String> NOT_DELEGATED = Set.of( //
 			"getIssuer", "getAuthorizationEndpoint", "getTokenEndpoint", "getUserinfoEndpoint", "getJwksUri",
 			"getResponseTypesSupported", "getSubjectTypesSupported", "getGrantTypesSupported",
-			"getIdTokenSigningAlgValuesSupported",
-			"getUserinfoSigningAlgValuesSupported",
-			"isRequestUriParameterSupported");
+			"getIdTokenSigningAlgValuesSupported", "getUserinfoSigningAlgValuesSupported",
+			"isRequestUriParameterSupported", "getScopesSupported", "getClaimsSupported");
 
 	/** Answers a distinct, comparable value for one metadata property. */
 	private static Object stub(Method property) {
@@ -114,16 +120,19 @@ public class OidcProviderMetadataTest {
 		return jwk;
 	}
 
+	/** Names a claim for a scope OpenID Connect doesn't define. */
+	private final IuOidcClaimsSource claimsSource = mock(IuOidcClaimsSource.class);
+
 	/** Wraps metadata declaring only an issuer, with no keys configured. */
-	private static OidcProviderMetadata metadata(URI issuer) {
-		return new OidcProviderMetadata(provider(issuedBy(issuer), null));
+	private OidcProviderMetadata metadata(URI issuer) {
+		return new OidcProviderMetadata(provider(issuedBy(issuer), null), () -> claimsSource);
 	}
 
 	@Test
 	void testMetadataIsRequired() {
 		final var provider = provider(null, null);
 		assertEquals("Missing provider metadata", assertThrows(NullPointerException.class, //
-				() -> new OidcProviderMetadata(provider)).getMessage());
+				() -> new OidcProviderMetadata(provider, () -> claimsSource)).getMessage());
 	}
 
 	@Test
@@ -166,7 +175,7 @@ public class OidcProviderMetadataTest {
 		final Iterable<WebKey> jwks = Arrays.asList(null, key(null), key(Algorithm.RSA_OAEP), key(Algorithm.ES384),
 				key(Algorithm.ES256), key(Algorithm.ES384));
 
-		final var metadata = new OidcProviderMetadata(provider(issuedBy(ISSUER), jwks));
+		final var metadata = new OidcProviderMetadata(provider(issuedBy(ISSUER), jwks), () -> claimsSource);
 		assertIterableEquals(List.of("ES384", "ES256"), metadata.getIdTokenSigningAlgValuesSupported());
 
 		// one set of issuer keys signs both the ID token and the UserInfo response
@@ -197,7 +206,7 @@ public class OidcProviderMetadataTest {
 	void testDelegatesEveryPropertyItDoesntDerive() throws Exception {
 		final var configured = mock(IuOidcProviderMetadata.class,
 				withSettings().defaultAnswer(a -> stub(a.getMethod())));
-		final var metadata = new OidcProviderMetadata(provider(configured, null));
+		final var metadata = new OidcProviderMetadata(provider(configured, null), () -> claimsSource);
 
 		final Set<String> delegated = new LinkedHashSet<>();
 		for (final var property : properties())
@@ -226,7 +235,8 @@ public class OidcProviderMetadataTest {
 		when(configured.getIdTokenSigningAlgValuesSupported()).thenReturn(List.of("HS256"));
 		when(configured.getScopesSupported()).thenReturn(List.of("openid", "profile"));
 
-		final var metadata = new OidcProviderMetadata(provider(configured, List.of(key(Algorithm.ES256))));
+		final var metadata = new OidcProviderMetadata(provider(configured, List.of(key(Algorithm.ES256))),
+				() -> claimsSource);
 		assertEquals(URI.create("https://example.iu.edu/oidc/token"), metadata.getTokenEndpoint());
 		assertIterableEquals(List.of("code"), metadata.getResponseTypesSupported());
 		assertIterableEquals(List.of("public"), metadata.getSubjectTypesSupported());
@@ -234,9 +244,65 @@ public class OidcProviderMetadataTest {
 				"urn:ietf:params:oauth:grant-type:token-exchange"), metadata.getGrantTypesSupported());
 		assertIterableEquals(List.of("ES256"), metadata.getIdTokenSigningAlgValuesSupported());
 
-		// everything else passes through, so a property added to the configuration
-		// reaches the discovery document without a code change
-		assertIterableEquals(List.of("openid", "profile"), metadata.getScopesSupported());
+		// the two this provider implements whatever a document says, then whatever was
+		// configured, in the order it was configured
+		assertIterableEquals(List.of("openid", "offline_access", "profile"), metadata.getScopesSupported());
+	}
+
+	@Test
+	void testTheScopesItImplementsAreAdvertisedWithNothingConfigured() {
+		// OpenID Connect Discovery requires openid be supported at all, and the token
+		// endpoint answers a refresh token without a deployment having to say so
+		final var configured = issuedBy(ISSUER);
+		when(configured.getScopesSupported()).thenReturn(null);
+
+		final var metadata = new OidcProviderMetadata(provider(configured, null), () -> claimsSource);
+		assertIterableEquals(List.of("openid", "offline_access"), metadata.getScopesSupported());
+	}
+
+	@Test
+	void testClaimsAreDerivedFromTheScopesThatAdmitThem() {
+		// a claim advertised that no scope admits would never be released, and one a
+		// scope admits but this omits would be released and never advertised
+		final var configured = issuedBy(ISSUER);
+		when(configured.getScopesSupported()).thenReturn(List.of("email", "address"));
+		// stubbed rather than left alone: a mock answers an unstubbed Iterable with an
+		// empty one, which is not the same branch as a document declaring none
+		when(configured.getClaimsSupported()).thenReturn(null);
+
+		final var metadata = new OidcProviderMetadata(provider(configured, null), () -> claimsSource);
+		assertIterableEquals(List.of("sub", "email", "email_verified", "address"), metadata.getClaimsSupported());
+
+		// offline_access binds no claim, and openid binds only the subject, so a
+		// deployment configuring no claim scope still advertises sub
+		verifyNoInteractions(claimsSource);
+	}
+
+	@Test
+	void testAScopeOpenIdConnectDoesntDefineIsTheClaimsSourcesToAnswerFor() {
+		final var configured = issuedBy(ISSUER);
+		when(configured.getScopesSupported()).thenReturn(List.of("email", "iu:affiliation"));
+		when(configured.getClaimsSupported()).thenReturn(List.of("iu:legacy"));
+		when(claimsSource.admitted(Set.of("iu:affiliation"), Usage.USERINFO)).thenReturn(Set.of("affiliation"));
+
+		final var metadata = new OidcProviderMetadata(provider(configured, null), () -> claimsSource);
+
+		// the sets §5.4 fixes, what the source names for the rest, and a configured
+		// claim the deployment releases by some means this doesn't model
+		assertIterableEquals(List.of("sub", "email", "email_verified", "affiliation", "iu:legacy"),
+				metadata.getClaimsSupported());
+	}
+
+	@Test
+	void testASourceIsOnlyAskedForClaimsWhenOneCouldBeBound() {
+		// the supplier is read, not the source, so a deployment with no scopes of its
+		// own serves discovery without one bound
+		final var configured = issuedBy(ISSUER);
+		when(configured.getScopesSupported()).thenReturn(List.of("iu:affiliation"));
+
+		final var metadata = new OidcProviderMetadata(provider(configured, null), () -> null);
+		assertEquals("Missing claims source",
+				assertThrows(NullPointerException.class, metadata::getClaimsSupported).getMessage());
 	}
 
 }

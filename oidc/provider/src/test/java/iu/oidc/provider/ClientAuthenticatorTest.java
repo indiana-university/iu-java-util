@@ -46,7 +46,6 @@ import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -61,7 +60,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuDataStore;
 import edu.iu.IuDigest;
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuProcess;
 import edu.iu.IuText;
 import edu.iu.crypt.PemEncoded;

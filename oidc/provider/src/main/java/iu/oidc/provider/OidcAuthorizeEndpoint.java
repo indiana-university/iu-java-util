@@ -54,6 +54,7 @@ import java.util.logging.Logger;
 import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
 import edu.iu.oidc.config.IuOidcAuthenticatedPrincipal;
+import edu.iu.oidc.config.IuOidcAuthorizationDetailsSource;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcClientResource;
@@ -184,7 +185,7 @@ public class OidcAuthorizeEndpoint {
 	 */
 	public OidcAuthorizeEndpoint(IuOidcProviderReference reference) {
 		this.reference = Objects.requireNonNull(reference, "Missing provider reference");
-		this.issuer = new OidcIssuer(reference::getConfiguration);
+		this.issuer = new OidcIssuer(reference::getConfiguration, reference::getClaimsSource);
 		this.sessionHandler = reference.getSessionHandler();
 		this.grantStore = new GrantStore(reference.getDataStore());
 	}

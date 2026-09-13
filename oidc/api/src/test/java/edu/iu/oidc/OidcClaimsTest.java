@@ -31,6 +31,8 @@
  */
 package edu.iu.oidc;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -70,12 +72,22 @@ public class OidcClaimsTest {
 	}
 
 	@Test
-	void testEveryClaimButSubIsOptional() throws Exception {
+	void testEveryClaimIsOptional() throws Exception {
 		assertEveryClaimDefaultsToNull(IuOidcClaims.class);
+	}
 
-		// sub is the one claim with no default: a relying party matches it against the
-		// ID token it holds, so a source cannot decline to answer it
-		assertTrue(Modifier.isAbstract(IuOidcClaims.class.getMethod("getSub").getModifiers()));
+	@Test
+	void testRenderingTheDocumentIsTheImplementationsToDo() throws Exception {
+		// declared rather than defaulted, since only an implementation knows how its
+		// claims print and a provider publishes the result without parsing it
+		final var toString = IuOidcClaims.class.getDeclaredMethod("toString");
+		assertFalse(toString.isDefault(), "toString");
+		assertTrue(Modifier.isAbstract(toString.getModifiers()), "toString");
+
+		// but redeclaring a method of Object obliges nobody: this compiles, and
+		// answers an identity hash where a claims document was meant to be
+		assertNotNull(new IuOidcClaims() {
+		}.toString());
 	}
 
 	@Test

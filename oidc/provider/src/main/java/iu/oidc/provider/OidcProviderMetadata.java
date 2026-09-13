@@ -35,10 +35,13 @@ import java.net.URI;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import edu.iu.IuIterable;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 /**
@@ -54,9 +57,9 @@ import edu.iu.oidc.config.IuOidcProviderConfiguration;
  * <h2>What is derived rather than configured</h2>
  *
  * <p>
- * Three kinds of property are answered here rather than read from the
- * configured document, because configuring them would only create a way for the
- * document to disagree with the running provider:
+ * These properties are answered here rather than read from the configured
+ * document, because configuring them would only create a way for the document
+ * to disagree with the running provider:
  * </p>
  * <ul>
  * <li>Endpoint URIs are derived from the issuer, so an endpoint is advertised
@@ -64,17 +67,22 @@ import edu.iu.oidc.config.IuOidcProviderConfiguration;
  * what a deployment maps its handlers to, so the two cannot drift.</li>
  * <li>Signing algorithms are derived from the provider's own keys, so nothing
  * is advertised that no configured key could sign with.</li>
+ * <li>{@link #getScopesSupported() Scopes} add the two this provider implements
+ * whatever a deployment configured, and {@link #getClaimsSupported() claims} are
+ * derived from the scopes in turn, so what a relying party is told it may ask
+ * for and what it is told it may receive both follow from what is actually
+ * released.</li>
  * <li>{@link #getIssuer()} is read from configuration, since only the
  * deployment knows the URI it is reachable at, but every derived endpoint is
  * built from it.</li>
  * </ul>
  *
  * <p>
- * Everything else &mdash; the claims, locales, and policy documents a
- * deployment declares, and the encryption algorithms it accepts &mdash;
- * delegates to the configured metadata, so a property added to the
- * configuration is published without a code change. By the same token, anything
- * put in that property is public.
+ * Everything else &mdash; the locales and policy documents a deployment
+ * declares, and the encryption algorithms it accepts &mdash; delegates to the
+ * configured metadata, so a property added to the configuration is published
+ * without a code change. By the same token, anything put in that property is
+ * public.
  * </p>
  *
  * <p>
@@ -97,7 +105,7 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 	public static final String TOKEN_PATH = "/token";
 
 	/** Path of the UserInfo endpoint, relative to the issuer. */
-	public static final String USERINFO_PATH = "/id";
+	public static final String USERINFO_PATH = "/userinfo";
 
 	/** Path of the JWKS endpoint, relative to the issuer. */
 	public static final String JWKS_PATH = "/.well-known/jwks";
@@ -124,16 +132,24 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 
 	private final IuOidcProviderConfiguration provider;
 	private final IuOidcProviderMetadata metadata;
+	private final Supplier<IuOidcClaimsSource> claimsSource;
 
 	/**
 	 * Wraps a provider's configured metadata.
 	 *
-	 * @param provider provider configuration
+	 * @param provider     provider configuration
+	 * @param claimsSource supplies the deployment's claims source, for the claim
+	 *                     names its own scopes release. Read only by
+	 *                     {@link #getClaimsSupported()}, and only where the
+	 *                     configured scopes name one OpenID Connect doesn't define,
+	 *                     so nothing a request reads on its way through an endpoint
+	 *                     ever calls it
 	 * @throws NullPointerException if the configuration declares no metadata
 	 */
-	public OidcProviderMetadata(IuOidcProviderConfiguration provider) {
+	public OidcProviderMetadata(IuOidcProviderConfiguration provider, Supplier<IuOidcClaimsSource> claimsSource) {
 		this.provider = provider;
 		this.metadata = Objects.requireNonNull(provider.getMetadata(), "Missing provider metadata");
+		this.claimsSource = Objects.requireNonNull(claimsSource, "Missing claims source");
 	}
 
 	@Override
@@ -166,9 +182,37 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 		return metadata.getRegistrationEndpoint();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * {@code openid} and {@code offline_access} are added to whatever a deployment
+	 * configured, because this provider supports both whatever a document says
+	 * &mdash; OpenID Connect Discovery requires {@code openid} be supported at all,
+	 * and the token endpoint answers a refresh token for {@code offline_access}
+	 * without a deployment having to say so.
+	 * </p>
+	 *
+	 * <p>
+	 * Advertising them is not a promise that any particular client may ask for
+	 * them. What a client is entitled to is settled per-registration, from the
+	 * scopes its {@link edu.iu.oidc.config.IuOidcClientResource#getScope()
+	 * resources} declare, and an authorization request asking for a scope none of
+	 * them grants is refused as {@code invalid_scope}. This property says what the
+	 * server implements; that check says who may use it.
+	 * </p>
+	 */
 	@Override
 	public Iterable<String> getScopesSupported() {
-		return metadata.getScopesSupported();
+		final Set<String> supportedScopes = new LinkedHashSet<>();
+		supportedScopes.add(OidcClaimScopes.OPENID);
+		supportedScopes.add(OidcClaimScopes.OFFLINE_ACCESS);
+
+		final var metadataSupportedScopes = metadata.getScopesSupported();
+		if (metadataSupportedScopes != null)
+			metadataSupportedScopes.forEach(supportedScopes::add);
+
+		return supportedScopes;
 	}
 
 	@Override
@@ -186,11 +230,10 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 	 *
 	 * <p>
 	 * Derived rather than configured, for the same reason the endpoint URIs are:
-	 * what discovery advertises and what {@link OidcTokenEndpoint} actually
-	 * answers cannot be allowed to drift. Token exchange is advertised
-	 * unconditionally even though a
-	 * {@link edu.iu.oidc.config.IuOidcProviderReference#isProduction() production}
-	 * deployment refuses every one &mdash; this view is built from the
+	 * what discovery advertises and what {@link OidcTokenEndpoint} actually answers
+	 * cannot be allowed to drift. Token exchange is advertised unconditionally even
+	 * though a {@link edu.iu.oidc.config.IuOidcProviderReference#isProduction()
+	 * production} deployment refuses every one &mdash; this view is built from the
 	 * configuration, which says nothing about whether the deployment is a
 	 * production one, and a grant type that exists and refuses is a truer thing to
 	 * publish than one that disappears.
@@ -267,9 +310,50 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 		return metadata.getTokenEndpointSigningAlgValuesSupported();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Derived from {@link #getScopesSupported() the scopes supported}, for the same
+	 * reason the endpoint URIs are: a claim named here that no scope admits would
+	 * be advertised and never released, and one a scope admits but this omits would
+	 * be released and never advertised. Both halves of disclosure are read &mdash;
+	 * the sets OpenID Connect &sect;5.4 binds to the scopes it defines, and
+	 * whatever the claims source {@link IuOidcClaimsSource#admitted(Set, Usage)
+	 * names} for the scopes it doesn't, asked under {@link Usage#USERINFO} since
+	 * that is the widest this provider discloses.
+	 * </p>
+	 *
+	 * <p>
+	 * A configured {@code claims_supported} is added to rather than replaced, so a
+	 * deployment can still declare a claim it releases by some means this doesn't
+	 * model. &sect;3 calls the list non-exhaustive, so adding to it is within what
+	 * a relying party may expect.
+	 * </p>
+	 *
+	 * <p>
+	 * The claims source is consulted only when a scope of the deployment's own is
+	 * configured; a deployment that declares none never needs one bound to serve
+	 * discovery.
+	 * </p>
+	 */
 	@Override
 	public Iterable<String> getClaimsSupported() {
-		return metadata.getClaimsSupported();
+		final Set<String> scopesSupported = new LinkedHashSet<>();
+		getScopesSupported().forEach(scopesSupported::add);
+
+		final Set<String> claimsSupported = new LinkedHashSet<>(OidcClaimScopes.admitted(scopesSupported));
+
+		final var additionalScopes = OidcClaimScopes.additional(scopesSupported);
+		if (!additionalScopes.isEmpty())
+			claimsSupported.addAll(Objects.requireNonNull(claimsSource.get(), "Missing claims source")
+					.admitted(additionalScopes, Usage.USERINFO));
+
+		final var configuredClaims = metadata.getClaimsSupported();
+		if (configuredClaims != null)
+			configuredClaims.forEach(claimsSupported::add);
+
+		return claimsSupported;
 	}
 
 	@Override

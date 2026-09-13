@@ -31,12 +31,16 @@
  */
 package iu.oidc.provider;
 
+import java.net.URI;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import edu.iu.oidc.IuOidcClaims;
+import edu.iu.jwt.WebToken;
 import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
 import edu.iu.oidc.config.IuOidcProviderReference;
 
@@ -54,43 +58,54 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * <p>
  * The three things here are the three an identity service has no business
  * doing. It cannot verify this provider's tokens; it doesn't know which relying
- * party is asking, so it cannot decide which claims that party may see; and it
- * holds neither this provider's signing keys nor the client's encryption key. So
- * an {@link IuOidcClaimsSource} answers what it knows about a principal and
- * nothing more, and stays free of OpenID Connect entirely.
+ * party is asking, so it cannot decide which of the claims OpenID Connect
+ * defines that party may see; and it holds neither this provider's signing keys
+ * nor the client's encryption key. So an {@link IuOidcClaimsSource} answers what
+ * it knows about a principal and stays free of OpenID Connect entirely.
  * </p>
  *
  * <p>
- * Rendering claims as JSON isn't here either. What a source answers renders
- * itself, so this publishes {@link Object#toString() toString()} without
- * looking at it &mdash; which keeps the module free of any opinion about how a
- * claim prints, including the two a general-purpose converter gets wrong,
- * {@code updated_at} being a NumericDate and {@code address} being nested.
+ * What it does decide is its own half of disclosure. The &sect;5.4 claim sets
+ * are mapped here, from the granted scope, deny-by-default; every other scope is
+ * the deployment's, and {@link IuOidcClaimsSource#admitted(Set, Usage) admitted}
+ * names what those release. This is the widest disclosure the provider makes, so
+ * it asks under {@link Usage#USERINFO}.
  * </p>
  *
- * <h2>A signed response names both parties</h2>
- *
  * <p>
- * OpenID Connect &sect;5.3.2 requires a signed response to carry {@code iss} and
- * {@code aud}, so one lifted out of its response and replayed to a different
- * relying party doesn't verify there. An unsigned response carries neither: it
- * is a plain claims document with nothing to lift. Which of the two it will be
- * is settled from the registration before the claims are asked for, and the
- * source is told what to render rather than the document being edited
- * afterwards &mdash; nothing here parses what it publishes.
+ * Rendering claims as JSON isn't here either, and neither is any opinion about
+ * how a claim prints &mdash; including the two a general-purpose converter gets
+ * wrong, {@code updated_at} being a NumericDate and {@code address} being
+ * nested. A source states both, either by writing typed claims onto a builder or
+ * by rendering the document whole.
  * </p>
  *
- * <h2>The subject is checked against the token</h2>
+ * <h2>Two responses, two shapes</h2>
  *
  * <p>
- * A source is told which principal to answer about and <em>must</em> answer
- * that principal's name back as {@link IuOidcClaims#getSub() sub}. This checks
- * rather than trusting: a relying party matches {@code sub} against the ID
- * token it holds and refuses the response when the two disagree, so a source
- * that resolves a principal name to some other form &mdash; a username for a
- * numeric ID, say &mdash; would break that comparison silently. Checking is all
- * that is available now that the document renders itself; there is no longer a
- * view in between to bind the claim from.
+ * A signed response is a JWT, so it is built the way every other token this
+ * provider issues is: the source writes onto a {@link WebToken} builder and the
+ * provider signs what comes out. OpenID Connect &sect;5.3.2 requires that one to
+ * carry {@code iss} and {@code aud}, so a response lifted out and replayed to a
+ * different relying party doesn't verify there &mdash; and those are written
+ * here rather than asked of the source, since who this provider is and who asked
+ * are both its own to know.
+ * </p>
+ *
+ * <p>
+ * An unsigned response is a plain claims document with nothing to lift, names
+ * neither party, and is rendered whole by the source; this publishes
+ * {@link Object#toString() toString()} without parsing it. Encryption doesn't
+ * change which shape it is &mdash; a response that is encrypted but not signed
+ * carries the claims themselves as plaintext, not a nested JOSE object.
+ * </p>
+ *
+ * <p>
+ * Publishing without parsing means it cannot check what it published. A source is
+ * told which principal to answer about and must name that principal back as
+ * {@code sub}; a relying party matches it against the ID token it holds and
+ * refuses the response when the two disagree, which is where a source that
+ * answered for somebody else is caught.
  * </p>
  */
 public class OidcUserinfoEndpoint {
@@ -106,12 +121,11 @@ public class OidcUserinfoEndpoint {
 	/**
 	 * Creates a UserInfo endpoint.
 	 *
-	 * @param reference application resources this provider's endpoints read
-	 *                  through
+	 * @param reference application resources this provider's endpoints read through
 	 */
 	public OidcUserinfoEndpoint(IuOidcProviderReference reference) {
 		this.reference = Objects.requireNonNull(reference, "Missing provider reference");
-		this.issuer = new OidcIssuer(reference::getConfiguration);
+		this.issuer = new OidcIssuer(reference::getConfiguration, reference::getClaimsSource);
 	}
 
 	/**
@@ -120,18 +134,17 @@ public class OidcUserinfoEndpoint {
 	 * @param accessToken bearer token presented, as the transport read it out of
 	 *                    the {@code Authorization} header
 	 * @return the response, and what to call it
-	 * @throws SecurityException     if the access token can't be verified, or its
-	 *                               registered claims don't hold; a caller answers
-	 *                               {@code invalid_token}
-	 * @throws IllegalStateException if the claims source answers about somebody
-	 *                               other than the principal it was asked about
-	 * @throws NullPointerException  if this provider or the client is configured
-	 *                               for something it hasn't supplied a key for, or
-	 *                               the claims source answers nothing
+	 * @throws SecurityException    if the access token can't be verified, or its
+	 *                              registered claims don't hold; a caller answers
+	 *                              {@code invalid_token}
+	 * @throws NullPointerException if this provider or the client is configured for
+	 *                              something it hasn't supplied a key for, or the
+	 *                              claims source answers nothing
 	 */
 	public OidcUserinfoResult userinfo(String accessToken) {
 		final var authorization = OidcTokenAuthorization.verify(accessToken, issuer.configuration(), issuer.issuer());
 
+		final var claimsSource = reference.getClaimsSource();
 		final var sub = authorization.getSubject();
 		final var scope = authorization.getScope();
 		final var clientId = authorization.getClientId();
@@ -142,20 +155,31 @@ public class OidcUserinfoEndpoint {
 		final var signed = client != null //
 				&& client.getUserinfoAlg() != null;
 
-		final var claims = Objects.requireNonNull(
-				reference.getClaimsSource().claims(sub, OidcClaimScopes.admitted(scope),
-						signed ? issuer.issuer() : null, signed ? clientId : null),
-				"Missing claims for " + sub);
+		// the two halves of disclosure: the sets OpenID Connect fixes, and whatever
+		// the deployment releases for scopes of its own
+		final Set<String> admitted = new LinkedHashSet<>(OidcClaimScopes.admitted(scope));
+		admitted.addAll(claimsSource.admitted(OidcClaimScopes.additional(scope), Usage.USERINFO));
 
-		// checked rather than trusted: a relying party refuses a response whose sub
-		// disagrees with the ID token it holds, and publishing claims about somebody
-		// else would be worse than answering nothing
-		if (!sub.equals(claims.getSub()))
-			throw new IllegalStateException("Claims source answered for " + claims.getSub() + " rather than " + sub);
+		final String document;
+		if (signed) {
+			// a signed response is a JWT, so it is built the way every other token this
+			// provider issues is -- and §5.3.2's iss and aud are the provider's to write
+			final var builder = WebToken.builder() //
+					.iss(issuer.issuer()) //
+					.sub(sub) //
+					.aud(URI.create(clientId));
+
+			claimsSource.claims(sub, admitted, builder);
+			document = builder.build().toString();
+		} else
+			// an unsigned response is a plain claims document with nothing to lift out of
+			// it, so it names neither party and the source renders it whole
+			document = Objects.requireNonNull(claimsSource.claims(sub, admitted), "Missing claims for " + sub)
+					.toString();
 
 		LOG.info(() -> "userinfo:" + clientId + ":" + sub + " " + scope);
 
-		return secure(claims.toString(), client);
+		return secure(document, client);
 	}
 
 	/**
@@ -198,8 +222,8 @@ public class OidcUserinfoEndpoint {
 	 * @param serialized claims, as the caller serialized them
 	 * @param client     registration, or {@code null} for a plain document
 	 * @return the response, and what to call it
-	 * @throws NullPointerException if the client registered an encryption but no key
-	 *                              to encrypt to
+	 * @throws NullPointerException if the client registered an encryption but no
+	 *                              key to encrypt to
 	 */
 	private OidcUserinfoResult secure(String serialized, IuOidcClientConfiguration client) {
 		if (client == null)

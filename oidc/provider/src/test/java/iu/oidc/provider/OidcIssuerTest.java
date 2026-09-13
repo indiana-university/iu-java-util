@@ -50,6 +50,7 @@ import edu.iu.IuText;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.oidc.IuOidcProviderMetadata;
+import edu.iu.oidc.config.IuOidcClaimsSource;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 @SuppressWarnings("javadoc")
@@ -60,6 +61,9 @@ public class OidcIssuerTest {
 	}
 
 	private static final URI ISSUER = URI.create("https://example.iu.edu/oidc");
+
+	/** Never consulted here: no test configures a scope OpenID Connect doesn't define. */
+	private static final IuOidcClaimsSource claimsSource = mock(IuOidcClaimsSource.class);
 
 	/** Answers a configuration over one issuer and key set. */
 	private static IuOidcProviderConfiguration configuration(URI issuer, Iterable<WebKey> jwks) {
@@ -81,7 +85,7 @@ public class OidcIssuerTest {
 	}
 
 	private static OidcIssuer issuer(Iterable<WebKey> jwks) {
-		return new OidcIssuer(() -> configuration(ISSUER, jwks));
+		return new OidcIssuer(() -> configuration(ISSUER, jwks), () -> claimsSource);
 	}
 
 	/** Answers a key declaring one algorithm. */
@@ -94,12 +98,20 @@ public class OidcIssuerTest {
 	@Test
 	void testAConfigurationIsRequired() {
 		assertEquals("Missing provider configuration",
-				assertThrows(NullPointerException.class, () -> new OidcIssuer(null)).getMessage());
+				assertThrows(NullPointerException.class, () -> new OidcIssuer(null, () -> claimsSource)).getMessage());
+	}
+
+	@Test
+	void testAClaimsSourceIsRequired() {
+		// a supplier, not the source itself: a deployment that defines no scopes of
+		// its own may bind one that refuses, since nothing ever calls it
+		assertEquals("Missing claims source", assertThrows(NullPointerException.class,
+				() -> new OidcIssuer(() -> configuration(ISSUER, null), null)).getMessage());
 	}
 
 	@Test
 	void testASupplierThatAnswersNothingIsAConfigurationFault() {
-		final var issuer = new OidcIssuer(() -> null);
+		final var issuer = new OidcIssuer(() -> null, () -> claimsSource);
 		assertEquals("Missing provider configuration",
 				assertThrows(NullPointerException.class, issuer::configuration).getMessage());
 	}
@@ -112,7 +124,7 @@ public class OidcIssuerTest {
 		final var issuer = new OidcIssuer(() -> {
 			reads[0]++;
 			return configuration;
-		});
+		}, () -> claimsSource);
 
 		assertSame(configuration, issuer.configuration());
 		assertSame(configuration, issuer.configuration());
@@ -126,7 +138,7 @@ public class OidcIssuerTest {
 
 	@Test
 	void testAnIssuerIsRequired() {
-		final var issuer = new OidcIssuer(() -> configuration(null, null));
+		final var issuer = new OidcIssuer(() -> configuration(null, null), () -> claimsSource);
 		assertEquals("Missing issuer", assertThrows(NullPointerException.class, issuer::issuer).getMessage());
 	}
 

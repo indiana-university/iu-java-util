@@ -61,7 +61,8 @@ import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import edu.iu.oidc.IuOidcActor;
-import edu.iu.oidc.IuOidcClaims;
+import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcClientRole;
 import edu.iu.oidc.config.IuOidcProviderReference;
@@ -181,9 +182,26 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * <p>
  * What an ID token says about its subject is decided the same way a UserInfo
  * response is: the granted scope admits a set of claims, deny-by-default, and
- * the {@link edu.iu.oidc.config.IuOidcClaimsSource claims source} is asked for
- * those and no others. A client that asks for {@code openid} alone gets an ID
- * token naming a subject and nothing else about them.
+ * the {@link IuOidcClaimsSource claims source} is asked for those and no others.
+ * A client that asks for {@code openid} alone gets an ID token naming a subject
+ * and nothing else about them.
+ * </p>
+ *
+ * <p>
+ * Nothing here reads a claim. The source is told which names the scope admits
+ * and writes them onto the token itself, typed as it states they serialize, so
+ * how a claim prints stays with whatever holds it. It writes before the claims
+ * this provider derives &mdash; {@code at_hash}, {@code act}, {@code roles} and
+ * the rest &mdash; which are not a deployment's to set.
+ * </p>
+ *
+ * <p>
+ * An access token is asked for a different set than an ID token. RFC 9068
+ * defines no claim describing the end user, so none of the &sect;5.4 sets goes
+ * on one; what a deployment releases for a scope of its own does, since a
+ * resource server has nowhere else to read it. Which of the two is being built
+ * reaches the source as {@link Usage}, so a claim published from UserInfo can be
+ * withheld from a token the client keeps.
  * </p>
  *
  * @see <a href="https://www.rfc-editor.org/rfc/rfc6749#section-5.2">RFC 6749
@@ -192,12 +210,6 @@ import edu.iu.oidc.config.IuOidcProviderReference;
 public class OidcTokenEndpoint {
 
 	private static final Logger LOG = Logger.getLogger(OidcTokenEndpoint.class.getName());
-
-	/** The scope that asks for an ID token. */
-	private static final String OPENID = "openid";
-
-	/** The scope that asks for a refresh token. */
-	private static final String OFFLINE_ACCESS = "offline_access";
 
 	/** {@code typ} of an issued access token. */
 	private static final String ACCESS_TOKEN_TYPE = "at+jwt";
@@ -289,7 +301,7 @@ public class OidcTokenEndpoint {
 	 */
 	public OidcTokenEndpoint(IuOidcProviderReference reference) {
 		this.reference = Objects.requireNonNull(reference, "Missing provider reference");
-		this.issuer = new OidcIssuer(reference::getConfiguration);
+		this.issuer = new OidcIssuer(reference::getConfiguration, reference::getClaimsSource);
 		this.grantStore = new GrantStore(reference.getDataStore());
 		this.clientAuthenticator = new ClientAuthenticator(reference);
 	}
@@ -821,7 +833,7 @@ public class OidcTokenEndpoint {
 
 		final var granted = clientCredentialsScopes(endpoint, providerIssuer, effectiveScope, effectiveResources);
 		granted.retainAll(actorScope);
-		granted.remove(OFFLINE_ACCESS);
+		granted.remove(OidcClaimScopes.OFFLINE_ACCESS);
 
 		if (granted.isEmpty())
 			throw new TokenError("invalid_scope", "No scope granted for this exchange", BAD_REQUEST);
@@ -902,20 +914,22 @@ public class OidcTokenEndpoint {
 			throw new TokenError("invalid_target", "No resource configured for the granted scope", BAD_REQUEST);
 		}
 
-		final var admitted = OidcClaimScopes.admitted(scopes);
-
 		final String subject;
-		IuOidcClaims claims = null;
+		Set<String> idTokenClaims = Set.of();
+		Set<String> accessTokenClaims = Set.of();
 		IuOidcActor actor = null;
 		List<String> roles = List.of();
 		Iterable<? extends IuAuthorizationDetails> released = null;
 
 		if (redeemed != null) {
 			// every grant that answers for an end user rather than for the client itself
+			// -- and the only case with a principal to ask a claims source about, so a
+			// deployment issuing client credentials alone never needs one bound
 			subject = principal(endpoint, clientId, redeemed);
-			claims = claims(subject, admitted);
+			idTokenClaims = admitted(scopes, Usage.ID_TOKEN);
+			accessTokenClaims = admitted(scopes, Usage.ACCESS_TOKEN);
 			if (!subject.equals(redeemed.principalName()))
-				actor = actor(redeemed.principalName(), redeemed.authnInstant(), admitted);
+				actor = actor(redeemed.principalName(), redeemed.authnInstant(), idTokenClaims);
 			roles = roles(endpoint, subject);
 			released = redeemed.released();
 		} else
@@ -930,6 +944,13 @@ public class OidcTokenEndpoint {
 				.exp(expires) //
 				.claim("client_id", clientId, String.class) //
 				.claim("scope", scope, String.class);
+
+		// RFC 9068 defines no claim describing the end user, so nothing OpenID Connect
+		// binds to a scope goes on an access token. What a deployment releases for a
+		// scope of its own does, since a resource server has nowhere else to read it
+		// and no UserInfo request of its own to make
+		if (!accessTokenClaims.isEmpty())
+			claims(subject, accessTokenClaims, accessTokenBuilder);
 
 		// an access token names the actor and nothing else about them: a resource
 		// server needs to know an action was delegated, not who the delegate is.
@@ -961,11 +982,12 @@ public class OidcTokenEndpoint {
 
 		if (redeemed != null) {
 			// every grant that answers for an end user rather than for the client itself
-			if (scopes.contains(OPENID))
-				idToken = idToken(accessToken, endpoint, clientId, subject, claims, actor, roles, released, redeemed);
+			if (scopes.contains(OidcClaimScopes.OPENID))
+				idToken = idToken(accessToken, endpoint, clientId, subject, idTokenClaims, actor, roles, released,
+						redeemed);
 
 			// an exchange never grants offline_access, so it never reaches this
-			if (scopes.contains(OFFLINE_ACCESS)) {
+			if (scopes.contains(OidcClaimScopes.OFFLINE_ACCESS)) {
 				final var authAge = Duration.between(redeemed.authnInstant(), Instant.now());
 				final var maxAge = Objects.requireNonNull(configuration.getRefreshTokenTimeToLive(),
 						"Missing refresh token TTL");
@@ -1126,32 +1148,52 @@ public class OidcTokenEndpoint {
 	}
 
 	/**
-	 * Reads the claims a grant's scope admits about one principal.
+	 * Names the claims a grant's scope admits of an end user, both halves of it.
+	 *
+	 * <p>
+	 * The sets OpenID Connect &sect;5.4 defines are mapped here; every other scope
+	 * is the deployment's, and the claims source names what those release. It is
+	 * asked under {@link Usage#ID_TOKEN}, which is the narrower of the two
+	 * destinations an end user's claims reach &mdash; an ID token is kept by the
+	 * relying party and may outlive the access token issued beside it, where a
+	 * UserInfo response is fetched on demand. A source that draws no distinction
+	 * answers the same set either way.
+	 * </p>
+	 *
+	 * <p>
+	 * An {@link Usage#ACCESS_TOKEN} set carries none of the &sect;5.4 claims, since
+	 * RFC 9068 defines no claim describing the end user and a resource server is
+	 * not who OpenID Connect releases those to. Only what a deployment names for a
+	 * scope of its own reaches one.
+	 * </p>
+	 *
+	 * @param scopes granted scopes
+	 * @param usage  token the claims are being admitted to
+	 * @return claim names admitted
+	 */
+	private Set<String> admitted(Set<String> scopes, Usage usage) {
+		final Set<String> admitted = new LinkedHashSet<>();
+		if (!Usage.ACCESS_TOKEN.equals(usage))
+			admitted.addAll(OidcClaimScopes.admitted(scopes));
+
+		admitted.addAll(reference.getClaimsSource().admitted(OidcClaimScopes.additional(scopes), usage));
+		return admitted;
+	}
+
+	/**
+	 * Has the claims source write the claims a grant's scope admits onto a token.
 	 *
 	 * @param principalName principal name
 	 * @param admitted      claim names the granted scope admits
-	 * @return claims held for {@code principalName}
-	 * @throws TokenError            if the principal name is invalid
-	 * @throws IllegalStateException if the source answers for somebody else
+	 * @param builder       token being issued
+	 * @throws TokenError if the principal name is invalid, or the source refuses
 	 */
-	private IuOidcClaims claims(String principalName, Set<String> admitted) {
-		final IuOidcClaims claims;
+	private void claims(String principalName, Set<String> admitted, WebTokenBuilder builder) {
 		try {
-			// the rendered document is never published from here -- an ID token names
-			// its own iss and aud -- so the source is told to render neither
-			claims = Objects.requireNonNull(reference.getClaimsSource().claims(principalName, admitted, null, null),
-					"Missing claims");
+			reference.getClaimsSource().claims(principalName, admitted, builder);
 		} catch (RuntimeException e) {
 			throw new TokenError("invalid_request", "Invalid principal name", BAD_REQUEST, e);
 		}
-
-		// as at the UserInfo endpoint: asserting somebody else's claims about this
-		// subject would be worse than asserting none
-		if (!principalName.equals(claims.getSub()))
-			throw new IllegalStateException(
-					"Claims source answered for " + claims.getSub() + " rather than " + principalName);
-
-		return claims;
 	}
 
 	/**
@@ -1171,9 +1213,14 @@ public class OidcTokenEndpoint {
 	 * @throws TokenError if the principal name is invalid
 	 */
 	private IuOidcActor actor(String principalName, Instant authTime, Set<String> admitted) {
-		final var claims = claims(principalName, admitted);
-		return new Actor(principalName, claims.getName(), claims.getEmail(),
-				authTime == null ? null : authTime.getEpochSecond());
+		// written to a token of its own and read back, rather than off a claims bean:
+		// how a claim is typed is the source's to state, and act carries only these two
+		final var held = WebToken.builder();
+		claims(principalName, admitted, held);
+
+		final var actorClaims = held.build();
+		return new Actor(principalName, actorClaims.getClaim("name", String.class),
+				actorClaims.getClaim("email", String.class), authTime == null ? null : authTime.getEpochSecond());
 	}
 
 	/**
@@ -1208,8 +1255,8 @@ public class OidcTokenEndpoint {
 	 * @param endpoint    endpoint that authenticated
 	 * @param clientId    authenticated client ID, which is the ID token's audience
 	 * @param subject     effective principal name {@link #principal} settled on
-	 * @param claims      effective principal's claims, limited to what the scope
-	 *                    admits
+	 * @param admitted    claim names the scope admits about the effective
+	 *                    principal, for the source to write
 	 * @param actor       real principal's claims, or {@code null} unless a backdoor
 	 *                    request is being honored
 	 * @param roles       application roles the effective principal is entitled to
@@ -1219,7 +1266,7 @@ public class OidcTokenEndpoint {
 	 * @return signed, and where the endpoint registers a key, encrypted ID token
 	 */
 	private String idToken(String accessToken, IuOidcClientEndpoint endpoint, String clientId, String subject,
-			IuOidcClaims claims, IuOidcActor actor, List<String> roles,
+			Set<String> admitted, IuOidcActor actor, List<String> roles,
 			Iterable<? extends IuAuthorizationDetails> released, Redeemed redeemed) {
 		final var builder = WebToken.builder() //
 				.jti() //
@@ -1230,13 +1277,10 @@ public class OidcTokenEndpoint {
 				.exp(Instant.now().plus(Objects.requireNonNull(issuer.configuration().getAccessTokenTimeToLive(),
 						"Missing access token TTL")));
 
-		// the source was told which claims the scope admits and answers those and no
-		// others, so what comes back goes on the token as it is
-		claim(builder, "name", claims.getName());
-		claim(builder, "given_name", claims.getGivenName());
-		claim(builder, "family_name", claims.getFamilyName());
-		claim(builder, "middle_name", claims.getMiddleName());
-		claim(builder, "email", claims.getEmail());
+		// the source was told which claims the scope admits and writes those and no
+		// others, typed as it states they serialize. It writes before the claims this
+		// provider derives for itself, which are not a deployment's to set
+		claims(subject, admitted, builder);
 
 		final var nonce = redeemed.nonce();
 		if (nonce != null)
@@ -1303,18 +1347,6 @@ public class OidcTokenEndpoint {
 		for (final var detail : released)
 			if (detail != null)
 				builder.authorizationDetails(detail, IuAuthorizationDetails.class);
-	}
-
-	/**
-	 * Adds a claim, unless the source held nothing for it.
-	 *
-	 * @param builder token being built
-	 * @param name    claim name
-	 * @param value   claim value, or {@code null} to add nothing
-	 */
-	private static void claim(WebTokenBuilder builder, String name, String value) {
-		if (value != null)
-			builder.claim(name, value, String.class);
 	}
 
 	/**

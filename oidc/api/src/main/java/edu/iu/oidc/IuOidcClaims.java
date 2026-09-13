@@ -35,22 +35,21 @@ import java.net.URI;
 import java.time.Instant;
 
 /**
- * The standard claims an OpenID Provider may assert about an end user.
+ * The claims an OpenID Provider may assert about an end user.
  *
  * <p>
- * One typed accessor per claim OpenID Connect defines, so what a source knows
- * is stated in Java rather than assembled as a document. Nothing here mentions
- * JSON: rendering these claims &mdash; into a UserInfo response, into an ID
- * token &mdash; belongs to whatever serves them, and a claim's Java type is
- * chosen for what it means rather than for how it prints.
+ * One typed accessor per claim OpenID Connect &sect;5.1 defines, so what a
+ * source knows is stated in Java rather than assembled as a document. A claim's
+ * Java type is chosen for what it means rather than for how it prints.
  * </p>
  *
+ * <h2>Who reads this</h2>
+ *
  * <p>
- * Every claim but {@link #getSub() sub} is optional and defaults to
- * {@code null}, so an implementation declares only the attributes its source
- * actually holds and a consumer omits what answers {@code null}. That default
- * is what lets a filtered view &mdash; one that suppresses the claims a grant's
- * scope doesn't cover &mdash; be written as an override of the claims it keeps.
+ * An implementation does. A provider does not: it names the claims a grant
+ * admits and leaves the claims source to write them onto a token or render them
+ * as a document, so nothing in it ever calls an accessor here. What this states is the shape those have to produce &mdash;
+ * which claim a property is, and what type it serializes as.
  * </p>
  *
  * <p>
@@ -67,6 +66,8 @@ import java.time.Instant;
  * <p>
  * A deployment with claims of its own declares an interface extending this one
  * and renders that type; nothing here is an escape hatch for untyped values.
+ * Claims declared that way are released the same way these are, under a scope
+ * OpenID Connect doesn't define.
  * </p>
  *
  * @see <a href=
@@ -74,21 +75,6 @@ import java.time.Instant;
  *      Connect Core 1.0 &sect;5.1</a>
  */
 public interface IuOidcClaims {
-
-	/**
-	 * Gets the subject identifier, which names the end user these claims are about.
-	 *
-	 * <p>
-	 * The only claim without a default. An OpenID Provider issues it, and a relying
-	 * party matches what it reads here against the {@code sub} of the ID token it
-	 * holds, refusing the response when the two disagree &mdash; so a source's
-	 * notion of a principal name never overrides the identifier the grant was
-	 * issued for.
-	 * </p>
-	 *
-	 * @return {@code sub} claim
-	 */
-	String getSub();
 
 	/**
 	 * Gets the end user's full name, in displayable form, including every part and
@@ -139,11 +125,6 @@ public interface IuOidcClaims {
 
 	/**
 	 * Gets the shorthand name the end user wishes to be referred to by.
-	 *
-	 * <p>
-	 * Unlike {@link #getSub() sub} this is not stable and not guaranteed unique, so
-	 * a relying party must not key anything by it.
-	 * </p>
 	 *
 	 * @return {@code preferred_username} claim; null if not known
 	 */
@@ -241,8 +222,7 @@ public interface IuOidcClaims {
 	}
 
 	/**
-	 * Gets the end user's locale as a BCP 47 language tag, such as
-	 * {@code en-US}.
+	 * Gets the end user's locale as a BCP 47 language tag, such as {@code en-US}.
 	 *
 	 * @return {@code locale} claim; null if not known
 	 */
@@ -293,5 +273,37 @@ public interface IuOidcClaims {
 	default Instant getUpdatedAt() {
 		return null;
 	}
+
+	/**
+	 * Renders these claims as the JSON object an unsigned UserInfo response
+	 * publishes.
+	 *
+	 * <p>
+	 * The document <em>must</em> name the principal the source was asked about as
+	 * {@code sub}, and must carry nothing the provider did not admit. A relying
+	 * party matches {@code sub} against the ID token it holds and refuses the
+	 * response when the two disagree; the provider does not check, because it does
+	 * not parse what it publishes.
+	 * </p>
+	 *
+	 * <p>
+	 * It carries neither {@code iss} nor {@code aud}: a plain document has nothing
+	 * to lift out of a response and replay elsewhere, so OpenID Connect &sect;5.3.2
+	 * requires neither. A signed response does require both, and is not rendered
+	 * here at all &mdash; it is a JWT, built claim by claim like any other token,
+	 * with the provider writing both itself.
+	 * </p>
+	 *
+	 * <p>
+	 * Declared here to state the obligation, not to enforce it: an interface
+	 * redeclaring a method of {@link Object} does not oblige an implementation to
+	 * override it, so a type that leaves this alone compiles and publishes its
+	 * identity hash as a claims document.
+	 * </p>
+	 *
+	 * @return claims rendered as a JSON object
+	 */
+	@Override
+	String toString();
 
 }

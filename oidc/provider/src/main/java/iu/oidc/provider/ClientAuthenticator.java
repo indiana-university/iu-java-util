@@ -292,7 +292,7 @@ final class ClientAuthenticator {
 	 */
 	ClientAuthenticator(IuOidcProviderReference reference) {
 		this.reference = Objects.requireNonNull(reference, "Missing provider reference");
-		this.issuer = new OidcIssuer(reference::getConfiguration);
+		this.issuer = new OidcIssuer(reference::getConfiguration, reference::getClaimsSource);
 		this.dataStore = reference.getDataStore();
 	}
 

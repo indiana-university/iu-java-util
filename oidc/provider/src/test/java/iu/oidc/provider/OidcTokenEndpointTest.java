@@ -41,14 +41,15 @@ import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
@@ -76,10 +77,11 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
+import edu.iu.jwt.WebTokenBuilder;
 import edu.iu.oidc.IuOidcActor;
-import edu.iu.oidc.IuOidcClaims;
 import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcClientAuthorization;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
@@ -221,13 +223,17 @@ public class OidcTokenEndpointTest {
 		return request;
 	}
 
-	/** Answers the claims a source holds for one principal. */
-	private static IuOidcClaims claims(String sub, String name, String email) {
-		final var claims = mock(IuOidcClaims.class);
-		when(claims.getSub()).thenReturn(sub);
-		when(claims.getName()).thenReturn(name);
-		when(claims.getEmail()).thenReturn(email);
-		return claims;
+	/** Binds a source writing the named claims onto whatever token it is given. */
+	private void sourceWrites(String name, String email) {
+		doAnswer(a -> {
+			final Set<String> admitted = a.getArgument(1);
+			final WebTokenBuilder builder = a.getArgument(2);
+			if (name != null && admitted.contains("name"))
+				builder.claim("name", name, String.class);
+			if (email != null && admitted.contains("email"))
+				builder.claim("email", email, String.class);
+			return null;
+		}).when(claimsSource).claims(any(), any(), any());
 	}
 
 	/** Files a grant in the store and answers the reference that redeems it. */
@@ -601,7 +607,7 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testAPkceChallengeIsEitherSatisfiedOrAbsentFromBothSides() {
 		register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var verifier = IdGenerator.generateId();
 		final var challenge = IuText.base64Url(IuDigest.sha256(verifier.getBytes(StandardCharsets.US_ASCII)));
@@ -641,10 +647,11 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testACodeGrantIssuesAnIdTokenForTheEndUser() {
 		register();
-		final var subjectClaims = claims(PRINCIPAL, "Some One", "someone@iu.edu");
-		when(claimsSource.claims(any(), any(), any(), any())).thenReturn(subjectClaims);
+		sourceWrites("Some One", "someone@iu.edu");
 
-		final var grant = grant("openid");
+		// profile and email are what admit these two; openid alone would not, and the
+		// source writes nothing it wasn't told it could
+		final var grant = grant("openid profile email");
 		when(grant.getNonce()).thenReturn("the-nonce");
 		when(grant.getAuthnAuthority()).thenReturn("https://idp.iu.edu");
 
@@ -667,8 +674,7 @@ public class OidcTokenEndpointTest {
 		register();
 		// openid alone admits sub and nothing else, so the source is asked for sub
 		// alone and answers nothing more
-		final var subjectClaims = claims(PRINCIPAL, null, null);
-		when(claimsSource.claims(PRINCIPAL, Set.of("sub"), null, null)).thenReturn(subjectClaims);
+		sourceWrites(null, null);
 
 		final var grant = grant("openid");
 		final var idToken = WebToken.verify(issued(codeRequest(grant)).idToken(), issuerKey);
@@ -688,17 +694,75 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testNoIdTokenWithoutOpenid() {
 		register(List.of(clientEndpoint(REDIRECT, List.of(resource(null, Set.of("read"))))));
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var issued = issued(codeRequest(grant("read")));
 		assertNull(issued.idToken());
 		assertNotNull(issued.accessToken());
+
+		// no openid, so §5.4 admits nothing at all, and read names nothing the source
+		// releases either -- with no claim to write, it is never asked to write one
+		verify(claimsSource).admitted(Set.of("read"), Usage.ID_TOKEN);
+		verify(claimsSource).admitted(Set.of("read"), Usage.ACCESS_TOKEN);
+		verify(claimsSource, never()).claims(any(), any(), any());
+	}
+
+	@Test
+	void testAScopeOpenIdConnectDoesntDefineIsTheSourcesToAnswerFor() {
+		register(List.of(clientEndpoint(REDIRECT, List.of(resource(null, Set.of("openid", "read"))))));
+		claimsHoldNothing();
+		when(claimsSource.admitted(Set.of("read"), Usage.ID_TOKEN)).thenReturn(Set.of("affiliation"));
+
+		issued(codeRequest(grant("openid read")));
+
+		// only what §5.4 leaves over reaches the source, and it is asked under the
+		// destination -- an ID token is kept, where a UserInfo response is fetched
+		verify(claimsSource).admitted(Set.of("read"), Usage.ID_TOKEN);
+		verify(claimsSource).claims(eq(PRINCIPAL), eq(Set.of("sub", "affiliation")), any());
+	}
+
+	@Test
+	void testAnAccessTokenCarriesWhatTheDeploymentReleasesAndNoStandardClaim() {
+		register(List.of(clientEndpoint(REDIRECT, List.of(resource(null, Set.of("openid", "profile", "read"))))));
+		sourceWrites("Some One", "someone@iu.edu");
+		when(claimsSource.admitted(Set.of("read"), Usage.ACCESS_TOKEN)).thenReturn(Set.of("name"));
+
+		final var accessToken = WebToken.verify(issued(codeRequest(grant("openid profile read"))).accessToken(),
+				issuerKey);
+
+		// RFC 9068 defines no claim describing the end user, so profile puts nothing on
+		// an access token; what the deployment names for a scope of its own does
+		assertEquals("Some One", accessToken.getClaim("name", String.class));
+		assertNull(accessToken.getClaim("email", String.class));
+		verify(claimsSource).claims(eq(PRINCIPAL), eq(Set.of("name")), any());
+	}
+
+	@Test
+	void testAnAccessTokenIsNotAskedForWhenTheDeploymentReleasesNothing() {
+		register();
+		claimsHoldNothing();
+
+		issued(codeRequest(grant("openid")));
+
+		// the §5.4 sets never reach an access token, so with nothing of the
+		// deployment's own admitted there is no access-token claim to ask for
+		verify(claimsSource).admitted(Set.of(), Usage.ACCESS_TOKEN);
+		verify(claimsSource, never()).claims(eq(PRINCIPAL), eq(Set.of()), any());
+	}
+
+	@Test
+	void testClientCredentialsNeverAsksAboutAnEndUser() {
+		// no principal to ask about, so a deployment issuing these alone never needs a
+		// claims source bound -- the default refuses by name
+		register();
+		issued(request("client_credentials"));
+		verifyNoInteractions(claimsSource);
 	}
 
 	@Test
 	void testARefreshTokenIsIssuedWhileTheAuthenticationIsYoungEnough() {
 		register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var fresh = grant("openid offline_access");
 		assertNotNull(issued(codeRequest(fresh)).refreshToken());
@@ -712,7 +776,7 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testARefreshTokenRedeemsTheSameGrant() {
 		register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var request = request("refresh_token");
 		final var refreshToken = store(GrantStore.REFRESH, grant("openid"), ACCESS_TTL);
@@ -725,7 +789,7 @@ public class OidcTokenEndpointTest {
 	void testARedemptionMayNarrowTheAudienceButNeverWidenIt() {
 		register(List.of(clientEndpoint(REDIRECT,
 				List.of(resource(null, Set.of("openid")), resource(EXTERNAL, Set.of("openid"))))));
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var bounded = grant("openid");
 		when(bounded.getResource()).thenReturn(new String[] { ISSUER.toString() });
@@ -761,7 +825,7 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testARoleNamingEveryoneOrThePrincipalNeedsNoLookup() {
 		final var clientEndpoint = register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		// "all", the principal's own name, and a null entry are all settled here
 		when(clientEndpoint.getAccessRoles()).thenReturn(Arrays.asList(null, "ALL"));
@@ -797,7 +861,7 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testApplicationRolesRideAlongOnBothTokens() {
 		final var clientEndpoint = register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var role = mock(IuOidcClientRole.class);
 		when(role.getRole()).thenReturn("editor");
@@ -820,7 +884,7 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testAnEndpointDeclaringNoApplicationRolesAddsNone() {
 		register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		// declaring none at all, and declaring an empty list, both add none
 		final var accessToken = WebToken.verify(issued(codeRequest(grant("openid"))).accessToken(), issuerKey);
@@ -836,22 +900,8 @@ public class OidcTokenEndpointTest {
 	void testAClaimsSourceThatRefusesOrAnswersNothingIsABadRequest() {
 		register();
 
-		doThrow(new IuOutOfServiceException("down")).when(claimsSource).claims(any(), any(), any(), any());
+		doThrow(new IuOutOfServiceException("down")).when(claimsSource).claims(any(), any(), any());
 		assertError("invalid_request", "Invalid principal name", 400, codeRequest(grant("openid")));
-
-		doReturn(null).when(claimsSource).claims(any(), any(), any(), any());
-		assertError("invalid_request", "Invalid principal name", 400, codeRequest(grant("openid")));
-	}
-
-	@Test
-	void testAClaimsSourceAnsweringForSomebodyElseIsRefused() {
-		register();
-		final var wrongClaims = claims("somebody-else", null, null);
-		when(claimsSource.claims(any(), any(), any(), any())).thenReturn(wrongClaims);
-
-		final var request = codeRequest(grant("openid"));
-		assertEquals("Claims source answered for somebody-else rather than " + PRINCIPAL,
-				assertThrows(IllegalStateException.class, () -> endpoint.token(request)).getMessage());
 	}
 
 	@Test
@@ -860,7 +910,7 @@ public class OidcTokenEndpointTest {
 		final var clientEndpoint = register();
 		when(clientEndpoint.getEncryptJwk()).thenReturn(audienceKey);
 		when(clientEndpoint.getEnc()).thenReturn(Encryption.A256GCM);
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var issued = issued(codeRequest(grant("openid")));
 		// five segments rather than three: the signature is inside the encryption
@@ -875,7 +925,7 @@ public class OidcTokenEndpointTest {
 	@Test
 	void testReleasedAuthorizationDetailsRideAlongOnBothTokens() {
 		register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		final var grant = grant("openid");
 		doReturn(Arrays.asList(null, (IuAuthorizationDetails) () -> "record")).when(grant)
@@ -1098,7 +1148,7 @@ public class OidcTokenEndpointTest {
 		final var clientEndpoint = register();
 		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
 		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(false);
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		assertError("access_denied", "Not authorized to impersonate another principal", 403,
 				exchangeRequest("somebody-else", actorToken()));
@@ -1110,7 +1160,7 @@ public class OidcTokenEndpointTest {
 		// a mock answers an unstubbed Iterable with an empty one rather than null,
 		// and refusing everyone has to read the same either way
 		when(clientEndpoint.getBackdoorRoles()).thenReturn(null);
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 
 		assertError("access_denied", "Not authorized to impersonate another principal", 403,
 				exchangeRequest("somebody-else", actorToken()));
@@ -1120,10 +1170,14 @@ public class OidcTokenEndpointTest {
 	void testAnHonoredExchangeNamesTheActorOnBothTokens() {
 		registerBackdoor();
 
-		final var impersonatedClaims = claims("somebody-else", null, null);
-		final var actorClaims = claims(PRINCIPAL, "Some One", "someone@iu.edu");
-		when(claimsSource.claims(eq("somebody-else"), any(), any(), any())).thenReturn(impersonatedClaims);
-		when(claimsSource.claims(eq(PRINCIPAL), any(), any(), any())).thenReturn(actorClaims);
+		doAnswer(a -> {
+			final WebTokenBuilder builder = a.getArgument(2);
+			if (PRINCIPAL.equals(a.getArgument(0))) {
+				builder.claim("name", "Some One", String.class);
+				builder.claim("email", "someone@iu.edu", String.class);
+			}
+			return null;
+		}).when(claimsSource).claims(any(), any(), any());
 
 		final var authTime = Instant.now().minusSeconds(30L).truncatedTo(ChronoUnit.SECONDS);
 		final var request = exchangeRequest("somebody-else",
@@ -1225,7 +1279,7 @@ public class OidcTokenEndpointTest {
 		// RFC 8693 requires it; every other grant type answers a response shape that
 		// has no such member
 		register();
-		claimsFor(PRINCIPAL);
+		claimsHoldNothing();
 		assertNull(issued(codeRequest(grant("openid"))).issuedTokenType());
 	}
 
@@ -1233,7 +1287,7 @@ public class OidcTokenEndpointTest {
 	void testAnExchangeRidesOnATokenThisProviderReallyIssued() {
 		// the round trip: redeem a code, then exchange what it answered
 		registerBackdoor();
-		when(claimsSource.claims(any(), any(), any(), any())).thenAnswer(i -> claims(i.getArgument(0), "N", "E"));
+		sourceWrites("N", "E");
 
 		final var first = issued(codeRequest(grant("openid")));
 		assertEquals(PRINCIPAL, WebToken.verify(first.accessToken(), issuerKey).getSubject());
@@ -1247,15 +1301,14 @@ public class OidcTokenEndpointTest {
 		assertNotNull(actor.getAuthTime());
 	}
 
-	/** Binds a claims source answering plainly for whoever is asked about. */
+	/** Binds a claims source that writes nothing about anyone. */
 	private void claimsForAnyone() {
-		when(claimsSource.claims(any(), any(), any(), any())).thenAnswer(i -> claims(i.getArgument(0), null, null));
+		sourceWrites(null, null);
 	}
 
-	/** Binds a claims source answering plainly for one principal. */
-	private void claimsFor(String principalName) {
-		final var held = claims(principalName, null, null);
-		when(claimsSource.claims(any(), any(), any(), any())).thenReturn(held);
+	/** Binds a claims source holding nothing but the subject about anyone. */
+	private void claimsHoldNothing() {
+		sourceWrites(null, null);
 	}
 
 	/** A code-redemption request over a grant filed in the store. */

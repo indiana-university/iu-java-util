@@ -42,11 +42,19 @@ There is deliberately no `adaptJson` on it. That pattern did not work out on `Iu
 | SPI | Operation |
 |---|---|
 | `IuOidcClientSource` | `client(clientId)` — read a relying party's registration |
-| `IuOidcClaimsSource` | `claims(principalName, admittedClaims, issuer, audience)` — read an end user's claims |
+| `IuOidcClaimsSource` | `admitted(scope, usage)` — name the claims a scope of the deployment's own releases; `claims(principalName, admittedClaims, builder)` — write them onto a token; `claims(principalName, admittedClaims)` — render them as a document |
 | `IuOidcIdentitySource` | `hasRole(principalName, roles...)` — decide entitlement |
 | `IuOidcAuthorizationDetailsSource` | `authorize(details, principalName)` — decide what RFC 9396 details release |
 
-`IuOidcClaimsSource` renders its own document: `toString()` **must** produce the claims document a UserInfo response carries, and `sub` **must** answer `principalName` back. The provider checks `sub` and trusts the rest, because it cannot parse what it publishes — see below. The `issuer`/`audience` pair is non-null only when the response will be signed, which OIDC §5.3.2 requires to carry `iss` and `aud`; every other caller passes null.
+`IuOidcClaimsSource` answers for one principal and must answer for the one it was asked about: an unsigned UserInfo document names `principalName` back as `sub`, and nothing written onto a token contradicts the `sub` already on it. The provider does not check — it cannot parse what it publishes — so a source answering for somebody else is caught by the relying party, which refuses a response whose `sub` disagrees with the ID token it holds.
+
+**`iu.oidc.provider` never reads a claim.** It names what a grant admits and the source does the rest: `claims(principalName, admittedClaims, builder)` writes typed claims onto a token being issued, and `claims(principalName, admittedClaims)` renders the document an *unsigned* UserInfo response publishes. `IuOidcClaims` is implementation-facing — it states which claim a property is and what type it serializes as, so a source can apply those types — and nothing in `provider` imports it. A signed UserInfo response is a JWT and takes the builder form like any other token, which is why `iss` and `aud` are no longer arguments to `claims()`: the provider writes both itself. Redeclaring `toString()` on an interface obliges no implementation to override it — it documents, it does not enforce.
+
+Disclosure is decided in two halves. The §5.4 claim sets are the provider's, mapped in `OidcClaimScopes` from the granted scope; every other scope is the deployment's, and `admitted(scope, usage)` names what those release. A source only ever sees the scopes OIDC does not define — `OidcClaimScopes.additional(scope)` is what splits them — so an implementation never reasons about `profile` or `email`. The `usage` says where the result is bound: `USERINFO` is the widest disclosure, `ID_TOKEN` is narrower because the client keeps it, and `ACCESS_TOKEN` is narrower still. An access token gets **none** of the §5.4 sets — RFC 9068 defines no claim describing the end user — so only what a deployment names for a scope of its own reaches one, which is how a resource server sees a claim without a UserInfo request of its own.
+
+A source writes before the provider sets the claims it derives — `at_hash`, `act`, `roles`, `auth_time`, `authorization_details` — so nothing a deployment names displaces them. With nothing admitted the source is not asked to write at all.
+
+**An additional scope must be registered on an `IuOidcClientResource.getScope()`**, or `OidcAuthorizeEndpoint` refuses the request as `invalid_scope` before a claims source is consulted at all. Discovery advertises provider capability — `scopes_supported` always names `openid` and `offline_access`, and `claims_supported` is derived from it — while that registration decides who may actually ask.
 
 `IuOidcIdentitySource` only ever sees roles that need a real lookup — a role naming everyone (`all`) and a role matching the principal by name are settled in the endpoint. Throwing means the principal doesn't resolve (answered as `invalid_request`); returning `false` means it resolves and holds none of these roles.
 
@@ -93,7 +101,7 @@ Four things keep an exchange narrower than what it descends from, and each is lo
 
 ### Supporting types
 
-`OidcProviderUtils` holds the request-shaping logic every endpoint shares — scope splitting, resource validation and matching, audience derivation, error URIs. Put shared logic there rather than reaching across endpoints. `OidcClaimScopes.admitted(scope)` maps a granted scope to the OIDC §5.4 claim sets, deny-by-default. `OidcJose` signs and encrypts an already-serialized document and is deliberately unaware of what it is securing. `ClientAuthenticator` verifies a presented credential against one registration and refuses a replayed assertion through `IuDataStore`.
+`OidcProviderUtils` holds the request-shaping logic every endpoint shares — scope splitting, resource validation and matching, audience derivation, error URIs. Put shared logic there rather than reaching across endpoints. `OidcClaimScopes` owns the scope vocabulary OIDC defines: `admitted(scope)` maps a granted scope to the §5.4 claim sets, deny-by-default and with `sub` coming from `openid` rather than unconditionally, and `additional(scope)` names what is left over for the claims source. `OidcJose` signs and encrypts an already-serialized document and is deliberately unaware of what it is securing. `ClientAuthenticator` verifies a presented credential against one registration and refuses a replayed assertion through `IuDataStore`.
 
 ## The relying party (`iu.oidc.client`)
 

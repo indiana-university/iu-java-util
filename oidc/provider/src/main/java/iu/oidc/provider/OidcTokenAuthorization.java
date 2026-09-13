@@ -33,7 +33,6 @@ package iu.oidc.provider;
 
 import java.net.URI;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -178,16 +177,7 @@ public class OidcTokenAuthorization {
 	 *         carries no scope
 	 */
 	public Set<String> getScope() {
-		final var scope = token.getScope();
-		if (scope == null)
-			return Set.of();
-
-		final Set<String> scopes = new LinkedHashSet<>();
-		for (final var value : scope.split(" "))
-			if (!value.isEmpty())
-				scopes.add(value);
-
-		return Collections.unmodifiableSet(scopes);
+		return Collections.unmodifiableSet(OidcProviderUtils.scopes(token.getScope()));
 	}
 
 	/**

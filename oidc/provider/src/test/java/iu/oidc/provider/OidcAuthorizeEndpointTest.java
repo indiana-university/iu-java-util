@@ -84,14 +84,12 @@ import edu.iu.test.IuTestLogger;
 import iu.oidc.provider.OidcAuthorizeResult.AuthenticationRequired;
 import iu.oidc.provider.OidcAuthorizeResult.Redirect;
 
-@SuppressWarnings("javadoc")
 public class OidcAuthorizeEndpointTest {
 
 	private static final URI ISSUER = URI.create("https://example.iu.edu/oidc");
 	private static final URI REDIRECT = URI.create("https://client.example.iu.edu/cb");
 	private static final URI EXTERNAL = URI.create("https://api.example.iu.edu");
 	private static final String CLIENT_ID = "some-client";
-	private static final String CODE = "the-code";
 
 	/** What a client asked for; the module reads nothing but the type. */
 	private static final Iterable<? extends IuAuthorizationDetails> REQUESTED_DETAILS = List.of(() -> "record");

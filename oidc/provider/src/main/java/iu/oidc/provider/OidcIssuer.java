@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
+import edu.iu.oidc.config.IuOidcClaimsSource;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
 
 /**
@@ -70,15 +71,23 @@ import edu.iu.oidc.config.IuOidcProviderConfiguration;
 public class OidcIssuer {
 
 	private final Supplier<IuOidcProviderConfiguration> configuration;
+	private final Supplier<IuOidcClaimsSource> claimsSource;
 
 	/**
-	 * Binds a provider to its configuration.
+	 * Binds a provider to its configuration and its claims source.
 	 *
 	 * @param configuration supplies this provider's configuration, read afresh on
 	 *                      each use
+	 * @param claimsSource  supplies the deployment's claims source, read only
+	 *                      where the discovery document names the claims a scope of
+	 *                      the deployment's own releases. A deployment that defines
+	 *                      no scopes of its own never has this called, so one with
+	 *                      nothing to bind may supply the default that refuses
 	 */
-	public OidcIssuer(Supplier<IuOidcProviderConfiguration> configuration) {
+	public OidcIssuer(Supplier<IuOidcProviderConfiguration> configuration,
+			Supplier<IuOidcClaimsSource> claimsSource) {
 		this.configuration = Objects.requireNonNull(configuration, "Missing provider configuration");
+		this.claimsSource = Objects.requireNonNull(claimsSource, "Missing claims source");
 	}
 
 	/**
@@ -98,7 +107,7 @@ public class OidcIssuer {
 	 * @return {@link OidcProviderMetadata}
 	 */
 	public OidcProviderMetadata metadata() {
-		return new OidcProviderMetadata(configuration());
+		return new OidcProviderMetadata(configuration(), claimsSource);
 	}
 
 	/**
