@@ -146,7 +146,7 @@ public class OidcProviderMetadataTest {
 		final var metadata = metadata(ISSUER);
 		assertEquals(URI.create("https://example.iu.edu/oidc/authorize"), metadata.getAuthorizationEndpoint());
 		assertEquals(URI.create("https://example.iu.edu/oidc/token"), metadata.getTokenEndpoint());
-		assertEquals(URI.create("https://example.iu.edu/oidc/id"), metadata.getUserinfoEndpoint());
+		assertEquals(URI.create("https://example.iu.edu/oidc/userinfo"), metadata.getUserinfoEndpoint());
 		assertEquals(URI.create("https://example.iu.edu/oidc/.well-known/jwks"), metadata.getJwksUri());
 	}
 
