@@ -1,1 +1,1 @@
-tagSearchIndex = [];updateSearchResults();
+tagSearchIndex = [{"l":"Who reads this","h":"interface edu.iu.oidc.IuOidcClaims","k":"16","u":"iu.util.oidc/edu/iu/oidc/IuOidcClaims.html#who-reads-this-heading"}];updateSearchResults();
