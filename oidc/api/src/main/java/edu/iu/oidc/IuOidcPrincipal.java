@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.Principal;
 
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 
 /**
@@ -46,7 +47,7 @@ public interface IuOidcPrincipal extends Principal {
 	/**
 	 * Updated session cookie, populated if a state change was required while
 	 * resolving the principal.
-	 * 
+	 *
 	 * @return Set-Cookie header value
 	 */
 	String getSetCookie();
@@ -67,6 +68,24 @@ public interface IuOidcPrincipal extends Principal {
 	 * @return claim value, from userinfo if available; else from ID token
 	 */
 	<T> T getClaim(String name, Class<T> type);
+
+	/**
+	 * Gets the authorization details released by the authorization server.
+	 *
+	 * <p>
+	 * The token response's {@code authorization_details} value is authoritative
+	 * when present, including when it is empty. When the response omits that
+	 * value, this method reads the matching entries from the verified ID token.
+	 * </p>
+	 * 
+	 * @param <T>             authorization details interface type
+	 * @param detailInterface authorization details interface class used to decode
+	 *                        matching entries
+	 * @param type            {@code authorization_details} type property value to
+	 *                        match
+	 * @return released authorization details matching {@code type}
+	 */
+	<T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface, String type);
 
 	/**
 	 * Gets an access token issued to this principal for use with a given remote

@@ -39,6 +39,7 @@ module iu.util.oidc.client {
 
 	requires iu.util;
 	requires transitive iu.util.client;
+	requires iu.util.config;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.jwt.api;
 	requires transitive iu.util.oidc;

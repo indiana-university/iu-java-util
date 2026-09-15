@@ -70,8 +70,8 @@ class Session implements IuSession {
 	/** Session details */
 	private Map<String, Map<String, JsonValue>> details;
 
-	/** strict mode */
-	private boolean strict = true;
+	/** SameSite attribute value */
+	private String sameSite = "Strict";
 
 	/**
 	 * New session constructor.
@@ -210,18 +210,24 @@ class Session implements IuSession {
 	}
 
 	/**
-	 * Gets strict
-	 * 
-	 * @return strict mode
+	 * Gets the {@code SameSite} attribute value.
+	 *
+	 * @return {@code SameSite} attribute value, or {@code null} when omitted
 	 */
-	public boolean isStrict() {
-		return strict;
+	public String getSameSite() {
+		return sameSite;
 	}
 
 	@Override
 	public void setStrict(boolean strict) {
 		this.changed = true;
-		this.strict = strict;
+		this.sameSite = strict ? "Strict" : "Lax";
+	}
+
+	@Override
+	public void setSameSite(String sameSite) {
+		this.changed = true;
+		this.sameSite = sameSite;
 	}
 
 }

@@ -31,11 +31,15 @@
  */
 package iu.oidc.client.config;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.URI;
 
+import edu.iu.IuRequestAttributes;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.oidc.IuOidcAuthorization;
+import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSessionHandler;
 
 /**
@@ -129,6 +133,20 @@ public interface IuOidcClientReference {
 	@SuppressWarnings("unchecked")
 	default <T> IuJsonAdapter<T> adaptJson(Class<T> type) {
 		return (IuJsonAdapter<T>) adaptJson((Type) type);
+	}
+
+	/**
+	 * Performs a token exchange request, if requested.
+	 * 
+	 * @param requestAttributes request attributes provided to
+	 *                          {@link IuOidcAuthorization#authorize(IuRequestAttributes, String, String)},
+	 *                          may be cast to retrieve extended attributes.
+	 * @param accessToken       access token from the authorized token response
+	 * @return token exchange response; null if no exchange
+	 * @throws IOException if the token exchange request fails
+	 */
+	default IuOidcTokenResponse exchange(IuRequestAttributes requestAttributes, String accessToken) throws IOException {
+		return null;
 	}
 
 }

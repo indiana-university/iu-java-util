@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 
 import javax.sql.DataSource;
 
+import edu.iu.IuRefreshableCacheConfiguration;
 import edu.iu.dao.spi.IuDaoSpi;
 import jakarta.transaction.TransactionManager;
 import jakarta.transaction.TransactionSynchronizationRegistry;
@@ -53,11 +54,12 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  * <p>
  * Obtain an instance from
  * {@link #of(DataSource, TransactionManager, TransactionSynchronizationRegistry)}.
- * Entity mapping is driven by the annotations described on {@link IuSqlBuilder},
- * so an entity needs {@link jakarta.persistence.Table @Table} plus
+ * Entity mapping is driven by the annotations described on
+ * {@link IuSqlBuilder}, so an entity needs
+ * {@link jakarta.persistence.Table @Table} plus
  * {@link jakarta.persistence.Column @Column} or {@link SqlColumn @SqlColumn}
- * getters. An entity type may be a class with a no-argument constructor, which is
- * instantiated and populated through its setters, or an interface, which is
+ * getters. An entity type may be a class with a no-argument constructor, which
+ * is instantiated and populated through its setters, or an interface, which is
  * materialized as an immutable view of the row it was read from.
  * </p>
  *
@@ -76,10 +78,10 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  * performed by {@link #loadBean(Class, Map)} and
  * {@link #searchBeans(Class, Map, boolean, int)} are cached, but only for the
  * duration of an active transaction and only in that transaction's own
- * {@link TransactionSynchronizationRegistry} resources, so cached rows can never
- * outlive the transaction that read them or leak across threads. Writes through
- * this facade evict the affected entity type; direct SQL does not, so call
- * {@link #clear()} after modifying rows by other means.
+ * {@link TransactionSynchronizationRegistry} resources, so cached rows can
+ * never outlive the transaction that read them or leak across threads. Writes
+ * through this facade evict the affected entity type; direct SQL does not, so
+ * call {@link #clear()} after modifying rows by other means.
  * </p>
  *
  * @see IuSqlBuilder
@@ -90,15 +92,14 @@ public interface IuDao {
 	 * Creates a DAO from the first {@link IuDaoSpi} provider installed alongside
 	 * this API.
 	 *
-	 * @param dataSource                          JDBC source used for every
-	 *                                            operation
-	 * @param transactionManager                  transaction manager associated
-	 *                                            with {@code dataSource}, used to
-	 *                                            detect whether a transaction is
-	 *                                            active
-	 * @param transactionSynchronizationRegistry  registry in which
-	 *                                            transaction-scoped read caches are
-	 *                                            stored
+	 * @param dataSource                         JDBC source used for every
+	 *                                           operation
+	 * @param transactionManager                 transaction manager associated with
+	 *                                           {@code dataSource}, used to detect
+	 *                                           whether a transaction is active
+	 * @param transactionSynchronizationRegistry registry in which
+	 *                                           transaction-scoped read caches are
+	 *                                           stored
 	 * @return DAO created by the installed provider
 	 * @throws IllegalStateException if no provider is installed
 	 * @throws NullPointerException  if any argument is {@code null}
@@ -111,6 +112,62 @@ public interface IuDao {
 		return ServiceLoader.load(IuDaoSpi.class, IuDaoSpi.class.getClassLoader()).findFirst()
 				.orElseThrow(() -> new IllegalStateException("No IuDao service provider is installed"))
 				.create(dataSource, transactionManager, transactionSynchronizationRegistry);
+	}
+
+	/**
+	 * Gets a DAO with a process-wide read cache in front of it.
+	 *
+	 * <p>
+	 * Adopting the cache is only this: supply a configuration whose
+	 * {@link IuRefreshableCacheConfiguration#getRefreshTtl() refresh TTL} is
+	 * non-null. Nothing needs to be annotated, and no method needs to declare what
+	 * it reads or writes — the entity mapping already states which columns identify
+	 * a row, which is the only declaration the cache needs.
+	 * </p>
+	 *
+	 * <p>
+	 * A null refresh TTL leaves the layer inert: every call is delegated on the
+	 * calling thread, exactly as it would be without it. The configuration is read
+	 * on every operation, so caching can be switched on and off in place.
+	 * </p>
+	 *
+	 * <p>
+	 * The cache answers reads made <strong>outside</strong> a transaction. A read
+	 * inside one is delegated, so a transaction continues to see its own writes and
+	 * a consistent view of everything else; the value it read is contributed to the
+	 * cache once the transaction commits, which costs no additional query. Writes
+	 * through the facade invalidate what they affect, also at commit. Direct SQL
+	 * does not, so call {@link #clear()} after modifying rows by other means.
+	 * </p>
+	 *
+	 * <p>
+	 * Every process holding one of these caches refreshes independently, so read
+	 * volume against the database scales with the number of them. Size the refresh
+	 * TTL for the cluster rather than for one process.
+	 * </p>
+	 *
+	 * @param dataSource                         data source
+	 * @param transactionManager                 transaction manager
+	 * @param transactionSynchronizationRegistry registry in which the DAO stores
+	 *                                           transaction-scoped read caches
+	 * @param config                             supplies the read cache
+	 *                                           configuration in effect;
+	 *                                           <em>should</em> return quickly, as
+	 *                                           it is read on every operation
+	 * @return DAO created by the installed provider
+	 * @throws IllegalStateException if no provider is installed
+	 * @throws NullPointerException  if any argument is {@code null}
+	 */
+	static IuDao of(DataSource dataSource, TransactionManager transactionManager,
+			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
+			Supplier<IuRefreshableCacheConfiguration> config) {
+		Objects.requireNonNull(dataSource, "dataSource");
+		Objects.requireNonNull(transactionManager, "transactionManager");
+		Objects.requireNonNull(transactionSynchronizationRegistry, "transactionSynchronizationRegistry");
+		Objects.requireNonNull(config, "config");
+		return ServiceLoader.load(IuDaoSpi.class, IuDaoSpi.class.getClassLoader()).findFirst()
+				.orElseThrow(() -> new IllegalStateException("No IuDao service provider is installed"))
+				.create(dataSource, transactionManager, transactionSynchronizationRegistry, config);
 	}
 
 	/**
@@ -190,8 +247,7 @@ public interface IuDao {
 	 * @param <B>       entity type
 	 * @return unexecuted query
 	 */
-	<B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<String> order,
-			Iterable<?> args);
+	<B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<String> order, Iterable<?> args);
 
 	/**
 	 * Loads the one entity matching a key, reading it from the transaction-scoped
@@ -275,9 +331,9 @@ public interface IuDao {
 	}
 
 	/**
-	 * Searches for the entities matching a key, up to a row limit, reading them from
-	 * the transaction-scoped cache when the same key and limit were already searched
-	 * in the active transaction.
+	 * Searches for the entities matching a key, up to a row limit, reading them
+	 * from the transaction-scoped cache when the same key and limit were already
+	 * searched in the active transaction.
 	 *
 	 * @param beanClass  entity type to search
 	 * @param idParams   key values, each keyed by mapped property name or by column
@@ -298,8 +354,8 @@ public interface IuDao {
 	 * @param bean entity carrying both the new values and the key to match
 	 * @return unexecuted update statement
 	 * @throws IuSqlUnchangedException if the entity's primary table has no mapped
-	 *                                non-key column to update
-	 * @throws NullPointerException   if {@code bean} is {@code null}
+	 *                                 non-key column to update
+	 * @throws NullPointerException    if {@code bean} is {@code null}
 	 */
 	SqlStatement getBeanUpdate(Object bean);
 
@@ -335,8 +391,8 @@ public interface IuDao {
 	 * An {@link EffectiveDated} entity is not modified in place: a new row
 	 * superseding its current one is inserted instead, carrying the changed values
 	 * and copying the rest. Nothing matching the entity's key means there is no row
-	 * to supersede, which is reported as an error the same way it is for an ordinary
-	 * entity.
+	 * to supersede, which is reported as an error the same way it is for an
+	 * ordinary entity.
 	 * </p>
 	 *
 	 * @param bean entity carrying both the new values and the key to match
@@ -350,8 +406,8 @@ public interface IuDao {
 	void updateBean(Object bean);
 
 	/**
-	 * Gets an unexecuted insert covering every mapped column of the entity's primary
-	 * table.
+	 * Gets an unexecuted insert covering every mapped column of the entity's
+	 * primary table.
 	 *
 	 * @param bean entity carrying the values to insert
 	 * @return unexecuted insert statement
@@ -361,9 +417,9 @@ public interface IuDao {
 
 	/**
 	 * Updates the row matching an entity's key, inserting it instead when no row
-	 * matches, and evicts that entity type from the transaction-scoped cache. For an
-	 * entity with only primary-key columns, verifies that the row exists rather than
-	 * issuing an empty update.
+	 * matches, and evicts that entity type from the transaction-scoped cache. For
+	 * an entity with only primary-key columns, verifies that the row exists rather
+	 * than issuing an empty update.
 	 *
 	 * @param bean entity to update or insert
 	 * @throws jakarta.persistence.NonUniqueResultException if more than one row was
@@ -417,19 +473,20 @@ public interface IuDao {
 	 * <p>
 	 * A mapped entity's labels are resolved through its
 	 * {@link jakarta.persistence.Column @Column} and {@link SqlColumn @SqlColumn}
-	 * mappings; any label that resolves to no mapped property, and every label of an
-	 * unmapped type, falls back to matching the property name ignoring case and
+	 * mappings; any label that resolves to no mapped property, and every label of
+	 * an unmapped type, falls back to matching the property name ignoring case and
 	 * underscores. Labels matching no property are ignored.
 	 * </p>
 	 *
 	 * <p>
 	 * A value is read as the type its column stores and converted to the type its
-	 * member declares, reversing what {@link IuSqlBuilder#getForSql(Object, String)}
-	 * does when binding the same member: a character column mapped to a boolean reads
-	 * back {@code "Y"} as {@code true}, a timestamp column mapped to an
-	 * {@link java.time.Instant} reads back as an {@code Instant}, and the single
-	 * space standing in for null on a {@link SpaceForNull} column reads back as
-	 * {@code null}. A member belonging to no mapped column is read as its own type.
+	 * member declares, reversing what
+	 * {@link IuSqlBuilder#getForSql(Object, String)} does when binding the same
+	 * member: a character column mapped to a boolean reads back {@code "Y"} as
+	 * {@code true}, a timestamp column mapped to an {@link java.time.Instant} reads
+	 * back as an {@code Instant}, and the single space standing in for null on a
+	 * {@link SpaceForNull} column reads back as {@code null}. A member belonging to
+	 * no mapped column is read as its own type.
 	 * </p>
 	 *
 	 * <p>
@@ -439,8 +496,8 @@ public interface IuDao {
 	 * of the row's resolved values: its getters return those values, getters for
 	 * columns the query did not select return {@code null} or the appropriate
 	 * primitive default, its {@code default} methods run as written, and any other
-	 * abstract method throws {@link UnsupportedOperationException}. Such a view stays
-	 * valid after the query is closed.
+	 * abstract method throws {@link UnsupportedOperationException}. Such a view
+	 * stays valid after the query is closed.
 	 * </p>
 	 *
 	 * @param beanClass type to materialize, which need not be a mapped entity
@@ -449,18 +506,18 @@ public interface IuDao {
 	 *                  empty
 	 * @param <B>       result type
 	 * @return unexecuted query
-	 * @throws IllegalArgumentException if {@code beanClass} is a class that cannot be
-	 *                                  instantiated, thrown when a row is
+	 * @throws IllegalArgumentException if {@code beanClass} is a class that cannot
+	 *                                  be instantiated, thrown when a row is
 	 *                                  materialized
 	 */
 	<B> SqlQuery<B> getQuery(Class<B> beanClass, String sql, Iterable<?> args);
 
 	/**
-	 * Gets an unexecuted query over caller-supplied SQL, materializing each row with
-	 * a caller-supplied factory instead of by property mapping.
+	 * Gets an unexecuted query over caller-supplied SQL, materializing each row
+	 * with a caller-supplied factory instead of by property mapping.
 	 *
-	 * @param factory reads the result set's current row and returns the materialized
-	 *                value; must not advance the cursor
+	 * @param factory reads the result set's current row and returns the
+	 *                materialized value; must not advance the cursor
 	 * @param sql     SQL text to execute
 	 * @param <B>     result type
 	 * @return unexecuted query
@@ -479,8 +536,8 @@ public interface IuDao {
 	 * non-{@code null} value for every row that should be visible to the caller.
 	 * </p>
 	 *
-	 * @param factory reads the result set's current row and returns the materialized
-	 *                value; must not advance the cursor
+	 * @param factory reads the result set's current row and returns the
+	 *                materialized value; must not advance the cursor
 	 * @param sql     SQL text to execute
 	 * @param args    bind arguments in placeholder order; may be {@code null} or
 	 *                empty
@@ -524,8 +581,8 @@ public interface IuDao {
 	 * @param beans entities to insert, which need not share a type
 	 * @throws jakarta.persistence.EntityNotFoundException  if an insert affects no
 	 *                                                      row
-	 * @throws jakarta.persistence.NonUniqueResultException if an insert affects more
-	 *                                                      than one row
+	 * @throws jakarta.persistence.NonUniqueResultException if an insert affects
+	 *                                                      more than one row
 	 */
 	void insertBeans(Iterable<?> beans);
 
@@ -540,8 +597,8 @@ public interface IuDao {
 	 * @param beans entities to update, which need not share a type
 	 * @throws jakarta.persistence.EntityNotFoundException  if no row matches an
 	 *                                                      entity's key
-	 * @throws jakarta.persistence.NonUniqueResultException if an update affects more
-	 *                                                      than one row
+	 * @throws jakarta.persistence.NonUniqueResultException if an update affects
+	 *                                                      more than one row
 	 */
 	void updateBeans(Iterable<?> beans);
 

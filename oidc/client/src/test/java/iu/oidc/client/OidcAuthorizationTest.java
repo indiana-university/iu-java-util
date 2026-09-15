@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
@@ -54,6 +56,8 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
@@ -66,11 +70,15 @@ import edu.iu.IuRequestAttributes;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
+import edu.iu.oidc.IuOidcPrincipal;
 import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSession;
@@ -132,6 +140,7 @@ public class OidcAuthorizationTest {
 		assertEquals("code", params.get("response_type").iterator().next());
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
+		assertNull(params.get("authorization_details"));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
 	}
@@ -164,7 +173,7 @@ public class OidcAuthorizationTest {
 
 		final var received = new ArrayDeque<IuSession>();
 		assertEquals(setCookie,
-				new OidcAuthorization(config).init(null, null, received::push).getSetCookie());
+				new OidcAuthorization(config).init(null, received::push).getSetCookie());
 
 		// the session it receives is the one about to be stored, and it is handed over
 		// before the store, so one write carries both this flow's detail and the
@@ -178,7 +187,7 @@ public class OidcAuthorizationTest {
 	}
 
 	@Test
-	void testInitWithExtras() throws IOException {
+	void testInitWithAuthorizationDetails() throws IOException {
 		final var setCookie = IdGenerator.generateId();
 		final var sessionHandler = mock(IuSessionHandler.class);
 		final var session = mock(IuSession.class);
@@ -211,10 +220,13 @@ public class OidcAuthorizationTest {
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getSessionHandler()).thenReturn(sessionHandler);
 
+		final var detailType = IdGenerator.generateId();
+		final Iterable<IuAuthorizationDetails> authorizationDetails = List.of(() -> detailType);
+		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
+				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
 		final var authorization = new OidcAuthorization(config);
-		final var delegatingPrincipal = IdGenerator.generateId();
-		final var impersonatedPrincipal = IdGenerator.generateId();
-		final var redirect = authorization.init(delegatingPrincipal, impersonatedPrincipal);
+		final var redirect = authorization.init(authorizationDetails);
 		assertEquals(setCookie, redirect.getSetCookie());
 
 		final var params = IuWebUtils.parseQueryString(redirect.getLocation().getRawQuery());
@@ -222,8 +234,8 @@ public class OidcAuthorizationTest {
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
 		assertEquals(resourceUri.toString(), params.get("resource").iterator().next());
-		assertEquals(delegatingPrincipal, params.get("delegating_principal").iterator().next());
-		assertEquals(impersonatedPrincipal, params.get("impersonated_principal").iterator().next());
+		assertEquals(IuJson.array().add(IuJson.object().add("type", detailType)).build(),
+				IuJson.parse(params.get("authorization_details").iterator().next()));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
 	}
@@ -407,10 +419,15 @@ public class OidcAuthorizationTest {
 
 		final var authorization = new OidcAuthorization(config);
 		final var response = mock(IuOidcTokenResponse.class);
+		final var exchangedResponse = mock(IuOidcTokenResponse.class);
 		final var idToken = mock(WebToken.class);
 		final var userinfoClaims = IuJson.object().add("sub", IdGenerator.generateId()).build();
-		when(response.getExpiresIn()).thenReturn(1);
-		when(response.getAccessToken()).thenReturn(IdGenerator.generateId());
+		final var accessToken = IdGenerator.generateId();
+		final var exchangedAccessToken = IdGenerator.generateId();
+		when(response.getAccessToken()).thenReturn(accessToken);
+		when(exchangedResponse.getAccessToken()).thenReturn(exchangedAccessToken);
+		when(exchangedResponse.getExpiresIn()).thenReturn(1);
+		when(config.exchange(requestAttributes, accessToken)).thenReturn(exchangedResponse);
 
 		when(idToken.getNonce()).thenReturn(nonce);
 		try (final var mockAuthorizationGrant = mockConstruction(AuthorizationGrant.class, (a, ctx) -> {
@@ -423,11 +440,11 @@ public class OidcAuthorizationTest {
 			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), argThat(a -> {
 				final var rb = mock(HttpRequest.Builder.class);
 				assertDoesNotThrow(() -> a.accept(rb));
-				verify(rb).header("Authorization", "Bearer " + response.getAccessToken());
+				verify(rb).header("Authorization", "Bearer " + exchangedAccessToken);
 				return true;
 			}), eq(IuHttp.READ_UTF8))).thenReturn(userinfoClaims.toString());
 			final var redirect = authorization.authorize(requestAttributes, code, state);
-			verify(postAuth).setTokenResponse(response);
+			verify(postAuth).setTokenResponse(exchangedResponse);
 			verify(postAuth).setUserinfoClaims(userinfoClaims);
 			verify(postAuth).setNotAfter(any(Instant.class));
 			assertEquals(resourceUri, redirect.getLocation());
@@ -826,6 +843,11 @@ public class OidcAuthorizationTest {
 		when(response.getAccessToken()).thenReturn(accessToken);
 		when(response.getRefreshToken()).thenReturn(refreshToken);
 		when(response.getExpiresIn()).thenReturn(1);
+		final var authorizationDetailType = IdGenerator.generateId();
+		doReturn(List.of((IuAuthorizationDetails) () -> authorizationDetailType)).when(response)
+				.getAuthorizationDetails();
+		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
+				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var notAfter = Instant.now().plusSeconds(1L);
 		when(postAuth.getTokenResponse()).thenReturn(response);
@@ -859,6 +881,9 @@ public class OidcAuthorizationTest {
 		})) {
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
+			assertIterableEquals(List.of(authorizationDetailType), IuIterable.map(
+					principal.getAuthorizationDetails(IuAuthorizationDetails.class, authorizationDetailType),
+					IuAuthorizationDetails::getType));
 			IuHttpAware.mock.verifyNoInteractions();
 			assertEquals(accessToken, principal.getAccessToken(resourceUri));
 
@@ -1444,5 +1469,190 @@ public class OidcAuthorizationTest {
 		}
 	}
 
+	/**
+	 * Sets up an authorized session, answers {@code userinfoResponse} from the
+	 * userinfo endpoint, and looks up the principal.
+	 *
+	 * <p>
+	 * The access token is opaque, so it verifies as no JWT of this issuer's and the
+	 * published key set is consumed only by the userinfo response.
+	 * </p>
+	 *
+	 * @param sub              subject the ID token names, which the response's own
+	 *                         {@code sub} is checked against
+	 * @param userinfoResponse what the userinfo endpoint answers
+	 * @param decryptKeys      keys the client configures for decryption; null to
+	 *                         configure none
+	 * @param publishedKey     key the issuer publishes at its JWKS URI; null to
+	 *                         publish none
+	 * @return the authorized principal
+	 */
+	@SuppressWarnings("unchecked")
+	private IuOidcPrincipal readUserinfo(String sub, String userinfoResponse, Iterable<WebKey> decryptKeys,
+			WebKey publishedKey) throws IOException {
+		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+		when(sessionHandler.store(session)).thenReturn(IdGenerator.generateId());
+
+		final var nonce = IdGenerator.generateId();
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(preAuth.getNonce()).thenReturn(nonce);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var client = mock(IuOidcClient.class);
+		when(client.getClientId()).thenReturn(IdGenerator.generateId());
+		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getDecryptJwk()).thenReturn(decryptKeys);
+
+		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
+		final var jwksUri = URI.create(IdGenerator.generateId());
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
+		when(metadata.getJwksUri()).thenReturn(jwksUri);
+
+		final var provider = mock(IuOidcProvider.class);
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		if (publishedKey != null)
+			IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+					.add("keys", IuJson.array().add(IuJson.parse(publishedKey.wellKnown().toString()))) //
+					.build());
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getClient()).thenReturn(client);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.getResourceUri()).thenReturn(resourceUri);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var accessToken = IdGenerator.generateId();
+		final var response = mock(IuOidcTokenResponse.class);
+		when(response.getIdToken()).thenReturn(IdGenerator.generateId());
+		when(response.getAccessToken()).thenReturn(accessToken);
+		when(response.getRefreshToken()).thenReturn(IdGenerator.generateId());
+		when(response.getExpiresIn()).thenReturn(1);
+
+		final var idToken = mock(WebToken.class);
+		when(idToken.getNonce()).thenReturn(nonce);
+		when(idToken.getSubject()).thenReturn(sub);
+
+		final var oldResponse = mock(IuOidcTokenResponse.class);
+		when(postAuth.getTokenResponse()).thenReturn(oldResponse);
+		when(postAuth.getNotAfter()).thenReturn(Instant.now().plusSeconds(1L));
+
+		final var authorization = new OidcAuthorization(config);
+		try (final var mockRefreshGrant = mockConstruction(RefreshTokenGrant.class, (a, ctx) -> {
+			when(a.getTokenResponse()).thenReturn(response);
+			when(a.getIdToken()).thenReturn(idToken);
+		})) {
+			IuTestLogger.allow("iu.crypt", Level.FINE);
+			IuHttpAware.mock
+					.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_UTF8)))
+					.thenReturn(userinfoResponse);
+
+			return authorization.getAuthorizedPrincipal(requestAttributes);
+		}
+	}
+
+	/** Answers a signing key the issuer either publishes or doesn't. */
+	private static WebKey issuerKey(String keyId) {
+		final var builder = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA);
+		if (keyId != null)
+			builder.keyId(keyId);
+		return builder.ephemeral().build();
+	}
+
+	/** Signs a userinfo claims document the way an OP answering JWT would. */
+	private static String signedUserinfo(String sub, WebKey issuerKey) {
+		return WebToken.builder() //
+				.jti() //
+				.sub(sub) //
+				.iat() //
+				.exp(Instant.now().plusSeconds(60L)) //
+				.build() //
+				.sign("JWT", Algorithm.EDDSA, issuerKey);
+	}
+
+	@Test
+	void testUserinfoPlainDocumentIsReadEvenWhenADecryptionKeyIsConfigured() throws IOException {
+		// the response says what form it is in, not the client's configuration: a key
+		// the provider doesn't use must not make a readable document unreadable
+		final var sub = IdGenerator.generateId();
+		final var decryptJwk = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES)
+				.keyId(IdGenerator.generateId()).ephemeral().build();
+
+		final var principal = readUserinfo(sub, IuJson.object().add("sub", sub).build().toString(),
+				IuIterable.iter(decryptJwk), null);
+
+		assertEquals(sub, principal.getName());
+	}
+
+	@Test
+	void testUserinfoSignedDocumentIsVerifiedAgainstThePublishedKeySet() throws IOException {
+		final var sub = IdGenerator.generateId();
+		final var issuerKey = issuerKey(IdGenerator.generateId());
+
+		assertEquals(sub, readUserinfo(sub, signedUserinfo(sub, issuerKey), null, issuerKey).getName());
+	}
+
+	@Test
+	void testUserinfoSignedThenEncryptedIsDecryptedThenVerified() throws IOException {
+		final var sub = IdGenerator.generateId();
+		final var issuerKey = issuerKey(IdGenerator.generateId());
+
+		final var dkid = IdGenerator.generateId();
+		final var decryptJwk = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES).keyId(dkid).ephemeral()
+				.build();
+
+		final var jwe = WebEncryption.to(Encryption.A256GCM, Algorithm.ECDH_ES).key(decryptJwk.wellKnown()) //
+				.keyId(dkid) //
+				.contentType("JWT") //
+				.encrypt(signedUserinfo(sub, issuerKey)) //
+				.compact();
+
+		assertEquals(sub, readUserinfo(sub, jwe, IuIterable.iter(decryptJwk), issuerKey).getName());
+	}
+
+	@Test
+	void testUserinfoSignatureMustNameItsKey() throws IOException {
+		final var issuerKey = issuerKey(null);
+		final var signed = signedUserinfo(IdGenerator.generateId(), issuerKey);
+
+		assertEquals("userinfo response header missing signature key ID",
+				assertThrows(NullPointerException.class, () -> readUserinfo(null, signed, null, issuerKey)).getMessage());
+	}
+
+	@Test
+	void testUserinfoSignatureMustNameAKeyTheIssuerPublishes() throws IOException {
+		final var kid = IdGenerator.generateId();
+		final var signed = signedUserinfo(IdGenerator.generateId(), issuerKey(kid));
+		final var elsewhere = issuerKey(IdGenerator.generateId());
+
+		assertEquals("userinfo response signature key not published by the issuer using kid " + kid,
+				assertThrows(NoSuchElementException.class, () -> readUserinfo(null, signed, null, elsewhere)).getMessage());
+	}
+
+	@Test
+	void testUserinfoEncryptedWithNoConfiguredKeyIsRefused() throws IOException {
+		final var dkid = IdGenerator.generateId();
+		final var decryptJwk = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES).keyId(dkid).ephemeral()
+				.build();
+
+		final var jwe = WebEncryption.to(Encryption.A256GCM, Algorithm.ECDH_ES).key(decryptJwk.wellKnown()) //
+				.keyId(dkid) //
+				.encrypt(IuJson.object().add("sub", IdGenerator.generateId()).build().toString()) //
+				.compact();
+
+		assertEquals("userinfo response is encrypted but no decryption key is configured",
+				assertThrows(NullPointerException.class, () -> readUserinfo(null, jwe, null, null)).getMessage());
+	}
 
 }
