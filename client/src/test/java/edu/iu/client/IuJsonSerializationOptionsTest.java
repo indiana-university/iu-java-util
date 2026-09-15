@@ -40,11 +40,13 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("javadoc")
 public class IuJsonSerializationOptionsTest {
 
+
 	@Test
 	public void testDefault() {
 		final var options = IuJsonSerializationOptions.DEFAULT;
 		assertSame(IuJsonPropertyNameFormat.IDENTITY, options.getPropertyNameFormat());
 		assertFalse(options.isIncludeNullProperties());
+		assertFalse(options.isEnumAsObject());
 	}
 
 	@Test
@@ -52,6 +54,15 @@ public class IuJsonSerializationOptionsTest {
 		final var options = IuJsonSerializationOptions.INCLUDE_NULLS;
 		assertSame(IuJsonPropertyNameFormat.IDENTITY, options.getPropertyNameFormat());
 		assertTrue(options.isIncludeNullProperties());
+		assertFalse(options.isEnumAsObject());
+	}
+
+	@Test
+	public void testEnumAsObject() {
+		final var options = IuJsonSerializationOptions.ENUM_AS_OBJECT;
+		assertSame(IuJsonPropertyNameFormat.IDENTITY, options.getPropertyNameFormat());
+		assertFalse(options.isIncludeNullProperties());
+		assertTrue(options.isEnumAsObject());
 	}
 
 	@Test
@@ -59,6 +70,7 @@ public class IuJsonSerializationOptionsTest {
 		final var options = IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
 		assertSame(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, options.getPropertyNameFormat());
 		assertFalse(options.isIncludeNullProperties());
+		assertFalse(options.isEnumAsObject());
 	}
 
 	@Test
@@ -66,6 +78,16 @@ public class IuJsonSerializationOptionsTest {
 		final var options = IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, true);
 		assertSame(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, options.getPropertyNameFormat());
 		assertTrue(options.isIncludeNullProperties());
+		assertFalse(options.isEnumAsObject());
+	}
+
+	@Test
+	public void testOfEveryValue() {
+		final var options = IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, true,
+				true);
+		assertSame(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, options.getPropertyNameFormat());
+		assertTrue(options.isIncludeNullProperties());
+		assertTrue(options.isEnumAsObject());
 	}
 
 }

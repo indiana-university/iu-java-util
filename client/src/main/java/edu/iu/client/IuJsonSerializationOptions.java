@@ -39,8 +39,8 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 
 /**
- * Provides runtime tuning parameters for converting a JavaBeans business object
- * to JSON.
+ * Provides runtime tuning parameters for converting a JavaBeans business
+ * object, or an enum value, to JSON.
  * 
  * <p>
  * All methods supply a default, so an implementation only overrides the values
@@ -88,6 +88,16 @@ public interface IuJsonSerializationOptions {
 	IuJsonSerializationOptions INCLUDE_NULLS = of(PROPERTY_NAME_FORMAT, true);
 
 	/**
+	 * Options with all other values default, with an enum value converted to a
+	 * {@link JsonObject} describing the constant.
+	 * 
+	 * <p>
+	 * See {@link #isEnumAsObject()} for what the object holds.
+	 * </p>
+	 */
+	IuJsonSerializationOptions ENUM_AS_OBJECT = of(PROPERTY_NAME_FORMAT, false, true);
+
+	/**
 	 * Gets options that override only the property name format.
 	 * 
 	 * @param propertyNameFormat property name format
@@ -104,10 +114,27 @@ public interface IuJsonSerializationOptions {
 	 * @param propertyNameFormat    property name format
 	 * @param includeNullProperties true to include a property with a null value;
 	 *                              false to omit it
-	 * @return {@link IuJsonSerializationOptions}
+	 * @return {@link IuJsonSerializationOptions} with enum values converted as
+	 *         text
 	 */
 	static IuJsonSerializationOptions of(IuJsonPropertyNameFormat propertyNameFormat,
 			boolean includeNullProperties) {
+		return of(propertyNameFormat, includeNullProperties, false);
+	}
+
+	/**
+	 * Gets options that override every value.
+	 * 
+	 * @param propertyNameFormat    property name format
+	 * @param includeNullProperties true to include a property with a null value;
+	 *                              false to omit it
+	 * @param enumAsObject          true to convert an enum value to a
+	 *                              {@link JsonObject}; false to convert it to a
+	 *                              {@link jakarta.json.JsonString JsonString}
+	 * @return {@link IuJsonSerializationOptions}
+	 */
+	static IuJsonSerializationOptions of(IuJsonPropertyNameFormat propertyNameFormat,
+			boolean includeNullProperties, boolean enumAsObject) {
 		return new IuJsonSerializationOptions() {
 			@Override
 			public IuJsonPropertyNameFormat getPropertyNameFormat() {
@@ -117,6 +144,11 @@ public interface IuJsonSerializationOptions {
 			@Override
 			public boolean isIncludeNullProperties() {
 				return includeNullProperties;
+			}
+
+			@Override
+			public boolean isEnumAsObject() {
+				return enumAsObject;
 			}
 		};
 	}
@@ -187,6 +219,60 @@ public interface IuJsonSerializationOptions {
 	 * @return true to include a property with a null value; false to omit it
 	 */
 	default boolean isIncludeNullProperties() {
+		return false;
+	}
+
+	/**
+	 * Determines whether an enum value is converted to a {@link JsonObject}
+	 * describing the constant, rather than to a {@link jakarta.json.JsonString
+	 * JsonString} naming it.
+	 * 
+	 * <p>
+	 * Enable this for a consumer that has no decoded metadata for the enum type
+	 * &mdash; a REST client or a UI, which receives {@code "ACTIVE"} and has
+	 * nowhere to get a display label, a sort order, or any other attribute the
+	 * constant carries.
+	 * </p>
+	 * 
+	 * <p>
+	 * The object holds a {@code name} property, formatted by
+	 * {@link #getPropertyNameFormat()} and carrying {@link Enum#name()}, followed
+	 * by the constant's readable JavaBeans properties, converted as they are for a
+	 * business object &mdash; so
+	 * {@link #isIncludeNullProperties() null properties} and the property name
+	 * format apply to them as well. Properties declared by {@link Object} and
+	 * {@link Enum}, in particular {@link Enum#getDeclaringClass() declaringClass},
+	 * are skipped. An enum that declares its own {@code name} property replaces
+	 * the constant name with it, which is only sound when that property answers
+	 * the constant name.
+	 * </p>
+	 * 
+	 * <p>
+	 * Introspection uses the enum type rather than the value's class, so a
+	 * constant declared with a class body converts to the same shape as every
+	 * other constant, while a property it overrides answers the override.
+	 * </p>
+	 * 
+	 * <p>
+	 * Only the conversion to JSON is affected. Converting from JSON accepts
+	 * either form whatever this option says &mdash; a defined {@code name}
+	 * property if the value is an object, ignoring every other property, and
+	 * otherwise the value as text &mdash; so a value written with this enabled is
+	 * read by a consumer that leaves it disabled. Note that the text form is
+	 * {@link Enum#toString()} rather than {@link Enum#name()}, so only the object
+	 * form is guaranteed to convert back.
+	 * </p>
+	 * 
+	 * <p>
+	 * An enum reached through a property declared {@link Object}, and so
+	 * converted by {@link IuJsonAdapter#basic()}, is unaffected: that adapter
+	 * cannot convert an enum in either direction.
+	 * </p>
+	 * 
+	 * @return true to convert an enum value to a {@link JsonObject}; false to
+	 *         convert it to a {@link jakarta.json.JsonString JsonString}
+	 */
+	default boolean isEnumAsObject() {
 		return false;
 	}
 

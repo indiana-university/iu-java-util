@@ -1461,18 +1461,28 @@ public class IuRefreshableCacheTest {
 	}
 
 	@Test
-	public void testOutcomeIsRecordedWhenFineLoggingIsEnabled() throws Throwable {
+	public void testCacheHitOutcomeRequiresFinerLogging() throws Throwable {
 		log.setLevel(Level.FINE);
 		try (final var cache = cache(config(Duration.ofMinutes(5L), Duration.ofMinutes(30L)), key -> "value")) {
 			assertEquals("value", cache.apply("key"));
 			assertEquals("value", cache.apply("key"));
+
+			// Cache misses remain useful at FINE, but the normal hit path is only
+			// recorded when the more verbose diagnostic level is enabled.
+			final var fineMessages = captured.records.stream().map(LogRecord::getMessage)
+					.collect(Collectors.toList());
+			assertTrue(fineMessages.stream().anyMatch(m -> m.startsWith("cache-miss:key:")),
+					() -> fineMessages.toString());
+			assertFalse(fineMessages.stream().anyMatch(m -> m.startsWith("cache-hit:key:")),
+					() -> fineMessages.toString());
+
+			log.setLevel(Level.FINER);
+			assertEquals("value", cache.apply("key"));
 		}
 
-		// the message is built only when the level is enabled, so this is also the
-		// only path on which the supplier runs at all
-		final var messages = captured.records.stream().map(LogRecord::getMessage).collect(Collectors.toList());
-		assertTrue(messages.stream().anyMatch(m -> m.startsWith("cache-miss:key:")), () -> messages.toString());
-		assertTrue(messages.stream().anyMatch(m -> m.startsWith("cache-hit:key:")), () -> messages.toString());
+		final var hit = captured.records.stream().filter(record -> record.getMessage().startsWith("cache-hit:key:"))
+				.findFirst().orElseThrow();
+		assertEquals(Level.FINER, hit.getLevel());
 	}
 
 	@Test

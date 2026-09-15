@@ -716,8 +716,9 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 * Records the outcome and elapsed time of one invocation.
 	 *
 	 * <p>
-	 * The message is composed only when {@link Level#FINE} is enabled, so a cache
-	 * hit does not pay to build one that is discarded.
+	 * This level records outcomes that change cached state or otherwise require
+	 * attention while diagnosing cache behavior. The message is composed only when
+	 * {@link Level#FINE} is enabled.
 	 * </p>
 	 *
 	 * @param outcome how the invocation resolved
@@ -726,6 +727,24 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 	 */
 	private static void fine(String outcome, Object key, Instant start) {
 		LOG.log(Level.FINE, () -> outcome + ":" + key + ":" + Duration.between(start, Instant.now()));
+	}
+
+	/**
+	 * Records the outcome and elapsed time of one invocation.
+	 *
+	 * <p>
+	 * Routine outcomes, including cache hits and calls that bypass caching, are
+	 * available at this more verbose level. The message is composed only when
+	 * {@link Level#FINER} is enabled, so a normal cache hit does not pay to build
+	 * one that is discarded.
+	 * </p>
+	 *
+	 * @param outcome how the invocation resolved
+	 * @param key     cache key
+	 * @param start   instant the invocation began
+	 */
+	private static void finer(String outcome, Object key, Instant start) {
+		LOG.log(Level.FINER, () -> outcome + ":" + key + ":" + Duration.between(start, Instant.now()));
 	}
 
 	/**
@@ -867,7 +886,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 			final var result = await(call(exec, () -> IuException.checked(key, refreshFunction)), callTtl, true);
 
 			if (cache == null)
-				fine("no-cache", key, start);
+				finer("no-cache", key, start);
 			else
 
 			// successful at this point, invalidate cache entries by hint
@@ -875,7 +894,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 				fine(raise(cache, cacheHint), key, start);
 
 			else // no cache hint -> skip cache
-				fine("skip-cache", key, start);
+				finer("skip-cache", key, start);
 
 			return result;
 		}
@@ -915,7 +934,7 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 
 			// still fresh under the refresh TTL currently in effect
 			if (cached.value != null && cached.refreshedAt.plus(refreshTtl).isAfter(now)) {
-				fine("cache-hit", key, start);
+				finer("cache-hit", key, start);
 				return cached.value.orElse(null);
 			}
 

@@ -49,6 +49,8 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
 
 /**
  * Converts from a JavaBeans business object to JSON.
@@ -60,6 +62,12 @@ public final class JsonSerializer {
 
 	private JsonSerializer() {
 	}
+
+	/**
+	 * Name of the property that holds {@link Enum#name()} when an enum value
+	 * converts to a {@link JsonObject}.
+	 */
+	static final String NAME = "name";
 
 	/**
 	 * Formats a property name for JSON serialization.
@@ -136,7 +144,6 @@ public final class JsonSerializer {
 	 * @param adapt   adapter function
 	 * @return {@link JsonObject}
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static <T> JsonObject serialize(Class<T> type, T value, Supplier<IuJsonSerializationOptions> options,
 			Function<Type, IuJsonAdapter<?>> adapt) {
 
@@ -149,22 +156,129 @@ public final class JsonSerializer {
 
 		// one snapshot per invocation, so an options change takes effect without
 		// recreating the adapters that captured the supplier
-		final var snapshot = Objects.requireNonNullElse(options.get(), IuJsonSerializationOptions.DEFAULT);
-		final var propertyNameFormat = Objects.requireNonNullElse(snapshot.getPropertyNameFormat(),
-				IuJsonSerializationOptions.PROPERTY_NAME_FORMAT);
-		final var includeNullProperties = snapshot.isIncludeNullProperties();
+		final var snapshot = snapshot(options);
 
 		final var builder = IuJson.object();
+		addProperties(type, value, propertyNameFormat(snapshot), snapshot.isIncludeNullProperties(), adapt, builder,
+				new HashSet<>());
+
+		return builder.build();
+	}
+
+	/**
+	 * Serializes an enum value as JSON.
+	 *
+	 * <p>
+	 * Returns a {@link jakarta.json.JsonString JsonString} holding
+	 * {@link Enum#toString()} unless
+	 * {@link IuJsonSerializationOptions#isEnumAsObject()}, in which case the value
+	 * converts to a {@link JsonObject} holding the {@link #NAME} property, with
+	 * {@link Enum#name()}, followed by the readable JavaBeans properties of
+	 * {@code type}. The {@link #NAME} property comes first either way; an enum
+	 * that declares its own answers the value, which is only sound when that
+	 * property answers the constant name.
+	 * </p>
+	 *
+	 * <p>
+	 * Introspection uses {@code type} rather than the value's class, so a constant
+	 * declared with a class body converts to the same shape as every other
+	 * constant of the enum, while a property it overrides answers the override.
+	 * </p>
+	 *
+	 * @param type    enum type for introspection
+	 * @param value   enum value to serialize
+	 * @param options supplies the options in effect; <em>should</em> return
+	 *                quickly, as it is called on every invocation
+	 * @param adapt   adapter function
+	 * @return {@link JsonValue}
+	 */
+	static JsonValue serializeEnum(Class<?> type, Enum<?> value, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> adapt) {
+
+		// one snapshot per invocation, as in serialize(Class, Object, Supplier,
+		// Function)
+		final var snapshot = snapshot(options);
+		if (!snapshot.isEnumAsObject())
+			return IuJson.string(value.toString());
+
+		final var propertyNameFormat = propertyNameFormat(snapshot);
+		final var nameProperty = formatPropertyName(NAME, propertyNameFormat);
+
+		final var properties = IuJson.object();
+		addProperties(type, value, propertyNameFormat, snapshot.isIncludeNullProperties(), adapt, properties,
+				new HashSet<>());
+		final var declared = properties.build();
+
+		// the name property comes first whether or not the enum declares one of its
+		// own; a builder rejects a duplicate key, so the value is chosen up front
+		final var builder = IuJson.object();
+		if (declared.containsKey(nameProperty))
+			builder.add(nameProperty, declared.get(nameProperty));
+		else
+			builder.add(nameProperty, IuJson.string(value.name()));
+
+		for (final var declaredProperty : declared.entrySet())
+			if (!nameProperty.equals(declaredProperty.getKey()))
+				builder.add(declaredProperty.getKey(), declaredProperty.getValue());
+
+		return builder.build();
+	}
+
+	/**
+	 * Reads the options in effect for one conversion.
+	 *
+	 * @param options options supplier
+	 * @return {@link IuJsonSerializationOptions}; a supplier that answers null
+	 *         reads as {@link IuJsonSerializationOptions#DEFAULT}
+	 */
+	private static IuJsonSerializationOptions snapshot(Supplier<IuJsonSerializationOptions> options) {
+		return Objects.requireNonNullElse(options.get(), IuJsonSerializationOptions.DEFAULT);
+	}
+
+	/**
+	 * Reads the property name format from an options snapshot.
+	 *
+	 * @param snapshot options snapshot
+	 * @return {@link IuJsonPropertyNameFormat}; a snapshot that answers null reads
+	 *         as {@link IuJsonSerializationOptions#PROPERTY_NAME_FORMAT}
+	 */
+	private static IuJsonPropertyNameFormat propertyNameFormat(IuJsonSerializationOptions snapshot) {
+		return Objects.requireNonNullElse(snapshot.getPropertyNameFormat(),
+				IuJsonSerializationOptions.PROPERTY_NAME_FORMAT);
+	}
+
+	/**
+	 * Adds an entry for each readable JavaBeans property of a type, walking its
+	 * superclasses and interfaces.
+	 *
+	 * @param type                  value type for introspection
+	 * @param value                 value to read properties from
+	 * @param propertyNameFormat    property name format
+	 * @param includeNullProperties true to include a property with a null value;
+	 *                              false to omit it
+	 * @param adapt                 adapter function
+	 * @param builder               receives one entry per property; a name already
+	 *                              present is replaced rather than skipped, since
+	 *                              only names added by this walk are tracked
+	 * @param seen                  property names already added by this walk; a
+	 *                              repeated name is skipped, so the declaration
+	 *                              nearest {@code type} wins
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static void addProperties(Class<?> type, Object value, IuJsonPropertyNameFormat propertyNameFormat,
+			boolean includeNullProperties, Function<Type, IuJsonAdapter<?>> adapt, JsonObjectBuilder builder,
+			Set<String> seen) {
 
 		final Deque<Class<?>> todo = new ArrayDeque<>();
-		final Set<String> seen = new HashSet<>();
 		todo.push(type);
 		while (!todo.isEmpty()) {
 			final var next = todo.pop();
 			for (final var propertyDescriptor : IuException.unchecked(() -> Introspector.getBeanInfo(next))
 					.getPropertyDescriptors()) {
 				final var readMethod = propertyDescriptor.getReadMethod();
-				if (readMethod == null || readMethod.getDeclaringClass() == Object.class)
+				if (readMethod == null //
+						|| readMethod.getDeclaringClass() == Object.class //
+						|| readMethod.getDeclaringClass() == Enum.class)
 					continue;
 
 				final var propertyName = formatPropertyName(propertyDescriptor.getName(), propertyNameFormat);
@@ -186,8 +300,6 @@ public final class JsonSerializer {
 			if (parent != null && !IuObject.isPlatformName(parent.getName()))
 				todo.push(parent);
 		}
-
-		return builder.build();
 	}
 
 }

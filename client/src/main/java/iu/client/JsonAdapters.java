@@ -209,7 +209,7 @@ public final class JsonAdapters {
 			return ParsingJsonAdapter.of(URL.class, a -> IuException.unchecked(() -> URI.create(a).toURL()));
 
 		if (erased.isEnum())
-			return ParsingJsonAdapter.of(erased, v -> Enum.valueOf(erased, v));
+			return EnumJsonAdapter.of(erased);
 
 		if (erased == Optional.class)
 			if (valueAdapter != null)

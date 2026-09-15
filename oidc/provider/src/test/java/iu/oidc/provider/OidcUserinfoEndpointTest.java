@@ -43,6 +43,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
@@ -128,10 +129,15 @@ public class OidcUserinfoEndpointTest {
 
 	/** Issues an access token the way this provider's token endpoint would. */
 	private String accessToken(String scope) {
+		return accessToken(SUB, scope);
+	}
+
+	/** Issues an access token for the given subject the way the token endpoint would. */
+	private String accessToken(String subject, String scope) {
 		final var builder = WebToken.builder() //
 				.jti() //
 				.iss(ISSUER) //
-				.sub(SUB) //
+				.sub(subject) //
 				.aud(ISSUER) //
 				.iat() //
 				.exp(Instant.now().plus(Duration.ofMinutes(5L))) //
@@ -220,11 +226,23 @@ public class OidcUserinfoEndpointTest {
 
 	@Test
 	void testATokenCarryingNoScopeAdmitsNoClaims() {
-		sourceHolds();
 		register(null, null, null);
 
-		endpoint.userinfo(accessToken(null));
-		assertIterableEquals(List.of(), admitted());
+		final var result = assertInstanceOf(Json.class, endpoint.userinfo(accessToken(null)));
+		assertEquals(WebToken.builder().sub(SUB).build().toString(), result.content());
+		verifyNoInteractions(claimsSource);
+	}
+
+	@Test
+	void testAClientCredentialsTokenDoesNotResolveTheClientAsAnIdentity() {
+		register(Algorithm.ES256, null, null);
+
+		final var result = assertInstanceOf(Jwt.class,
+				endpoint.userinfo(accessToken(CLIENT_ID, "openid profile read")));
+		final var claims = WebToken.verify(result.content(), issuerKey);
+		assertEquals(CLIENT_ID, claims.getSubject());
+		assertNull(claims.getClaim("name", String.class));
+		verifyNoInteractions(claimsSource);
 	}
 
 	@Test

@@ -333,4 +333,28 @@ public class JsonSerializerTest {
 						t -> IuJsonAdapter.adapt(t, options)));
 	}
 
+
+	enum SerializeEnumTest {
+		A, B;
+
+		public String getLabel() {
+			return name().toLowerCase();
+		}
+	}
+
+	@Test
+	public void testSerializeEnumAsText() {
+		// a null options supplier reads as DEFAULT, which converts enums as text
+		assertEquals(IuJson.string("A"),
+				JsonSerializer.serializeEnum(SerializeEnumTest.class, SerializeEnumTest.A, () -> null,
+						IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testSerializeEnumAsObject() {
+		assertEquals(IuJson.object().add("name", "B").add("label", "b").build(),
+				JsonSerializer.serializeEnum(SerializeEnumTest.class, SerializeEnumTest.B,
+						() -> IuJsonSerializationOptions.ENUM_AS_OBJECT, IuJsonAdapter::of));
+	}
+
 }

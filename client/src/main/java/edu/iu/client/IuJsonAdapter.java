@@ -82,6 +82,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuObject;
 import edu.iu.IuText;
+import iu.client.EnumJsonAdapter;
 import iu.client.JsonAdapters;
 import iu.client.JsonDeserializer;
 import iu.client.JsonSerializer;
@@ -274,9 +275,11 @@ public interface IuJsonAdapter<T> {
 	 * <p>
 	 * Returns {@link #from(Class, IuJsonPropertyNameFormat, Function)} for a
 	 * {@link IuObject#isPlatformName(String) non-platform} interface or class.
-	 * {@link Class#isPrimitive() Primitive}, {@link Class#isArray() array}, and
-	 * {@link Class#isEnum() enum} types are handled by {@link #of(Type, Function)}
-	 * even when non-platform.
+	 * {@link Class#isPrimitive() Primitive} and {@link Class#isArray() array} types
+	 * are handled by {@link #of(Type, Function)} even when non-platform. An
+	 * {@link Class#isEnum() enum} type converts to text, or to a
+	 * {@link JsonObject} describing the constant when
+	 * {@link IuJsonSerializationOptions#isEnumAsObject()}.
 	 * </p>
 	 * 
 	 * @param type               business object class
@@ -301,10 +304,10 @@ public interface IuJsonAdapter<T> {
 	 * 
 	 * <p>
 	 * The same supplier is used for every nested value type, so options apply to
-	 * business object properties, and to business objects nested in an array,
-	 * {@link java.util.Collection Collection}, {@link java.util.Map Map},
-	 * {@link java.util.Optional Optional}, or {@link java.util.stream.Stream
-	 * Stream}, at any depth.
+	 * business object and enum properties, and to business objects and enum values
+	 * nested in an array, {@link java.util.Collection Collection},
+	 * {@link java.util.Map Map}, {@link java.util.Optional Optional}, or
+	 * {@link java.util.stream.Stream Stream}, at any depth.
 	 * </p>
 	 * 
 	 * @param type    business object class
@@ -315,14 +318,77 @@ public interface IuJsonAdapter<T> {
 	 * @return {@link IuJsonAdapter}
 	 */
 	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options) {
+		return adapt(type, options, a -> adapt(a, options));
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, using a
+	 * custom value adapter function.
+	 * 
+	 * <p>
+	 * Behaves as {@link #adapt(Type, IuJsonPropertyNameFormat)}, except that
+	 * {@code valueAdapter} decides how every nested value type converts. Unlike
+	 * {@link #adapt(Type, IuJsonPropertyNameFormat)}, this method applies the
+	 * JavaBeans decision to {@code type} only; a nested type is whatever
+	 * {@code valueAdapter} answers for it, so a function that should treat a
+	 * nested {@link IuObject#isPlatformName(String) non-platform} class as a
+	 * JavaBeans type <em>must</em> call back into this method itself.
+	 * </p>
+	 * 
+	 * @param type               business object class or type
+	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param valueAdapter       factory function for supplying child value type
+	 *                           adapters; called for every nested type, and
+	 *                           responsible for its own recursion
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return adapt(type, () -> options, valueAdapter);
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, using a
+	 * custom value adapter function and dynamically supplied options.
+	 * 
+	 * <p>
+	 * This is the common implementation behind every {@code adapt} method: an
+	 * {@link Class#isEnum() enum} type converts as described by
+	 * {@link IuJsonSerializationOptions#isEnumAsObject()}, {@code type} converts as
+	 * a JavaBeans type when it is a
+	 * {@link IuObject#isPlatformName(String) non-platform} interface or class, and
+	 * everything else converts through {@link #of(Type, Function)}, including when
+	 * {@link Class#isPrimitive() primitive} or an {@link Class#isArray() array}.
+	 * Nested value types are resolved by {@code valueAdapter}, which is
+	 * responsible for its own recursion; {@link #adapt(Type, Supplier)} supplies a
+	 * function that recurses here.
+	 * </p>
+	 * 
+	 * @param type         business object class or type
+	 * @param options      supplies the options in effect for converting to JSON;
+	 *                     <em>should</em> return quickly, as it is called on every
+	 *                     conversion. A null value reads as
+	 *                     {@link IuJsonSerializationOptions#DEFAULT}
+	 * @param valueAdapter factory function for supplying child value type adapters;
+	 *                     called for every nested type, and responsible for its own
+	 *                     recursion
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		final var c = JsonAdapters.erase(type);
+		if (c.isEnum())
+			return EnumJsonAdapter.of(c, options, valueAdapter);
+
 		if (!IuObject.isPlatformName(c.getName()) //
 				&& !c.isPrimitive() //
-				&& !c.isArray() //
-				&& !c.isEnum())
-			return from(c, options, a -> adapt(a, options));
+				&& !c.isArray())
+			return from(c, options, valueAdapter);
 
-		return IuJsonAdapter.of(type, a -> adapt(a, options));
+		return IuJsonAdapter.of(type, valueAdapter);
 	}
 
 	/**
@@ -438,7 +504,9 @@ public interface IuJsonAdapter<T> {
 	 * <li>{@link CharSequence}, as {@link String}</li>
 	 * <li>{@link Date}, as {@link Temporal}</li>
 	 * <li>{@link Duration}</li>
-	 * <li>{@link Enum} subtypes</li>
+	 * <li>{@link Enum} subtypes; {@link #fromJson(JsonValue)} also accepts a
+	 * {@link JsonObject} naming the constant in its {@code name} property, as
+	 * written by {@link IuJsonSerializationOptions#isEnumAsObject()}</li>
 	 * <li>{@link Instant}</li>
 	 * <li>{@link LocalDate}</li>
 	 * <li>{@link LocalTime}</li>
