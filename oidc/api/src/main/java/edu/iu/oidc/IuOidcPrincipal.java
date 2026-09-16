@@ -54,9 +54,9 @@ public interface IuOidcPrincipal extends Principal {
 	 * Gets the OpenID Connect claims associated with this principal.
 	 *
 	 * <p>
-	 * The default view resolves every standard claim through {@link #getClaim(String,
-	 * Class)}. Implementations may override this method to return a richer claim
-	 * view.
+	 * The default view resolves every standard claim through
+	 * {@link #getClaim(String, Class)}. Implementations may override this method to
+	 * return a richer claim view.
 	 * </p>
 	 *
 	 * @return claims associated with this principal
@@ -176,13 +176,41 @@ public interface IuOidcPrincipal extends Principal {
 	WebToken getIdToken();
 
 	/**
+	 * Determines whether a scope was granted to this principal.
+	 *
+	 * <p>
+	 * An implementation checks the space-delimited {@code scope} claim from the
+	 * token it verified: an ID token for a client principal, or an access token for
+	 * an API bearer principal. Scope names are case-sensitive.
+	 * </p>
+	 * 
+	 * @param scope scopes to check for
+	 * @return true if the claim includes at least one requested scope; else false
+	 */
+	boolean hasScope(String... scope);
+
+	/**
+	 * Determines whether this principal has an asserted role.
+	 *
+	 * <p>
+	 * An implementation checks the {@code roles} claim from the token it verified:
+	 * an ID token for a client principal, or an access token for an API bearer
+	 * principal. Role names compare without regard to case.
+	 * </p>
+	 * 
+	 * @param role roles to check for
+	 * @return true if the claim includes at least one requested role; else false
+	 */
+	boolean hasRole(String... role);
+
+	/**
 	 * Gets a claim value.
 	 * 
 	 * @param <T>  claim value type
 	 * @param name claim name
 	 * @param type claim type
-	 * @return claim value, from the ID token when present; else from UserInfo
-	 *         when available
+	 * @return claim value, from the ID token when present; else from UserInfo when
+	 *         available
 	 */
 	<T> T getClaim(String name, Class<T> type);
 
@@ -191,8 +219,8 @@ public interface IuOidcPrincipal extends Principal {
 	 *
 	 * <p>
 	 * The token response's {@code authorization_details} value is authoritative
-	 * when present, including when it is empty. When the response omits that
-	 * value, this method reads the matching entries from the verified ID token.
+	 * when present, including when it is empty. When the response omits that value,
+	 * this method reads the matching entries from the verified ID token.
 	 * </p>
 	 * 
 	 * @param <T>             authorization details interface type

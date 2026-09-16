@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
@@ -60,6 +61,8 @@ import jakarta.json.JsonObject;
  * </p>
  */
 public class OidcPrincipal implements IuOidcPrincipal {
+
+	private final Logger LOG = Logger.getLogger(OidcPrincipal.class.getName());
 
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
@@ -150,6 +153,44 @@ public class OidcPrincipal implements IuOidcPrincipal {
 			return null;
 
 		return type.cast(config.adaptJson(type).fromJson(userinfoClaimValue));
+	}
+
+	@Override
+	public boolean hasScope(String... scopes) {
+		final var claimedScopes = idToken.getClaim("scope", String.class);
+		if (claimedScopes == null)
+			return false;
+
+		for (final var scope : scopes) {
+			for (final var claimedScope : claimedScopes.split(" "))
+				if (claimedScope.equals(scope)) {
+					LOG.info(() -> "scope-allow:" + scope + "; " + getName());
+					return true;
+				}
+
+			LOG.info(() -> "scope-deny:" + scope + "; " + getName());
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean hasRole(String... roles) {
+		final var claimedRoles = idToken.getClaim("roles", String[].class);
+		if (claimedRoles == null)
+			return false;
+
+		for (final var role : roles) {
+			for (final var claimedRole : claimedRoles)
+				if (claimedRole.equalsIgnoreCase(role)) {
+					LOG.info(() -> "role-allow:" + role + "; " + getName());
+					return true;
+				}
+
+			LOG.info(() -> "role-deny:" + role + "; " + getName());
+		}
+
+		return false;
 	}
 
 	@Override
