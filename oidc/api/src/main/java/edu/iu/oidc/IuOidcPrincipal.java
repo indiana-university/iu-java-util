@@ -34,6 +34,7 @@ package edu.iu.oidc;
 import java.io.IOException;
 import java.net.URI;
 import java.security.Principal;
+import java.time.Instant;
 
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
@@ -41,8 +42,123 @@ import edu.iu.jwt.WebToken;
 /**
  * Client application view of principal user identity established via
  * interaction with an OIDC provider.
+ *
+ * <p>
+ * The OpenID Connect claims associated with the principal are available through
+ * {@link #getOidcClaims()}.
+ * </p>
  */
 public interface IuOidcPrincipal extends Principal {
+
+	/**
+	 * Gets the OpenID Connect claims associated with this principal.
+	 *
+	 * <p>
+	 * The default view resolves every standard claim through {@link #getClaim(String,
+	 * Class)}. Implementations may override this method to return a richer claim
+	 * view.
+	 * </p>
+	 *
+	 * @return claims associated with this principal
+	 */
+	default IuOidcClaims getOidcClaims() {
+		return new IuOidcClaims() {
+			@Override
+			public String getName() {
+				return getClaim("name", String.class);
+			}
+
+			@Override
+			public String getGivenName() {
+				return getClaim("given_name", String.class);
+			}
+
+			@Override
+			public String getFamilyName() {
+				return getClaim("family_name", String.class);
+			}
+
+			@Override
+			public String getMiddleName() {
+				return getClaim("middle_name", String.class);
+			}
+
+			@Override
+			public String getNickname() {
+				return getClaim("nickname", String.class);
+			}
+
+			@Override
+			public String getPreferredUsername() {
+				return getClaim("preferred_username", String.class);
+			}
+
+			@Override
+			public URI getProfile() {
+				return getClaim("profile", URI.class);
+			}
+
+			@Override
+			public URI getPicture() {
+				return getClaim("picture", URI.class);
+			}
+
+			@Override
+			public URI getWebsite() {
+				return getClaim("website", URI.class);
+			}
+
+			@Override
+			public String getEmail() {
+				return getClaim("email", String.class);
+			}
+
+			@Override
+			public Boolean getEmailVerified() {
+				return getClaim("email_verified", Boolean.class);
+			}
+
+			@Override
+			public String getGender() {
+				return getClaim("gender", String.class);
+			}
+
+			@Override
+			public String getBirthdate() {
+				return getClaim("birthdate", String.class);
+			}
+
+			@Override
+			public String getZoneinfo() {
+				return getClaim("zoneinfo", String.class);
+			}
+
+			@Override
+			public String getLocale() {
+				return getClaim("locale", String.class);
+			}
+
+			@Override
+			public String getPhoneNumber() {
+				return getClaim("phone_number", String.class);
+			}
+
+			@Override
+			public Boolean getPhoneNumberVerified() {
+				return getClaim("phone_number_verified", Boolean.class);
+			}
+
+			@Override
+			public IuOidcAddress getAddress() {
+				return getClaim("address", IuOidcAddress.class);
+			}
+
+			@Override
+			public Instant getUpdatedAt() {
+				return getClaim("updated_at", Instant.class);
+			}
+		};
+	}
 
 	/**
 	 * Updated session cookie, populated if a state change was required while
@@ -65,7 +181,8 @@ public interface IuOidcPrincipal extends Principal {
 	 * @param <T>  claim value type
 	 * @param name claim name
 	 * @param type claim type
-	 * @return claim value, from userinfo if available; else from ID token
+	 * @return claim value, from the ID token when present; else from UserInfo
+	 *         when available
 	 */
 	<T> T getClaim(String name, Class<T> type);
 

@@ -74,54 +74,7 @@ import java.time.Instant;
  *      "https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims">OpenID
  *      Connect Core 1.0 &sect;5.1</a>
  */
-public interface IuOidcClaims {
-
-	/**
-	 * Gets the end user's full name, in displayable form, including every part and
-	 * any suffix or title.
-	 *
-	 * @return {@code name} claim; null if not known
-	 */
-	default String getName() {
-		return null;
-	}
-
-	/**
-	 * Gets the given name or first name, which may carry more than one name.
-	 *
-	 * @return {@code given_name} claim; null if not known
-	 */
-	default String getGivenName() {
-		return null;
-	}
-
-	/**
-	 * Gets the surname or last name, which may carry more than one name.
-	 *
-	 * @return {@code family_name} claim; null if not known
-	 */
-	default String getFamilyName() {
-		return null;
-	}
-
-	/**
-	 * Gets the middle name, which may carry more than one name.
-	 *
-	 * @return {@code middle_name} claim; null if not known
-	 */
-	default String getMiddleName() {
-		return null;
-	}
-
-	/**
-	 * Gets the casual name the end user is referred to by, which may or may not be
-	 * their {@link #getGivenName() given name}.
-	 *
-	 * @return {@code nickname} claim; null if not known
-	 */
-	default String getNickname() {
-		return null;
-	}
+public interface IuOidcClaims extends IuOidcNameClaims {
 
 	/**
 	 * Gets the shorthand name the end user wishes to be referred to by.
