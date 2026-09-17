@@ -100,13 +100,16 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			Consumer<IuSession> preAuthDetail) throws IOException {
 		final var state = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
+		
 		final var oidcClient = config.getClient();
+		final var scope = config.getScope();
 
 		final var sessionHandler = config.getSessionHandler();
 		final var session = sessionHandler.create();
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
 		preAuth.setState(state);
 		preAuth.setNonce(nonce);
+		preAuth.setScope(scope);
 
 		// after this flow's own detail and before the store, so one write carries both
 		if (preAuthDetail != null)
@@ -122,7 +125,6 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		params.put("nonce", IuIterable.iter(nonce));
 		params.put("state", IuIterable.iter(state));
 
-		final var scope = config.getScope();
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
 
@@ -453,8 +455,14 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var accessToken = response.getAccessToken();
 		final var verifiedAccessToken = verifyAccessToken(accessToken);
 
+		var scope = response.getScope();
+		if (scope == null)
+			// RFC-6749 sect 5.1: OPTIONAL, if identical to the scope requested by the
+			// client; otherwise, REQUIRED.
+			scope = session.getDetail(OidcPreAuthSession.class).getScope();
+
 		return new OidcPrincipal(grant.getIdToken(), userinfoClaims, setCookie, config, accessToken,
-				verifiedAccessToken, response.getAuthorizationDetails(), client.getPrincipalNameClaimName());
+				verifiedAccessToken, scope, response.getAuthorizationDetails(), client.getPrincipalNameClaimName());
 	}
 
 }

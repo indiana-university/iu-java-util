@@ -36,6 +36,7 @@ import java.net.URI;
 import java.security.Principal;
 import java.time.Instant;
 
+import edu.iu.IuIterable;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 
@@ -187,7 +188,23 @@ public interface IuOidcPrincipal extends Principal {
 	 * @param scope scopes to check for
 	 * @return true if the claim includes at least one requested scope; else false
 	 */
-	boolean hasScope(String... scope);
+	default boolean hasScope(String... scope) {
+		return hasScope(IuIterable.iter(scope));
+	}
+
+	/**
+	 * Determines whether a scope was granted to this principal.
+	 *
+	 * <p>
+	 * An implementation checks the space-delimited {@code scope} claim from the
+	 * token it verified: an ID token for a client principal, or an access token for
+	 * an API bearer principal. Scope names are case-sensitive.
+	 * </p>
+	 * 
+	 * @param scope scopes to check for
+	 * @return true if the claim includes at least one requested scope; else false
+	 */
+	boolean hasScope(Iterable<String> scope);
 
 	/**
 	 * Determines whether this principal has an asserted role.
@@ -201,7 +218,23 @@ public interface IuOidcPrincipal extends Principal {
 	 * @param role roles to check for
 	 * @return true if the claim includes at least one requested role; else false
 	 */
-	boolean hasRole(String... role);
+	default boolean hasRole(String... role) {
+		return hasRole(IuIterable.iter(role));
+	}
+
+	/**
+	 * Determines whether this principal has an asserted role.
+	 *
+	 * <p>
+	 * An implementation checks the {@code roles} claim from the token it verified:
+	 * an ID token for a client principal, or an access token for an API bearer
+	 * principal. Role names compare without regard to case.
+	 * </p>
+	 * 
+	 * @param role roles to check for
+	 * @return true if the claim includes at least one requested role; else false
+	 */
+	boolean hasRole(Iterable<String> role);
 
 	/**
 	 * Gets a claim value.

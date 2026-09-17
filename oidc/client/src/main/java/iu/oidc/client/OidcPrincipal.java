@@ -70,6 +70,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	private final IuOidcClientReference config;
 	private final String accessToken;
 	private final WebToken verifiedAccessToken;
+	private final String scope;
 	private final Iterable<? extends IuAuthorizationDetails> authorizationDetails;
 	private final String principalNameClaimName;
 
@@ -93,6 +94,8 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 *                               JWT issued by the OpenID Provider; null if it
 	 *                               couldn't be verified as such, in which case its
 	 *                               audience is not considered
+	 * @param scope                  granted, either from token response or original
+	 *                               request if token response omits scope
 	 * @param authorizationDetails   authorization details released by the
 	 *                               authorization server; considered before details
 	 *                               released via token claim
@@ -100,7 +103,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 *                               "sub"
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie, IuOidcClientReference config,
-			String accessToken, WebToken verifiedAccessToken,
+			String accessToken, WebToken verifiedAccessToken, String scope,
 			Iterable<? extends IuAuthorizationDetails> authorizationDetails, String principalNameClaimName) {
 		this.idToken = idToken;
 
@@ -115,6 +118,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		this.config = config;
 		this.accessToken = accessToken;
 		this.verifiedAccessToken = verifiedAccessToken;
+		this.scope = scope;
 		this.authorizationDetails = authorizationDetails;
 		this.principalNameClaimName = principalNameClaimName;
 	}
@@ -156,17 +160,14 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	}
 
 	@Override
-	public boolean hasScope(String... scopes) {
-		final var claimedScopes = idToken.getClaim("scope", String.class);
-		if (claimedScopes == null)
-			return false;
-
+	public boolean hasScope(Iterable<String> scopes) {
 		for (final var scope : scopes) {
-			for (final var claimedScope : claimedScopes.split(" "))
-				if (claimedScope.equals(scope)) {
-					LOG.info(() -> "scope-allow:" + scope + "; " + getName());
-					return true;
-				}
+			if (this.scope != null)
+				for (final var claimedScope : this.scope.split(" "))
+					if (claimedScope.equals(scope)) {
+						LOG.info(() -> "scope-allow:" + scope + "; " + getName());
+						return true;
+					}
 
 			LOG.info(() -> "scope-deny:" + scope + "; " + getName());
 		}
@@ -175,12 +176,30 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	}
 
 	@Override
-	public boolean hasRole(String... roles) {
-		final var claimedRoles = idToken.getClaim("roles", String[].class);
-		if (claimedRoles == null)
+	public boolean hasRole(Iterable<String> roles) {
+		final var configuredRoles = config.getClient().getRoles();
+
+		final Iterable<String> claimedRoles;
+		final var rolesClaim = idToken.getClaim("roles", String[].class);
+		if (rolesClaim == null)
 			return false;
+		else
+			claimedRoles = IuIterable.iter(rolesClaim);
 
 		for (final var role : roles) {
+			var configured = false;
+			if (configuredRoles != null)
+				for (final var configuredRole : configuredRoles)
+					if (role.equalsIgnoreCase(configuredRole)) {
+						configured = true;
+						break;
+					}
+			if (!configured) {
+				LOG.fine(() -> "configured roles " + IuIterable.print(configuredRoles));
+				LOG.info(() -> "role-deny-noconfig:" + role + "; " + getName());
+				continue;
+			}
+
 			for (final var claimedRole : claimedRoles)
 				if (claimedRole.equalsIgnoreCase(role)) {
 					LOG.info(() -> "role-allow:" + role + "; " + getName());

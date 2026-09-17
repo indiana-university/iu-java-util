@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -143,6 +144,7 @@ public class OidcAuthorizationTest {
 		assertNull(params.get("authorization_details"));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
+		verify(preAuth).setScope((String) null);
 	}
 
 	@Test
@@ -183,6 +185,7 @@ public class OidcAuthorizationTest {
 
 		final var order = inOrder(preAuth, sessionHandler);
 		order.verify(preAuth).setNonce(any());
+		order.verify(preAuth).setScope((String) null);
 		order.verify(sessionHandler).store(session);
 	}
 
@@ -234,10 +237,12 @@ public class OidcAuthorizationTest {
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
 		assertEquals(resourceUri.toString(), params.get("resource").iterator().next());
+		assertEquals(scope, params.get("scope").iterator().next());
 		assertEquals(IuJson.array().add(IuJson.object().add("type", detailType)).build(),
 				IuJson.parse(params.get("authorization_details").iterator().next()));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
+		verify(preAuth).setScope(scope);
 	}
 
 	@Test
@@ -793,6 +798,8 @@ public class OidcAuthorizationTest {
 		final var preAuth = mock(OidcPreAuthSession.class);
 		when(preAuth.getState()).thenReturn(state);
 		when(preAuth.getNonce()).thenReturn(nonce);
+		final var requestedScope = IdGenerator.generateId();
+		when(preAuth.getScope()).thenReturn(requestedScope);
 		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
 
 		final var postAuth = mock(OidcPostAuthSession.class);
@@ -881,6 +888,9 @@ public class OidcAuthorizationTest {
 		})) {
 			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
 			assertEquals(sub, principal.getName());
+			IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO,
+					"scope-allow:" + requestedScope + "; " + sub);
+			assertTrue(principal.hasScope(requestedScope));
 			assertIterableEquals(List.of(authorizationDetailType), IuIterable.map(
 					principal.getAuthorizationDetails(IuAuthorizationDetails.class, authorizationDetailType),
 					IuAuthorizationDetails::getType));
@@ -889,8 +899,14 @@ public class OidcAuthorizationTest {
 
 			assertNotNull(principal.getSetCookie());
 
+			final var responseScope = IdGenerator.generateId();
+			when(response.getScope()).thenReturn(responseScope);
 			when(postAuth.isStrict()).thenReturn(true);
-			assertNull(authorization.getAuthorizedPrincipal(requestAttributes).getSetCookie());
+			final var strictPrincipal = authorization.getAuthorizedPrincipal(requestAttributes);
+			assertNull(strictPrincipal.getSetCookie());
+			IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO,
+					"scope-allow:" + responseScope + "; " + sub);
+			assertTrue(strictPrincipal.hasScope(responseScope));
 			
 			final var wrongUri = URI.create(IdGenerator.generateId());
 			assertEquals("invalid resource URI " + wrongUri + "; access token not verified",
@@ -1051,6 +1067,10 @@ public class OidcAuthorizationTest {
 
 		when(sessionHandler.activate(cookies)).thenReturn(session);
 		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(preAuth.getScope()).thenReturn(IdGenerator.generateId());
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
 
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);

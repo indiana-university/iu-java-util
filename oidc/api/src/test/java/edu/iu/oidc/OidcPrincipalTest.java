@@ -34,6 +34,7 @@ package edu.iu.oidc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -45,6 +46,7 @@ import java.security.Principal;
 import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 
 @SuppressWarnings("javadoc")
 public class OidcPrincipalTest {
@@ -87,6 +89,18 @@ public class OidcPrincipalTest {
 			assertSame(value, method.invoke(claims), accessor);
 			verify(principal).getClaim(claimName, claimType);
 		}
+	}
+
+	@Test
+	void testScopeAndRoleVarargsDelegateToIterable() {
+		final var principal = mock(IuOidcPrincipal.class, CALLS_REAL_METHODS);
+		doReturn(true).when(principal).hasScope(ArgumentMatchers.<Iterable<String>>any());
+		doReturn(true).when(principal).hasRole(ArgumentMatchers.<Iterable<String>>any());
+
+		assertTrue(principal.hasScope("openid", "profile"));
+		assertTrue(principal.hasRole("user", "admin"));
+		verify(principal).hasScope(ArgumentMatchers.<Iterable<String>>any());
+		verify(principal).hasRole(ArgumentMatchers.<Iterable<String>>any());
 	}
 
 	private static Object valueFor(Class<?> type) {

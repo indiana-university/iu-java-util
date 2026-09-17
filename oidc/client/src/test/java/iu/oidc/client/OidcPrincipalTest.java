@@ -48,6 +48,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,7 @@ import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.test.IuTestLogger;
+import iu.oidc.client.config.IuOidcClient;
 import iu.oidc.client.config.IuOidcClientReference;
 
 @SuppressWarnings("javadoc")
@@ -83,7 +85,9 @@ public class OidcPrincipalTest {
 	 */
 	private static IuOidcClientReference config(URI resourceUri) {
 		final var config = mock(IuOidcClientReference.class);
+		final var client = mock(IuOidcClient.class);
 		when(config.getResourceUri()).thenReturn(resourceUri);
+		when(config.getClient()).thenReturn(client);
 		when(config.adaptJson(String.class))
 				.thenReturn(IuJsonAdapter.adapt(String.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 		return config;
@@ -103,7 +107,7 @@ public class OidcPrincipalTest {
 		final var sub = idToken.getSubject();
 		final var userinfoClaims = IuJson.object().add("sub", sub).build();
 		return new OidcPrincipal(idToken, userinfoClaims, null, config, accessToken, verifiedAccessToken, null,
-				null);
+				null, null);
 	}
 
 	/** Creates a token response reporting {@code accessToken}. */
@@ -126,7 +130,7 @@ public class OidcPrincipalTest {
 		final var accessToken = IdGenerator.generateId();
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, setCookie, config(resourceUri), accessToken,
-				null, null, null);
+				null, null, null, null);
 
 		assertEquals(sub, principal.getName());
 		assertEquals(idToken, principal.getIdToken());
@@ -145,13 +149,13 @@ public class OidcPrincipalTest {
 
 		assertEquals("userinfo missing sub claim",
 				assertThrows(IllegalArgumentException.class,
-						() -> new OidcPrincipal(idToken, IuJson.object().build(), null, config, null, null, null, null))
+						() -> new OidcPrincipal(idToken, IuJson.object().build(), null, config, null, null, null, null, null))
 						.getMessage());
 
 		assertEquals("userinfo sub claim doesn't match id token",
 				assertThrows(IllegalArgumentException.class,
 						() -> new OidcPrincipal(idToken, IuJson.object().add("sub", IdGenerator.generateId()).build(),
-								null, config, null, null, null, null)).getMessage());
+								null, config, null, null, null, null, null)).getMessage());
 	}
 
 	@Test
@@ -162,7 +166,7 @@ public class OidcPrincipalTest {
 		final var userinfoClaims = IuJson.object().add("sub", sub).add("preferred_username", principalName).build();
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
-				"preferred_username");
+				null, "preferred_username");
 
 		assertEquals(principalName, principal.getName());
 		assertEquals(sub, principal.getIdToken().getSubject());
@@ -176,7 +180,7 @@ public class OidcPrincipalTest {
 		final var userinfoClaims = IuJson.object().add("sub", sub).build();
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
-				"preferred_username");
+				null, "preferred_username");
 
 		assertEquals(principalName, principal.getName());
 		assertEquals(sub, principal.getIdToken().getSubject());
@@ -189,7 +193,7 @@ public class OidcPrincipalTest {
 		final var userinfoClaims = IuJson.object().add("sub", sub).build();
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
-				"preferred_username");
+				null, "preferred_username");
 
 		assertEquals(sub, principal.getName());
 	}
@@ -204,7 +208,7 @@ public class OidcPrincipalTest {
 		final var userinfoClaims = IuJson.object().add("sub", sub).add("preferred_username", userinfoUsername).build();
 
 		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null,
-				"preferred_username");
+				null, "preferred_username");
 
 		assertEquals(idTokenUsername, principal.getName());
 	}
@@ -214,9 +218,10 @@ public class OidcPrincipalTest {
 		final var sub = IdGenerator.generateId();
 		final var deniedScope = IdGenerator.generateId();
 		final var grantedScope = "scope-" + IdGenerator.generateId();
-		final var idToken = WebToken.builder().sub(sub).claim("scope", grantedScope, String.class).build();
 		final var verifiedAccessToken = mock(WebToken.class);
-		final var principal = principal(idToken, config(), null, verifiedAccessToken);
+		final var idToken = WebToken.builder().sub(sub).build();
+		final var principal = new OidcPrincipal(idToken, IuJson.object().add("sub", sub).build(), null, config(), null,
+				verifiedAccessToken, grantedScope, null, null);
 
 		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO, "scope-deny:" + deniedScope + "; " + sub);
 		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO, "scope-allow:" + grantedScope + "; " + sub);
@@ -236,8 +241,9 @@ public class OidcPrincipalTest {
 		final var scope = IdGenerator.generateId();
 		final var idToken = WebToken.builder().sub(sub).build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).add("scope", scope).build();
-		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null, null);
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null, null, null);
 
+		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO, "scope-deny:" + scope + "; " + sub);
 		assertFalse(principal.hasScope(scope));
 	}
 
@@ -249,7 +255,9 @@ public class OidcPrincipalTest {
 		final var idToken = WebToken.builder().sub(sub).claim("roles", new String[] { grantedRole }, String[].class)
 				.build();
 		final var verifiedAccessToken = mock(WebToken.class);
-		final var principal = principal(idToken, config(), null, verifiedAccessToken);
+		final var config = config();
+		when(config.getClient().getRoles()).thenReturn(Set.of(deniedRole, grantedRole));
+		final var principal = principal(idToken, config, null, verifiedAccessToken);
 
 		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO, "role-deny:" + deniedRole + "; " + sub);
 		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO,
@@ -263,12 +271,40 @@ public class OidcPrincipalTest {
 	}
 
 	@Test
+	void testHasRoleRejectsConfiguredClaimThatTheClientDidNotAllow() {
+		final var sub = IdGenerator.generateId();
+		final var role = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).claim("roles", new String[] { role }, String[].class).build();
+		final var config = config();
+		when(config.getClient().getRoles()).thenReturn(Set.of());
+		final var principal = principal(idToken, config, null, null);
+
+		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.FINE, "configured roles \\[\\]");
+		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO, "role-deny-noconfig:" + role + "; " + sub);
+		assertFalse(principal.hasRole(role));
+	}
+
+	@Test
+	void testHasRoleRejectsClaimWhenTheClientHasNoRoleConfiguration() {
+		final var sub = IdGenerator.generateId();
+		final var role = IdGenerator.generateId();
+		final var idToken = WebToken.builder().sub(sub).claim("roles", new String[] { role }, String[].class).build();
+		final var config = config();
+		when(config.getClient().getRoles()).thenReturn(null);
+		final var principal = principal(idToken, config, null, null);
+
+		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.FINE, "configured roles null");
+		IuTestLogger.expect(OidcPrincipal.class.getName(), Level.INFO, "role-deny-noconfig:" + role + "; " + sub);
+		assertFalse(principal.hasRole(role));
+	}
+
+	@Test
 	void testHasRoleRejectsUserinfoClaim() {
 		final var sub = IdGenerator.generateId();
 		final var role = IdGenerator.generateId();
 		final var idToken = WebToken.builder().sub(sub).build();
 		final var userinfoClaims = IuJson.object().add("sub", sub).add("roles", IuJson.array().add(role)).build();
-		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null, null);
+		final var principal = new OidcPrincipal(idToken, userinfoClaims, null, config(), null, null, null, null, null);
 
 		assertFalse(principal.hasRole(role));
 	}
@@ -285,7 +321,7 @@ public class OidcPrincipalTest {
 				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var principal = new OidcPrincipal(idToken, IuJson.object().add("sub", sub).build(), null, config, null,
-				null, List.of((IuAuthorizationDetails) () -> responseType), null);
+				null, null, List.of((IuAuthorizationDetails) () -> responseType), null);
 
 		assertIterableEquals(List.of(responseType), IuIterable.map(
 				principal.getAuthorizationDetails(IuAuthorizationDetails.class, responseType), IuAuthorizationDetails::getType));
@@ -301,7 +337,7 @@ public class OidcPrincipalTest {
 				.authorizationDetails((IuAuthorizationDetails) () -> detailType, IuAuthorizationDetails.class).build();
 
 		final var principal = new OidcPrincipal(idToken, IuJson.object().add("sub", sub).build(), null, config(), null,
-				null, null, null);
+				null, null, null, null);
 
 		assertIterableEquals(List.of(detailType), IuIterable.map(
 				principal.getAuthorizationDetails(IuAuthorizationDetails.class, detailType), IuAuthorizationDetails::getType));
