@@ -34,6 +34,7 @@ package iu.oidc.provider;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -80,7 +81,32 @@ import edu.iu.jwt.WebToken;
  * Each kind of reference is filed under a digest of its {@link #put type} as
  * well as its key, so a refresh token cannot be presented where a code is
  * expected: it doesn't merely fail to verify, it doesn't resolve to an entry at
- * all. {@link #take} deletes the entry it read, so a reference is good once.
+ * all. {@link #take} replaces the entry it read with a tombstone, so a
+ * reference is good once.
+ * </p>
+ *
+ * <h2>A replay revokes the line, not just the reference</h2>
+ *
+ * <p>
+ * The tombstone is what makes a second presentation legible. Deleting the entry
+ * would make a replay indistinguishable from an expiry, and that difference
+ * matters: a reference presented twice means someone other than the party it was
+ * issued to is holding it. Every reference descending from one authorization
+ * &mdash; the code, and each refresh token rotated out of it &mdash; shares a
+ * {@link OidcGrant#getFamily() family}, and a replay revokes the family rather
+ * than only the reference replayed. Without that, rotation refuses the
+ * presentation an attacker loses the race on while leaving the one they won
+ * still live, and the legitimate client is locked out with no way to tell that
+ * from expiry.
+ * </p>
+ *
+ * <p>
+ * A tombstone is written before the grant is decrypted, so a reference stays
+ * spent whether or not it verified, and is named with its family only once the
+ * grant has been read &mdash; the family rides inside the ciphertext, which a
+ * replay never gets far enough to reach. A grant recorded before families were
+ * carried reads {@code null} and is redeemed normally; there is simply no line
+ * to revoke it as part of.
  * </p>
  *
  * <h2>Getting one</h2>
@@ -111,6 +137,20 @@ public final class GrantStore {
 	private static final Encryption ENCRYPTION = Encryption.A256GCM;
 
 	/**
+	 * Marks a store entry as a spent reference rather than a stored grant.
+	 *
+	 * <p>
+	 * A grant is always a compact JWS inside a JWE, so it is text and never begins
+	 * with a NUL. That is what lets one entry carry either without a second read to
+	 * tell which it is.
+	 * </p>
+	 */
+	private static final byte[] SPENT = new byte[] { 0 };
+
+	/** Prefix distinguishing a family revocation key from a reference. */
+	private static final String REVOKED = "revoked";
+
+	/**
 	 * Files the digest a reference of one kind resolves through.
 	 *
 	 * <p>
@@ -128,6 +168,61 @@ public final class GrantStore {
 		System.arraycopy(typeBytes, 0, keyed, 0, typeBytes.length);
 		System.arraycopy(secretKey, 0, keyed, typeBytes.length, secretKey.length);
 		return IuDigest.sha256(keyed);
+	}
+
+	/**
+	 * Files the revocation record for one family.
+	 *
+	 * <p>
+	 * Digested like a reference key, and prefixed so it can never collide with one:
+	 * a family identifier is not a content encryption key and must not be able to
+	 * pass for the digest of one.
+	 * </p>
+	 *
+	 * @param family family identifier
+	 * @return store key
+	 */
+	private static byte[] revokedKey(String family) {
+		return IuDigest.sha256(IuText.utf8(REVOKED + ' ' + family));
+	}
+
+	/**
+	 * Builds the tombstone naming the family a spent reference belonged to.
+	 *
+	 * @param family family identifier
+	 * @return tombstone value
+	 */
+	private static byte[] spentMarker(String family) {
+		final var familyBytes = IuText.utf8(family);
+		final var marker = new byte[SPENT.length + familyBytes.length];
+		System.arraycopy(SPENT, 0, marker, 0, SPENT.length);
+		System.arraycopy(familyBytes, 0, marker, SPENT.length, familyBytes.length);
+		return marker;
+	}
+
+	/**
+	 * Determines whether a store entry is a tombstone rather than a stored grant.
+	 *
+	 * @param stored entry read from the store
+	 * @return true if the reference has already been presented; else false
+	 */
+	private static boolean isSpent(byte[] stored) {
+		return stored.length >= SPENT.length //
+				&& stored[0] == SPENT[0];
+	}
+
+	/**
+	 * Reads the family a tombstone names.
+	 *
+	 * @param stored tombstone read from the store
+	 * @return family identifier; {@code null} when the reference was spent before
+	 *         its grant could be read, so no family was ever learned
+	 */
+	private static String spentFamily(byte[] stored) {
+		if (stored.length <= SPENT.length)
+			return null;
+
+		return IuText.utf8(Arrays.copyOfRange(stored, SPENT.length, stored.length));
 	}
 
 	private final IuDataStore store;
@@ -185,22 +280,37 @@ public final class GrantStore {
 	 * Reads the grant a reference redeems, and spends the reference.
 	 *
 	 * <p>
-	 * The entry is deleted before the token is verified, so a reference is spent by
-	 * being presented rather than by being accepted. A malformed or unverifiable
-	 * token cannot be retried against the same entry.
+	 * The entry is overwritten with a tombstone before the token is verified, so a
+	 * reference is spent by being presented rather than by being accepted. A
+	 * malformed or unverifiable token cannot be retried against the same entry.
+	 * </p>
+	 *
+	 * <p>
+	 * A tombstone rather than a deletion, because the two outcomes it distinguishes
+	 * are not the same: a reference that resolves to nothing has expired or was
+	 * never issued, while one that resolves to a tombstone <em>has been presented
+	 * before</em> &mdash; so someone other than the party it was issued to is
+	 * holding it. That second case revokes every reference descending from the same
+	 * authorization, which is the point: rotation alone refuses the replay while
+	 * leaving whatever the attacker rotated to still live.
 	 * </p>
 	 *
 	 * @param type      reference type, either {@link #CODE} or {@link #REFRESH}
 	 * @param issuer    this provider's issuer identifier, which the token must name
 	 *                  as both issuer and audience
-	 * @param issuerKey key the grant was signed with
-	 * @param reference reference presented by the client
+	 * @param issuerKey    key the grant was signed with
+	 * @param reference    reference presented by the client
+	 * @param tombstoneTtl how long a spent reference is remembered, which bounds
+	 *                     the window a replay is still detectable in; at least as
+	 *                     long as the longest-lived reference a deployment issues
 	 * @return redeemed grant
-	 * @throws IuBadRequestException if the reference resolves to no entry, or the
-	 *                               token it names doesn't verify against this
-	 *                               provider's issuer, audience, and expiry
+	 * @throws IuBadRequestException if the reference resolves to no entry, has
+	 *                               already been presented, belongs to a revoked
+	 *                               family, or the token it names doesn't verify
+	 *                               against this provider's issuer, audience, and
+	 *                               expiry
 	 */
-	public OidcGrant take(String type, URI issuer, WebKey issuerKey, String reference) {
+	public OidcGrant take(String type, URI issuer, WebKey issuerKey, String reference, Duration tombstoneTtl) {
 		final byte[] secretKey;
 		try {
 			secretKey = IuText.base64Url(Objects.requireNonNull(reference));
@@ -216,8 +326,24 @@ public final class GrantStore {
 			throw new IuBadRequestException("invalid_grant; Unknown or expired " + type + " reference");
 		}
 
-		// spent by being presented, so an unverifiable token can't be retried
-		store.put(key, null);
+		// A reference presented twice is a replay: whoever holds it is not the only
+		// party that does. Revoking the line it belongs to is what keeps the attacker
+		// from keeping the token they rotated to -- refusing this presentation alone
+		// would leave them holding a live one and the legitimate client locked out
+		if (isSpent(stored)) {
+			final var family = spentFamily(stored);
+			LOG.warning(() -> "grant-reject:replayed:" + type + (family == null ? "" : ":" + family));
+
+			if (family != null)
+				revoke(family, tombstoneTtl);
+
+			throw new IuBadRequestException("invalid_grant; Replayed " + type + " reference");
+		}
+
+		// spent by being presented, so an unverifiable token can't be retried. Written
+		// as a tombstone rather than deleted so the replay above is distinguishable
+		// from an expiry, and before verification so that stays true either way
+		store.put(key, SPENT, tombstoneTtl);
 
 		final WebToken token;
 		try {
@@ -231,7 +357,35 @@ public final class GrantStore {
 			throw new IuBadRequestException("invalid_grant; Unverified " + type + " reference");
 		}
 
-		return token.getClaim("grant", OidcGrant.class);
+		final var grant = token.getClaim("grant", OidcGrant.class);
+
+		final var family = grant.getFamily();
+		if (family == null)
+			// recorded before a family was carried; nothing to revoke it as part of
+			LOG.fine(() -> "grant-nofamily:" + type);
+		else {
+			// named on the tombstone so a later replay of this same reference knows what
+			// to revoke -- the family is inside the ciphertext, which a replay never
+			// gets far enough to read
+			store.put(key, spentMarker(family), tombstoneTtl);
+
+			if (store.get(revokedKey(family)) != null) {
+				LOG.warning(() -> "grant-reject:revoked:" + type + ":" + family);
+				throw new IuBadRequestException("invalid_grant; Revoked " + type + " reference");
+			}
+		}
+
+		return grant;
+	}
+
+	/**
+	 * Revokes every reference descending from one authorization.
+	 *
+	 * @param family family identifier
+	 */
+	private void revoke(String family, Duration tombstoneTtl) {
+		LOG.warning(() -> "grant-revoke:" + family);
+		store.put(revokedKey(family), SPENT, tombstoneTtl);
 	}
 
 }

@@ -300,9 +300,51 @@ public class OidcProviderMetadata implements IuOidcProviderMetadata {
 		return metadata.getRequestObjectEncryptionEncValuesSupported();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Derived from {@link ClientAuthenticator.Method}, not read from configuration,
+	 * for the same reason {@link #getGrantTypesSupported()} is: a deployment that
+	 * could state this itself could state a method {@link OidcTokenEndpoint} does
+	 * not honor, and a client would believe it. What this class exists to prevent
+	 * is exactly that drift.
+	 * </p>
+	 */
 	@Override
 	public Iterable<String> getTokenEndpointAuthMethodsSupported() {
-		return metadata.getTokenEndpointAuthMethodsSupported();
+		final Set<String> methods = new LinkedHashSet<>();
+		for (final var method : ClientAuthenticator.Method.values())
+			methods.add(method.parameterValue);
+
+		return methods;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Derived from the one method {@link OidcAuthorizeEndpoint} accepts, so a
+	 * client is told what is actually enforced. Publishing this is what lets a
+	 * client rely on PKCE rather than assume the OP ignores it.
+	 * </p>
+	 */
+	@Override
+	public Iterable<String> getCodeChallengeMethodsSupported() {
+		return IuIterable.iter(OidcAuthorizeEndpoint.S256);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>
+	 * Always true: {@link OidcAuthorizeEndpoint} names this provider on every
+	 * authorization response, success and error alike, so a client may require it.
+	 * </p>
+	 */
+	@Override
+	public boolean isAuthorizationResponseIssParameterSupported() {
+		return true;
 	}
 
 	@Override

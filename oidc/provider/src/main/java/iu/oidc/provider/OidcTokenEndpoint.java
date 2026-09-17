@@ -55,6 +55,7 @@ import java.util.logging.Logger;
 
 import edu.iu.IuDigest;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.jwt.IuAuthorizationDetails;
@@ -339,12 +340,23 @@ public class OidcTokenEndpoint {
 		final var providerIssuer = issuer.issuer();
 		final var resources = requestedResources(request);
 
-		final var endpoint = authenticate(providerIssuer, resources, request.getRedirectUri(), clientId, credential);
+		final var authenticated = authenticate(providerIssuer, resources, request.getRedirectUri(), clientId,
+				credential);
+		final var endpoint = authenticated.endpoint();
 
 		final Set<String> scopes;
 		final Redeemed redeemed;
 		switch (grantType) {
 		case "client_credentials":
+			// RFC 6749 §4.4 has no unauthenticated form of this grant: the client is the
+			// resource owner, so the credential is the whole authorization. A public
+			// registration has none, which would make client_id alone enough
+			if (authenticated.isPublic()) {
+				LOG.info(() -> "token-deny:public-client-credentials:" + clientId);
+				throw new TokenError("invalid_client",
+						"client_credentials requires an authenticated client", UNAUTHORIZED);
+			}
+
 			redeemed = null;
 			final var requestedScope = request.getScope();
 
@@ -366,7 +378,7 @@ public class OidcTokenEndpoint {
 			break;
 
 		case "authorization_code": {
-			final var grant = code(endpoint, clientId, request);
+			final var grant = code(authenticated, clientId, request);
 			redeemed = Redeemed.of(grant);
 			scopes = scopes(grant.getScope());
 			break;
@@ -381,8 +393,13 @@ public class OidcTokenEndpoint {
 
 		case TOKEN_EXCHANGE: {
 			final var actor = exchangeActor(endpoint, clientId, request);
+			// principalName here is the actor, so the authentication time and authority
+			// read off their token are theirs -- which is what Redeemed means by both.
+			// acr(...) keeps them out of the top level, where they would describe a
+			// subject who never authenticated, and act(...) is where they belong instead
 			redeemed = new Redeemed(actor.getSubject(), required(request.getSubjectToken(), "subject_token"),
-					actor.getToken().getClaim("auth_time", Instant.class), null, null, Set.of(), null, null);
+					actor.getToken().getClaim("auth_time", Instant.class),
+					actor.getToken().getClaim("acr", String.class), null, Set.of(), null, null);
 			scopes = exchangeScopes(endpoint, providerIssuer, request, resources, actor.getScope());
 			break;
 		}
@@ -577,12 +594,12 @@ public class OidcTokenEndpoint {
 	 * @param redirectUri    {@code redirect_uri}, or {@code null}
 	 * @param clientId       client ID the request named
 	 * @param credential     credential presented, or {@code null}
-	 * @return endpoint that authenticated
+	 * @return endpoint that authenticated, and how
 	 * @throws TokenError if the client is unregistered, disabled, or nothing
 	 *                    verifies, or if no endpoint registers every requested
 	 *                    resource
 	 */
-	private IuOidcClientEndpoint authenticate(URI providerIssuer, Set<String> resources, String redirectUri,
+	private Authenticated authenticate(URI providerIssuer, Set<String> resources, String redirectUri,
 			String clientId, ClientAuthenticator.Credential credential) {
 		final Iterable<IuOidcClientEndpoint> endpoints;
 		try {
@@ -634,7 +651,7 @@ public class OidcTokenEndpoint {
 			try {
 				final var method = clientAuthenticator.authenticate(endpoint, clientId, credential);
 				LOG.info(() -> "token-authn:" + method.parameterValue + ":" + clientId);
-				return endpoint;
+				return new Authenticated(endpoint, method);
 			} catch (SecurityException e) {
 				failure = (SecurityException) IuException.suppress(failure, e);
 			}
@@ -664,23 +681,35 @@ public class OidcTokenEndpoint {
 	/**
 	 * Redeems an authorization code.
 	 *
-	 * @param endpoint endpoint that authenticated
-	 * @param clientId authenticated client ID
-	 * @param request  incoming request
+	 * @param authenticated endpoint that authenticated, and how
+	 * @param clientId      authenticated client ID
+	 * @param request       incoming request
 	 * @return redeemed grant
-	 * @throws TokenError if the code doesn't redeem, names a different client, or
-	 *                    the PKCE challenge isn't satisfied
+	 * @throws TokenError if the code doesn't redeem, names a different client or
+	 *                    redirect URI, or the PKCE challenge isn't satisfied
 	 */
-	private OidcGrant code(IuOidcClientEndpoint endpoint, String clientId, OidcTokenRequest request) {
+	private OidcGrant code(Authenticated authenticated, String clientId, OidcTokenRequest request) {
 		final var code = required(request.getCode(), "code");
-		required(request.getRedirectUri(), "redirect_uri");
+		final var redirectUri = required(request.getRedirectUri(), "redirect_uri");
 
-		final var grant = take(GrantStore.CODE, endpoint, code);
+		final var grant = take(GrantStore.CODE, authenticated.endpoint(), code);
 
 		if (!clientId.equals(grant.getClientId()))
 			throw new TokenError("invalid_grant", "Authorization code was issued to a different client", BAD_REQUEST);
 
-		verifyPkce(grant, request.getCodeVerifier());
+		// RFC 6749 §4.1.3: the value must be identical to the one the code was issued
+		// to, not merely one this client registered. Endpoint eligibility already
+		// matched it against a registration, but a client registering several -- the
+		// per-environment pattern IuOidcClientEndpoint documents -- would otherwise
+		// redeem through one a code obtained through another, across different keys
+		// and a different resource set
+		final var granted = grant.getRedirectUri();
+		if (granted == null //
+				|| !granted.toString().equals(redirectUri))
+			throw new TokenError("invalid_grant", "redirect_uri does not match the authorization request",
+					BAD_REQUEST);
+
+		verifyPkce(authenticated, grant, request.getCodeVerifier());
 
 		return grant;
 	}
@@ -716,9 +745,18 @@ public class OidcTokenEndpoint {
 	 * @throws TokenError if the reference doesn't redeem
 	 */
 	private OidcGrant take(String type, IuOidcClientEndpoint endpoint, String reference) {
+		// A spent reference is remembered for as long as one could still be presented,
+		// which is the longest any reference lives -- a refresh token's ceiling, since
+		// an authorization code's is far shorter. Read here rather than held, like
+		// every other configuration value this endpoint reads, so a deployment that
+		// lengthens it does not leave a shorter replay window behind
+		final var tombstoneTtl = Objects.requireNonNull(issuer.configuration().getRefreshTokenTimeToLive(),
+				"Missing refresh token TTL");
+
 		try {
 			return Objects.requireNonNull(
-					grantStore.take(type, issuer.issuer(), issuer.issuerKey(endpoint.getAlg()), reference),
+					grantStore.take(type, issuer.issuer(), issuer.issuerKey(endpoint.getAlg()), reference,
+							tombstoneTtl),
 					"Empty grant");
 		} catch (RuntimeException e) {
 			throw new TokenError("invalid_grant", "Invalid or expired " + type + " reference", BAD_REQUEST, e);
@@ -844,17 +882,32 @@ public class OidcTokenEndpoint {
 	/**
 	 * Verifies the PKCE challenge a grant recorded.
 	 *
-	 * @param grant    redeemed grant
-	 * @param verifier {@code code_verifier} presented, or {@code null}
+	 * <p>
+	 * PKCE is optional for a client that authenticated and <strong>required</strong>
+	 * for one that did not. RFC 9700 &sect;2.1.1 makes it a MUST for a public
+	 * client, which is the whole basis on which such a registration is allowed to
+	 * redeem anything: the code alone proves only that the caller received the
+	 * authorization response, while the verifier proves it is the same party that
+	 * began the request.
+	 * </p>
+	 *
+	 * @param authenticated endpoint that authenticated, and how
+	 * @param grant         redeemed grant
+	 * @param verifier      {@code code_verifier} presented, or {@code null}
 	 * @throws TokenError if a challenge was recorded and the verifier doesn't
-	 *                    satisfy it, or a verifier is presented against no
-	 *                    challenge
+	 *                    satisfy it, a verifier is presented against no challenge,
+	 *                    or a public client recorded no challenge at all
 	 */
-	private static void verifyPkce(OidcGrant grant, String verifier) {
+	private static void verifyPkce(Authenticated authenticated, OidcGrant grant, String verifier) {
 		final var challenge = grant.getCodeChallenge();
 		if (challenge == null) {
 			if (verifier != null)
 				throw new TokenError("invalid_grant", "No code_challenge was recorded for this code", BAD_REQUEST);
+
+			if (authenticated.isPublic())
+				throw new TokenError("invalid_grant",
+						"A public client must redeem an authorization code with PKCE", BAD_REQUEST);
+
 			return;
 		}
 
@@ -929,7 +982,8 @@ public class OidcTokenEndpoint {
 			idTokenClaims = admitted(scopes, Usage.ID_TOKEN);
 			accessTokenClaims = admitted(scopes, Usage.ACCESS_TOKEN);
 			if (!subject.equals(redeemed.principalName()))
-				actor = actor(redeemed.principalName(), redeemed.authnInstant(), idTokenClaims);
+				actor = actor(redeemed.principalName(), redeemed.authnInstant(), redeemed.authnAuthority(),
+						idTokenClaims);
 			roles = roles(endpoint, subject);
 			released = redeemed.released();
 		} else
@@ -957,7 +1011,8 @@ public class OidcTokenEndpoint {
 		// auth_time rides along because it is the actor's own, and an exchange has
 		// nowhere else to read it back from
 		if (actor != null)
-			accessTokenBuilder.claim("act", (IuOidcActor) new Actor(actor.getSub(), null, null, actor.getAuthTime()),
+			accessTokenBuilder.claim("act",
+					(IuOidcActor) new Actor(actor.getSub(), null, null, actor.getAuthTime(), actor.getAcr()),
 					IuOidcActor.class);
 
 		// when this token answers for the end user who authenticated, RFC 9068 §2.2.1
@@ -969,6 +1024,12 @@ public class OidcTokenEndpoint {
 				&& redeemed.impersonated() == null //
 				&& redeemed.authnInstant() != null)
 			accessTokenBuilder.claim("auth_time", redeemed.authnInstant().getEpochSecond(), Long.class);
+
+		// RFC 9068 §2.2.1 admits acr on an access token, and this is the one that
+		// matters most: a resource server reads this token, not the ID token, so it is
+		// here that sub has to be legible as an end user rather than a client
+		if (redeemed != null)
+			acr(accessTokenBuilder, redeemed);
 
 		if (!roles.isEmpty())
 			accessTokenBuilder.claim("roles", roles.toArray(String[]::new), String[].class);
@@ -1098,13 +1159,14 @@ public class OidcTokenEndpoint {
 			if (reference.isProduction()) {
 				LOG.warning(() -> "token-impersonation-denied:production:" + clientId + ":" + principalName);
 				throw new TokenError("access_denied", "Token exchange is not available in this deployment", FORBIDDEN);
-			} else if (!hasAnyRole(endpoint.getBackdoorRoles(), principalName))
+			} else if (!hasAnyRole(endpoint.getBackdoorRoles(), principalName, false)) {
+				LOG.warning(() -> "token-impersonation-denied:norole:" + clientId + ":" + principalName);
 				throw new TokenError("access_denied", "Not authorized to impersonate another principal", FORBIDDEN);
-			else
+			} else
 				effectivePrincipalName = impersonated;
 		}
 
-		if (!hasAnyRole(endpoint.getAccessRoles(), effectivePrincipalName))
+		if (!hasAnyRole(endpoint.getAccessRoles(), effectivePrincipalName, true))
 			throw new TokenError("access_denied", "Not authorized for this endpoint", FORBIDDEN);
 
 		return effectivePrincipalName;
@@ -1119,22 +1181,36 @@ public class OidcTokenEndpoint {
 	 * that need a real lookup, and is not consulted at all when none do.
 	 * </p>
 	 *
+	 * <p>
+	 * {@code wildcard} is what distinguishes the two uses. Admitting everyone is a
+	 * reasonable thing for an <em>access</em> role to say &mdash; a resource open
+	 * to anyone the provider authenticated. It is not a reasonable thing for a
+	 * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor role} to say, because
+	 * that gate decides who may answer as somebody else: a wildcard there lets
+	 * every principal impersonate every other, which is never the intent of naming
+	 * a role at all. Naming a principal outright still works there, since that is
+	 * how a backdoor allowlist names the people who may use it.
+	 * </p>
+	 *
 	 * @param roles         identity roles to check, or {@code null} to admit no one
 	 * @param principalName principal name to check
+	 * @param wildcard      whether {@value #ALL} admits everyone
 	 * @return true if {@code roles} names at least one role the principal holds
 	 * @throws TokenError if the principal name is invalid
 	 */
-	private boolean hasAnyRole(Iterable<String> roles, String principalName) {
+	private boolean hasAnyRole(Iterable<String> roles, String principalName, boolean wildcard) {
 		if (roles == null)
 			return false;
 
 		final List<String> roleList = new ArrayList<>();
 		for (final var role : roles)
 			if (role != null)
-				if (role.equalsIgnoreCase(ALL) //
-						|| role.equalsIgnoreCase(principalName))
+				if (wildcard //
+						&& role.equalsIgnoreCase(ALL))
 					return true;
-				else
+				else if (role.equalsIgnoreCase(principalName))
+					return true;
+				else if (!role.equalsIgnoreCase(ALL))
 					roleList.add(role);
 
 		if (roleList.isEmpty())
@@ -1212,7 +1288,7 @@ public class OidcTokenEndpoint {
 	 * @return actor claims
 	 * @throws TokenError if the principal name is invalid
 	 */
-	private IuOidcActor actor(String principalName, Instant authTime, Set<String> admitted) {
+	private IuOidcActor actor(String principalName, Instant authTime, String acr, Set<String> admitted) {
 		// written to a token of its own and read back, rather than off a claims bean:
 		// how a claim is typed is the source's to state, and act carries only these two
 		final var held = WebToken.builder();
@@ -1220,7 +1296,7 @@ public class OidcTokenEndpoint {
 
 		final var actorClaims = held.build();
 		return new Actor(principalName, actorClaims.getClaim("name", String.class),
-				actorClaims.getClaim("email", String.class), authTime == null ? null : authTime.getEpochSecond());
+				actorClaims.getClaim("email", String.class), authTime == null ? null : authTime.getEpochSecond(), acr);
 	}
 
 	/**
@@ -1242,7 +1318,7 @@ public class OidcTokenEndpoint {
 		final List<String> matched = new ArrayList<>();
 		for (final var role : declared)
 			if (role != null //
-					&& hasAnyRole(role.getIdRoles(), principalName))
+					&& hasAnyRole(role.getIdRoles(), principalName, true))
 				matched.add(role.getRole());
 
 		return matched;
@@ -1298,9 +1374,7 @@ public class OidcTokenEndpoint {
 				&& redeemed.impersonated() == null)
 			builder.claim("auth_time", authnInstant.getEpochSecond(), Long.class);
 
-		final var authority = redeemed.authnAuthority();
-		if (authority != null)
-			builder.claim("idp", authority, String.class);
+		acr(builder, redeemed);
 
 		if (actor != null)
 			builder.claim("act", actor, IuOidcActor.class);
@@ -1350,6 +1424,65 @@ public class OidcTokenEndpoint {
 	}
 
 	/**
+	 * Names the authority that authenticated a token's subject, as {@code acr}.
+	 *
+	 * <p>
+	 * OpenID Connect &sect;2 defines {@code acr} as an authentication context class
+	 * whose values the parties using it agree on, so what it carries here is the
+	 * authenticating authority's unique identifier &mdash; a federated SAML
+	 * identity provider's entity ID, for a deployment authenticating that way. It
+	 * is the same value {@link OidcGrant#getAuthnAuthority()} recorded when the
+	 * authorization endpoint issued the code.
+	 * </p>
+	 *
+	 * <h4>Its absence is the claim</h4>
+	 *
+	 * <p>
+	 * Nothing constrains a {@code client_id} from reading like a principal name, so
+	 * a resource server presented with a {@code sub} cannot tell an end user from a
+	 * client by looking at it &mdash; RFC 9700 &sect;4.15. This is what settles it:
+	 * a token that answers for somebody who authenticated names who authenticated
+	 * them, and a token that answers for the client itself has no such authority to
+	 * name and carries no {@code acr} at all. A resource server reads the
+	 * <em>presence</em> of the claim, not only its value.
+	 * </p>
+	 *
+	 * <p>
+	 * Three cases follow, and together they cover every token this endpoint issues:
+	 * </p>
+	 * <ul>
+	 * <li><strong>{@code acr}</strong> &mdash; an end user, authenticated by the
+	 * authority it names.</li>
+	 * <li><strong>{@code act} and no {@code acr}</strong> &mdash; an exchange. The
+	 * subject never authenticated, so there is no authority of theirs to name, the
+	 * same reason {@code auth_time} does not stand at this level either; what
+	 * {@code act} names is the actor who did.</li>
+	 * <li><strong>neither</strong> &mdash; {@code client_credentials}, whose
+	 * {@code sub} is the client and where no end user is involved at all.</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * A grant that recorded no authority writes nothing rather than writing empty,
+	 * since an {@code acr} naming nobody would assert the claim while saying
+	 * nothing, which is worse than leaving it out.
+	 * </p>
+	 *
+	 * @param builder  token being built
+	 * @param redeemed what is being redeemed
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#IDToken">OpenID
+	 *      Connect Core 1.0 &sect;2</a>
+	 */
+	private static void acr(WebTokenBuilder builder, Redeemed redeemed) {
+		if (redeemed.impersonated() != null)
+			return;
+
+		final var authority = redeemed.authnAuthority();
+		if (authority != null)
+			builder.claim("acr", authority, String.class);
+	}
+
+	/**
 	 * Computes the {@code at_hash} claim OpenID Connect defines for validating an
 	 * access token against the ID token issued alongside it.
 	 *
@@ -1387,8 +1520,14 @@ public class OidcTokenEndpoint {
 		final var issuerKey = issuer.issuerKey(endpoint.getAlg());
 		final var token = builder.build();
 
-		LOG.fine(() -> "oidc-issue:" + type + ":" + issuerKey.getAlgorithm().alg + ":" + issuerKey.getKeyId() + " "
-				+ token);
+		// identifies the token without reproducing it: WebToken#toString renders every
+		// claim, which at FINE would write each caller's released claims -- names,
+		// email addresses, roles, authorization details -- into the log. Which token
+		// was issued, to whom, and for what is what a diagnostic here needs
+		LOG.fine(() -> "oidc-issue:" + type + ":" + issuerKey.getAlgorithm().alg + ":" + issuerKey.getKeyId() //
+				+ " jti=" + token.getTokenId() //
+				+ " sub=" + token.getSubject() //
+				+ " aud=" + IuIterable.print(token.getAudience()));
 
 		final var encryptKey = endpoint.getEncryptJwk();
 		final var encryption = endpoint.getEnc();
@@ -1415,6 +1554,33 @@ public class OidcTokenEndpoint {
 	}
 
 	/**
+	 * Which endpoint answered for a client, and what verified it.
+	 *
+	 * <p>
+	 * The method travels with the endpoint rather than being logged and dropped,
+	 * because what a grant may do depends on whether anything was verified at all.
+	 * {@link ClientAuthenticator.Method#NONE} is a registration that presents no
+	 * credential by design, so the grant itself has to prove possession: an
+	 * authorization code with PKCE does, and {@code client_credentials} has nothing
+	 * to prove it with.
+	 * </p>
+	 *
+	 * @param endpoint endpoint that authenticated
+	 * @param method   method that verified the credential
+	 */
+	private record Authenticated(IuOidcClientEndpoint endpoint, ClientAuthenticator.Method method) {
+
+		/**
+		 * Determines whether this client authenticated with no credential at all.
+		 *
+		 * @return true if the registration is public; else false
+		 */
+		boolean isPublic() {
+			return ClientAuthenticator.Method.NONE.equals(method);
+		}
+	}
+
+	/**
 	 * The {@code act} claim as this endpoint builds it.
 	 *
 	 * @param sub      actor's principal name
@@ -1422,7 +1588,7 @@ public class OidcTokenEndpoint {
 	 * @param email    actor's email address, or {@code null}
 	 * @param authTime when the actor authenticated as a NumericDate, or {@code null}
 	 */
-	private record Actor(String sub, String name, String email, Long authTime) implements IuOidcActor {
+	private record Actor(String sub, String name, String email, Long authTime, String acr) implements IuOidcActor {
 
 		@Override
 		public String getSub() {
@@ -1442,6 +1608,11 @@ public class OidcTokenEndpoint {
 		@Override
 		public Long getAuthTime() {
 			return authTime;
+		}
+
+		@Override
+		public String getAcr() {
+			return acr;
 		}
 	}
 

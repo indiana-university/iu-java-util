@@ -78,7 +78,9 @@ public class OidcProviderMetadataTest {
 			"getIssuer", "getAuthorizationEndpoint", "getTokenEndpoint", "getUserinfoEndpoint", "getJwksUri",
 			"getResponseTypesSupported", "getSubjectTypesSupported", "getGrantTypesSupported",
 			"getIdTokenSigningAlgValuesSupported", "getUserinfoSigningAlgValuesSupported",
-			"isRequestUriParameterSupported", "getScopesSupported", "getClaimsSupported");
+			"isRequestUriParameterSupported", "getScopesSupported", "getClaimsSupported",
+			"getTokenEndpointAuthMethodsSupported", "getCodeChallengeMethodsSupported",
+			"isAuthorizationResponseIssParameterSupported");
 
 	/** Answers a distinct, comparable value for one metadata property. */
 	private static Object stub(Method property) {
@@ -247,6 +249,29 @@ public class OidcProviderMetadataTest {
 		// the two this provider implements whatever a document says, then whatever was
 		// configured, in the order it was configured
 		assertIterableEquals(List.of("openid", "offline_access", "profile"), metadata.getScopesSupported());
+	}
+
+	@Test
+	void testWhatIsEnforcedIsWhatIsAdvertised() {
+		// a deployment that could state these could state something the endpoints do
+		// not honor, and a client would believe it
+		final var configured = issuedBy(ISSUER);
+		when(configured.getTokenEndpointAuthMethodsSupported()).thenReturn(List.of("tls_client_auth"));
+		when(configured.getCodeChallengeMethodsSupported()).thenReturn(List.of("plain"));
+		when(configured.isAuthorizationResponseIssParameterSupported()).thenReturn(false);
+
+		final var metadata = new OidcProviderMetadata(provider(configured, List.of(key(Algorithm.ES256))),
+				() -> claimsSource);
+
+		assertIterableEquals(
+				List.of("client_secret_basic", "client_secret_post", "client_secret_jwt", "private_key_jwt", "none"),
+				metadata.getTokenEndpointAuthMethodsSupported());
+
+		// S256 only, which is the one OidcAuthorizeEndpoint accepts; publishing it is
+		// what lets a client rely on PKCE rather than assume it is ignored
+		assertIterableEquals(List.of("S256"), metadata.getCodeChallengeMethodsSupported());
+
+		assertTrue(metadata.isAuthorizationResponseIssParameterSupported());
 	}
 
 	@Test

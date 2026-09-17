@@ -162,6 +162,75 @@ public interface IuOidcPrincipal extends Principal {
 	}
 
 	/**
+	 * Gets the authentication context class this principal's authentication
+	 * satisfied.
+	 *
+	 * <h4>Its absence is the claim</h4>
+	 *
+	 * <p>
+	 * OpenID Connect &sect;2 leaves {@code acr} values to agreement between the
+	 * parties using them; IU's provider writes the authenticating authority's
+	 * unique identifier &mdash; a federated SAML identity provider's entity ID,
+	 * where a deployment authenticates that way.
+	 * </p>
+	 *
+	 * <p>
+	 * Nothing constrains a {@code client_id} from reading like a principal name, so
+	 * {@link #getName()} alone does not say whether a token answers for an end user
+	 * or for a client (RFC 9700 &sect;4.15). This does: a token whose subject
+	 * authenticated names who authenticated them, and one that answers for the
+	 * client itself has no such authority to name. Three readings cover every token
+	 * a provider issues &mdash; this claim present is an end user; absent with
+	 * {@link #getActor()} is a delegation, where the authority belongs to the actor
+	 * and is read through {@link IuOidcActor#getAcr()}; absent with no actor
+	 * is the client itself.
+	 * </p>
+	 *
+	 * <p>
+	 * Declared here rather than on {@link IuOidcClaims}, which states what a claims
+	 * source may assert <em>about an end user</em>. This describes the
+	 * authentication instead, and a provider writes it from what it established
+	 * rather than asking a source for it.
+	 * </p>
+	 *
+	 * @return {@code acr} claim; null when this principal's subject did not itself
+	 *         authenticate
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#IDToken">OpenID
+	 *      Connect Core 1.0 &sect;2</a>
+	 */
+	default String getAcr() {
+		return getClaim("acr", String.class);
+	}
+
+	/**
+	 * Gets the claims describing the actor a delegated token names, when somebody
+	 * is acting for this principal.
+	 *
+	 * <p>
+	 * RFC 8693 &sect;4.1 puts the acting party's identity in the {@code act} claim
+	 * and confines that object to claims about the actor alone, so what comes back
+	 * here describes whoever obtained the token &mdash; never
+	 * {@link #getOidcClaims() the subject it answers for}. A relying party reads it
+	 * to show its user whose session they are looking through, and reads
+	 * {@link IuOidcActor#getAcr()} to learn who authenticated them.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Null is the ordinary case.</strong> Most tokens are not delegated,
+	 * and answering an empty claims view would make "nobody is acting" read the
+	 * same as "somebody is acting and this token says nothing about them".
+	 * </p>
+	 *
+	 * @return claims describing the actor; null when this token is not delegated
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc8693#section-4.1">RFC 8693
+	 *      &sect;4.1</a>
+	 */
+	default IuOidcActor getActor() {
+		return getClaim("act", IuOidcActor.class);
+	}
+
+	/**
 	 * Updated session cookie, populated if a state change was required while
 	 * resolving the principal.
 	 *

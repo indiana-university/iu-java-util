@@ -262,6 +262,30 @@ public interface OidcGrant {
 	void setNonce(String nonce);
 
 	/**
+	 * Gets the identifier every reference descending from one authorization shares.
+	 *
+	 * <p>
+	 * Minted when the authorization code is issued and carried onto every refresh
+	 * token that rotates out of it, so the line has a name. Presenting any spent
+	 * reference a second time revokes the whole line rather than only the reference
+	 * replayed &mdash; without which rotation refuses the replay but leaves the
+	 * token the attacker rotated to still live, and the legitimate client locked
+	 * out with no way to tell that from an expiry.
+	 * </p>
+	 *
+	 * @return family identifier, or {@code null} for a grant recorded before this
+	 *         was carried, which cannot be revoked as a line
+	 */
+	String getFamily();
+
+	/**
+	 * Sets the identifier every reference descending from one authorization shares.
+	 *
+	 * @param family family identifier
+	 */
+	void setFamily(String family);
+
+	/**
 	 * Gets the PKCE {@code code_challenge}.
 	 *
 	 * @return code challenge, or {@code null} if the request had none

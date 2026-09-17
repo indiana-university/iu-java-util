@@ -110,10 +110,15 @@ public class OidcProviderUtilsTest {
 	@Test
 	void testAnErrorRedirectEchoesStateOnlyWhenThereIsOne() {
 		final var redirectUri = URI.create("https://client.example.iu.edu/cb");
-		assertEquals(URI.create("https://client.example.iu.edu/cb?error=invalid_scope&error_description=nope"),
-				OidcProviderUtils.errorUri(redirectUri, "invalid_scope", "nope", null));
-		assertEquals(URI.create("https://client.example.iu.edu/cb?error=invalid_scope&error_description=nope&state=s1"),
-				OidcProviderUtils.errorUri(redirectUri, "invalid_scope", "nope", "s1"));
+		final var issuer = URI.create("https://op.example.iu.edu");
+
+		// iss is unconditional, as RFC 9207 has it on every authorization response
+		assertEquals(URI.create("https://client.example.iu.edu/cb?error=invalid_scope&error_description=nope"
+				+ "&iss=https%3A%2F%2Fop.example.iu.edu"),
+				OidcProviderUtils.errorUri(redirectUri, "invalid_scope", "nope", null, issuer));
+		assertEquals(URI.create("https://client.example.iu.edu/cb?error=invalid_scope&error_description=nope&state=s1"
+				+ "&iss=https%3A%2F%2Fop.example.iu.edu"),
+				OidcProviderUtils.errorUri(redirectUri, "invalid_scope", "nope", "s1", issuer));
 	}
 
 	@Test

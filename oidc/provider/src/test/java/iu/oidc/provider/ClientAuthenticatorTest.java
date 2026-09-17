@@ -251,6 +251,31 @@ public class ClientAuthenticatorTest {
 	}
 
 	@Test
+	void testIsPublicRecognizesTheSameRegistrationAuthenticateWould() {
+		// what an authorization endpoint reads to require PKCE at request time, so it
+		// has to agree with what the token endpoint decides on redemption
+		assertTrue(ClientAuthenticator.isPublic(endpoint(authorization(null))));
+		assertFalse(ClientAuthenticator.isPublic(endpoint(authorization(secretKey("hunter2")))));
+
+		// an endpoint registering no authorization at all accepts nothing, which is
+		// distinct from registering a public one -- and is not public
+		final var unregistered = mock(IuOidcClientEndpoint.class);
+		when(unregistered.getAuthorization()).thenReturn(null);
+		assertFalse(ClientAuthenticator.isPublic(unregistered));
+
+		// a public registration that has expired no longer answers for anything, so an
+		// endpoint left with only that one is not public either -- it accepts nothing.
+		// Reading it as public would waive PKCE on the strength of a lapsed record
+		final var expired = authorization(null);
+		when(expired.getExpires()).thenReturn(Instant.now().minusSeconds(1L));
+		assertFalse(ClientAuthenticator.isPublic(endpoint(expired)));
+
+		// a null entry is skipped rather than read as an absent key
+		assertFalse(ClientAuthenticator.isPublic(endpoint(Arrays.asList((IuOidcClientAuthorization) null))));
+		assertTrue(ClientAuthenticator.isPublic(endpoint(Arrays.asList(null, authorization(null)))));
+	}
+
+	@Test
 	void testAPublicRegistrationRefusesACredential() {
 		final var endpoint = endpoint(authorization(null));
 		assertEquals("Client presented a credential but is registered public", assertThrows(SecurityException.class,

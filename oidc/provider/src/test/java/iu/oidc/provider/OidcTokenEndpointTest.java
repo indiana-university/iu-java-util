@@ -644,6 +644,130 @@ public class OidcTokenEndpointTest {
 		assertNotNull(issued(right).accessToken());
 	}
 
+	/** Registers one endpoint that verifies nothing a client presents. */
+	private IuOidcClientEndpoint registerPublic() {
+		final var authorization = mock(IuOidcClientAuthorization.class);
+		// no key at all is what makes a registration public, as distinct from one
+		// registering no authorization, which accepts nothing
+		doReturn(null).when(authorization).getJwk();
+
+		// built before the stubbing below, since a mock created inside a when(...)
+		// argument leaves the outer stubbing unfinished
+		final var resources = List.of(resource(null, new LinkedHashSet<>(List.of("openid", "offline_access"))));
+
+		final var clientEndpoint = mock(IuOidcClientEndpoint.class);
+		doReturn(List.of(authorization)).when(clientEndpoint).getAuthorization();
+		when(clientEndpoint.getRedirectUri()).thenReturn(REDIRECT);
+		when(clientEndpoint.getResources()).thenReturn(resources);
+		when(clientEndpoint.getAccessRoles()).thenReturn(List.of("all"));
+
+		register(List.of(clientEndpoint));
+		return clientEndpoint;
+	}
+
+	/** A request from a public client, which presents no credential at all. */
+	private static OidcTokenRequest publicRequest(String grantType) {
+		final var request = request(grantType);
+		when(request.getClientSecret()).thenReturn(null);
+		return request;
+	}
+
+	@Test
+	void testAPublicClientMustRedeemACodeWithPkce() {
+		// RFC 9700 §2.1.1. Nothing was verified about who is presenting this code, so
+		// the verifier is the only thing tying the caller to the request that began it
+		registerPublic();
+		claimsHoldNothing();
+
+		final var request = publicRequest("authorization_code");
+		when(request.getRedirectUri()).thenReturn(REDIRECT.toString());
+		final var code = store(GrantStore.CODE, grant("openid"), ACCESS_TTL);
+		when(request.getCode()).thenReturn(code);
+
+		assertError("invalid_grant", "A public client must redeem an authorization code with PKCE", 400, request);
+	}
+
+	@Test
+	void testAPublicClientRedeemsACodeThatCarriedPkce() {
+		// so the refusal above is about the missing challenge, not about being public
+		registerPublic();
+		claimsHoldNothing();
+
+		final var verifier = IdGenerator.generateId();
+		final var challenged = grant("openid");
+		when(challenged.getCodeChallenge())
+				.thenReturn(IuText.base64Url(IuDigest.sha256(verifier.getBytes(StandardCharsets.US_ASCII))));
+
+		final var request = publicRequest("authorization_code");
+		when(request.getRedirectUri()).thenReturn(REDIRECT.toString());
+		final var code = store(GrantStore.CODE, challenged, ACCESS_TTL);
+		when(request.getCode()).thenReturn(code);
+		when(request.getCodeVerifier()).thenReturn(verifier);
+
+		assertNotNull(issued(request).accessToken());
+	}
+
+	@Test
+	void testAConfidentialClientStillRedeemsACodeWithoutPkce() {
+		// PKCE stays optional for a client that authenticated: what the gate reads is
+		// the authentication method, not the grant type
+		register();
+		claimsHoldNothing();
+
+		final var request = request("authorization_code");
+		when(request.getRedirectUri()).thenReturn(REDIRECT.toString());
+		final var code = store(GrantStore.CODE, grant("openid"), ACCESS_TTL);
+		when(request.getCode()).thenReturn(code);
+
+		assertNotNull(issued(request).accessToken());
+	}
+
+	@Test
+	void testAPublicClientCannotUseClientCredentials() {
+		// RFC 6749 §4.4 has no unauthenticated form: the client is the resource owner,
+		// so the credential is the whole authorization and client_id alone is not one
+		registerPublic();
+
+		assertError("invalid_client", "client_credentials requires an authenticated client", 401,
+				publicRequest("client_credentials"));
+	}
+
+	@Test
+	void testACodeRecordingNoRedirectUriRedeemsNowhere() {
+		// nothing to compare the presented value against, so there is no way to
+		// establish it is the one the code was issued to -- which is the check, not a
+		// formality to skip when the grant is silent
+		register();
+
+		final var grant = grant("openid");
+		doReturn(null).when(grant).getRedirectUri();
+
+		final var request = request("authorization_code");
+		final var code = store(GrantStore.CODE, grant, ACCESS_TTL);
+		when(request.getCode()).thenReturn(code);
+		when(request.getRedirectUri()).thenReturn(REDIRECT.toString());
+
+		assertError("invalid_grant", "redirect_uri does not match the authorization request", 400, request);
+	}
+
+	@Test
+	void testACodeIsRedeemedOnlyAtTheRedirectUriItWasIssuedTo() {
+		// RFC 6749 §4.1.3. Endpoint eligibility matched this value against a
+		// registration, which is not the same as matching the one the code came from --
+		// a client registering both would otherwise be able to cross them
+		final var other = URI.create("https://client.example.iu.edu/staging");
+		register(List.of(clientEndpoint(REDIRECT, List.of(resource(null, Set.of("openid")))),
+				clientEndpoint(other, List.of(resource(null, Set.of("openid"))))));
+		claimsHoldNothing();
+
+		final var request = request("authorization_code");
+		final var code = store(GrantStore.CODE, grant("openid"), ACCESS_TTL);
+		when(request.getCode()).thenReturn(code);
+		when(request.getRedirectUri()).thenReturn(other.toString());
+
+		assertError("invalid_grant", "redirect_uri does not match the authorization request", 400, request);
+	}
+
 	@Test
 	void testACodeGrantIssuesAnIdTokenForTheEndUser() {
 		register();
@@ -664,9 +788,36 @@ public class OidcTokenEndpointTest {
 		assertEquals("the-nonce", idToken.getNonce());
 		assertEquals("Some One", idToken.getClaim("name", String.class));
 		assertEquals("someone@iu.edu", idToken.getClaim("email", String.class));
-		assertEquals("https://idp.iu.edu", idToken.getClaim("idp", String.class));
+		assertEquals("https://idp.iu.edu", idToken.getClaim("acr", String.class));
 		assertNotNull(idToken.getClaim("at_hash", String.class));
 		assertNotNull(idToken.getClaim("auth_time", Long.class));
+	}
+
+	@Test
+	void testAcrNamesWhoAuthenticatedTheSubjectAndIsAbsentWhenNobodyDid() {
+		// RFC 9700 §4.15: nothing stops a client_id from reading like a principal
+		// name, so a resource server cannot tell an end user from a client by looking
+		// at sub. acr settles it, and its absence carries as much as its value
+		register();
+		claimsHoldNothing();
+
+		final var grant = grant("openid");
+		when(grant.getAuthnAuthority()).thenReturn("https://idp.iu.edu");
+
+		// an end user names the authority that authenticated them, on the access token
+		// as well as the ID token -- the access token is the one a resource server
+		// reads, so it is the one that has to be legible
+		final var issued = issued(codeRequest(grant));
+		assertEquals("https://idp.iu.edu",
+				WebToken.verify(issued.accessToken(), issuerKey).getClaim("acr", String.class));
+		assertEquals("https://idp.iu.edu",
+				WebToken.verify(issued.idToken(), issuerKey).getClaim("acr", String.class));
+
+		// client_credentials answers for the client itself: nobody authenticated, so
+		// there is no authority to name and sub reads as a client
+		final var clientCredentials = WebToken.verify(issued(request("client_credentials")).accessToken(), issuerKey);
+		assertEquals(CLIENT_ID, clientCredentials.getSubject());
+		assertNull(clientCredentials.getClaim("acr", String.class));
 	}
 
 	@Test
@@ -682,7 +833,7 @@ public class OidcTokenEndpointTest {
 		assertEquals(PRINCIPAL, idToken.getSubject());
 		assertNull(idToken.getClaim("name", String.class));
 		assertNull(idToken.getClaim("email", String.class));
-		assertNull(idToken.getClaim("idp", String.class));
+		assertNull(idToken.getClaim("acr", String.class));
 
 		// a grant that recorded no authentication instant claims no auth_time
 		final var undated = grant("openid");
@@ -952,6 +1103,12 @@ public class OidcTokenEndpointTest {
 
 	/** Signs an access token of this provider's own shape. */
 	private String accessToken(String sub, String clientId, String scope, Instant authTime, URI... audience) {
+		return accessToken(sub, clientId, scope, authTime, null, audience);
+	}
+
+	/** An access token this provider issued, naming the authority that authenticated. */
+	private String accessToken(String sub, String clientId, String scope, Instant authTime, String acr,
+			URI... audience) {
 		final var builder = WebToken.builder() //
 				.jti() //
 				.iss(ISSUER) //
@@ -964,6 +1121,9 @@ public class OidcTokenEndpointTest {
 
 		if (authTime != null)
 			builder.claim("auth_time", authTime.getEpochSecond(), Long.class);
+
+		if (acr != null)
+			builder.claim("acr", acr, String.class);
 
 		return OidcJose.sign(builder.build().toString(), "at+jwt", issuerKey);
 	}
@@ -1010,6 +1170,11 @@ public class OidcTokenEndpointTest {
 
 		@Override
 		public Long getAuthTime() {
+			return null;
+		}
+
+		@Override
+		public String getAcr() {
 			return null;
 		}
 	}
@@ -1150,8 +1315,29 @@ public class OidcTokenEndpointTest {
 		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(false);
 		claimsHoldNothing();
 
+		IuTestLogger.expect(OidcTokenEndpoint.class.getName(), Level.WARNING,
+				"token-impersonation-denied:norole:" + CLIENT_ID + ":" + PRINCIPAL);
 		assertError("access_denied", "Not authorized to impersonate another principal", 403,
 				exchangeRequest("somebody-else", actorToken()));
+	}
+
+	@Test
+	void testAWildcardBackdoorRoleAdmitsNobody() {
+		// "all" is a defensible thing for an access role to say -- a resource open to
+		// anyone the provider authenticated. It is not a defensible thing for an
+		// impersonation gate to say, since it would let every principal answer as every
+		// other, which is never what naming a role is for
+		final var clientEndpoint = register();
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("all"));
+		claimsHoldNothing();
+
+		IuTestLogger.expect(OidcTokenEndpoint.class.getName(), Level.WARNING,
+				"token-impersonation-denied:norole:" + CLIENT_ID + ":" + PRINCIPAL);
+		assertError("access_denied", "Not authorized to impersonate another principal", 403,
+				exchangeRequest("somebody-else", actorToken()));
+
+		// and it is settled here rather than asked about, so no lookup is made for it
+		verify(identitySource, never()).hasRole(any(), any());
 	}
 
 	@Test
@@ -1162,6 +1348,8 @@ public class OidcTokenEndpointTest {
 		when(clientEndpoint.getBackdoorRoles()).thenReturn(null);
 		claimsHoldNothing();
 
+		IuTestLogger.expect(OidcTokenEndpoint.class.getName(), Level.WARNING,
+				"token-impersonation-denied:norole:" + CLIENT_ID + ":" + PRINCIPAL);
 		assertError("access_denied", "Not authorized to impersonate another principal", 403,
 				exchangeRequest("somebody-else", actorToken()));
 	}
@@ -1233,6 +1421,33 @@ public class OidcTokenEndpointTest {
 		registerBackdoor();
 		claimsForAnyone();
 		assertEquals("openid", issued(exchangeRequest("somebody-else", actorToken())).scope());
+	}
+
+	@Test
+	void testAnExchangeNamesTheActorsAcrInsideActRatherThanAtTheTopLevel() {
+		// the same reason auth_time does not stand at this level for an exchange: the
+		// subject is somebody a caller asked to answer for, and they never did, so no
+		// authority of theirs exists to name. The actor did authenticate, and act is
+		// where their authority belongs -- which is also what tells a delegation apart
+		// from client_credentials, where nobody authenticated at all
+		registerBackdoor();
+		claimsForAnyone();
+
+		final var actorToken = accessToken(PRINCIPAL, CLIENT_ID, "openid", Instant.now().minusSeconds(30L),
+				"https://idp.iu.edu", ISSUER);
+		final var issued = issued(exchangeRequest("somebody-else", actorToken));
+
+		final var accessToken = WebToken.verify(issued.accessToken(), issuerKey);
+		assertEquals("somebody-else", accessToken.getSubject());
+		assertNull(accessToken.getClaim("acr", String.class));
+
+		final var accessActor = accessToken.getClaim("act", IuOidcActor.class);
+		assertEquals(PRINCIPAL, accessActor.getSub());
+		assertEquals("https://idp.iu.edu", accessActor.getAcr());
+
+		// and the ID token says the same, so a relying party reads it either way
+		final var idActor = WebToken.verify(issued.idToken(), issuerKey).getClaim("act", IuOidcActor.class);
+		assertEquals("https://idp.iu.edu", idActor.getAcr());
 	}
 
 	@Test

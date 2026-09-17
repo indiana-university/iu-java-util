@@ -59,10 +59,29 @@ package edu.iu.oidc;
  * they answer {@code null}, which is what makes one interface serve both tokens.
  * </p>
  *
+ * <h2>One interface, read and written</h2>
+ *
+ * <p>
+ * A provider renders an {@code act} claim from this and a relying party reads
+ * one back through it &mdash; deliberately the same type, so the two halves
+ * cannot drift apart on what an actor is. Nothing is gained by splitting a
+ * defaulted "reading" view off a required "writing" one: a claim read back
+ * arrives through a JSON proxy, which answers {@code null} for a key the object
+ * does not carry whether the accessor is {@code default} or not, so the
+ * distinction would exist only for the handful of beans a provider builds
+ * in-process.
+ * </p>
+ *
+ * <p>
+ * The name claims are inherited rather than restated, so an actor is named the
+ * same way anybody else is. Only what a provider actually populates is required
+ * here; the rest answer {@code null} until one does.
+ * </p>
+ *
  * @see <a href="https://www.rfc-editor.org/rfc/rfc8693#section-4.1">RFC 8693
  *      &sect;4.1</a>
  */
-public interface IuOidcActor {
+public interface IuOidcActor extends IuOidcNameClaims {
 
 	/**
 	 * Gets the actor's own principal name.
@@ -77,6 +96,7 @@ public interface IuOidcActor {
 	 * @return {@code name} claim; null on an access token, and on an ID token when
 	 *         the claims source holds none
 	 */
+	@Override
 	String getName();
 
 	/**
@@ -101,5 +121,29 @@ public interface IuOidcActor {
 	 *         when the exchanged token recorded none
 	 */
 	Long getAuthTime();
+
+	/**
+	 * Gets the authentication context class the actor's authentication satisfied.
+	 *
+	 * <p>
+	 * OpenID Connect &sect;2 leaves {@code acr} values to agreement between the
+	 * parties using them; IU's provider writes the authenticating authority's
+	 * unique identifier &mdash; a federated SAML identity provider's entity ID,
+	 * where a deployment authenticates that way.
+	 * </p>
+	 *
+	 * <p>
+	 * It belongs to the actor for the same reason {@link #getAuthTime()} does. An
+	 * exchanged token's subject never authenticated, so no authority of theirs
+	 * exists to name and the token carries no top-level {@code acr}; the actor did
+	 * authenticate, and this is who said so.
+	 * </p>
+	 *
+	 * @return {@code acr} claim; null when the actor's own token named no authority
+	 * @see <a href=
+	 *      "https://openid.net/specs/openid-connect-core-1_0.html#IDToken">OpenID
+	 *      Connect Core 1.0 &sect;2</a>
+	 */
+	String getAcr();
 
 }

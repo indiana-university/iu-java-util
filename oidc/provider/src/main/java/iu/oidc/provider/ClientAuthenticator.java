@@ -75,6 +75,11 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * <li>A record with no key at all is an explicit public registration and answers
  * {@code none}. Nothing is verified, so only a grant that proves possession by
  * other means &mdash; an authorization code with PKCE &mdash; may be redeemed.
+ * {@link OidcTokenEndpoint} is what holds that to be true: it reads the method
+ * back rather than discarding it, refuses {@code client_credentials} outright
+ * for a public registration, and requires a recorded {@code code_challenge}
+ * before redeeming one's code. {@link #isPublic(IuOidcClientEndpoint)} lets an
+ * authorization endpoint say so earlier, while the client can still send one.
  * This is distinct from an endpoint that registers no authorization at all,
  * which accepts nothing.</li>
  * </ul>
@@ -386,6 +391,37 @@ final class ClientAuthenticator {
 	}
 
 	/**
+	 * Determines whether an endpoint is registered public, so that nothing it
+	 * presents at the token endpoint is verified.
+	 *
+	 * <p>
+	 * The same test {@link #authenticate(IuOidcClientEndpoint, String, Credential)}
+	 * makes &mdash; an active authorization record carrying no key &mdash; asked
+	 * ahead of a credential rather than while checking one. An authorization
+	 * endpoint reads it to require PKCE of a public client at request time, which
+	 * is the point a client can still do something about it; the token endpoint
+	 * would otherwise be the first to say so, on a code already issued.
+	 * </p>
+	 *
+	 * @param endpoint endpoint to examine
+	 * @return true if a public registration would answer for this endpoint; else
+	 *         false
+	 */
+	static boolean isPublic(IuOidcClientEndpoint endpoint) {
+		final var authorizations = endpoint.getAuthorization();
+		if (authorizations == null)
+			return false;
+
+		for (final var authorization : authorizations)
+			if (authorization != null //
+					&& isActive(authorization) //
+					&& authorization.getJwk() == null)
+				return true;
+
+		return false;
+	}
+
+	/**
 	 * Verifies a client assertion.
 	 *
 	 * @param authorization client authorization record
@@ -415,7 +451,8 @@ final class ClientAuthenticator {
 			token = verifyKeyed(authorization, jwk, header, assertion);
 			method = Method.PRIVATE_KEY_JWT;
 		}
-		LOG.fine(() -> "client-assertion-verify:" + clientId + " " + token);
+		LOG.fine(() -> "client-assertion-verify:" + clientId + ":" + method.parameterValue + " jti="
+				+ token.getTokenId());
 
 		final var ttl = Objects.requireNonNull(authorization.getAssertionTtl(), "Missing assertion TTL");
 		try {

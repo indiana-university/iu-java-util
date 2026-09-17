@@ -53,6 +53,8 @@ import java.util.logging.Logger;
 
 import edu.iu.IuBadRequestException;
 import edu.iu.IuIterable;
+import edu.iu.IuText;
+import edu.iu.crypt.EphemeralKeys;
 import edu.iu.oidc.config.IuOidcAuthenticatedPrincipal;
 import edu.iu.oidc.config.IuOidcAuthorizationDetailsSource;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
@@ -142,7 +144,7 @@ public class OidcAuthorizeEndpoint {
 	private static final String CODE = "code";
 
 	/** The only {@code code_challenge_method} this provider accepts. */
-	private static final String S256 = "S256";
+	static final String S256 = "S256";
 
 	/** Error a client hears when its {@code authorization_details} are refused. */
 	private static final String INVALID_AUTHORIZATION_DETAILS = "invalid_authorization_details";
@@ -241,7 +243,7 @@ public class OidcAuthorizeEndpoint {
 		} catch (AuthorizationError e) {
 			LOG.log(Level.INFO, e, () -> "authorize-error:" + e.error + ":" + clientId);
 			return new OidcAuthorizeResult.Redirect(
-					errorUri(endpoint.getRedirectUri(), e.error, e.getMessage(), state));
+					errorUri(endpoint.getRedirectUri(), e.error, e.getMessage(), state, issuer.issuer()));
 		}
 	}
 
@@ -311,13 +313,22 @@ public class OidcAuthorizeEndpoint {
 			if (granted.stream().map(IuOidcClientResource::getScope).flatMap(Set::stream).noneMatch(requested::equals))
 				throw new AuthorizationError("invalid_scope", "Scope " + requested + " is not granted to this client");
 
-		// PKCE is optional, but a challenge this provider can't verify is not.
+		// PKCE is optional for a client that authenticates, but a challenge this
+		// provider can't verify is not.
 		final var codeChallenge = request.getCodeChallenge();
 		if (codeChallenge != null) {
 			if (!S256.equals(request.getCodeChallengeMethod()))
 				throw new AuthorizationError("invalid_request", "Only the S256 code_challenge_method is supported");
 		} else if (request.getCodeChallengeMethod() != null)
 			throw new AuthorizationError("invalid_request", "Missing code_challenge");
+
+		// RFC 9700 §2.1.1 requires PKCE of a public client. The token endpoint refuses
+		// such a code regardless; saying so here is what lets the client send one
+		// instead, rather than finding out on a code it can no longer do anything with
+		else if (ClientAuthenticator.isPublic(endpoint)) {
+			LOG.info(() -> "authorize-deny:public-client-without-pkce:" + clientId);
+			throw new AuthorizationError("invalid_request", "A public client must request with PKCE");
+		}
 
 		final var session = sessionHandler.create();
 		final var pending = session.getDetail(OidcGrant.class);
@@ -337,7 +348,7 @@ public class OidcAuthorizeEndpoint {
 				LOG.info(() -> "authn-expired:" + clientId + ":" + authenticated.getName() + " " + authenticated);
 			else {
 				LOG.info(() -> "authn:" + clientId + ":" + authenticated.getName() + " " + authenticated);
-				return issue(pending, authenticated);
+				return issue(endpoint, pending, authenticated);
 			}
 		}
 
@@ -447,8 +458,21 @@ public class OidcAuthorizeEndpoint {
 			throw deny("login_required", "User is not authenticated");
 		}
 
+		// Re-resolved rather than carried in the session, for two reasons. The code is
+		// signed with the key this endpoint registers, and the token endpoint resolves
+		// the endpoint the same way, so both halves read one registration rather than
+		// one of them reading a copy of it. And a registration withdrawn while the end
+		// user was away at the identity provider should not still issue a code -- the
+		// first pass checks that, and a resumption is a second admission
+		final var redirectUri = Objects.requireNonNull(pending.getRedirectUri(), "Missing recorded redirect_uri");
+		final var endpoint = registeredEndpoint(client(pending.getClientId()), redirectUri.toString());
+		if (endpoint == null) {
+			LOG.info(() -> "authorize-deny:unregistered-redirect-uri:" + pending.getClientId());
+			throw deny("invalid_request", "Unregistered redirect_uri");
+		}
+
 		LOG.info(() -> "authn-resume:" + pending.getClientId() + ":" + authenticated.getName() + " " + authenticated);
-		return issue(pending, authenticated);
+		return issue(endpoint, pending, authenticated);
 	}
 
 	/**
@@ -472,12 +496,14 @@ public class OidcAuthorizeEndpoint {
 	 * none was.
 	 * </p>
 	 *
+	 * @param endpoint  endpoint the request was validated against
 	 * @param grant     validated request, completed here
 	 * @param principal authenticated principal
 	 * @return redirect to the client, carrying a code or
 	 *         {@value #INVALID_AUTHORIZATION_DETAILS}
 	 */
-	private OidcAuthorizeResult issue(OidcGrant grant, IuOidcAuthenticatedPrincipal principal) {
+	private OidcAuthorizeResult issue(IuOidcClientEndpoint endpoint, OidcGrant grant,
+			IuOidcAuthenticatedPrincipal principal) {
 		final var clientId = grant.getClientId();
 		final var principalName = principal.getName();
 		final var redirectUri = grant.getRedirectUri();
@@ -485,6 +511,13 @@ public class OidcAuthorizeEndpoint {
 		grant.setPrincipalName(principalName);
 		grant.setAuthnAuthority(principal.getAuthnAuthority());
 		grant.setAuthnInstant(principal.getAuthnInstant());
+
+		// Everything descending from this code -- the code itself, and every refresh
+		// token that rotates out of it -- shares one family, so presenting any spent
+		// reference twice revokes the whole line rather than only the reference
+		// replayed. Minted here because this is where a line begins; a rotation
+		// re-files the same grant and so carries it forward without restating it
+		grant.setFamily(IuText.base64Url(EphemeralKeys.rand(16)));
 
 		// decided here, not at redemption: the end user is known now, and a client
 		// redeeming this grant -- or a refresh token descending from it -- should read
@@ -497,10 +530,14 @@ public class OidcAuthorizeEndpoint {
 			// about; everything else reaches the caller's error boundary as a status
 			LOG.log(Level.INFO, e, () -> "authorize-error:" + INVALID_AUTHORIZATION_DETAILS + ":" + clientId);
 			return new OidcAuthorizeResult.Redirect(
-					errorUri(redirectUri, INVALID_AUTHORIZATION_DETAILS, e.getMessage(), grant.getState()));
+					errorUri(redirectUri, INVALID_AUTHORIZATION_DETAILS, e.getMessage(), grant.getState(),
+							issuer.issuer()));
 		}
 
-		final var code = grantStore.put(GrantStore.CODE, issuer.issuer(), issuer.issuerKey(),
+		// signed with the key this endpoint registers, which is the one
+		// OidcTokenEndpoint verifies with -- an endpoint naming a non-default alg
+		// could otherwise never redeem its own code
+		final var code = grantStore.put(GrantStore.CODE, issuer.issuer(), issuer.issuerKey(endpoint.getAlg()),
 				issuer.configuration().getAuthorizationCodeTimeToLive(), grant);
 
 		LOG.info(() -> "authorize-grant:" + clientId + ":" + principalName + " " + grant);
@@ -511,6 +548,12 @@ public class OidcAuthorizeEndpoint {
 		final var state = grant.getState();
 		if (state != null)
 			params.put("state", IuIterable.iter(state));
+
+		// RFC 9207: names which authorization server answered, so a client talking to
+		// more than one can tell an response from this provider apart from one
+		// relayed by another. Sent unconditionally -- a client that doesn't check it
+		// ignores it
+		params.put("iss", IuIterable.iter(issuer.issuer().toString()));
 
 		return new OidcAuthorizeResult.Redirect(appendQuery(redirectUri, params));
 	}

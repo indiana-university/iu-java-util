@@ -93,18 +93,27 @@ final class OidcProviderUtils {
 	/**
 	 * Builds an OAuth 2.0 error redirect.
 	 *
+	 * <p>
+	 * Carries the RFC 9207 {@code iss} parameter as a success response does. A
+	 * mix-up defense that read only successes would leave a client unable to tell
+	 * which provider refused it, and the parameter costs a client that doesn't
+	 * check it nothing.
+	 * </p>
+	 *
 	 * @param redirectUri verified redirect URI
 	 * @param error       OAuth 2.0 error code
 	 * @param description human-readable description
 	 * @param state       {@code state} to echo, or {@code null}
+	 * @param issuer      this provider's issuer identifier
 	 * @return error redirect URI
 	 */
-	static URI errorUri(URI redirectUri, String error, String description, String state) {
+	static URI errorUri(URI redirectUri, String error, String description, String state, URI issuer) {
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		params.put("error", IuIterable.iter(error));
 		params.put("error_description", IuIterable.iter(description));
 		if (state != null)
 			params.put("state", IuIterable.iter(state));
+		params.put("iss", IuIterable.iter(issuer.toString()));
 
 		return appendQuery(redirectUri, params);
 	}
