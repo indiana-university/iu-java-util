@@ -50,13 +50,16 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
+import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebSignedPayload;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcPrincipal;
@@ -93,17 +96,22 @@ public class OidcAuthorization implements IuOidcAuthorization {
 	}
 
 	@Override
-	public IuStatefulRedirect init(String delegatingPrincipal, String backdoorId, Consumer<IuSession> preAuthDetail)
-			throws IOException {
+	public IuStatefulRedirect init(Iterable<? extends IuAuthorizationDetails> authorizationDetails,
+			Consumer<IuSession> preAuthDetail) throws IOException {
 		final var state = IdGenerator.generateId();
 		final var nonce = IdGenerator.generateId();
+		
 		final var oidcClient = config.getClient();
+		final var configuredScope = config.getScope();
+		final var joinedScope = configuredScope == null ? null : String.join(" ", configuredScope);
+		final var scope = joinedScope == null || joinedScope.isEmpty() ? null : joinedScope;
 
 		final var sessionHandler = config.getSessionHandler();
 		final var session = sessionHandler.create();
 		final var preAuth = session.getDetail(OidcPreAuthSession.class);
 		preAuth.setState(state);
 		preAuth.setNonce(nonce);
+		preAuth.setScope(scope);
 
 		// after this flow's own detail and before the store, so one write carries both
 		if (preAuthDetail != null)
@@ -119,7 +127,6 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		params.put("nonce", IuIterable.iter(nonce));
 		params.put("state", IuIterable.iter(state));
 
-		final var scope = config.getScope();
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
 
@@ -127,11 +134,10 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		if (resource != null)
 			params.put("resource", IuIterable.iter(resource.toString()));
 
-		if (delegatingPrincipal != null)
-			params.put("delegating_principal", IuIterable.iter(delegatingPrincipal));
-
-		if (backdoorId != null)
-			params.put("impersonated_principal", IuIterable.iter(backdoorId));
+		if (authorizationDetails != null)
+			params.put("authorization_details",
+					IuIterable.iter(IuJsonAdapter.of(Iterable.class, config.adaptJson(IuAuthorizationDetails.class))
+							.toJson(authorizationDetails).toString()));
 
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
 		final var location = URI
@@ -173,7 +179,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		preAuth.setState(null);
 
 		final var grant = new AuthorizationGrant(config, code, config.getRedirectUri());
-		final var response = grant.getTokenResponse();
+
+		var response = grant.getTokenResponse();
 		final var idToken = Objects.requireNonNull(grant.getIdToken(), "missing verified ID token");
 
 		final var nonce = preAuth.getNonce();
@@ -186,6 +193,10 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		else
 			IuObject.once(nonce, vnonce, "nonce mismatch");
 		preAuth.setNonce(null);
+
+		final var exchangedResponse = config.exchange(requestAttributes, response.getAccessToken());
+		if (exchangedResponse != null)
+			response = exchangedResponse;
 
 		final var userinfoClaims = getUserinfoClaims(config.getClient(), response.getAccessToken());
 
@@ -278,34 +289,126 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		return WebToken.verify(accessToken, issuerKey);
 	}
 
+	/** Segment count of a JWE compact serialization; a JWS has three. */
+	private static final int JWE_SEGMENTS = 5;
+
 	/**
-	 * Retrieves, decrypts when configured, and parses the userinfo claims for an
-	 * access token.
+	 * Retrieves and parses the userinfo claims for an access token, unwrapping
+	 * whatever form the provider answered in.
 	 *
-	 * @param metadata    provider metadata containing the userinfo endpoint
 	 * @param client      client configuration, including optional decryption keys
 	 * @param accessToken token used to authorize the userinfo request
 	 * @return parsed userinfo claims
-	 * @throws IOException if the userinfo request fails
+	 * @throws IOException if the userinfo request fails, or provider metadata or
+	 *                     JWKS interactions fail
 	 */
 	private JsonObject getUserinfoClaims(IuOidcClient client, String accessToken) throws IOException {
-		final var encryptedUserinfoResponse = IuHttp.send(
-				OidcProviders.getMetadata(config.getProvider()).getUserinfoEndpoint(),
+		final var response = IuHttp.send(OidcProviders.getMetadata(config.getProvider()).getUserinfoEndpoint(),
 				rb -> rb.header("Authorization", "Bearer " + accessToken), IuHttp.READ_UTF8);
 
-		final String userinfoResponse;
-		final var decryptKeys = client.getDecryptJwk();
-		if (decryptKeys != null) {
-			final var jose = WebCryptoHeader.getProtectedHeader(encryptedUserinfoResponse);
-			final var kid = Objects.requireNonNull(jose.getKeyId(),
-					"userinfo response header missing decryption key ID");
-			final var decryptJwk = IuIterable.select(decryptKeys, k -> kid.equals(k.getKeyId()),
-					"decryption key not found using kid " + kid);
-			userinfoResponse = WebEncryption.parse(encryptedUserinfoResponse).decryptText(decryptJwk);
-		} else
-			userinfoResponse = encryptedUserinfoResponse; // not encrypted
+		// OpenID Connect nests at most one level -- a signature inside an encryption --
+		// so two passes unwrap every form a provider may answer in: a plain claims
+		// document, a signature, an encryption, and an encrypted signature
+		return IuJson.parse(unwrapUserinfo(client, unwrapUserinfo(client, response))).asJsonObject();
+	}
 
-		return IuJson.parse(userinfoResponse).asJsonObject();
+	/**
+	 * Unwraps one layer of a userinfo response.
+	 *
+	 * <p>
+	 * What the <em>response</em> is decides how it is read, rather than what the
+	 * client configures. A provider signs and encrypts what it answers according to
+	 * the client's registration <em>there</em>, so a client holding a decryption
+	 * key its provider doesn't use would otherwise refuse a plain document it could
+	 * read perfectly well, and one registered for signing would fail to read a
+	 * signature it never expected. A document beginning with <code>{</code> is the
+	 * claims; anything else is a JOSE compact serialization, and its segment count
+	 * says which.
+	 * </p>
+	 *
+	 * @param client   client configuration, including optional decryption keys
+	 * @param response response, or the plaintext of one already decrypted
+	 * @return the claims document, or the layer beneath the one unwrapped
+	 * @throws IOException if provider metadata or JWKS interactions fail
+	 */
+	private String unwrapUserinfo(IuOidcClient client, String response) throws IOException {
+		final var document = response.strip();
+		if (document.startsWith("{"))
+			return document;
+
+		if (segments(document) == JWE_SEGMENTS)
+			return decryptUserinfo(client, document);
+
+		return verifyUserinfo(document);
+	}
+
+	/**
+	 * Counts the dot-delimited segments of a JOSE compact serialization, which is
+	 * what distinguishes a signature's three from an encryption's five.
+	 *
+	 * @param compact compact serialization
+	 * @return segment count
+	 */
+	private static int segments(String compact) {
+		return compact.split("\\.", -1).length;
+	}
+
+	/**
+	 * Decrypts an encrypted userinfo response.
+	 *
+	 * @param client client configuration, including optional decryption keys
+	 * @param jwe    JWE compact serialization
+	 * @return decrypted plaintext, which is either the claims or a signature over
+	 *         them
+	 * @throws NullPointerException   if the client configures no decryption key, or
+	 *                                the response names none
+	 * @throws NoSuchElementException if the response names a key the client doesn't
+	 *                                hold
+	 */
+	private static String decryptUserinfo(IuOidcClient client, String jwe) {
+		final var decryptKeys = Objects.requireNonNull(client.getDecryptJwk(),
+				"userinfo response is encrypted but no decryption key is configured");
+
+		final var kid = Objects.requireNonNull(WebCryptoHeader.getProtectedHeader(jwe).getKeyId(),
+				"userinfo response header missing decryption key ID");
+
+		final var decryptJwk = IuIterable.select(decryptKeys, k -> kid.equals(k.getKeyId()),
+				"decryption key not found using kid " + kid);
+
+		return WebEncryption.parse(jwe).decryptText(decryptJwk);
+	}
+
+	/**
+	 * Verifies a signed userinfo response against the keys its issuer publishes.
+	 *
+	 * <p>
+	 * Resolved by the {@code kid} the signature names, from the JWK Set the
+	 * provider's discovery document points at &mdash; the same way an access token
+	 * is. Unlike an access token, a failure here is not a fallback signal: a
+	 * provider that signed the response is the only thing that could have, so a
+	 * signature that doesn't verify is a response to refuse rather than one to read
+	 * anyway.
+	 * </p>
+	 *
+	 * @param jws JWS compact serialization
+	 * @return verified payload, which is the claims document
+	 * @throws IOException            if OP metadata or JWKS interactions fail
+	 * @throws NullPointerException   if the response names no signing key
+	 * @throws NoSuchElementException if the response names a key the issuer doesn't
+	 *                                publish
+	 */
+	private String verifyUserinfo(String jws) throws IOException {
+		final var kid = Objects.requireNonNull(WebCryptoHeader.getProtectedHeader(jws).getKeyId(),
+				"userinfo response header missing signature key ID");
+
+		final var metadata = OidcProviders.getMetadata(config.getProvider());
+		final var issuerKey = IuIterable.select(WebKey.readJwks(metadata.getJwksUri()), k -> kid.equals(k.getKeyId()),
+				"userinfo response signature key not published by the issuer using kid " + kid);
+
+		final var signed = WebSignedPayload.parse(jws);
+		signed.verify(issuerKey);
+
+		return IuText.utf8(signed.getPayload());
 	}
 
 	@Override
@@ -354,8 +457,14 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var accessToken = response.getAccessToken();
 		final var verifiedAccessToken = verifyAccessToken(accessToken);
 
+		var scope = response.getScope();
+		if (scope == null)
+			// RFC-6749 sect 5.1: OPTIONAL, if identical to the scope requested by the
+			// client; otherwise, REQUIRED.
+			scope = session.getDetail(OidcPreAuthSession.class).getScope();
+
 		return new OidcPrincipal(grant.getIdToken(), userinfoClaims, setCookie, config, accessToken,
-				verifiedAccessToken, client.getPrincipalNameClaimName());
+				verifiedAccessToken, scope, response.getAuthorizationDetails(), client.getPrincipalNameClaimName());
 	}
 
 }

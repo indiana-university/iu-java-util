@@ -33,6 +33,7 @@ package iu.oidc.client.config;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.Set;
 
 import edu.iu.crypt.WebKey;
 
@@ -40,7 +41,7 @@ import edu.iu.crypt.WebKey;
  * Client view of an OIDC registration.
  */
 public interface IuOidcClient {
-	
+
 	/**
 	 * Gets the resource URI.
 	 * 
@@ -137,6 +138,15 @@ public interface IuOidcClient {
 	 * @return claim name; null (default) to use the subject ("sub") claim
 	 */
 	default String getPrincipalNameClaimName() {
+		return null;
+	}
+
+	/**
+	 * Returns the roles a principal accepted by this client may hold.
+	 *
+	 * @return configured roles; null or empty if no roles are accepted
+	 */
+	default Set<String> getRoles() {
 		return null;
 	}
 

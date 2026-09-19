@@ -23,19 +23,23 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
 
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IuRefreshableCacheConfiguration;
 import edu.iu.dao.IuDao;
 import edu.iu.dao.IuSqlBuilder;
+import edu.iu.test.IuTestLogger;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityNotFoundException;
@@ -307,6 +311,27 @@ public class JdbcDaoTest {
 		final IuDao dao = IuDao.of(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION), registry());
 		assertInstanceOf(JdbcDao.class, dao);
 		assertThrows(NullPointerException.class, () -> IuDao.of(null, transactionManager(0), registry()));
+	}
+
+	@Test
+	public void testSpiFactoryWithACacheConfiguration() {
+		IuTestLogger.allow("edu.iu.IuRefreshableCache", Level.FINE);
+		IuTestLogger.allow("iu.dao.CachedDao", Level.FINE);
+
+		final var jdbc = new Jdbc();
+		final IuRefreshableCacheConfiguration config = new IuRefreshableCacheConfiguration() {
+			@Override
+			public Duration getRefreshTtl() {
+				return Duration.ofMinutes(5L);
+			}
+		};
+
+		// the cache layer wraps the DAO rather than replacing it, so the delegate is
+		// still a JdbcDao and still answers everything the cache does not
+		final var cached = IuDao.of(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION), registry(),
+				() -> config);
+		assertInstanceOf(CachedDao.class, cached);
+		assertEquals("Ada", cached.searchBeans(Bean.class, Map.of()).get(0).getFirstName());
 	}
 
 	@Test

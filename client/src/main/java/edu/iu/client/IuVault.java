@@ -35,6 +35,8 @@ import java.lang.reflect.Type;
 import java.util.Properties;
 import java.util.function.Function;
 
+import edu.iu.IuRefreshableCache;
+import edu.iu.IuRefreshableCacheConfiguration;
 import iu.client.Vault;
 import jakarta.json.JsonObject;
 
@@ -63,8 +65,13 @@ import jakarta.json.JsonObject;
  * <dd>Vault approle Role ID, for use when iu.vault.token is not set.</dd>
  * <dt>iu.vault.secretId (IU_VAULT_SECRET_ID)</dt>
  * <dd>Vault approle Secret ID, for use when iu.vault.token is not set.</dd>
- * <dt>iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)</dt>
- * <dd>Secrets cache time to live; by default, secrets are not cached.</dd>
+	 * <dt>iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)</dt>
+	 * <dd>Secrets cache lifetime. When set, reads are cached per secret and the
+	 * last successful value is returned while a refresh is performed in the
+	 * background after half this duration has elapsed. The cache uses the default
+	 * {@link IuRefreshableCache} call pool and continues to serve its last good
+	 * value until this full duration elapses without a successful refresh. By
+	 * default, secrets are not cached.</dd>
  * </dl>
  */
 public interface IuVault {
@@ -78,7 +85,7 @@ public interface IuVault {
 	 * </p>
 	 * 
 	 * <p>
-	 * Will be null if vault.secrets is not populated.
+	 * Will be null if iu.vault.endpoint is not populated.
 	 * </p>
 	 * 
 	 * <dl>
@@ -88,21 +95,27 @@ public interface IuVault {
 	 * <dd>Base URL for a Vault K/V store</dd>
 	 * <dt>iu.vault.token (IU_VAULT_TOKEN)</dt>
 	 * <dd>Access token for use with Vault, i.e., in development. If not set,
-	 * vault.loginEndpoint, vault.roleId, and vault.secretId <em>must</em> be
-	 * provided, i.e., for use by a CI/CD environment. If vault.token is set, the
+	 * iu.vault.loginEndpoint, iu.vault.roleId, and iu.vault.secretId <em>must</em> be
+	 * provided, i.e., for use by a CI/CD environment. If iu.vault.token is set, the
 	 * approle properties will be ignored.</dd>
 	 * <dt>iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)</dt>
-	 * <dd>URL for the Vault approle login endpoint, for use when vault.token is not
+	 * <dd>URL for the Vault approle login endpoint, for use when iu.vault.token is not
 	 * set.</dd>
 	 * <dt>iu.vault.roleId (IU_VAULT_ROLE_ID)</dt>
-	 * <dd>Vault approle Role ID, for use when vault.token is not set.</dd>
+	 * <dd>Vault approle Role ID, for use when iu.vault.token is not set.</dd>
 	 * <dt>iu.vault.secretId (IU_VAULT_SECRET_ID)</dt>
-	 * <dd>Vault approle Secret ID, for use when vault.token is not set.</dd>
+	 * <dd>Vault approle Secret ID, for use when iu.vault.token is not set.</dd>
+	 * <dt>iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)</dt>
+	 * <dd>Secrets cache lifetime. When set, reads are cached per secret, refreshed
+	 * in the background after half this duration, and can serve the last good
+	 * value for up to the full duration while Vault is unavailable. The default
+	 * {@link IuRefreshableCacheConfiguration} call pool performs refreshes. By
+	 * default, secrets are not cached.</dd>
 	 * </dl>
 	 * 
 	 * <p>
-	 * If the system property {@code vault.token} or environment variable
-	 * {@code VAULT_TOKEN} are populated, then approle properties will be skipped
+	 * If the system property {@code iu.vault.token} or environment variable
+	 * {@code IU_VAULT_TOKEN} are populated, then approle properties will be skipped.
 	 * </p>
 	 */
 	public static final IuVault RUNTIME = Vault.of(null, IuJsonAdapter::of);
@@ -125,6 +138,14 @@ public interface IuVault {
 
 	/**
 	 * Gets an {@link IuVault} instance for a specific application scenario.
+	 *
+	 * <p>
+	 * When {@code iu.vault.cacheTtl} is configured, secret reads use a
+	 * refresh-ahead cache: once a value is older than half the configured lifetime,
+	 * the value is returned immediately and refreshed on the default
+	 * {@link IuRefreshableCache} call pool. The last successful value remains
+	 * available until the full lifetime elapses if refreshes fail.
+	 * </p>
 	 * 
 	 * @param properties   {@link Properties}
 	 * @param valueAdapter {@link IuJsonAdapter} type mapping function

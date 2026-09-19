@@ -38,6 +38,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.URI;
 
@@ -51,7 +52,7 @@ import edu.iu.client.IuJsonPropertyNameFormat;
 public class IuOidcClientReferenceTest {
 
 	@Test
-	void testDefaults() {
+	void testDefaults() throws IOException {
 		final var resourceUri = URI.create(IdGenerator.generateId());
 		final var client = mock(IuOidcClient.class);
 		when(client.getResourceUri()).thenReturn(resourceUri);
@@ -70,6 +71,7 @@ public class IuOidcClientReferenceTest {
 			assertNull(clientRef.getScope());
 			assertNull(clientRef.getApiResources());
 			assertNull(clientRef.getSessionHandler());
+			assertNull(clientRef.exchange(null, null));
 			assertEquals(adapter, clientRef.adaptJson(getClass()));
 		}
 	}

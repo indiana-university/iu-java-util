@@ -35,9 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -73,10 +75,52 @@ public class InMemoryDataStoreTest {
 		ThreadLocalRandom.current().nextBytes(val1);
 		ds.put(key1, val1);
 		assertArrayEquals(val1, ds.get(key1));
-		assertEquals(key1, ds.list().iterator().next());
+
+		final var listed = ds.list().iterator().next();
+		assertEquals(IuText.base64Url(key1), listed.getName());
+		assertArrayEquals(key1, IuText.base64Url(listed.getName()), "name must convert back to the key it was put by");
+		assertArrayEquals(val1, listed.getData());
+		assertNotNull(listed.getModified());
+
 		ds.put(key1, null);
 		assertNull(ds.get(key1));
 		assertFalse(ds.list().iterator().hasNext());
+
+		// held from before the delete, so it reports what the store holds now rather
+		// than what it held when it was listed
+		assertNull(listed.getData());
+		assertNull(listed.getModified());
+		assertEquals(IuText.base64Url(key1), listed.getName());
+	}
+
+	@Test
+	void testLastModified() {
+		final var ds = new InMemoryDataStore();
+		final var key1 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key1);
+		final var val1 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val1);
+
+		assertNull(ds.lastModified(key1));
+
+		// bracketed rather than compared to a single instant, so the assertion holds
+		// however coarse the clock is and however long the put takes
+		final var before = Instant.now();
+		ds.put(key1, val1);
+		final var after = Instant.now();
+
+		final var modified = ds.lastModified(key1);
+		assertNotNull(modified);
+		assertFalse(modified.isBefore(before));
+		assertFalse(modified.isAfter(after));
+
+		// every write is stamped, including one that replaces a value with itself
+		final var rewritten = Instant.now();
+		ds.put(key1, val1);
+		assertFalse(ds.lastModified(key1).isBefore(rewritten));
+
+		ds.put(key1, null);
+		assertNull(ds.lastModified(key1));
 	}
 
 	@Test
@@ -92,6 +136,9 @@ public class InMemoryDataStoreTest {
 		// the thing that removes the entry.
 		ds.put(key1, val1, Duration.ofMillis(250L));
 		Thread.sleep(500L);
+		// read before get(), since either one purges the entry the other would then
+		// not find
+		assertNull(ds.lastModified(key1));
 		assertNull(ds.get(key1));
 		assertFalse(ds.list().iterator().hasNext());
 	}
@@ -119,7 +166,7 @@ public class InMemoryDataStoreTest {
 		// expired entry shows the timer removed it. The retained entry covers the
 		// timer's non-expired branch in the same deterministic pass.
 		assertEquals(1L, IuIterable.stream(ds.list()).count());
-		assertArrayEquals(key2, (byte[]) ds.list().iterator().next());
+		assertEquals(IuText.base64Url(key2), ds.list().iterator().next().getName());
 		assertNull(ds.get(key1));
 		assertArrayEquals(val2, ds.get(key2));
 	}

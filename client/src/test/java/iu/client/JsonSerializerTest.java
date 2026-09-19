@@ -32,11 +32,16 @@
 package iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mockStatic;
 
 import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
@@ -44,6 +49,7 @@ import edu.iu.IdGenerator;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.client.IuJsonSerializationOptions;
 
 @SuppressWarnings("javadoc")
 public class JsonSerializerTest {
@@ -162,6 +168,193 @@ public class JsonSerializerTest {
 
 		assertEquals(IuJson.object().add("foo", foo).add("bar", bar).build(),
 				JsonSerializer.serialize(B.class, bean, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of));
+	}
+
+	public static class NullableBean {
+		private String present;
+		private String absentValue;
+
+		public String getPresent() {
+			return present;
+		}
+
+		public String getAbsentValue() {
+			return absentValue;
+		}
+
+		public List<String> getList() {
+			return null;
+		}
+
+		public Map<String, String> getMap() {
+			return null;
+		}
+
+		public Optional<String> getOptional() {
+			return Optional.empty();
+		}
+
+		public int getNumber() {
+			return 0;
+		}
+
+		public void setWriteOnly(String writeOnly) {
+			// covers readMethod == null under both options
+		}
+	}
+
+	@Test
+	public void testOmitsNullPropertiesByDefault() {
+		final var bean = new NullableBean();
+		bean.present = IdGenerator.generateId();
+
+		// null list, map, and absentValue are omitted; optional and primitive are not
+		assertEquals(IuJson.object() //
+				.add("present", bean.present) //
+				.addNull("optional") //
+				.add("number", 0) //
+				.build(), //
+				JsonSerializer.serialize(NullableBean.class, bean, IuJsonPropertyNameFormat.IDENTITY,
+						IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testIncludesNullProperties() {
+		final var bean = new NullableBean();
+		bean.present = IdGenerator.generateId();
+
+		assertEquals(IuJson.object() //
+				.add("present", bean.present) //
+				.addNull("absentValue") //
+				.addNull("list") //
+				.addNull("map") //
+				.addNull("optional") //
+				.add("number", 0) //
+				.build(), //
+				JsonSerializer.serialize(NullableBean.class, bean,
+						() -> IuJsonSerializationOptions.INCLUDE_NULLS, IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testNullOptionsSupplierReadsAsDefault() {
+		final var bean = new NullableBean();
+		bean.present = IdGenerator.generateId();
+
+		assertEquals(IuJson.object() //
+				.add("present", bean.present) //
+				.addNull("optional") //
+				.add("number", 0) //
+				.build(), //
+				JsonSerializer.serialize(NullableBean.class, bean, () -> null, IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testNullPropertyNameFormatReadsAsIdentity() {
+		final var bean = new NullableBean();
+		bean.present = IdGenerator.generateId();
+
+		final var options = new IuJsonSerializationOptions() {
+			@Override
+			public IuJsonPropertyNameFormat getPropertyNameFormat() {
+				return null;
+			}
+		};
+
+		// absentValue would be absent_value under LOWER_CASE_WITH_UNDERSCORES
+		assertEquals(IuJson.object() //
+				.add("present", bean.present) //
+				.addNull("optional") //
+				.add("number", 0) //
+				.build(), //
+				JsonSerializer.serialize(NullableBean.class, bean, () -> options, IuJsonAdapter::of));
+	}
+
+	public interface Stub {
+		String getDeclared();
+
+		String getNotInSource();
+	}
+
+	public interface StubHolder {
+		Stub getItem();
+
+		List<? extends Stub> getItems();
+	}
+
+	@Test
+	public void testUnwrapsProxyIncludingNulls() {
+		final var wrapped = IuJson.object().add("declared", IdGenerator.generateId()).build();
+		final var proxy = IuJson.wrap(wrapped, Stub.class);
+		assertSame(wrapped, JsonSerializer.serialize(Stub.class, proxy,
+				() -> IuJsonSerializationOptions.INCLUDE_NULLS, IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testProxyRetainsPropertiesTheStubDoesntDeclare() {
+		final var declared = IdGenerator.generateId();
+		final var extra = IdGenerator.generateId();
+		final var source = IuJson.object().add("declared", declared).add("extra", extra).build();
+
+		final var serialized = JsonSerializer.serialize(Stub.class, IuJson.wrap(source, Stub.class),
+				() -> IuJsonSerializationOptions.INCLUDE_NULLS, IuJsonAdapter::of);
+
+		// the stub declares neither extra nor a value for notInSource; the source
+		// object passes through as-is rather than being truncated to the stub
+		assertEquals(source, serialized);
+		assertEquals(extra, serialized.getString("extra"));
+		assertFalse(serialized.containsKey("notInSource"));
+	}
+
+	@Test
+	public void testNestedProxyRetainsPropertiesTheStubDoesntDeclare() {
+		final var declared = IdGenerator.generateId();
+		final var extra = IdGenerator.generateId();
+		final var source = IuJson.object().add("declared", declared).add("extra", extra).build();
+		final var item = IuJson.wrap(source, Stub.class);
+
+		final var holder = new StubHolder() {
+			@Override
+			public Stub getItem() {
+				return item;
+			}
+
+			@Override
+			public List<? extends Stub> getItems() {
+				return List.of(item);
+			}
+		};
+
+		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.INCLUDE_NULLS;
+		assertEquals(IuJson.object() //
+				.add("item", source) //
+				.add("items", IuJson.array().add(source)) //
+				.build(), //
+				JsonSerializer.serialize(StubHolder.class, holder, options,
+						t -> IuJsonAdapter.adapt(t, options)));
+	}
+
+
+	enum SerializeEnumTest {
+		A, B;
+
+		public String getLabel() {
+			return name().toLowerCase();
+		}
+	}
+
+	@Test
+	public void testSerializeEnumAsText() {
+		// a null options supplier reads as DEFAULT, which converts enums as text
+		assertEquals(IuJson.string("A"),
+				JsonSerializer.serializeEnum(SerializeEnumTest.class, SerializeEnumTest.A, () -> null,
+						IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testSerializeEnumAsObject() {
+		assertEquals(IuJson.object().add("name", "B").add("label", "b").build(),
+				JsonSerializer.serializeEnum(SerializeEnumTest.class, SerializeEnumTest.B,
+						() -> IuJsonSerializationOptions.ENUM_AS_OBJECT, IuJsonAdapter::of));
 	}
 
 }

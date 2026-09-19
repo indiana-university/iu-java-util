@@ -37,6 +37,10 @@ Prefer the `test` phase while iterating: `verify` runs the JaCoCo gate, which fa
 1. **100% JaCoCo coverage.** `coverage-check` is bound to `verify` with `haltOnFailure`, requiring `INSTRUCTION` and `BRANCH` covered ratio of `1.000` and zero missed classes, per bundle (module). New code needs tests for every branch, including defensive ones. Reports land in `<module>/target/site/jacoco/index.html`.
 2. **Javadoc with `failOnWarnings`.** `show=package`, so every package-private and public element needs complete Javadoc — `@param`, `@return`, `@throws` included. A missing tag fails the build.
 
+### `site` cannot be built on its own
+
+`site` builds the unified API reference over every published module, and it must run **last in a reactor that also contains those modules**. The aggregation works by unpacking each dependency's sources artifact and arranging the ones that are *also reactor projects* by module name, so javadoc can run in multi-module mode. `mvn -pl site package` logs `no reactor project: ...` for every dependency, falls back to a single flat source path, and dies with `too many module declarations found`. Use `mvn -pl site -am package` or a whole-reactor build instead.
+
 ### Profile quirk
 
 The reactor's module list lives in a profile named `default` with `activeByDefault`, alongside a second `activeByDefault` profile named `scan` that redundantly lists `logging`. Because `activeByDefault` profiles deactivate as soon as any profile is selected explicitly, running `mvn -P<anything> ...` yields an empty reactor. Use `-pl` to scope a build, not `-P`.
@@ -55,9 +59,11 @@ CI runs in a clean container and does not see any of the following. Locally, all
 
 Exclude by **leaf path**, not by aggregator: `-pl '!dao,!jdbc'` names the two parent POMs, and Maven happily drops those while still building their children, so it reads as though it worked and changes nothing. The reactor is 53 modules; a correct exclusion drops the count.
 
+Drop `site` along with anything else you exclude. It documents every published module and can only do so for modules present in the same reactor, so an excluded module leaves it failing with `module not found on module source path`.
+
 ```bash
-# 51 modules, without the two that need PostgreSQL
-mvn -o clean verify -pl '!jdbc/pool,!dao/impl' -fae
+# 50 modules, without the two that need PostgreSQL or the aggregate report
+mvn -o clean verify -pl '!jdbc/pool,!dao/impl,!site' -fae
 ```
 
 Prefer `--fail-at-end` for a whole-reactor run so one module's gate does not skip everything downstream, then disregard failures in modules the current change does not touch.
@@ -106,7 +112,7 @@ base (iu.util)                        nothing beyond java.logging
  |- type/base -> type/api -> type/impl -> type/bundle -> type/loader
  |   `- logging       logging/impl is embedded in logging/api as an isolated component
  |- transaction, jdbc/pool, jdbc/monitor, dao
- |- el, web, redis
+ |- el, redis
  `- test              JUnit 5 + Mockito support, consumed at test scope everywhere
 ```
 
