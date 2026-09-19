@@ -159,7 +159,9 @@ public abstract class OidcTokenGrant {
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		tokenAuth(requestBuilder, params);
 
-		final var scope = config.getScope();
+		final var configuredScope = config.getScope();
+		final var joinedScope = configuredScope == null ? null : String.join(" ", configuredScope);
+		final var scope = joinedScope == null || joinedScope.isEmpty() ? null : joinedScope;
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
 

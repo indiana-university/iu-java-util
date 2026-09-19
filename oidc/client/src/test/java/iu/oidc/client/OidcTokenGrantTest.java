@@ -34,6 +34,7 @@ package iu.oidc.client;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,6 +59,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -95,7 +97,7 @@ public class OidcTokenGrantTest {
 		edu.iu.crypt.Init.init();
 		Init.init();
 	}
-	
+
 	@BeforeEach
 	void setup() {
 		IuTestLogger.allow(OidcTokenGrant.class.getName(), Level.FINE, "OIDC token response .*");
@@ -111,6 +113,7 @@ public class OidcTokenGrantTest {
 		assertEquals(Duration.ofMinutes(15L), provider.getMetadataTtl());
 
 		final var config = mock(IuOidcClientReference.class);
+		when(config.getScope()).thenReturn(null);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
 				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
@@ -171,11 +174,12 @@ public class OidcTokenGrantTest {
 				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var accessToken = IdGenerator.generateId();
-		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
-				eq(IuHttp.READ_JSON_OBJECT))).thenReturn(IuJson.object() //
-					.add("access_token", accessToken) //
-					.add("expires_in", 60L) //
-					.build());
+		IuHttpAware.mock.when(() -> IuHttp
+				.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true), eq(IuHttp.READ_JSON_OBJECT)))
+				.thenReturn(IuJson.object() //
+						.add("access_token", accessToken) //
+						.add("expires_in", 60L) //
+						.build());
 
 		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO, "initial token response invalid",
 				IllegalArgumentException.class);
@@ -219,10 +223,8 @@ public class OidcTokenGrantTest {
 		when(response.statusCode()).thenReturn(400);
 		when(response.body()).thenReturn(new ByteArrayInputStream(IuText.utf8(body)));
 		final var error = new HttpException(response, "token request failed");
-		IuHttpAware.mock
-				.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
-						eq(IuHttp.READ_JSON_OBJECT)))
-				.thenThrow(error);
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+				eq(IuHttp.READ_JSON_OBJECT))).thenThrow(error);
 
 		IuTestLogger.expect(OidcTokenGrant.class.getName(), Level.INFO,
 				"OIDC token error 400 BAD REQUEST; body =" + body);
@@ -233,7 +235,8 @@ public class OidcTokenGrantTest {
 			}
 		};
 
-		// the error response propagates as-is, so callers can handle it as an IOException
+		// the error response propagates as-is, so callers can handle it as an
+		// IOException
 		assertSame(error, assertThrows(HttpException.class, grant::getTokenResponse));
 	}
 
@@ -254,10 +257,8 @@ public class OidcTokenGrantTest {
 
 		// a connection failure carries no response, so there is no body to log
 		final var error = new HttpException("HTTP connection failed", new IOException());
-		IuHttpAware.mock
-				.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
-						eq(IuHttp.READ_JSON_OBJECT)))
-				.thenThrow(error);
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
+				eq(IuHttp.READ_JSON_OBJECT))).thenThrow(error);
 
 		final var grant = new OidcTokenGrant(config) {
 			@Override
@@ -278,9 +279,11 @@ public class OidcTokenGrantTest {
 		final var metadataUri = provider.getMetadataUri();
 		assertEquals(Duration.ofMinutes(15L), provider.getMetadataTtl());
 
-		final var scope = IdGenerator.generateId();
+		final var firstScope = IdGenerator.generateId();
+		final var secondScope = IdGenerator.generateId();
+		final var scope = firstScope + " " + secondScope;
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(List.of(firstScope, secondScope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
 				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
@@ -297,6 +300,52 @@ public class OidcTokenGrantTest {
 				mockBodyPublishers.when(() -> BodyPublishers.ofString(argThat(s -> {
 					final var params = IuWebUtils.parseQueryString(s);
 					assertEquals(scope, params.get("scope").iterator().next());
+					return true;
+				}))).thenReturn(bp);
+				assertDoesNotThrow(() -> a.accept(rb));
+			}
+			return true;
+		}), eq(IuHttp.READ_JSON_OBJECT))).thenReturn(IuJson.object() //
+				.add("access_token", accessToken) //
+				.add("expires_in", 1) //
+				.build());
+
+		final var grant = new OidcTokenGrant(config) {
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+			}
+		};
+		assertEquals(accessToken, grant.getTokenResponse().getAccessToken());
+	}
+
+	@Test
+	void testTokenAuthEmptyScope() throws IOException {
+		final var issuer = URI.create(IdGenerator.generateId());
+		final var tokenEndpoint = URI.create(IdGenerator.generateId());
+		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
+		when(provider.getIssuer()).thenReturn(issuer);
+		final var metadataUri = provider.getMetadataUri();
+		assertEquals(Duration.ofMinutes(15L), provider.getMetadataTtl());
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getScope()).thenReturn(List.of());
+		when(config.getProvider()).thenReturn(provider);
+		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
+				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
+
+		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+				.add("token_endpoint", tokenEndpoint.toString()) //
+				.build());
+
+		final var accessToken = IdGenerator.generateId();
+		IuHttpAware.mock.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> {
+			final var bp = mock(BodyPublisher.class);
+			final var rb = mock(HttpRequest.Builder.class);
+			try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
+				mockBodyPublishers.when(() -> BodyPublishers.ofString(argThat(s -> {
+					final var params = IuWebUtils.parseQueryString(s);
+					// empty scope list should not add scope param
+					assertNull(params.get("scope"));
 					return true;
 				}))).thenReturn(bp);
 				assertDoesNotThrow(() -> a.accept(rb));
@@ -333,7 +382,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
@@ -389,7 +438,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
@@ -445,7 +494,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
@@ -519,7 +568,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
@@ -603,7 +652,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
@@ -726,9 +775,8 @@ public class OidcTokenGrantTest {
 
 		final var idToken = builder.build().sign("JWT", Algorithm.EDDSA, issuerKey);
 
-		IuHttpAware.mock
-				.when(() -> IuHttp.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true),
-						eq(IuHttp.READ_JSON_OBJECT)))
+		IuHttpAware.mock.when(() -> IuHttp
+				.send(eq(IOException.class), eq(tokenEndpoint), argThat(a -> true), eq(IuHttp.READ_JSON_OBJECT)))
 				.thenReturn(IuJson.object() //
 						.add("access_token", accessToken) //
 						.add("id_token", idToken) //
@@ -760,7 +808,8 @@ public class OidcTokenGrantTest {
 	@Test
 	void testATokenDatingNoAuthenticationAtAllIsRefusedUnlessTheGrantSaysOtherwise() throws IOException {
 		assertEquals("Missing auth_time claim",
-				assertThrows(NullPointerException.class, exchangedGrant(false, null, true)::getTokenResponse).getMessage());
+				assertThrows(NullPointerException.class, exchangedGrant(false, null, true)::getTokenResponse)
+						.getMessage());
 
 		// a grant that tolerates it gets no age to enforce, and is not refused for it
 		assertNotNull(exchangedGrant(false, null, false).getTokenResponse());
@@ -794,7 +843,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
@@ -880,7 +929,7 @@ public class OidcTokenGrantTest {
 
 		final var scope = IdGenerator.generateId();
 		final var config = mock(IuOidcClientReference.class);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(

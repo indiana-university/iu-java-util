@@ -132,6 +132,7 @@ public class OidcAuthorizationTest {
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getSessionHandler()).thenReturn(sessionHandler);
+		when(config.getScope()).thenReturn(null);
 
 		final var authorization = new OidcAuthorization(config);
 		final var redirect = authorization.init(null, null);
@@ -202,7 +203,9 @@ public class OidcAuthorizationTest {
 		final var appUri = URI.create(IdGenerator.generateId());
 		final var redirectUri = URI.create(IdGenerator.generateId());
 		final var resourceUri = URI.create(IdGenerator.generateId());
-		final var scope = IdGenerator.generateId();
+		final var firstScope = IdGenerator.generateId();
+		final var secondScope = IdGenerator.generateId();
+		final var scope = firstScope + " " + secondScope;
 
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
@@ -218,7 +221,7 @@ public class OidcAuthorizationTest {
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getRedirectUri()).thenReturn(redirectUri);
 		when(config.getResourceUri()).thenReturn(appUri);
-		when(config.getScope()).thenReturn(scope);
+		when(config.getScope()).thenReturn(List.of(firstScope, secondScope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getSessionHandler()).thenReturn(sessionHandler);

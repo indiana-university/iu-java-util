@@ -146,6 +146,32 @@ public class IuIterableTest {
 	}
 
 	@Test
+	public void testFactoryIterableHashCode() {
+		var source = List.of("two", "one", "three");
+		var equivalent = of(source::iterator);
+		var different = of(List.of("two", "three", "one")::iterator);
+
+		assertEquals(source.hashCode(), equivalent.hashCode());
+		assertEquals(equivalent.hashCode(), of(source::iterator).hashCode());
+		assertNotEquals(equivalent.hashCode(), different.hashCode());
+	}
+
+	@Test
+	public void testFactoryIterableEquals() {
+		var source = List.of("two", "one", "three");
+		var equivalent = of(source::iterator);
+		var sameItems = of(List.of("two", "one", "three")::iterator);
+
+		assertEquals(equivalent, equivalent);
+		assertEquals(equivalent, sameItems);
+		assertEquals(sameItems, equivalent);
+		assertNotEquals(equivalent, of(List.of("two", "one")::iterator));
+		assertNotEquals(equivalent, of(List.of("two", "three", "one")::iterator));
+		assertNotEquals(equivalent, source);
+		assertNotEquals(equivalent, null);
+	}
+
+	@Test
 	public void testEmpty() {
 		assertFalse(empty().iterator().hasNext());
 	}

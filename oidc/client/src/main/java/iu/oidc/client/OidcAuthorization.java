@@ -102,7 +102,9 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		final var nonce = IdGenerator.generateId();
 		
 		final var oidcClient = config.getClient();
-		final var scope = config.getScope();
+		final var configuredScope = config.getScope();
+		final var joinedScope = configuredScope == null ? null : String.join(" ", configuredScope);
+		final var scope = joinedScope == null || joinedScope.isEmpty() ? null : joinedScope;
 
 		final var sessionHandler = config.getSessionHandler();
 		final var session = sessionHandler.create();

@@ -86,11 +86,11 @@ public interface IuOidcClientReference {
 	}
 
 	/**
-	 * Gets the scope parameter value to send to the token endpoint.
+	 * Gets the scopes to request token endpoint.
 	 * 
-	 * @return redirect URI
+	 * @return scope values
 	 */
-	default String getScope() {
+	default Iterable<String> getScope() {
 		return null;
 	}
 

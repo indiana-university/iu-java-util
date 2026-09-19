@@ -31,8 +31,6 @@
  */
 package edu.iu.oidc.config;
 
-import java.util.List;
-
 /**
  * Maps a role a client endpoint may act in onto the identity roles that entitle
  * an end user to it.
@@ -70,6 +68,6 @@ public interface IuOidcClientRole {
 	 *
 	 * @return identity role names
 	 */
-	List<String> getIdRoles();
+	Iterable<String> getIdRoles();
 
 }
