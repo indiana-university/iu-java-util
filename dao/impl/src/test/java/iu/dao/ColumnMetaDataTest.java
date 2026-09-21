@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -442,6 +443,30 @@ public class ColumnMetaDataTest {
 		private Boolean flagged;
 	}
 
+	/** Duration columns stored as ISO-8601 text or numeric seconds. */
+	@Entity
+	@Table(name = "durations", schema = "s")
+	public static class DurationEntity {
+		@Id
+		@Column(name = "ID")
+		private long id;
+
+		@Column(name = "DEFAULT_VALUE")
+		private Duration defaultValue;
+
+		@Column(name = "CHAR_VALUE", columnDefinition = "CHAR(30)")
+		private Duration charValue;
+
+		@Column(name = "NUMBER_VALUE", columnDefinition = "NUMBER(10)")
+		private Duration numberValue;
+
+		@Column(name = "INTEGER_VALUE", columnDefinition = "INTEGER")
+		private Duration integerValue;
+
+		@Column(name = "TIMESTAMP_VALUE", columnDefinition = "TIMESTAMP")
+		private Duration timestampValue;
+	}
+
 	@Test
 	public void testNormalizeArgument_booleanForCharacterColumn_becomesYOrN() {
 		final var active = col(CoercedEntity.class, "active");
@@ -489,6 +514,17 @@ public class ColumnMetaDataTest {
 		assertSame(value, col(CoercedEntity.class, "label").normalizeArgument(value));
 	}
 
+	@Test
+	public void testNormalizeArgument_durationUsesIsoTextOrNumericSeconds() {
+		final var duration = Duration.ofMinutes(5).plusMillis(123L);
+		assertEquals("PT5M0.123S", col(DurationEntity.class, "defaultValue").normalizeArgument(duration));
+		assertEquals("PT5M0.123S", col(DurationEntity.class, "charValue").normalizeArgument(duration));
+		assertEquals(300L, col(DurationEntity.class, "numberValue").normalizeArgument(duration));
+		assertEquals(300L, col(DurationEntity.class, "integerValue").normalizeArgument(duration));
+		// An unsupported storage definition leaves the value for the driver to handle.
+		assertSame(duration, col(DurationEntity.class, "timestampValue").normalizeArgument(duration));
+	}
+
 	// =======================================================================
 	// normalizeResult
 	// =======================================================================
@@ -524,6 +560,18 @@ public class ColumnMetaDataTest {
 		final var created = col(InstantEntity.class, "created");
 		final var now = Instant.ofEpochMilli(1234L);
 		assertEquals(now, created.normalizeResult(Timestamp.from(now)));
+	}
+
+	@Test
+	public void testNormalizeResult_durationParsesIsoTextAndNumericSeconds() {
+		final var expected = Duration.ofMinutes(5).plusMillis(123L);
+		assertEquals(expected, col(DurationEntity.class, "defaultValue").normalizeResult("PT5M0.123S"));
+		assertEquals(expected, col(DurationEntity.class, "charValue").normalizeResult("PT5M0.123S"));
+		assertEquals(Duration.ofSeconds(300L), col(DurationEntity.class, "numberValue").normalizeResult(
+				new java.math.BigDecimal("300")));
+		assertEquals(Duration.ofSeconds(300L), col(DurationEntity.class, "integerValue").normalizeResult(300L));
+		final var timestamp = new Timestamp(1234L);
+		assertSame(timestamp, col(DurationEntity.class, "timestampValue").normalizeResult(timestamp));
 	}
 
 	@Test

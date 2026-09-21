@@ -43,11 +43,11 @@ import edu.iu.crypt.WebKey;
 public interface IuOidcClient {
 
 	/**
-	 * Gets the resource URI.
+	 * Gets resource URIs to request from the authorization and token endpoints.
 	 * 
-	 * @return resource URI
+	 * @return resource URIs; null if no resource indicator is requested
 	 */
-	URI getResourceUri();
+	Iterable<URI> getResourceUri();
 
 	/**
 	 * Gets the client ID.

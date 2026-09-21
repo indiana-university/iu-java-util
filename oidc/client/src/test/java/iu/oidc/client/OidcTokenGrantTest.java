@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -114,6 +115,9 @@ public class OidcTokenGrantTest {
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getScope()).thenReturn(null);
+		final var client = mock(IuOidcClient.class);
+		when(client.getResourceUri()).thenReturn(null);
+		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
 				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
@@ -284,6 +288,11 @@ public class OidcTokenGrantTest {
 		final var scope = firstScope + " " + secondScope;
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getScope()).thenReturn(List.of(firstScope, secondScope));
+		final var firstResource = URI.create(IdGenerator.generateId());
+		final var secondResource = URI.create(IdGenerator.generateId());
+		final var client = mock(IuOidcClient.class);
+		when(client.getResourceUri()).thenReturn(List.of(firstResource, secondResource));
+		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
 				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
@@ -300,6 +309,7 @@ public class OidcTokenGrantTest {
 				mockBodyPublishers.when(() -> BodyPublishers.ofString(argThat(s -> {
 					final var params = IuWebUtils.parseQueryString(s);
 					assertEquals(scope, params.get("scope").iterator().next());
+					assertIterableEquals(List.of(firstResource.toString(), secondResource.toString()), params.get("resource"));
 					return true;
 				}))).thenReturn(bp);
 				assertDoesNotThrow(() -> a.accept(rb));
@@ -329,6 +339,7 @@ public class OidcTokenGrantTest {
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getScope()).thenReturn(List.of());
+		when(config.getClient()).thenReturn(mock(IuOidcClient.class));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
 				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
@@ -362,6 +373,32 @@ public class OidcTokenGrantTest {
 			}
 		};
 		assertEquals(accessToken, grant.getTokenResponse().getAccessToken());
+	}
+
+	@Test
+	void testTokenAuthPreservesSubclassResource() throws IOException {
+		final var configuredResource = URI.create(IdGenerator.generateId());
+		final var requestedResource = URI.create(IdGenerator.generateId());
+		final var client = mock(IuOidcClient.class);
+		when(client.getResourceUri()).thenReturn(List.of(configuredResource));
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getClient()).thenReturn(client);
+
+		final var grant = new OidcTokenGrant(config) {
+			@Override
+			protected void tokenAuth(Builder requestBuilder, Map<String, Iterable<String>> params) {
+				params.put("resource", IuIterable.iter(requestedResource.toString()));
+			}
+		};
+
+		final var bodyPublisher = mock(BodyPublisher.class);
+		try (final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
+			mockBodyPublishers.when(() -> BodyPublishers.ofString(argThat(s -> {
+				assertIterableEquals(List.of(requestedResource.toString()), IuWebUtils.parseQueryString(s).get("resource"));
+				return true;
+			}))).thenReturn(bodyPublisher);
+			grant.tokenAuth(mock(HttpRequest.Builder.class));
+		}
 	}
 
 	@Test

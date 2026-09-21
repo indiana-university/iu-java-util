@@ -165,6 +165,12 @@ public abstract class OidcTokenGrant {
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
 
+		if (!params.containsKey("resource")) {
+			final var resource = config.getClient().getResourceUri();
+			if (resource != null)
+				params.put("resource", IuIterable.map(resource, URI::toString));
+		}
+
 		requestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 		requestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(params)));
 	}

@@ -132,7 +132,7 @@ public class OidcAuthorization implements IuOidcAuthorization {
 
 		final var resource = oidcClient.getResourceUri();
 		if (resource != null)
-			params.put("resource", IuIterable.iter(resource.toString()));
+			params.put("resource", IuIterable.map(resource, URI::toString));
 
 		if (authorizationDetails != null)
 			params.put("authorization_details",

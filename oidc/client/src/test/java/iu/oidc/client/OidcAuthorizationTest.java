@@ -120,6 +120,7 @@ public class OidcAuthorizationTest {
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
+		when(client.getResourceUri()).thenReturn(null);
 
 		final var provider = mock(IuOidcProvider.class);
 		final var authorizationEndpoint = URI.create(IdGenerator.generateId());
@@ -142,6 +143,7 @@ public class OidcAuthorizationTest {
 		assertEquals("code", params.get("response_type").iterator().next());
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
+		assertNull(params.get("resource"));
 		assertNull(params.get("authorization_details"));
 		verify(preAuth).setState(params.get("state").iterator().next());
 		verify(preAuth).setNonce(params.get("nonce").iterator().next());
@@ -203,6 +205,7 @@ public class OidcAuthorizationTest {
 		final var appUri = URI.create(IdGenerator.generateId());
 		final var redirectUri = URI.create(IdGenerator.generateId());
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var secondResourceUri = URI.create(IdGenerator.generateId());
 		final var firstScope = IdGenerator.generateId();
 		final var secondScope = IdGenerator.generateId();
 		final var scope = firstScope + " " + secondScope;
@@ -210,7 +213,7 @@ public class OidcAuthorizationTest {
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri, secondResourceUri));
 
 		final var provider = mock(IuOidcProvider.class);
 		final var authorizationEndpoint = URI.create(IdGenerator.generateId());
@@ -239,7 +242,7 @@ public class OidcAuthorizationTest {
 		assertEquals("code", params.get("response_type").iterator().next());
 		assertEquals(clientId, params.get("client_id").iterator().next());
 		assertEquals(redirectUri.toString(), params.get("redirect_uri").iterator().next());
-		assertEquals(resourceUri.toString(), params.get("resource").iterator().next());
+		assertIterableEquals(List.of(resourceUri.toString(), secondResourceUri.toString()), params.get("resource"));
 		assertEquals(scope, params.get("scope").iterator().next());
 		assertEquals(IuJson.array().add(IuJson.object().add("type", detailType)).build(),
 				IuJson.parse(params.get("authorization_details").iterator().next()));
@@ -814,7 +817,7 @@ public class OidcAuthorizationTest {
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
 		when(client.getDecryptJwk()).thenReturn(null);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri));
 
 		final var provider = mock(IuOidcProvider.class);
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
@@ -959,7 +962,7 @@ public class OidcAuthorizationTest {
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
 		when(client.getDecryptJwk()).thenReturn(null);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri));
 
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
@@ -1083,7 +1086,7 @@ public class OidcAuthorizationTest {
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(IdGenerator.generateId());
 		when(client.getDecryptJwk()).thenReturn(null);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri));
 
 		final var provider = mock(IuOidcProvider.class);
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
@@ -1315,7 +1318,7 @@ public class OidcAuthorizationTest {
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(IdGenerator.generateId());
 		when(client.getDecryptJwk()).thenReturn(null);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri));
 
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
@@ -1420,7 +1423,7 @@ public class OidcAuthorizationTest {
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(clientId);
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri));
 		final var dkid = IdGenerator.generateId();
 		final var decryptJwk = WebKey.builder(WebKey.Type.X25519).algorithm(Algorithm.ECDH_ES).keyId(dkid).ephemeral()
 				.build();
@@ -1530,7 +1533,7 @@ public class OidcAuthorizationTest {
 		final var resourceUri = URI.create(IdGenerator.generateId());
 		final var client = mock(IuOidcClient.class);
 		when(client.getClientId()).thenReturn(IdGenerator.generateId());
-		when(client.getResourceUri()).thenReturn(resourceUri);
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri));
 		when(client.getDecryptJwk()).thenReturn(decryptKeys);
 
 		final var userinfoEndpoint = URI.create(IdGenerator.generateId());

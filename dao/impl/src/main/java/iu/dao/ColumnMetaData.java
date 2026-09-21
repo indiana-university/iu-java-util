@@ -37,6 +37,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 
 import edu.iu.IuException;
@@ -335,6 +336,8 @@ class ColumnMetaData {
 	 * and {@link #spaceForNull} is {@code true}.</li>
 	 * <li>Converts {@link java.time.Instant} to {@link java.sql.Timestamp} so that
 	 * JDBC drivers receive a type they understand.</li>
+	 * <li>Converts {@link Duration} to ISO-8601 text for text columns, or whole
+	 * seconds for numeric columns.</li>
 	 * <li>Converts {@link Boolean} to {@code "Y"} or {@code "N"} when the column's
 	 * {@link #sqlType} is {@link String}, which is how a flag declared as a
 	 * character column is stored.</li>
@@ -359,6 +362,12 @@ class ColumnMetaData {
 			return " ";
 		if (value instanceof Instant instant)
 			return Timestamp.from(instant);
+		if (value instanceof Duration duration) {
+			if (sqlType == String.class)
+				return duration.toString();
+			if (Number.class.isAssignableFrom(sqlType))
+				return duration.getSeconds();
+		}
 		if (sqlType == String.class //
 				&& value instanceof Boolean flag)
 			return flag ? "Y" : "N";
@@ -380,6 +389,8 @@ class ColumnMetaData {
 	 * {@link #spaceForNull} is {@code true}.</li>
 	 * <li>Converts {@link java.sql.Timestamp} to {@link java.time.Instant} for a
 	 * member declared as an {@code Instant}.</li>
+	 * <li>Parses ISO-8601 text into a {@link Duration}, or converts numeric seconds
+	 * to a {@code Duration}.</li>
 	 * <li>Converts {@code "Y"} to {@code true} and any other text to {@code false}
 	 * for a member declared as a boolean, which is how a flag stored in a character
 	 * column reads back.</li>
@@ -417,6 +428,13 @@ class ColumnMetaData {
 		if (javaType == Instant.class //
 				&& value instanceof Timestamp timestamp)
 			return timestamp.toInstant();
+
+		if (javaType == Duration.class) {
+			if (value instanceof String text)
+				return Duration.parse(text);
+			if (value instanceof Number seconds)
+				return Duration.ofSeconds(seconds.longValue());
+		}
 
 		if ((javaType == Boolean.class || javaType == boolean.class) //
 				&& value instanceof String flag)

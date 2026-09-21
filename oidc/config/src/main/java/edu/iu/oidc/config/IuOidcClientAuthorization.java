@@ -47,20 +47,6 @@ import edu.iu.pki.IuCertificateAuthority;
  * authenticates with a signed assertion is trusted because its certificate is,
  * not because a shared secret matched.
  * </p>
- *
- * <p>
- * Registration is dated rather than merely present. {@link #getCreated()} and
- * {@link #getUpdated()} record when the record was written,
- * {@link #getExpires()} when it stops being honored, and
- * {@link #getAssertionTtl()} bounds how long any one assertion the client
- * presents may live &mdash; so a leaked assertion is useful for minutes rather
- * than indefinitely.
- * </p>
- *
- * <p>
- * Property names use lower case with underscores, so {@link #getAssertionTtl()}
- * reads {@code assertion_ttl}.
- * </p>
  */
 public interface IuOidcClientAuthorization extends IuCertificateAuthority {
 
@@ -90,20 +76,6 @@ public interface IuOidcClientAuthorization extends IuCertificateAuthority {
 	 * @return client JSON Web Key
 	 */
 	WebKey getJwk();
-
-	/**
-	 * Returns when this client record was created.
-	 *
-	 * @return creation time
-	 */
-	Instant getCreated();
-
-	/**
-	 * Returns when this client record was last modified.
-	 *
-	 * @return last modification time
-	 */
-	Instant getUpdated();
 
 	/**
 	 * Returns when this client record expires.

@@ -68,12 +68,21 @@ public interface IuOidcClientReference {
 	IuOidcProvider getProvider();
 
 	/**
-	 * Gets the resource URI.
+	 * Gets the primary resource URI used as the post-authorization redirect
+	 * location and to identify resources served by this client.
 	 * 
-	 * @return resource URI
+	 * @return first configured resource URI; null if none is configured
 	 */
 	default URI getResourceUri() {
-		return getClient().getResourceUri();
+		final var uri = getClient().getResourceUri();
+		if (uri == null)
+			return null;
+		
+		final var i = uri.iterator();
+		if (i.hasNext())
+			return i.next();
+		else
+			return null;
 	}
 
 	/**

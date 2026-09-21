@@ -56,20 +56,9 @@ public class IuOidcClientAuthorizationTest {
 	/** Answers an authorization record over one client key. */
 	private static IuOidcClientAuthorization authorization(WebKey jwk) {
 		return new IuOidcClientAuthorization() {
-
 			@Override
 			public WebKey getJwk() {
 				return jwk;
-			}
-
-			@Override
-			public Instant getCreated() {
-				return null;
-			}
-
-			@Override
-			public Instant getUpdated() {
-				return null;
 			}
 
 			@Override
