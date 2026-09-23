@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.net.URI;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -57,6 +58,10 @@ import jakarta.persistence.Table;
 
 @SuppressWarnings("javadoc")
 public class ColumnMetaDataTest {
+
+	private enum Status {
+		ACTIVE
+	}
 
 	// =======================================================================
 	// Test entity classes
@@ -441,6 +446,14 @@ public class ColumnMetaDataTest {
 		/** Flag stored as a character column, declared as the boxed type. */
 		@Column(name = "FLAGGED", columnDefinition = "CHAR(1)")
 		private Boolean flagged;
+
+		/** Enum stored using its declared constant name. */
+		@Column(name = "STATUS", columnDefinition = "VARCHAR(16)")
+		private Status status;
+
+		/** URI stored as text. */
+		@Column(name = "LINK", columnDefinition = "VARCHAR(256)")
+		private URI link;
 	}
 
 	/** Duration columns stored as ISO-8601 text or numeric seconds. */
@@ -484,6 +497,17 @@ public class ColumnMetaDataTest {
 	public void testNormalizeArgument_nonBooleanForCharacterColumn_isUnchanged() {
 		final var value = "already text";
 		assertSame(value, col(CoercedEntity.class, "label").normalizeArgument(value));
+	}
+
+	@Test
+	public void testNormalizeArgument_enumForCharacterColumn_becomesConstantName() {
+		assertEquals("ACTIVE", col(CoercedEntity.class, "status").normalizeArgument(Status.ACTIVE));
+	}
+
+	@Test
+	public void testNormalizeArgument_uri_becomesText() {
+		final var uri = URI.create("https://example.iu.edu/records/42?include=details");
+		assertEquals(uri.toString(), col(CoercedEntity.class, "link").normalizeArgument(uri));
 	}
 
 	@Test
@@ -575,6 +599,12 @@ public class ColumnMetaDataTest {
 	}
 
 	@Test
+	public void testNormalizeResult_uriText_becomesUri() {
+		final var uri = URI.create("https://example.iu.edu/records/42?include=details");
+		assertEquals(uri, col(CoercedEntity.class, "link").normalizeResult(uri.toString()));
+	}
+
+	@Test
 	public void testNormalizeResult_singleSpaceBecomesNullForASpaceForNullColumn() {
 		assertNull(col(InstantEntity.class, "label").normalizeResult(" "));
 		// Only the single space, and only where the column asked for it.
@@ -592,8 +622,10 @@ public class ColumnMetaDataTest {
 	public void testNormalizeResult_nullAndUnconvertibleValues_areUnchanged() {
 		assertNull(col(CoercedEntity.class, "label").normalizeResult(null));
 		// An Instant member handed something that is not a Timestamp, and a boolean
-		// member handed something that is not text, are both left alone.
+		// member, URI member, and boolean member handed incompatible values are all
+		// left alone.
 		assertEquals(1234L, col(InstantEntity.class, "created").normalizeResult(1234L));
+		assertEquals(1234L, col(CoercedEntity.class, "link").normalizeResult(1234L));
 		assertEquals(1234L, col(CoercedEntity.class, "active").normalizeResult(1234L));
 	}
 

@@ -484,9 +484,10 @@ public interface IuDao {
 	 * {@link IuSqlBuilder#getForSql(Object, String)} does when binding the same
 	 * member: a character column mapped to a boolean reads back {@code "Y"} as
 	 * {@code true}, a timestamp column mapped to an {@link java.time.Instant} reads
-	 * back as an {@code Instant}, and the single space standing in for null on a
-	 * {@link SpaceForNull} column reads back as {@code null}. A member belonging to
-	 * no mapped column is read as its own type.
+	 * back as an {@code Instant}, text mapped to a {@link java.net.URI} reads back
+	 * as a {@code URI}, and the single space standing in for null on a
+	 * {@link SpaceForNull} column reads back as {@code null}. A member belonging
+	 * to no mapped column is read as its own type.
 	 * </p>
 	 *
 	 * <p>

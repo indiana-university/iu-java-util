@@ -34,6 +34,7 @@ package iu.oidc.provider;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,6 +47,7 @@ import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -72,7 +74,7 @@ import edu.iu.oidc.IuOidcProviderMetadata;
 import edu.iu.oidc.config.IuOidcClientAuthorization;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
-import edu.iu.oidc.config.IuOidcProviderReference;
+import edu.iu.pki.IuCertificateAuthority;
 import edu.iu.pki.IuPkiVerifier;
 import edu.iu.test.IuTestLogger;
 import iu.oidc.provider.ClientAuthenticator.Credential;
@@ -473,7 +475,8 @@ public class ClientAuthenticatorTest {
 		// a chain of more than one certificate is carried by the assertion as x5c, and
 		// the key the signature verifies against is the one resolved from it
 		final var signerKey = certified(true);
-		final var endpoint = endpoint(authority(signingKey()));
+		final var registeredAuthority = certified(true);
+		final var endpoint = endpoint(authority(registeredAuthority));
 
 		final var verifier = mock(IuPkiVerifier.class);
 		when(reference.getCertificateAuthorityVerifier(any())).thenReturn(verifier);
@@ -484,6 +487,58 @@ public class ClientAuthenticatorTest {
 		final var verified = ArgumentCaptor.forClass(WebKey.class);
 		verify(verifier).verify(verified.capture());
 		assertArrayEquals(signerKey.getCertificateChain(), verified.getValue().getCertificateChain());
+
+		final var authority = ArgumentCaptor.forClass(IuCertificateAuthority.class);
+		verify(reference).getCertificateAuthorityVerifier(authority.capture());
+		assertSame(registeredAuthority.getCertificateChain()[0], authority.getValue().getCertificate());
+		assertTrue(authority.getValue().getCrl().iterator().hasNext());
+	}
+
+	@Test
+	void testACaAdapterHasNoCertificateWhenTheRegistrationKeyIsGone() {
+		final var registered = signingKey();
+		final var authorization = authority(registered);
+		// The key is resolved before the adapter is created. A changing registration
+		// must not make the adapter invent a certificate for a key it can no longer
+		// read.
+		when(authorization.getJwk()).thenReturn(registered, (WebKey) null);
+
+		final var authority = certificateAuthority(authorization);
+		assertNull(authority.getCertificate());
+	}
+
+	@Test
+	void testACaAdapterHasNoCertificateWithoutARegisteredChain() {
+		final var registered = mock(WebKey.class);
+		when(registered.getType()).thenReturn(signingKey().getType());
+		when(registered.getCertificateChain()).thenReturn((X509Certificate[]) null);
+
+		final var authority = certificateAuthority(authority(registered));
+		assertNull(authority.getCertificate());
+	}
+
+	@Test
+	void testACaAdapterHasNoCertificateWithAnEmptyRegisteredChain() {
+		final var registered = mock(WebKey.class);
+		when(registered.getType()).thenReturn(signingKey().getType());
+		when(registered.getCertificateChain()).thenReturn(new X509Certificate[0]);
+
+		final var authority = certificateAuthority(authority(registered));
+		assertNull(authority.getCertificate());
+	}
+
+	/** Authenticates through a CA registration and returns the verifier's authority. */
+	private IuCertificateAuthority certificateAuthority(IuOidcClientAuthorization authorization) {
+		final var verifier = mock(IuPkiVerifier.class);
+		when(reference.getCertificateAuthorityVerifier(any())).thenReturn(verifier);
+
+		final var signer = certified(true);
+		assertSame(Method.PRIVATE_KEY_JWT, authenticator.authenticate(endpoint(authorization), CLIENT_ID,
+				Credential.assertion(assertion(signer, Algorithm.ES256))));
+
+		final var authority = ArgumentCaptor.forClass(IuCertificateAuthority.class);
+		verify(reference).getCertificateAuthorityVerifier(authority.capture());
+		return authority.getValue();
 	}
 
 	@Test

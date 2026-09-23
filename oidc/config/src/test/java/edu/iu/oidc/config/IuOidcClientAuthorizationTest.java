@@ -32,13 +32,8 @@
 package edu.iu.oidc.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -47,8 +42,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.crypt.WebKey;
 
 /**
- * Covers what {@link IuOidcClientAuthorization} derives, using implementations
- * that declare only the properties a registration record holds.
+ * Covers defaults exposed by {@link IuOidcClientAuthorization}.
  */
 @SuppressWarnings("javadoc")
 public class IuOidcClientAuthorizationTest {
@@ -73,40 +67,10 @@ public class IuOidcClientAuthorizationTest {
 		};
 	}
 
-	private static WebKey jwkWithChain(X509Certificate... chain) {
-		final var jwk = mock(WebKey.class);
-		when(jwk.getCertificateChain()).thenReturn(chain);
-		return jwk;
-	}
-
 	@Test
 	void testAClientAssertionLivesFifteenMinutesByDefault() {
 		// a leaked assertion is useful for minutes rather than indefinitely
 		assertEquals(Duration.ofMinutes(15L), authorization(null).getAssertionTtl());
-	}
-
-	@Test
-	void testNoKeyMeansNoCertificate() {
-		assertNull(authorization(null).getCertificate());
-	}
-
-	@Test
-	void testAKeyWithNoChainMeansNoCertificate() {
-		assertNull(authorization(jwkWithChain((X509Certificate[]) null)).getCertificate());
-	}
-
-	@Test
-	void testAKeyWithAnEmptyChainMeansNoCertificate() {
-		assertNull(authorization(jwkWithChain()).getCertificate());
-	}
-
-	@Test
-	void testTheSigningCertificateIsTheFirstInTheChain() {
-		// the rest of the chain is what verifies it, not what signs
-		final var signing = mock(X509Certificate.class);
-		final var issuing = mock(X509Certificate.class);
-
-		assertSame(signing, authorization(jwkWithChain(signing, issuing)).getCertificate());
 	}
 
 }

@@ -40,7 +40,4 @@ module iu.util.oidc.config {
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.jwt.api;
 	requires transitive iu.util.oidc;
-	requires transitive iu.util.pki;
-	requires transitive iu.util.session;
-
 }

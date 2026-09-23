@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.oidc.config;
+package iu.oidc.provider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -42,6 +42,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.crypt.WebKey;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 import edu.iu.pki.IuCertificateAuthority;
 
 @SuppressWarnings("javadoc")

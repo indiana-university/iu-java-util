@@ -78,7 +78,6 @@ import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcClientResource;
 import edu.iu.oidc.config.IuOidcClientSource;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
-import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.session.IuSession;
 import edu.iu.session.IuSessionHandler;
 import edu.iu.test.IuTestLogger;

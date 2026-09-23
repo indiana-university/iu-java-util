@@ -88,34 +88,14 @@ public interface IuOidcClientConfiguration {
 	Iterable<String> getAdminRoles();
 
 	/**
-	 * Gets the endpoints this client is registered for, one per redirect URI.
-	 *
-	 * <p>
-	 * The requested {@code redirect_uri} selects one, and only that endpoint's
-	 * resources bear on what the request may ask for.
-	 * </p>
-	 *
-	 * @return registered endpoints
-	 */
-	Iterable<IuOidcClientEndpoint> getEndpoints();
-
-	/**
-	 * Iterates roles mapped for this client.
-	 *
-	 * @return mapped roles
-	 */
-	Iterable<IuOidcClientRole> getRoles();
-
-	/**
 	 * Gets the algorithm a UserInfo response to this client is signed with.
 	 *
 	 * <p>
-	 * Registered for the client rather than for one of its
-	 * {@link #getEndpoints() endpoints}, unlike the algorithm an ID token is signed
-	 * with, because a UserInfo request names no endpoint: it presents an access
-	 * token, and a token names the client it was issued to and not the redirect URI
-	 * the grant behind it went through. There is nothing at that point to select an
-	 * endpoint by.
+	 * Registered for the client rather than for one of its {@link #getEndpoints()
+	 * endpoints}, unlike the algorithm an ID token is signed with, because a
+	 * UserInfo request names no endpoint: it presents an access token, and a token
+	 * names the client it was issued to and not the redirect URI the grant behind
+	 * it went through. There is nothing at that point to select an endpoint by.
 	 * </p>
 	 *
 	 * <p>
@@ -127,9 +107,7 @@ public interface IuOidcClientConfiguration {
 	 * @return signature {@link Algorithm}; {@code null} (default) to answer an
 	 *         unsigned document
 	 */
-	default Algorithm getUserinfoAlg() {
-		return null;
-	}
+	Algorithm getUserinfoAlg();
 
 	/**
 	 * Gets the content encryption algorithm a UserInfo response to this client is
@@ -145,9 +123,7 @@ public interface IuOidcClientConfiguration {
 	 * @return {@link Encryption}; {@code null} (default) to answer an unencrypted
 	 *         document
 	 */
-	default Encryption getUserinfoEnc() {
-		return null;
-	}
+	Encryption getUserinfoEnc();
 
 	/**
 	 * Gets the key a UserInfo response to this client is encrypted to.
@@ -160,8 +136,25 @@ public interface IuOidcClientConfiguration {
 	 * @return encryption {@link WebKey}; {@code null} (default) when nothing is
 	 *         encrypted to this client
 	 */
-	default WebKey getUserinfoJwk() {
-		return null;
-	}
+	WebKey getUserinfoJwk();
+
+	/**
+	 * Gets the endpoints this client is registered for, one per redirect URI.
+	 *
+	 * <p>
+	 * The requested {@code redirect_uri} selects one, and only that endpoint's
+	 * resources bear on what the request may ask for.
+	 * </p>
+	 *
+	 * @return registered endpoints
+	 */
+	Iterable<? extends IuOidcClientEndpoint> getEndpoints();
+
+	/**
+	 * Iterates roles mapped for this client.
+	 *
+	 * @return mapped roles
+	 */
+	Iterable<? extends IuOidcClientRole> getRoles();
 
 }

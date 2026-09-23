@@ -66,7 +66,6 @@ import edu.iu.oidc.config.IuOidcClaimsSource;
 import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcClientRole;
-import edu.iu.oidc.config.IuOidcProviderReference;
 
 /**
  * Answers the OAuth 2.0 token request.

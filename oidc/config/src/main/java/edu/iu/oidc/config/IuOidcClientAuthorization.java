@@ -31,44 +31,30 @@
  */
 package edu.iu.oidc.config;
 
-import java.security.cert.X509Certificate;
+import java.security.cert.X509CRL;
 import java.time.Duration;
 import java.time.Instant;
 
 import edu.iu.crypt.WebKey;
-import edu.iu.pki.IuCertificateAuthority;
 
 /**
  * Establishes how one client endpoint authenticates itself.
  *
  * <p>
- * Extends {@link IuCertificateAuthority} so the client's own key can be
- * verified against a certificate chain and revocation list: a client that
- * authenticates with a signed assertion is trusted because its certificate is,
- * not because a shared secret matched.
+ * A registration supplies key material and, when it represents a certificate
+ * authority, its revocation lists. The provider adapts those values to its PKI
+ * verifier when it verifies a client assertion; configuration does not expose a
+ * PKI contract itself.
  * </p>
  */
-public interface IuOidcClientAuthorization extends IuCertificateAuthority {
+public interface IuOidcClientAuthorization {
 
 	/**
-	 * Returns the client's signing certificate, from the first entry in the
-	 * {@link #getJwk() client key}'s certificate chain.
-	 *
-	 * @return signing certificate; null if jwk is null or doesn't include at least
-	 *         one certificate. MUST be non-null when crl is non-null
+	 * Gets a description of this client authorization.
+	 * 
+	 * @return description
 	 */
-	@Override
-	default X509Certificate getCertificate() {
-		final var jwk = getJwk();
-		if (jwk == null)
-			return null;
-
-		final var certificateChain = jwk.getCertificateChain();
-		if (certificateChain == null || certificateChain.length == 0)
-			return null;
-
-		return certificateChain[0];
-	}
+	String getDescr();
 
 	/**
 	 * Returns the client's JSON Web Key.
@@ -76,6 +62,19 @@ public interface IuOidcClientAuthorization extends IuCertificateAuthority {
 	 * @return client JSON Web Key
 	 */
 	WebKey getJwk();
+
+	/**
+	 * Gets the revocation lists registered with the client signing key.
+	 *
+	 * <p>
+	 * A non-empty result makes this registration a certificate authority. The
+	 * provider then verifies an assertion's certificate chain and checks these
+	 * lists; a registration without a list verifies directly with its key.
+	 * </p>
+	 *
+	 * @return CRLs, or {@code null} if this registration has none
+	 */
+	Iterable<X509CRL> getCrl();
 
 	/**
 	 * Returns when this client record expires.

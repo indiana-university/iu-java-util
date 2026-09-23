@@ -42,7 +42,6 @@ import edu.iu.jwt.WebToken;
 import edu.iu.oidc.config.IuOidcClaimsSource;
 import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
-import edu.iu.oidc.config.IuOidcProviderReference;
 
 /**
  * Answers the OpenID Connect UserInfo request.

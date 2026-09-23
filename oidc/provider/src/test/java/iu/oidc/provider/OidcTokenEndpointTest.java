@@ -90,7 +90,6 @@ import edu.iu.oidc.config.IuOidcClientRole;
 import edu.iu.oidc.config.IuOidcClientSource;
 import edu.iu.oidc.config.IuOidcIdentitySource;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
-import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.test.IuTestLogger;
 import iu.oidc.provider.OidcTokenResult.Error;
 import iu.oidc.provider.OidcTokenResult.Issued;

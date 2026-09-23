@@ -32,7 +32,6 @@
 package edu.iu.oidc.config;
 
 import java.net.URI;
-import java.util.Set;
 
 /**
  * Names one resource a client endpoint may act on, and the scopes acting on it
@@ -61,6 +60,6 @@ public interface IuOidcClientResource {
 	 *
 	 * @return scopes; {@code null} or empty if this entry grants none
 	 */
-	Set<String> getScope();
+	Iterable<String> getScope();
 
 }

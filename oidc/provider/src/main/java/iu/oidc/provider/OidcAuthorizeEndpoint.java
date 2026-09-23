@@ -60,7 +60,6 @@ import edu.iu.oidc.config.IuOidcAuthorizationDetailsSource;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
 import edu.iu.oidc.config.IuOidcClientResource;
-import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.session.IuSessionHandler;
 
 /**

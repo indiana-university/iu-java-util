@@ -77,7 +77,7 @@ public interface IuOidcClientEndpoint {
 	 * @return authorization records, tried in order; {@code null} or empty to
 	 *         accept no credential at all
 	 */
-	Iterable<IuOidcClientAuthorization> getAuthorization();
+	Iterable<? extends IuOidcClientAuthorization> getAuthorization();
 
 	/**
 	 * Gets the identity roles that entitle an end user to a token from this
@@ -126,7 +126,7 @@ public interface IuOidcClientEndpoint {
 	 *
 	 * @return roles; null or empty if the client makes no role claims
 	 */
-	Iterable<IuOidcClientRole> getRoles();
+	Iterable<? extends IuOidcClientRole> getRoles();
 
 	/**
 	 * Gets the algorithm an ID token issued to this endpoint is signed with.
@@ -170,6 +170,6 @@ public interface IuOidcClientEndpoint {
 	 *
 	 * @return resources
 	 */
-	Iterable<IuOidcClientResource> getResources();
+	Iterable<? extends IuOidcClientResource> getResources();
 
 }

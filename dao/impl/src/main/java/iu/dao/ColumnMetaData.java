@@ -36,6 +36,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
+import java.net.URI;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -101,10 +102,10 @@ class ColumnMetaData {
 	 * A property whose accessors convert may declare a type the database knows
 	 * nothing about: a {@code TEXT} column held as a {@code String} field, exposed
 	 * as an {@code Iterable<X509CRL>} the getter parses out of it. Annotating the
-	 * field says the field is the stored value and the property is downstream of it,
-	 * so {@link #javaType}, {@link #sqlType}, {@link #getter}, and the write-back
-	 * performed by {@link JdbcDao} all describe the field. Annotating the getter
-	 * instead leaves the property authoritative, as before.
+	 * field says the field is the stored value and the property is downstream of
+	 * it, so {@link #javaType}, {@link #sqlType}, {@link #getter}, and the
+	 * write-back performed by {@link JdbcDao} all describe the field. Annotating
+	 * the getter instead leaves the property authoritative, as before.
 	 * </p>
 	 *
 	 * <p>
@@ -209,10 +210,10 @@ class ColumnMetaData {
 	 *
 	 * <p>
 	 * The annotated member is also the one accessed: a field-annotated column is
-	 * read from and written to its field even when the property has accessors, since
-	 * those accessors may convert to a type the column does not hold — see
-	 * {@link #fieldMapped}. A getter-annotated column is read through the getter, and
-	 * a column with no bean property at all through its field.
+	 * read from and written to its field even when the property has accessors,
+	 * since those accessors may convert to a type the column does not hold — see
+	 * {@link #fieldMapped}. A getter-annotated column is read through the getter,
+	 * and a column with no bean property at all through its field.
 	 * </p>
 	 *
 	 * @param entity   the owning entity metadata, used to resolve the
@@ -338,6 +339,7 @@ class ColumnMetaData {
 	 * JDBC drivers receive a type they understand.</li>
 	 * <li>Converts {@link Duration} to ISO-8601 text for text columns, or whole
 	 * seconds for numeric columns.</li>
+	 * <li>Converts a {@link URI} to its textual form.</li>
 	 * <li>Converts {@link Boolean} to {@code "Y"} or {@code "N"} when the column's
 	 * {@link #sqlType} is {@link String}, which is how a flag declared as a
 	 * character column is stored.</li>
@@ -368,9 +370,18 @@ class ColumnMetaData {
 			if (Number.class.isAssignableFrom(sqlType))
 				return duration.getSeconds();
 		}
+
+		if (value instanceof URI uri)
+			return uri.toString();
+
 		if (sqlType == String.class //
 				&& value instanceof Boolean flag)
 			return flag ? "Y" : "N";
+
+		if (sqlType == String.class //
+				&& value instanceof Enum e)
+			return e.name();
+
 		// java.sql.Timestamp is itself a java.util.Date, so only a value that is not
 		// already one needs converting.
 		if (sqlType == Timestamp.class //
@@ -391,6 +402,7 @@ class ColumnMetaData {
 	 * member declared as an {@code Instant}.</li>
 	 * <li>Parses ISO-8601 text into a {@link Duration}, or converts numeric seconds
 	 * to a {@code Duration}.</li>
+	 * <li>Parses text into a {@link URI} for a member declared as {@code URI}.</li>
 	 * <li>Converts {@code "Y"} to {@code true} and any other text to {@code false}
 	 * for a member declared as a boolean, which is how a flag stored in a character
 	 * column reads back.</li>
@@ -424,6 +436,9 @@ class ColumnMetaData {
 		if (value == null //
 				|| javaType.isInstance(value))
 			return value;
+
+		if (javaType == URI.class && value instanceof String uri)
+			return URI.create(uri);
 
 		if (javaType == Instant.class //
 				&& value instanceof Timestamp timestamp)

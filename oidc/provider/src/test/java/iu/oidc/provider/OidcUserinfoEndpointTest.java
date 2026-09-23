@@ -72,7 +72,6 @@ import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
 import edu.iu.oidc.config.IuOidcClientConfiguration;
 import edu.iu.oidc.config.IuOidcClientSource;
 import edu.iu.oidc.config.IuOidcProviderConfiguration;
-import edu.iu.oidc.config.IuOidcProviderReference;
 import edu.iu.test.IuTestLogger;
 import iu.oidc.provider.OidcUserinfoResult.Json;
 import iu.oidc.provider.OidcUserinfoResult.Jwt;

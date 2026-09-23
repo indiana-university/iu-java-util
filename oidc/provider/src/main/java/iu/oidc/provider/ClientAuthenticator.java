@@ -34,6 +34,7 @@ package iu.oidc.provider;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
@@ -50,7 +51,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.config.IuOidcClientAuthorization;
 import edu.iu.oidc.config.IuOidcClientEndpoint;
-import edu.iu.oidc.config.IuOidcProviderReference;
+import edu.iu.pki.IuCertificateAuthority;
 
 /**
  * Authenticates a client at the token endpoint.
@@ -62,8 +63,8 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * the client naming one:
  * </p>
  * <ul>
- * <li>A {@link WebKey.Type#RAW RAW} key whose {@code kid} is the client ID holds
- * the client's secret. It answers {@code client_secret_basic} and
+ * <li>A {@link WebKey.Type#RAW RAW} key whose {@code kid} is the client ID
+ * holds the client's secret. It answers {@code client_secret_basic} and
  * {@code client_secret_post} by comparing the presented value, and
  * {@code client_secret_jwt} by verifying a MAC the same secret keyed &mdash;
  * which is why the secret is held as itself rather than as a digest of
@@ -72,16 +73,16 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * When the registration also carries a revocation list it is a certificate
  * authority, and the assertion's own {@code x5c} chain is verified against it;
  * otherwise the registered key verifies the assertion directly.</li>
- * <li>A record with no key at all is an explicit public registration and answers
- * {@code none}. Nothing is verified, so only a grant that proves possession by
- * other means &mdash; an authorization code with PKCE &mdash; may be redeemed.
- * {@link OidcTokenEndpoint} is what holds that to be true: it reads the method
- * back rather than discarding it, refuses {@code client_credentials} outright
- * for a public registration, and requires a recorded {@code code_challenge}
- * before redeeming one's code. {@link #isPublic(IuOidcClientEndpoint)} lets an
- * authorization endpoint say so earlier, while the client can still send one.
- * This is distinct from an endpoint that registers no authorization at all,
- * which accepts nothing.</li>
+ * <li>A record with no key at all is an explicit public registration and
+ * answers {@code none}. Nothing is verified, so only a grant that proves
+ * possession by other means &mdash; an authorization code with PKCE &mdash; may
+ * be redeemed. {@link OidcTokenEndpoint} is what holds that to be true: it
+ * reads the method back rather than discarding it, refuses
+ * {@code client_credentials} outright for a public registration, and requires a
+ * recorded {@code code_challenge} before redeeming one's code.
+ * {@link #isPublic(IuOidcClientEndpoint)} lets an authorization endpoint say so
+ * earlier, while the client can still send one. This is distinct from an
+ * endpoint that registers no authorization at all, which accepts nothing.</li>
  * </ul>
  *
  * <p>
@@ -91,17 +92,18 @@ import edu.iu.oidc.config.IuOidcProviderReference;
  * </p>
  *
  * <p>
- * Which kind of verification a registration warrants is settled here; what does
- * the verifying comes from the
- * {@link IuOidcProviderReference reference}, since every implementation of
- * {@link edu.iu.pki.IuPkiVerifier} lives in a module this one has no business
- * compiling against.
+ * Which kind of verification a registration warrants is settled here; the
+ * {@link IuOidcProviderReference reference} supplies the verifier. Immediately
+ * before a CA verifier is used, this class adapts the registration's key and
+ * revocation lists to an {@link IuCertificateAuthority}, keeping that PKI
+ * contract out of the configuration module.
  * </p>
  *
  * <p>
  * Nothing is held in memory across requests. A spent assertion is recorded in
- * the deployment's data store rather than on this instance, so replay is refused
- * across every node rather than only the one that verified the assertion.
+ * the deployment's data store rather than on this instance, so replay is
+ * refused across every node rather than only the one that verified the
+ * assertion.
  * </p>
  */
 final class ClientAuthenticator {
@@ -319,11 +321,11 @@ final class ClientAuthenticator {
 	 * first that accepts the presented credential wins, and one match is all that's
 	 * required. A record's failure doesn't refuse the client outright since a later
 	 * record may still accept it, and if none does, the <em>first</em> failure is
-	 * what's thrown, carrying every later one as
-	 * {@link Throwable#getSuppressed() suppressed} &mdash; so a rejection reads as
-	 * why the most likely record refused, without losing what the others said. An
-	 * endpoint with no authorization at all &mdash; not even one record &mdash;
-	 * refuses every credential and every public request.
+	 * what's thrown, carrying every later one as {@link Throwable#getSuppressed()
+	 * suppressed} &mdash; so a rejection reads as why the most likely record
+	 * refused, without losing what the others said. An endpoint with no
+	 * authorization at all &mdash; not even one record &mdash; refuses every
+	 * credential and every public request.
 	 * </p>
 	 *
 	 * @param endpoint   registered endpoint
@@ -431,8 +433,8 @@ final class ClientAuthenticator {
 	 * @param assertion     assertion presented
 	 * @return method that verified it
 	 */
-	private Method verifyAssertion(IuOidcClientAuthorization authorization, WebKey jwk, boolean isSecret, String clientId,
-			String assertion) {
+	private Method verifyAssertion(IuOidcClientAuthorization authorization, WebKey jwk, boolean isSecret,
+			String clientId, String assertion) {
 		final WebCryptoHeader header;
 		try {
 			header = WebCryptoHeader.getProtectedHeader(assertion);
@@ -494,7 +496,26 @@ final class ClientAuthenticator {
 
 			// resolved outside the try: a defective CA registration is a server fault,
 			// not a rejected credential
-			final var verifier = reference.getCertificateAuthorityVerifier(authorization);
+			final var verifier = reference.getCertificateAuthorityVerifier(new IuCertificateAuthority() {
+				@Override
+				public Iterable<X509CRL> getCrl() {
+					return authorization.getCrl();
+				}
+
+				@Override
+				public X509Certificate getCertificate() {
+					final var jwk = authorization.getJwk();
+					if (jwk == null)
+						return null;
+
+					final var certificateChain = jwk.getCertificateChain();
+					if (certificateChain == null || certificateChain.length == 0)
+						return null;
+
+					return certificateChain[0];
+				}
+			});
+
 			try {
 				verifier.verify(signerKey);
 			} catch (IllegalArgumentException e) {

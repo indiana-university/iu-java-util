@@ -29,17 +29,30 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package edu.iu.oidc.config;
+package iu.oidc.provider;
 
 import edu.iu.IuDataStore;
 import edu.iu.IuRequestAttributes;
 import edu.iu.crypt.WebKey;
+import edu.iu.oidc.config.IuOidcAuthenticatedPrincipal;
+import edu.iu.oidc.config.IuOidcAuthorizationDetailsSource;
+import edu.iu.oidc.config.IuOidcClaimsSource;
+import edu.iu.oidc.config.IuOidcClientEndpoint;
+import edu.iu.oidc.config.IuOidcClientSource;
+import edu.iu.oidc.config.IuOidcIdentitySource;
+import edu.iu.oidc.config.IuOidcProviderConfiguration;
 import edu.iu.pki.IuCertificateAuthority;
 import edu.iu.pki.IuPkiVerifier;
 import edu.iu.session.IuSessionHandler;
 
 /**
  * Provides application resources to the endpoints of an OpenID Provider.
+ *
+ * <p>
+ * This is a provider integration contract. Configuration records remain in the
+ * configuration module, while an application that implements this interface
+ * depends on the provider module that consumes them.
+ * </p>
  *
  * <p>
  * One thing an integration implements, rather than a collaborator per seam. A
