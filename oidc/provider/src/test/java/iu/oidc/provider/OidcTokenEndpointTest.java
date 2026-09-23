@@ -170,11 +170,15 @@ public class OidcTokenEndpointTest {
 		endpoint = new OidcTokenEndpoint(reference);
 	}
 
-	/** Answers a resource entry; a null URI names this provider's own issuer. */
-	private static IuOidcClientResource resource(URI uri, Set<String> scope) {
+	/**
+	 * Answers a resource entry; a null URI names this provider's own issuer. The
+	 * scope is answered as a bare {@link Iterable} rather than a collection, since
+	 * that is all a registration promises.
+	 */
+	private static IuOidcClientResource resource(URI uri, Iterable<String> scope) {
 		final var resource = mock(IuOidcClientResource.class);
 		when(resource.getUri()).thenReturn(uri);
-		when(resource.getScope()).thenReturn(scope);
+		when(resource.getScope()).thenReturn(scope == null ? null : IuIterable.of(scope::iterator));
 		return resource;
 	}
 
@@ -186,9 +190,9 @@ public class OidcTokenEndpointTest {
 		when(authorization.getAssertionTtl()).thenReturn(Duration.ofMinutes(2L));
 
 		final var endpoint = mock(IuOidcClientEndpoint.class);
-		when(endpoint.getAuthorization()).thenReturn(List.of(authorization));
+		doReturn(List.of(authorization)).when(endpoint).getAuthorizations();
 		when(endpoint.getRedirectUri()).thenReturn(redirectUri);
-		when(endpoint.getResources()).thenReturn(resources);
+		doReturn(resources).when(endpoint).getResources();
 		when(endpoint.getAccessRoles()).thenReturn(List.of("all"));
 		return endpoint;
 	}
@@ -197,7 +201,7 @@ public class OidcTokenEndpointTest {
 	private void register(Iterable<IuOidcClientEndpoint> endpoints) {
 		final var client = mock(IuOidcClientConfiguration.class);
 		when(client.isEnabled()).thenReturn(true);
-		when(client.getEndpoints()).thenReturn(endpoints);
+		doReturn(endpoints).when(client).getEndpoints();
 		when(clients.client(CLIENT_ID)).thenReturn(client);
 	}
 
@@ -655,9 +659,9 @@ public class OidcTokenEndpointTest {
 		final var resources = List.of(resource(null, new LinkedHashSet<>(List.of("openid", "offline_access"))));
 
 		final var clientEndpoint = mock(IuOidcClientEndpoint.class);
-		doReturn(List.of(authorization)).when(clientEndpoint).getAuthorization();
+		doReturn(List.of(authorization)).when(clientEndpoint).getAuthorizations();
 		when(clientEndpoint.getRedirectUri()).thenReturn(REDIRECT);
-		when(clientEndpoint.getResources()).thenReturn(resources);
+		doReturn(resources).when(clientEndpoint).getResources();
 		when(clientEndpoint.getAccessRoles()).thenReturn(List.of("all"));
 
 		register(List.of(clientEndpoint));
@@ -1021,7 +1025,7 @@ public class OidcTokenEndpointTest {
 		final var unmatched = mock(IuOidcClientRole.class);
 		when(unmatched.getIdRoles()).thenReturn(List.of("faculty"));
 
-		when(clientEndpoint.getRoles()).thenReturn(Arrays.asList(null, role, unmatched));
+		doReturn(Arrays.asList(null, role, unmatched)).when(clientEndpoint).getRoles();
 
 		final var issued = issued(codeRequest(grant("openid")));
 		final var accessToken = WebToken.verify(issued.accessToken(), issuerKey);

@@ -317,11 +317,15 @@ public class OidcAuthorizeEndpointTest {
 		return endpoint.authorize(request);
 	}
 
-	/** Answers a resource entry; a null URI names this provider's own issuer. */
-	private static IuOidcClientResource resource(URI uri, Set<String> scope) {
+	/**
+	 * Answers a resource entry; a null URI names this provider's own issuer. The
+	 * scope is answered as a bare {@link Iterable} rather than a collection, since
+	 * that is all a registration promises.
+	 */
+	private static IuOidcClientResource resource(URI uri, Iterable<String> scope) {
 		final var resource = mock(IuOidcClientResource.class);
 		when(resource.getUri()).thenReturn(uri);
-		when(resource.getScope()).thenReturn(scope);
+		when(resource.getScope()).thenReturn(scope == null ? null : IuIterable.of(scope::iterator));
 		return resource;
 	}
 
@@ -329,11 +333,11 @@ public class OidcAuthorizeEndpointTest {
 	private IuOidcClientEndpoint register(Iterable<IuOidcClientResource> resources) {
 		final var endpoint = mock(IuOidcClientEndpoint.class);
 		when(endpoint.getRedirectUri()).thenReturn(REDIRECT);
-		when(endpoint.getResources()).thenReturn(resources);
+		doReturn(resources).when(endpoint).getResources();
 
 		final var client = mock(IuOidcClientConfiguration.class);
 		when(client.isEnabled()).thenReturn(true);
-		when(client.getEndpoints()).thenReturn(List.of(endpoint));
+		doReturn(List.of(endpoint)).when(client).getEndpoints();
 		when(clients.client(CLIENT_ID)).thenReturn(client);
 
 		return endpoint;
@@ -571,7 +575,7 @@ public class OidcAuthorizeEndpointTest {
 		// no key at all is what makes a registration public, as distinct from one
 		// registering no authorization, which accepts nothing
 		doReturn(null).when(authorization).getJwk();
-		doReturn(List.of(authorization)).when(endpoint).getAuthorization();
+		doReturn(List.of(authorization)).when(endpoint).getAuthorizations();
 	}
 
 	@Test

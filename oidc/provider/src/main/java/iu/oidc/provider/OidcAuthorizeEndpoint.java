@@ -309,7 +309,8 @@ public class OidcAuthorizeEndpoint {
 
 		final var granted = grantedResources(endpoint, issuerUri, resources);
 		for (final var requested : scopes)
-			if (granted.stream().map(IuOidcClientResource::getScope).flatMap(Set::stream).noneMatch(requested::equals))
+			if (granted.stream().map(IuOidcClientResource::getScope).flatMap(IuIterable::stream)
+					.noneMatch(requested::equals))
 				throw new AuthorizationError("invalid_scope", "Scope " + requested + " is not granted to this client");
 
 		// PKCE is optional for a client that authenticates, but a challenge this

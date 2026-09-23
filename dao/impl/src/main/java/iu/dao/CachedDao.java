@@ -768,6 +768,21 @@ final class CachedDao implements IuDao {
 	}
 
 	@Override
+	public Iterable<String> getPrimaryKeyProperties(Class<?> beanClass) {
+		return delegate.getPrimaryKeyProperties(beanClass);
+	}
+
+	@Override
+	public Map<String, Object> getBeanKey(Object bean) {
+		return delegate.getBeanKey(bean);
+	}
+
+	@Override
+	public <B> B newBean(Class<B> beanClass, Map<String, ?> idParams) {
+		return delegate.newBean(beanClass, idParams);
+	}
+
+	@Override
 	public SqlStatement getStatement(String sql, Iterable<?> args) {
 		// caller SQL naming neither an entity type nor a row: there is nothing to
 		// invalidate by, and clearing the whole cache on every raw statement would

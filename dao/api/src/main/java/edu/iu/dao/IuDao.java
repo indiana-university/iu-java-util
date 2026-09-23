@@ -187,6 +187,54 @@ public interface IuDao {
 	TableDefinition getTableDefinition(String tableName);
 
 	/**
+	 * Gets the names of an entity type's {@link jakarta.persistence.Id @Id}
+	 * properties, as {@link #loadBean(Class, Map)} takes them.
+	 *
+	 * @param beanClass mapped entity type
+	 * @return key property names, in mapping order; empty if the type maps no
+	 *         {@code @Id}
+	 * @throws IllegalArgumentException if the type maps no column
+	 */
+	Iterable<String> getPrimaryKeyProperties(Class<?> beanClass);
+
+	/**
+	 * Reads an entity's key.
+	 *
+	 * <p>
+	 * Each value is read the way the entity's mapping reads it: from the field when
+	 * the mapping annotation is on the field, and through the getter otherwise. The
+	 * values are as the entity holds them, not as they would be bound to SQL, so a
+	 * {@link java.net.URI} key reads back as a {@code URI}.
+	 * </p>
+	 *
+	 * @param bean mapped entity
+	 * @return key values by property name, in mapping order
+	 * @throws NullPointerException if {@code bean} is {@code null}
+	 */
+	Map<String, Object> getBeanKey(Object bean);
+
+	/**
+	 * Creates an entity carrying only its key, as the starting point for a row not
+	 * yet written.
+	 *
+	 * <p>
+	 * The entity is instantiated through its no-argument constructor and each key
+	 * value is written the way a read writes it: to the field when the mapping
+	 * annotation is on the field, or when there is no setter, and through the
+	 * setter otherwise. Every other member is left as the constructor left it.
+	 * </p>
+	 *
+	 * @param <B>       entity type
+	 * @param beanClass mapped entity class
+	 * @param idParams  key values by property name
+	 * @return new entity
+	 * @throws IllegalArgumentException if the type is an interface or record,
+	 *                                  which cannot be populated, or a parameter
+	 *                                  names a property that is not an {@code @Id}
+	 */
+	<B> B newBean(Class<B> beanClass, Map<String, ?> idParams);
+
+	/**
 	 * Gets an unexecuted statement for SQL that takes no bind arguments.
 	 *
 	 * @param sql SQL text to execute

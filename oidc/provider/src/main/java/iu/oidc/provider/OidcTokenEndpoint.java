@@ -600,7 +600,7 @@ public class OidcTokenEndpoint {
 	 */
 	private Authenticated authenticate(URI providerIssuer, Set<String> resources, String redirectUri,
 			String clientId, ClientAuthenticator.Credential credential) {
-		final Iterable<IuOidcClientEndpoint> endpoints;
+		final Iterable<? extends IuOidcClientEndpoint> endpoints;
 		try {
 			final var client = Objects.requireNonNull(reference.getClientSource().client(clientId),
 					"Unregistered client");

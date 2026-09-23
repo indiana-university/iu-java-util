@@ -223,7 +223,7 @@ final class OidcProviderUtils {
 
 				final var resourceScope = resource.getScope();
 				if (resourceScope == null //
-						|| resourceScope.stream().noneMatch(scopes::contains))
+						|| IuIterable.stream(resourceScope).noneMatch(scopes::contains))
 					continue;
 
 				final var uri = resource.getUri();
@@ -279,7 +279,7 @@ final class OidcProviderUtils {
 			if (matches) {
 				final var scope = clientResource.getScope();
 				if (scope != null //
-						&& !scope.isEmpty())
+						&& scope.iterator().hasNext())
 					granted.add(clientResource);
 			}
 		}
@@ -368,7 +368,7 @@ final class OidcProviderUtils {
 			final var uri = clientResource.getUri() == null ? issuer : clientResource.getUri();
 			if ((resources.isEmpty() //
 					|| resources.contains(uri.toString())) //
-					&& scope.stream().anyMatch(scopes::contains))
+					&& IuIterable.stream(scope).anyMatch(scopes::contains))
 				audience.add(uri);
 		}
 

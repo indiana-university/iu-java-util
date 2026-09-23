@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -138,7 +139,7 @@ public class ClientAuthenticatorTest {
 
 	private static IuOidcClientEndpoint endpoint(Iterable<IuOidcClientAuthorization> authorizations) {
 		final var endpoint = mock(IuOidcClientEndpoint.class);
-		when(endpoint.getAuthorization()).thenReturn(authorizations);
+		doReturn(authorizations).when(endpoint).getAuthorizations();
 		return endpoint;
 	}
 
@@ -262,7 +263,7 @@ public class ClientAuthenticatorTest {
 		// an endpoint registering no authorization at all accepts nothing, which is
 		// distinct from registering a public one -- and is not public
 		final var unregistered = mock(IuOidcClientEndpoint.class);
-		when(unregistered.getAuthorization()).thenReturn(null);
+		when(unregistered.getAuthorizations()).thenReturn(null);
 		assertFalse(ClientAuthenticator.isPublic(unregistered));
 
 		// a public registration that has expired no longer answers for anything, so an

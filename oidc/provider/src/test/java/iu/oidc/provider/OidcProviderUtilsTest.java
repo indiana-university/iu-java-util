@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -61,17 +62,21 @@ public class OidcProviderUtilsTest {
 	private static final URI ISSUER = URI.create("https://example.iu.edu/oidc");
 	private static final URI EXTERNAL = URI.create("https://api.example.iu.edu");
 
-	/** Answers a resource entry; a null URI names this provider's own issuer. */
-	private static IuOidcClientResource resource(URI uri, Set<String> scope) {
+	/**
+	 * Answers a resource entry; a null URI names this provider's own issuer. The
+	 * scope is answered as a bare {@link Iterable} rather than a collection, since
+	 * that is all a registration promises.
+	 */
+	private static IuOidcClientResource resource(URI uri, Iterable<String> scope) {
 		final var resource = mock(IuOidcClientResource.class);
 		when(resource.getUri()).thenReturn(uri);
-		when(resource.getScope()).thenReturn(scope);
+		when(resource.getScope()).thenReturn(scope == null ? null : IuIterable.of(scope::iterator));
 		return resource;
 	}
 
 	private static IuOidcClientEndpoint endpoint(Iterable<IuOidcClientResource> resources) {
 		final var endpoint = mock(IuOidcClientEndpoint.class);
-		when(endpoint.getResources()).thenReturn(resources);
+		doReturn(resources).when(endpoint).getResources();
 		return endpoint;
 	}
 
@@ -83,7 +88,7 @@ public class OidcProviderUtilsTest {
 
 	private static IuOidcClientConfiguration client(Iterable<IuOidcClientEndpoint> endpoints) {
 		final var client = mock(IuOidcClientConfiguration.class);
-		when(client.getEndpoints()).thenReturn(endpoints);
+		doReturn(endpoints).when(client).getEndpoints();
 		return client;
 	}
 

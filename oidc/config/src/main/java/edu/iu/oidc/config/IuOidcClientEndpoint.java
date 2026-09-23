@@ -61,8 +61,11 @@ public interface IuOidcClientEndpoint {
 	 * itself at the token endpoint.
 	 *
 	 * <p>
-	 * Registered per endpoint rather than per client, so one deployment's key can
-	 * be rotated or revoked without disturbing another's.
+	 * Selected per endpoint from {@link IuOidcClientConfiguration#getAuthorizations()
+	 * the records the client owns}, so one deployment's key can be rotated or
+	 * revoked without disturbing another's. Every record named here <em>must</em>
+	 * be one of those: a record reached through another client's registration
+	 * would authenticate as that client too.
 	 * </p>
 	 *
 	 * <p>
@@ -77,7 +80,7 @@ public interface IuOidcClientEndpoint {
 	 * @return authorization records, tried in order; {@code null} or empty to
 	 *         accept no credential at all
 	 */
-	Iterable<? extends IuOidcClientAuthorization> getAuthorization();
+	Iterable<? extends IuOidcClientAuthorization> getAuthorizations();
 
 	/**
 	 * Gets the identity roles that entitle an end user to a token from this

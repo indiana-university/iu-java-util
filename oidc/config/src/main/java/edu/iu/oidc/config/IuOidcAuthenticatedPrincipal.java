@@ -53,8 +53,8 @@ import java.time.Instant;
 public interface IuOidcAuthenticatedPrincipal extends Principal {
 
 	/**
-	 * Gets the identity provider that authenticated the end user, which an ID token
-	 * reports as {@code idp}.
+	 * Gets the identity provider that authenticated the end user, which a token
+	 * issued for the end user reports as {@code acr}.
 	 *
 	 * @return authentication authority, typically an entity ID
 	 */

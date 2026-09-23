@@ -337,7 +337,7 @@ final class ClientAuthenticator {
 	Method authenticate(IuOidcClientEndpoint endpoint, String clientId, Credential credential) {
 		RuntimeException error = null;
 
-		final var authorizations = endpoint.getAuthorization();
+		final var authorizations = endpoint.getAuthorizations();
 		if (authorizations != null)
 			for (final var authorization : authorizations) {
 				if (authorization == null)
@@ -410,7 +410,7 @@ final class ClientAuthenticator {
 	 *         false
 	 */
 	static boolean isPublic(IuOidcClientEndpoint endpoint) {
-		final var authorizations = endpoint.getAuthorization();
+		final var authorizations = endpoint.getAuthorizations();
 		if (authorizations == null)
 			return false;
 

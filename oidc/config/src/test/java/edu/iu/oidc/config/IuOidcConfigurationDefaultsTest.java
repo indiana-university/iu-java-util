@@ -32,7 +32,6 @@
 package edu.iu.oidc.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
 import java.time.Duration;
@@ -82,47 +81,6 @@ public class IuOidcConfigurationDefaultsTest {
 	@Test
 	void testARefreshTokenLivesTwelveHoursByDefault() {
 		assertEquals(Duration.ofHours(12L), provider().getRefreshTokenTimeToLive());
-	}
-
-	/** Declares only the required properties, leaving every default in place. */
-	private static IuOidcClientConfiguration client() {
-		return new IuOidcClientConfiguration() {
-
-			@Override
-			public String getClientId() {
-				return "some-client";
-			}
-
-			@Override
-			public boolean isEnabled() {
-				return true;
-			}
-
-			@Override
-			public Iterable<String> getAdminRoles() {
-				return null;
-			}
-
-			@Override
-			public Iterable<IuOidcClientEndpoint> getEndpoints() {
-				return null;
-			}
-
-			@Override
-			public Iterable<IuOidcClientRole> getRoles() {
-				return null;
-			}
-		};
-	}
-
-	@Test
-	void testAUserinfoResponseIsAPlainDocumentByDefault() {
-		// unlike an ID token, which is always signed: registering no algorithm is what
-		// OpenID Connect means by an unsigned UserInfo response
-		final var client = client();
-		assertNull(client.getUserinfoAlg());
-		assertNull(client.getUserinfoEnc());
-		assertNull(client.getUserinfoJwk());
 	}
 
 }

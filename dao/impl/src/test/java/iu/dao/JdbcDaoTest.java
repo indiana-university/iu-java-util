@@ -901,6 +901,107 @@ public class JdbcDaoTest {
 		});
 	}
 
+	/** Keyed on two fields, one of them a URI, with no setters. */
+	@Entity
+	@Table(name = "field_keyed", schema = "s")
+	public static class FieldKeyed {
+		@Id
+		@Column
+		private String name;
+		@Id
+		@Column
+		private java.net.URI uri;
+		@Column
+		private String other;
+	}
+
+	/** Declares a key that a subclass inherits. */
+	public static class KeyedBase {
+		@Id
+		@Column
+		private String id;
+	}
+
+	/** Maps its key through a superclass. */
+	@Entity
+	@Table(name = "inherited", schema = "s")
+	public static class InheritsKey extends KeyedBase {
+		@Column
+		private String name;
+	}
+
+	/** A record cannot be populated. */
+	@Entity
+	@Table(name = "keyed_record", schema = "s")
+	public record KeyedRecord(@Id @Column String id) {
+	}
+
+	/** A mapped key setter that refuses the value supplied while creating a bean. */
+	@Entity
+	@Table(name = "throwing_key", schema = "s")
+	public static class ThrowingKeyBean {
+		@Id
+		@Column
+		public String getId() {
+			return null;
+		}
+
+		public void setId(String id) {
+			throw new IllegalStateException(id);
+		}
+	}
+
+	/** A computed key cannot be populated because it has neither setter nor field. */
+	@Entity
+	@Table(name = "computed_key", schema = "s")
+	public static class ComputedKeyBean {
+		@Id
+		@Column
+		public String getId() {
+			return "computed";
+		}
+	}
+
+	@Test
+	public void testReadsAndWritesKeysTheWayTheMappingDoes() {
+		final var dao = new JdbcDao(new Jdbc().dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION),
+				registry(), new IuSqlBuilderImpl());
+
+		// mapped on the getter, written through the setter
+		assertEquals(List.of("firstName"), edu.iu.IuIterable.stream(dao.getPrimaryKeyProperties(Bean.class)).toList());
+		final var bean = dao.newBean(Bean.class, Map.of("firstName", "Ada"));
+		assertEquals("Ada", bean.getFirstName());
+		assertEquals(0, bean.getAge());
+		assertEquals(Map.of("firstName", "Ada"), dao.getBeanKey(bean));
+
+		// mapped on fields with no setters, composite, and read back as held
+		final var uri = java.net.URI.create("https://example.edu/");
+		final var fieldKeyed = dao.newBean(FieldKeyed.class, Map.of("name", "a", "uri", uri));
+		assertEquals(List.of("name", "uri"), List.copyOf(dao.getBeanKey(fieldKeyed).keySet()));
+		assertEquals(uri, dao.getBeanKey(fieldKeyed).get("uri"));
+		assertEquals(null, fieldKeyed.other);
+
+		// inherited from a superclass
+		final var inherited = dao.newBean(InheritsKey.class, Map.of("id", "k"));
+		assertEquals(Map.of("id", "k"), dao.getBeanKey(inherited));
+
+		// a null key value for a primitive member is left at its default
+		final Map<String, Object> nullKey = new HashMap<>();
+		nullKey.put("id", null);
+		assertEquals(0L, dao.newBean(KeyOnlyBean.class, nullKey).getId());
+		final Map<String, Object> nullStringKey = new HashMap<>();
+		nullStringKey.put("firstName", null);
+		assertEquals(null, dao.newBean(Bean.class, nullStringKey).getFirstName());
+		assertEquals(7L, dao.newBean(KeyOnlyBean.class, Map.of("id", 7L)).getId());
+
+		assertThrows(IllegalArgumentException.class, () -> dao.newBean(Bean.class, Map.of("age", 3)));
+		assertThrows(IllegalArgumentException.class, () -> dao.newBean(KeyedRecord.class, Map.of("id", "r")));
+		assertThrows(IllegalArgumentException.class, () -> dao.newBean(IuDao.class, Map.of()));
+		assertThrows(IllegalArgumentException.class, () -> dao.newBean(ThrowingKeyBean.class, Map.of("id", "x")));
+		assertThrows(IllegalArgumentException.class, () -> dao.newBean(ComputedKeyBean.class, Map.of("id", "x")));
+		assertThrows(NullPointerException.class, () -> dao.getBeanKey(null));
+	}
+
 	private static IuSqlBuilder builder() {
 		return proxy(IuSqlBuilder.class, (method, args) -> switch (method.getName()) {
 		case "getSelectStatement", "getOrderedSelectStatement" -> "bean";

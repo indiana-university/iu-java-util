@@ -42,8 +42,10 @@ import java.lang.annotation.Target;
  *
  * <p>
  * May be placed on a property's getter or on the field behind it, and on a field
- * with no bean property at all; where a getter and its field disagree, the getter
- * decides.
+ * with no bean property at all. Where both a getter and its field carry a
+ * mapping, the field wins, the same as for a {@link jakarta.persistence.Column}
+ * mapping: the field is then the stored value, and the property is downstream of
+ * it.
  * </p>
  *
  * <p>

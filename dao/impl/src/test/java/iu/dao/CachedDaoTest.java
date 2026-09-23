@@ -271,6 +271,24 @@ public class CachedDaoTest {
 		}
 
 		@Override
+		public Iterable<String> getPrimaryKeyProperties(Class<?> beanClass) {
+			passthrough.add("getPrimaryKeyProperties:" + beanClass.getSimpleName());
+			return null;
+		}
+
+		@Override
+		public Map<String, Object> getBeanKey(Object bean) {
+			passthrough.add("getBeanKey");
+			return null;
+		}
+
+		@Override
+		public <B> B newBean(Class<B> beanClass, Map<String, ?> idParams) {
+			passthrough.add("newBean:" + beanClass.getSimpleName());
+			return null;
+		}
+
+		@Override
 		public SqlStatement getStatement(String sql, Iterable<?> args) {
 			return statement("getStatement:" + sql + args);
 		}
@@ -919,6 +937,9 @@ public class CachedDaoTest {
 	@Test
 	public void testOperationsReachTheDelegateWithTheirArguments() {
 		assertNull(dao.getTableDefinition("T"));
+		assertNull(dao.getPrimaryKeyProperties(Bean.class));
+		assertNull(dao.getBeanKey("bean"));
+		assertNull(dao.newBean(Bean.class, id("a")));
 		dao.getStatement("sql", List.of("a"));
 		dao.getBeanQuery(Bean.class, List.of("w"), List.of("a"));
 		dao.getBeanQuery(Bean.class, List.of("w"), List.of("o"), List.of("a"));
@@ -932,6 +953,9 @@ public class CachedDaoTest {
 
 		assertEquals(List.of( //
 				"getTableDefinition:T", //
+				"getPrimaryKeyProperties:Bean", //
+				"getBeanKey", //
+				"newBean:Bean", //
 				"getStatement:sql[a]", //
 				"getBeanUpdate:bean", //
 				"getBeanUpdate:bean:passive", //

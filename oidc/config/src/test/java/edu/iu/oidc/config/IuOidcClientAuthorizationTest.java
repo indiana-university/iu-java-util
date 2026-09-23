@@ -51,6 +51,11 @@ public class IuOidcClientAuthorizationTest {
 	private static IuOidcClientAuthorization authorization(WebKey jwk) {
 		return new IuOidcClientAuthorization() {
 			@Override
+			public String getDescr() {
+				return null;
+			}
+
+			@Override
 			public WebKey getJwk() {
 				return jwk;
 			}
