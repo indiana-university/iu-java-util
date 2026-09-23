@@ -62,7 +62,7 @@ import jakarta.json.JsonObject;
  */
 public class OidcPrincipal implements IuOidcPrincipal {
 
-	private final Logger LOG = Logger.getLogger(OidcPrincipal.class.getName());
+	private static final Logger LOG = Logger.getLogger(OidcPrincipal.class.getName());
 
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;

@@ -227,6 +227,12 @@ public class OidcAuthorizeEndpointTest {
 		}
 
 		@Override
+		public String getTokenEndpointAuthMethod() {
+			// only a token endpoint answers this, once a code is redeemed
+			return null;
+		}
+
+		@Override
 		public Iterable<? extends IuAuthorizationDetails> getRequestedAuthorizationDetails() {
 			return requestedAuthorizationDetails;
 		}

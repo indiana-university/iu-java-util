@@ -38,6 +38,7 @@ import static iu.oidc.provider.OidcProviderUtils.isValidResource;
 import static iu.oidc.provider.OidcProviderUtils.resourcesGrantingScope;
 import static iu.oidc.provider.OidcProviderUtils.scopes;
 
+import java.lang.reflect.Proxy;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -116,7 +117,9 @@ import edu.iu.oidc.config.IuOidcClientRole;
  * hasn't aged past the deployment's refresh token time to live, issues a new
  * one good for whatever of that lifetime remains &mdash; so a session can be
  * kept alive by refreshing, but never beyond the age its authentication was
- * good for in the first place.</li>
+ * good for in the first place. The client must authenticate the same way it
+ * did to redeem the code, so a public client refreshes with no credential only
+ * a line it began with PKCE.</li>
  * <li>{@code urn:ietf:params:oauth:grant-type:token-exchange} answers for one
  * principal on the strength of another's token &mdash; see below. It is the one
  * grant type with no stored grant behind it: what it answers for is named in
@@ -151,9 +154,11 @@ import edu.iu.oidc.config.IuOidcClientRole;
  * {@code subject_token} under the
  * {@link #PRINCIPAL_NAME_TOKEN_TYPE principal name token type}, and is honored
  * only when the principal that token was issued to holds one of the endpoint's
- * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor roles} and
+ * {@link IuOidcClientEndpoint#getBackdoorRoles() backdoor roles},
  * {@link IuOidcProviderReference#isProduction() this deployment isn't a
- * production one}. The named principal is then who the tokens answer for, and
+ * production one}, and the client authenticated &mdash; a public client is
+ * refused, since the {@code actor_token} would then be the only credential in
+ * the request. The named principal is then who the tokens answer for, and
  * the one that authenticated rides along as the {@link IuOidcActor act} claim.
  * </p>
  *
@@ -384,13 +389,22 @@ public class OidcTokenEndpoint {
 		}
 
 		case "refresh_token": {
-			final var grant = refresh(endpoint, clientId, request);
+			final var grant = refresh(authenticated, clientId, request);
 			redeemed = Redeemed.of(grant);
 			scopes = scopes(grant.getScope());
 			break;
 		}
 
 		case TOKEN_EXCHANGE: {
+			// the actor_token is a bearer credential, and a public registration adds
+			// nothing to it: an access token leaked from a public client would be enough
+			// on its own to answer as somebody else
+			if (authenticated.isPublic()) {
+				LOG.info(() -> "token-deny:public-token-exchange:" + clientId);
+				throw new TokenError("invalid_client", "Token exchange requires an authenticated client",
+						UNAUTHORIZED);
+			}
+
 			final var actor = exchangeActor(endpoint, clientId, request);
 			// principalName here is the actor, so the authentication time and authority
 			// read off their token are theirs -- which is what Redeemed means by both.
@@ -683,7 +697,8 @@ public class OidcTokenEndpoint {
 	 * @param authenticated endpoint that authenticated, and how
 	 * @param clientId      authenticated client ID
 	 * @param request       incoming request
-	 * @return redeemed grant
+	 * @return redeemed grant, answering how the client authenticated to redeem it
+	 *         so a refresh token filed from it is bound to the same method
 	 * @throws TokenError if the code doesn't redeem, names a different client or
 	 *                    redirect URI, or the PKCE challenge isn't satisfied
 	 */
@@ -710,26 +725,69 @@ public class OidcTokenEndpoint {
 
 		verifyPkce(authenticated, grant, request.getCodeVerifier());
 
-		return grant;
+		return authenticatedBy(grant, authenticated.method());
+	}
+
+	/**
+	 * Answers a redeemed grant as it is filed for refresh, naming how the client
+	 * authenticated to redeem it.
+	 *
+	 * <p>
+	 * A grant read back out of {@link GrantStore} can't be written to, so this is a
+	 * view rather than a copy: every property answers from {@code grant} except
+	 * {@link OidcGrant#getTokenEndpointAuthMethod()}. A refresh token filed from it
+	 * carries that value, and every one rotated out of that is filed from the grant
+	 * it redeemed, so the value holds for the whole line.
+	 * </p>
+	 *
+	 * @param grant  redeemed grant
+	 * @param method method that authenticated the redemption
+	 * @return grant answering {@code method}
+	 */
+	private static OidcGrant authenticatedBy(OidcGrant grant, ClientAuthenticator.Method method) {
+		return (OidcGrant) Proxy.newProxyInstance(OidcGrant.class.getClassLoader(), new Class<?>[] { OidcGrant.class },
+				(proxy, invoked, args) -> "getTokenEndpointAuthMethod".equals(invoked.getName()) //
+						? method.parameterValue
+						: invoked.invoke(grant, args));
 	}
 
 	/**
 	 * Redeems a refresh token.
 	 *
-	 * @param endpoint endpoint that authenticated
-	 * @param clientId authenticated client ID
-	 * @param request  incoming request
+	 * <p>
+	 * The client must authenticate the same way it did to redeem the code the
+	 * token descends from. Without that, an endpoint registering both a public and
+	 * a keyed record would let a refresh token a confidential client was issued be
+	 * redeemed by presenting nothing at all.
+	 * </p>
+	 *
+	 * @param authenticated endpoint that authenticated, and how
+	 * @param clientId      authenticated client ID
+	 * @param request       incoming request
 	 * @return redeemed grant
-	 * @throws TokenError if the token doesn't redeem or names a different client
+	 * @throws TokenError if the token doesn't redeem, names a different client, or
+	 *                    was issued to a client that authenticated differently
 	 */
-	private OidcGrant refresh(IuOidcClientEndpoint endpoint, String clientId, OidcTokenRequest request) {
+	private OidcGrant refresh(Authenticated authenticated, String clientId, OidcTokenRequest request) {
 		// the wrapped token is addressed to this provider regardless of the endpoint,
 		// so one registering no redirect URI redeems the reference the same as any
 		// other
-		final var grant = take(GrantStore.REFRESH, endpoint, required(request.getRefreshToken(), "refresh_token"));
+		final var grant = take(GrantStore.REFRESH, authenticated.endpoint(),
+				required(request.getRefreshToken(), "refresh_token"));
 
 		if (!clientId.equals(grant.getClientId()))
 			throw new TokenError("invalid_grant", "Refresh token was issued to a different client", BAD_REQUEST);
+
+		// a grant filed before the method was recorded names none, and is refused the
+		// same as a mismatch rather than trusted to have matched
+		final var recorded = grant.getTokenEndpointAuthMethod();
+		final var presented = authenticated.method().parameterValue;
+		if (!presented.equals(recorded)) {
+			LOG.info(() -> "token-deny:refresh-auth-method:" + clientId + ":" + recorded + ":" + presented);
+			throw new TokenError("invalid_grant",
+					"Refresh token must be redeemed with the authentication method its code was redeemed with",
+					BAD_REQUEST);
+		}
 
 		return grant;
 	}
@@ -1560,7 +1618,8 @@ public class OidcTokenEndpoint {
 	 * because what a grant may do depends on whether anything was verified at all.
 	 * {@link ClientAuthenticator.Method#NONE} is a registration that presents no
 	 * credential by design, so the grant itself has to prove possession: an
-	 * authorization code with PKCE does, and {@code client_credentials} has nothing
+	 * authorization code with PKCE does, a refresh token does only for a line such
+	 * a code began, and {@code client_credentials} and token exchange have nothing
 	 * to prove it with.
 	 * </p>
 	 *

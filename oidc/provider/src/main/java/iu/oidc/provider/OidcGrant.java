@@ -64,7 +64,8 @@ import edu.iu.jwt.IuAuthorizationDetails;
  * the code is the decryption key for, so this interface is also the claim the
  * grant token carries. A token endpoint redeems that token, checking
  * {@link #getClientId()}, {@link #getRedirectUri()}, and
- * {@link #getCodeChallenge()} before issuing an ID token.
+ * {@link #getCodeChallenge()} before issuing an ID token, and files it again
+ * for refresh answering {@link #getTokenEndpointAuthMethod()}.
  * </p>
  */
 public interface OidcGrant {
@@ -284,6 +285,23 @@ public interface OidcGrant {
 	 * @param family family identifier
 	 */
 	void setFamily(String family);
+
+	/**
+	 * Gets how the client authenticated when it redeemed the authorization code
+	 * this grant descends from.
+	 *
+	 * <p>
+	 * A client only authenticates once it redeems, so this is answered by the token
+	 * endpoint rather than set by the authorization endpoint, and carried onto every
+	 * refresh token that rotates out of the grant. A refresh must authenticate the
+	 * same way, so a line a confidential client began cannot be continued by
+	 * presenting nothing through an endpoint that also registers a public record.
+	 * </p>
+	 *
+	 * @return RFC 7591 {@code token_endpoint_auth_method} value; {@code null} for a
+	 *         grant no code has been redeemed for yet
+	 */
+	String getTokenEndpointAuthMethod();
 
 	/**
 	 * Gets the PKCE {@code code_challenge}.

@@ -252,6 +252,10 @@ public class OidcTokenEndpointTest {
 		when(grant.getScope()).thenReturn(scope);
 		when(grant.getRedirectUri()).thenReturn(REDIRECT);
 		when(grant.getAuthnInstant()).thenReturn(Instant.now().minusSeconds(30L));
+		// how request(...) authenticates, so a grant filed directly as a refresh token
+		// reads as one a code redemption over the same credential produced; a code
+		// redemption answers its own regardless of what the filed grant says
+		when(grant.getTokenEndpointAuthMethod()).thenReturn("client_secret_post");
 		// a mock answers an unstubbed Iterable with an empty one rather than null,
 		// and releasing nothing has to read as nothing
 		doReturn(null).when(grant).getReleasedAuthorizationDetails();
@@ -939,6 +943,118 @@ public class OidcTokenEndpointTest {
 		assertNotNull(issued(request).idToken());
 	}
 
+	/**
+	 * Registers one endpoint accepting either its shared secret or nothing at all,
+	 * as one moving a client between the two might.
+	 */
+	private void registerSecretOrPublic() {
+		final var clientEndpoint = register();
+		final var keyed = clientEndpoint.getAuthorizations().iterator().next();
+		final var publicRecord = mock(IuOidcClientAuthorization.class);
+		doReturn(null).when(publicRecord).getJwk();
+		doReturn(List.of(keyed, publicRecord)).when(clientEndpoint).getAuthorizations();
+	}
+
+	/** Redeems a freshly filed code over request(...) and answers its refresh token. */
+	private String refreshTokenFromCode() {
+		final var grant = grant("openid offline_access");
+		// what an authorization endpoint files: no code has been redeemed for it yet
+		when(grant.getTokenEndpointAuthMethod()).thenReturn(null);
+		return assertInstanceOf(String.class, issued(codeRequest(grant)).refreshToken());
+	}
+
+	@Test
+	void testARefreshTokenCarriesHowItsCodeWasRedeemedThroughEveryRotation() {
+		registerSecretOrPublic();
+		claimsHoldNothing();
+
+		final var refreshToken = refreshTokenFromCode();
+		final var first = request("refresh_token");
+		when(first.getRefreshToken()).thenReturn(refreshToken);
+		final var rotated = issued(first).refreshToken();
+
+		// filed from the grant it redeemed, so the method rides along without the
+		// code redemption having to happen again
+		final var second = request("refresh_token");
+		when(second.getRefreshToken()).thenReturn(rotated);
+		assertNotNull(issued(second).accessToken());
+	}
+
+	@Test
+	void testARefreshTokenACodeRedeemedWithASecretBeganIsNotRedeemedWithNothing() {
+		// the endpoint would accept a bare request, and the refresh token is a bearer
+		// value; the method it was bound to is what refuses the line to whoever holds
+		// a copy of it without the secret
+		registerSecretOrPublic();
+		claimsHoldNothing();
+
+		final var refreshToken = refreshTokenFromCode();
+		final var bare = publicRequest("refresh_token");
+		when(bare.getRefreshToken()).thenReturn(refreshToken);
+		assertError("invalid_grant",
+				"Refresh token must be redeemed with the authentication method its code was redeemed with", 400,
+				bare);
+	}
+
+	@Test
+	void testARefreshTokenIsBoundToTheExactMethodNotJustAnyCredential() {
+		registerSecretOrPublic();
+		claimsHoldNothing();
+
+		final var refreshToken = refreshTokenFromCode();
+
+		// the same secret, presented the other way RFC 6749 §2.3.1 allows
+		final var request = request("refresh_token");
+		when(request.getClientSecret()).thenReturn(null);
+		when(request.getAuthorization()).thenReturn("Basic " + basic(CLIENT_ID, SECRET));
+		when(request.getRefreshToken()).thenReturn(refreshToken);
+		assertError("invalid_grant",
+				"Refresh token must be redeemed with the authentication method its code was redeemed with", 400,
+				request);
+	}
+
+	@Test
+	void testARefreshTokenRecordingNoMethodIsRefused() {
+		// filed before the method was recorded: nothing says it matched, so it isn't
+		// trusted to have
+		register();
+		claimsHoldNothing();
+
+		final var unbound = grant("openid");
+		when(unbound.getTokenEndpointAuthMethod()).thenReturn(null);
+
+		final var refreshToken = store(GrantStore.REFRESH, unbound, ACCESS_TTL);
+		final var request = request("refresh_token");
+		when(request.getRefreshToken()).thenReturn(refreshToken);
+		assertError("invalid_grant",
+				"Refresh token must be redeemed with the authentication method its code was redeemed with", 400,
+				request);
+	}
+
+	@Test
+	void testAPublicClientRefreshesALineItBeganWithPkce() {
+		registerPublic();
+		claimsHoldNothing();
+
+		final var verifier = IdGenerator.generateId();
+		final var challenged = grant("openid offline_access");
+		when(challenged.getTokenEndpointAuthMethod()).thenReturn(null);
+		when(challenged.getCodeChallenge())
+				.thenReturn(IuText.base64Url(IuDigest.sha256(verifier.getBytes(StandardCharsets.US_ASCII))));
+
+		final var code = store(GrantStore.CODE, challenged, ACCESS_TTL);
+		final var redeem = publicRequest("authorization_code");
+		when(redeem.getRedirectUri()).thenReturn(REDIRECT.toString());
+		when(redeem.getCode()).thenReturn(code);
+		when(redeem.getCodeVerifier()).thenReturn(verifier);
+		final var refreshToken = issued(redeem).refreshToken();
+		assertNotNull(refreshToken);
+
+		final var refresh = publicRequest("refresh_token");
+		when(refresh.getRefreshToken()).thenReturn(refreshToken);
+		assertNotNull(issued(refresh).accessToken());
+	}
+
 	@Test
 	void testARedemptionMayNarrowTheAudienceButNeverWidenIt() {
 		register(List.of(clientEndpoint(REDIRECT,
@@ -1294,6 +1410,20 @@ public class OidcTokenEndpointTest {
 		register();
 		assertError("invalid_grant", "actor_token already answers for this subject", 400,
 				exchangeRequest(PRINCIPAL, actorToken()));
+	}
+
+	@Test
+	void testAPublicClientCannotExchangeATokenForAnother() {
+		// everything else an exchange needs is in place, so the refusal is about the
+		// missing client credential: the actor_token would be the only one presented
+		final var clientEndpoint = registerPublic();
+		when(clientEndpoint.getBackdoorRoles()).thenReturn(List.of("support"));
+		when(identitySource.hasRole(PRINCIPAL, "support")).thenReturn(true);
+		claimsForAnyone();
+
+		final var request = exchangeRequest("somebody-else", actorToken());
+		when(request.getClientSecret()).thenReturn(null);
+		assertError("invalid_client", "Token exchange requires an authenticated client", 401, request);
 	}
 
 	@Test

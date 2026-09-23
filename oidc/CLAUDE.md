@@ -84,9 +84,11 @@ Errors follow OAuth 2.0 rather than one convention. The authorization endpoint r
 
 The completed grant is not what the code names. `GrantStore` signs and encrypts it, files it under a digest of the reference, and hands back the content encryption key as the opaque reference — so the store holds nothing it can read, and presenting a reference spends it.
 
+A refresh must authenticate the way the code was redeemed. `OidcGrant.getTokenEndpointAuthMethod()` records it, answered at redemption through a view over the read-only grant (`OidcTokenEndpoint.authenticatedBy`) and carried through every rotation because a refresh token is filed from the grant it redeemed. A grant recording no method is refused. This is what keeps a confidential line from being continued with no credential through an endpoint that also registers a public record.
+
 ### Impersonation is RFC 8693 token exchange, at the token endpoint
 
-Answering for somebody else is a second token request, not a parameter on the first. A client presents an access token this provider issued as `actor_token`, names the principal it wants instead as `subject_token` under the provider-defined `https://iu.edu/oauth/token-type/principal-name` type, and gets back tokens whose `sub` is that principal and whose `act` claim is the one that authenticated. The subject is *asserted* — nobody holds a token for the party being impersonated — so what authorizes it is `IuOidcClientEndpoint.getBackdoorRoles()` held by the actor, outside production only.
+Answering for somebody else is a second token request, not a parameter on the first. A client presents an access token this provider issued as `actor_token`, names the principal it wants instead as `subject_token` under the provider-defined `https://iu.edu/oauth/token-type/principal-name` type, and gets back tokens whose `sub` is that principal and whose `act` claim is the one that authenticated. The subject is *asserted* — nobody holds a token for the party being impersonated — so what authorizes it is `IuOidcClientEndpoint.getBackdoorRoles()` held by the actor, outside production only, and only for a client that authenticated — a public client is refused, since the `actor_token` would be the only credential in the request.
 
 Four things keep an exchange narrower than what it descends from, and each is load-bearing rather than incidental:
 
