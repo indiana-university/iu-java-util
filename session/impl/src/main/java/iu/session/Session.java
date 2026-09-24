@@ -226,6 +226,15 @@ class Session implements IuSession {
 
 	@Override
 	public void setSameSite(String sameSite) {
+		// written verbatim into the Set-Cookie header by SessionHandler, so anything
+		// but one of these three values -- or null, to omit the attribute -- could
+		// inject additional cookie attributes rather than merely naming this one
+		if (sameSite != null //
+				&& !"Strict".equals(sameSite) //
+				&& !"Lax".equals(sameSite) //
+				&& !"None".equals(sameSite))
+			throw new IllegalArgumentException("Invalid SameSite value: " + sameSite);
+
 		this.changed = true;
 		this.sameSite = sameSite;
 	}

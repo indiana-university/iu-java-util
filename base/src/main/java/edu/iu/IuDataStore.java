@@ -113,5 +113,50 @@ public interface IuDataStore {
 	 * @param ttl optional expiration time. Can be {@literal null}.
 	 */
 	void put(byte[] key, byte[] value, Duration ttl);
-	
+
+	/**
+	 * Atomically stores data for a key, but only when nothing is currently stored
+	 * there.
+	 *
+	 * <p>
+	 * Deliberately not a default method built from {@link #get(byte[])} and
+	 * {@link #put(byte[], byte[], Duration)}: a caller relying on this to reserve a
+	 * key exactly once across concurrent callers needs the check and the write to
+	 * be one operation, and a fallback assembled from the other two would silently
+	 * reintroduce the race it exists to close. An implementation that cannot offer
+	 * this atomically must refuse to implement it rather than approximate it.
+	 * </p>
+	 *
+	 * @param key   key. Must not be {@literal null}.
+	 * @param value value to store if {@code key} is absent. Must not be
+	 *              {@literal null}.
+	 * @param ttl   optional expiration time for the stored value. Can be
+	 *              {@literal null}.
+	 * @return true if {@code value} was stored because {@code key} held nothing
+	 *         unexpired; false if an unexpired value was already stored and
+	 *         nothing was changed
+	 */
+	boolean putIfAbsent(byte[] key, byte[] value, Duration ttl);
+
+	/**
+	 * Atomically replaces whatever is stored for a key and answers what was there
+	 * before the replacement.
+	 *
+	 * <p>
+	 * Deliberately not a default method, for the same reason as
+	 * {@link #putIfAbsent(byte[], byte[], Duration)}: a caller using this to
+	 * consume a stored value exactly once needs the read and the write to be one
+	 * operation.
+	 * </p>
+	 *
+	 * @param key   key. Must not be {@literal null}.
+	 * @param value value to store in place of whatever {@code key} held. Must not
+	 *              be {@literal null}.
+	 * @param ttl   optional expiration time for the stored value. Can be
+	 *              {@literal null}.
+	 * @return the value that was stored for {@code key} immediately before this
+	 *         call; {@literal null} if the key held nothing unexpired
+	 */
+	byte[] getAndPut(byte[] key, byte[] value, Duration ttl);
+
 }

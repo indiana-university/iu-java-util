@@ -211,12 +211,6 @@ final class CachedDao implements IuDao {
 	private static final Logger LOG = Logger.getLogger(CachedDao.class.getName());
 
 	/**
-	 * Key under which the buffered work of one transaction is held in that
-	 * transaction's {@link TransactionSynchronizationRegistry} resources.
-	 */
-	private static final Object PENDING_RESOURCE = CachedDao.class.getName() + ".pending";
-
-	/**
 	 * Work one transaction has buffered for its own commit.
 	 *
 	 * <p>
@@ -402,15 +396,24 @@ final class CachedDao implements IuDao {
 	 * Gets the work buffered by the transaction on the calling thread, registering
 	 * the synchronization that applies it on first use.
 	 *
+	 * <p>
+	 * Keyed by this instance rather than by a value shared across every
+	 * {@code CachedDao}, so two instances participating in the same transaction
+	 * each hold their own buffered work: a shared key would have the second
+	 * instance registered reuse the first's {@link Pending}, and the first
+	 * instance's invalidations would apply against the second's cache while the
+	 * second's own cache went stale.
+	 * </p>
+	 *
 	 * @return buffered work
 	 */
 	private Pending pending() {
-		var pending = (Pending) transactionSynchronizationRegistry.getResource(PENDING_RESOURCE);
+		var pending = (Pending) transactionSynchronizationRegistry.getResource(this);
 		if (pending != null)
 			return pending;
 
 		final var registered = new Pending();
-		transactionSynchronizationRegistry.putResource(PENDING_RESOURCE, registered);
+		transactionSynchronizationRegistry.putResource(this, registered);
 		transactionSynchronizationRegistry.registerInterposedSynchronization(new Synchronization() {
 			@Override
 			public void beforeCompletion() {

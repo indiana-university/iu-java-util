@@ -56,6 +56,7 @@ import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.ScanArgs;
+import io.lettuce.core.SetArgs;
 import io.lettuce.core.SocketOptions;
 import io.lettuce.core.SslOptions;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -300,6 +301,18 @@ public class LettuceConnection implements IuRedis {
 		return get(IuText.base64Url(key));
 	}
 
+	/**
+	 * Determines whether a TTL is one Redis can actually expire a key with, so
+	 * every write site shares one definition of "no expiration" rather than each
+	 * repeating &mdash; and separately covering &mdash; the same three-part check.
+	 *
+	 * @param ttl candidate expiration
+	 * @return true if {@code ttl} is non-null, non-zero, and non-negative
+	 */
+	private static boolean hasTtl(Duration ttl) {
+		return ttl != null && !ttl.isZero() && !ttl.isNegative();
+	}
+
 	@Override
 	public void put(byte[] key, byte[] value, Duration ttl) {
 		Objects.requireNonNull(key, "key is required");
@@ -320,7 +333,7 @@ public class LettuceConnection implements IuRedis {
 				// freshness, which costs a caller a re-read; the reverse order would
 				// overstate it, which would have a caller keep data it should replace
 				final var modified = IuText.ascii(Long.toString(System.currentTimeMillis()));
-				if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
+				if (hasTtl(ttl)) {
 					commands.setex(datakey, ttl.toSeconds(), value);
 					commands.setex(modifiedkey, ttl.toSeconds(), modified);
 				} else {
@@ -330,6 +343,67 @@ public class LettuceConnection implements IuRedis {
 				LOG.fine(() -> "redis:put:" + name + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl + " "
 						+ value.length);
 			}
+		}
+	}
+
+	@Override
+	public boolean putIfAbsent(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
+		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
+			final var name = IuText.base64Url(key);
+			final var datakey = key(DATA, name);
+			final var modifiedkey = key(MODIFIED, name);
+			final var commands = connection.sync();
+
+			// NX makes the reservation itself atomic: only the caller whose SET actually
+			// creates the key gets "OK" back, so two callers racing to reserve the same
+			// key can never both believe they won
+			final var hasTtl = hasTtl(ttl);
+			final var args = hasTtl ? SetArgs.Builder.nx().ex(ttl) : SetArgs.Builder.nx();
+			final var reserved = commands.set(datakey, value, args) != null;
+
+			if (reserved) {
+				final var modified = IuText.ascii(Long.toString(System.currentTimeMillis()));
+				if (hasTtl)
+					commands.setex(modifiedkey, ttl.toSeconds(), modified);
+				else
+					commands.set(modifiedkey, modified);
+			}
+
+			LOG.fine(() -> "redis:putifabsent:" + name + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl
+					+ " " + reserved);
+			return reserved;
+		}
+	}
+
+	@Override
+	public byte[] getAndPut(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
+		try (final var connection = IuException.unchecked(() -> genericPool.borrowObject())) {
+			final var name = IuText.base64Url(key);
+			final var datakey = key(DATA, name);
+			final var modifiedkey = key(MODIFIED, name);
+			final var commands = connection.sync();
+
+			// SET .. GET answers the previous value and installs the replacement in one
+			// round trip, so a racing caller observes either the value from before this
+			// call or the value after it -- never a get and a put split across separate
+			// commands with something else landing in between
+			final var hasTtl = hasTtl(ttl);
+			final var previous = hasTtl ? commands.setGet(datakey, value, SetArgs.Builder.ex(ttl))
+					: commands.setGet(datakey, value);
+
+			final var modified = IuText.ascii(Long.toString(System.currentTimeMillis()));
+			if (hasTtl)
+				commands.setex(modifiedkey, ttl.toSeconds(), modified);
+			else
+				commands.set(modifiedkey, modified);
+
+			LOG.fine(() -> "redis:getandput:" + name + ":" + config.getHost() + ":" + config.getPort() + ":" + ttl
+					+ " " + (previous == null ? "(empty)" : previous.length));
+			return previous;
 		}
 	}
 
@@ -424,12 +498,41 @@ public class LettuceConnection implements IuRedis {
 		}
 	}
 
+	/**
+	 * Escapes every character {@code SCAN MATCH} would read as glob syntax.
+	 *
+	 * <p>
+	 * The configured prefix is a deployment value, not one this class controls the
+	 * shape of, and it is never Base64 URL-encoded the way a store key's name is.
+	 * A prefix containing {@code *}, {@code ?}, or a bracket expression would
+	 * otherwise widen {@link #list()}'s scan past this store's own keys -- an
+	 * empty prefix defeats the namespacing {@link IuRedisConfiguration#getKeyPrefix()
+	 * getKeyPrefix()} exists for entirely.
+	 * </p>
+	 *
+	 * @param value text to escape
+	 * @return {@code value} with every glob metacharacter backslash-escaped
+	 */
+	private static String escapeGlob(String value) {
+		final var escaped = new StringBuilder(value.length());
+		for (var i = 0; i < value.length(); i++) {
+			final var c = value.charAt(i);
+			if (c == '*' || c == '?' || c == '[' || c == ']' || c == '\\')
+				escaped.append('\\');
+			escaped.append(c);
+		}
+		return escaped.toString();
+	}
+
 	@Override
 	public Iterable<IuDataStoreEntry> list() {
 		// pattern-matched server-side, so the write times never reach the client and
 		// neither does anything else sharing the database. SCAN still walks every key
-		// in it: this is an operator's view of the store, not a request-path call
-		final var args = new ScanArgs().match(key(DATA, "*")).limit(SCAN_COUNT);
+		// in it: this is an operator's view of the store, not a request-path call.
+		// The prefix is escaped and the trailing * is not, so only the wildcard this
+		// class intends is one -- a prefix containing glob syntax of its own cannot
+		// widen the match past this store's own keys
+		final var args = new ScanArgs().match(escapeGlob(keyPrefix) + DATA + "{*}").limit(SCAN_COUNT);
 
 		// SCAN guarantees only that a key present throughout is returned at least
 		// once, so the same key can arrive on two pages; keyed by name to collapse

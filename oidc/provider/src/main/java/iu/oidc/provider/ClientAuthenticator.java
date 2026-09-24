@@ -555,6 +555,14 @@ final class ClientAuthenticator {
 	 * record would only grow the store.
 	 * </p>
 	 *
+	 * <p>
+	 * The reservation is a single atomic store operation
+	 * ({@link IuDataStore#putIfAbsent}) rather than a read followed by a write:
+	 * two identical assertions arriving at once must not both observe "not yet
+	 * spent" before either records it, or the same signed assertion authenticates
+	 * twice.
+	 * </p>
+	 *
 	 * @param token    verified assertion
 	 * @param clientId client the assertion authenticates
 	 * @param ttl      assertion lifetime
@@ -565,23 +573,9 @@ final class ClientAuthenticator {
 		if (jti == null)
 			throw new SecurityException("Client assertion is missing the jti claim replay protection needs");
 
-		final var now = Instant.now();
 		final var key = IuText.utf8(clientId + ' ' + jti);
-		final var cutoff = now.minus(ttl);
-		final var lastUsedEncoded = dataStore.get(key);
-		if (lastUsedEncoded != null) {
-			final Instant lastUsed;
-			try {
-				lastUsed = Instant.parse(IuText.utf8(lastUsedEncoded));
-			} catch (RuntimeException e) {
-				throw new SecurityException("Invalid replay cutoff in data store, assuming jti was previously used", e);
-			}
-
-			if (lastUsed.isAfter(cutoff))
-				throw new SecurityException("jti was previously used at " + lastUsed);
-		}
-
-		dataStore.put(key, IuText.utf8(now.toString()), ttl);
+		if (!dataStore.putIfAbsent(key, IuText.utf8(Instant.now().toString()), ttl))
+			throw new SecurityException("jti was already used");
 
 		LOG.finer(() -> "assertion-spent:" + clientId + " " + jti);
 	}

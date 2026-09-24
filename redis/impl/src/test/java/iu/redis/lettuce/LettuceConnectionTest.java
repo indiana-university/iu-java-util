@@ -90,6 +90,7 @@ import io.lettuce.core.RedisURI;
 import io.lettuce.core.RedisURI.Builder;
 import io.lettuce.core.ScanArgs;
 import io.lettuce.core.ScanCursor;
+import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.api.sync.RedisCommands;
@@ -138,6 +139,13 @@ public class LettuceConnectionTest {
 
 	/** Renders scan arguments as the command line they would be sent as. */
 	private static String command(ScanArgs args) {
+		final var command = new CommandArgs<>(StringCodec.UTF8);
+		args.build(command);
+		return command.toCommandString();
+	}
+
+	/** Renders set arguments as the command line they would be sent as. */
+	private static String command(SetArgs args) {
 		final var command = new CommandArgs<>(StringCodec.UTF8);
 		args.build(command);
 		return command.toCommandString();
@@ -360,6 +368,132 @@ public class LettuceConnectionTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
+	public void testPutIfAbsentReservesWithSetNx() {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = config();
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final RedisCommands<String, byte[]> mockCommands = mock(RedisCommands.class);
+			client(redisClientStaticMock, connection(mockCommands));
+
+			final var argsCaptor = ArgumentCaptor.forClass(SetArgs.class);
+			when(mockCommands.set(eq(DATA_KEY), aryEq("value".getBytes()), argsCaptor.capture())).thenReturn("OK");
+
+			try (final var connection = new LettuceConnection(config)) {
+				assertThrows(NullPointerException.class,
+						() -> connection.putIfAbsent(null, "value".getBytes(), Duration.ofSeconds(10L)));
+				assertThrows(NullPointerException.class,
+						() -> connection.putIfAbsent("key".getBytes(), null, Duration.ofSeconds(10L)));
+
+				assertTrue(connection.putIfAbsent("key".getBytes(), "value".getBytes(), Duration.ofSeconds(10L)));
+
+				// NX is what makes the reservation atomic; EX ties the reservation's
+				// lifetime to the same TTL a plain put would have used
+				assertEquals("EX 10 NX", command(argsCaptor.getValue()));
+
+				// only reserved once the data key itself was actually won
+				verify(mockCommands).setex(eq(MODIFIED_KEY), eq(10L), any());
+			}
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPutIfAbsentWithNoTtlOmitsEx() {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = config();
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final RedisCommands<String, byte[]> mockCommands = mock(RedisCommands.class);
+			client(redisClientStaticMock, connection(mockCommands));
+
+			final var argsCaptor = ArgumentCaptor.forClass(SetArgs.class);
+			when(mockCommands.set(eq(DATA_KEY), aryEq("value".getBytes()), argsCaptor.capture())).thenReturn("OK");
+
+			try (final var connection = new LettuceConnection(config)) {
+				assertTrue(connection.putIfAbsent("key".getBytes(), "value".getBytes(), null));
+				assertEquals("NX", command(argsCaptor.getValue()));
+				verify(mockCommands).set(eq(MODIFIED_KEY), any());
+			}
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testPutIfAbsentRefusesWhenAlreadyReserved() {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = config();
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final RedisCommands<String, byte[]> mockCommands = mock(RedisCommands.class);
+			client(redisClientStaticMock, connection(mockCommands));
+
+			when(mockCommands.set(eq(DATA_KEY), aryEq("value".getBytes()), any(SetArgs.class))).thenReturn(null);
+
+			try (final var connection = new LettuceConnection(config)) {
+				assertFalse(connection.putIfAbsent("key".getBytes(), "value".getBytes(), Duration.ofSeconds(10L)));
+
+				// refused, so the companion write time is never touched -- there is
+				// nothing new to stamp
+				verify(mockCommands, never()).setex(eq(MODIFIED_KEY), anyLong(), any());
+				verify(mockCommands, never()).set(eq(MODIFIED_KEY), any());
+			}
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testGetAndPutReturnsThePreviousValue() {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = config();
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final RedisCommands<String, byte[]> mockCommands = mock(RedisCommands.class);
+			client(redisClientStaticMock, connection(mockCommands));
+
+			final var argsCaptor = ArgumentCaptor.forClass(SetArgs.class);
+			when(mockCommands.setGet(eq(DATA_KEY), aryEq("new-value".getBytes()), argsCaptor.capture()))
+					.thenReturn("old-value".getBytes());
+
+			try (final var connection = new LettuceConnection(config)) {
+				assertThrows(NullPointerException.class,
+						() -> connection.getAndPut(null, "new-value".getBytes(), Duration.ofSeconds(10L)));
+				assertThrows(NullPointerException.class,
+						() -> connection.getAndPut("key".getBytes(), null, Duration.ofSeconds(10L)));
+
+				assertArrayEquals("old-value".getBytes(),
+						connection.getAndPut("key".getBytes(), "new-value".getBytes(), Duration.ofSeconds(10L)));
+
+				// setGet is what makes the swap atomic: the previous value and the
+				// replacement are answered and installed in the same round trip; the GET
+				// behavior comes from that command itself, not from these args
+				assertEquals("EX 10", command(argsCaptor.getValue()));
+				verify(mockCommands).setex(eq(MODIFIED_KEY), eq(10L), any());
+			}
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testGetAndPutWithNoTtlOmitsEx() {
+		IuTestLogger.allow("", Level.FINE);
+		final var config = config();
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final RedisCommands<String, byte[]> mockCommands = mock(RedisCommands.class);
+			client(redisClientStaticMock, connection(mockCommands));
+
+			when(mockCommands.setGet(eq(DATA_KEY), aryEq("new-value".getBytes()))).thenReturn(null);
+
+			try (final var connection = new LettuceConnection(config)) {
+				assertNull(connection.getAndPut("key".getBytes(), "new-value".getBytes(), null));
+				verify(mockCommands).set(eq(MODIFIED_KEY), any());
+			}
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
 	public void testLastModified() {
 		IuTestLogger.allow("", Level.FINE);
 		final var config = config();
@@ -551,6 +685,38 @@ public class LettuceConnectionTest {
 			doThrow(error).when(mockClient).shutdown();
 			LettuceConnection lettuceConnection = new LettuceConnection(config);
 			assertSame(error, assertThrows(RuntimeException.class, () -> lettuceConnection.close()));
+		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testListEscapesGlobMetacharactersInThePrefix() {
+		// the configured prefix is a deployment value, never Base64 URL-encoded the
+		// way a key's own name is, so a prefix carrying glob syntax of its own must
+		// not be read as one -- or it would widen the scan past this store's keys
+		IuTestLogger.allow("", Level.FINE);
+		final var config = config();
+		when(config.getKeyPrefix()).thenReturn("a*b?c[d]e\\f");
+
+		try (final var redisClientStaticMock = mockStatic(RedisClient.class)) {
+			final RedisCommands<String, byte[]> mockCommands = mock(RedisCommands.class);
+			client(redisClientStaticMock, connection(mockCommands));
+
+			final var page = mock(KeyScanCursor.class);
+			when(page.getKeys()).thenReturn(List.of());
+			when(page.isFinished()).thenReturn(true);
+
+			final var scanArgs = ArgumentCaptor.forClass(ScanArgs.class);
+			when(mockCommands.scan(scanArgs.capture())).thenReturn(page);
+
+			try (final var connection = new LettuceConnection(config)) {
+				connection.list();
+
+				// every metacharacter escaped, and only the trailing * -- which this
+				// class appends itself -- left meaning "anything"
+				assertEquals(command(new ScanArgs().match("a\\*b\\?c\\[d\\]e\\\\f:d:{*}").limit(1000L)),
+						command(scanArgs.getValue()));
+			}
 		}
 	}
 

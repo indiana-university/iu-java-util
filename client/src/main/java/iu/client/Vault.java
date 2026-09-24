@@ -316,22 +316,29 @@ public final class Vault implements IuVault {
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
 
+		// the raw, unsplit document data and metadata are both read out of -- one
+		// call, rather than one each, so a merge patch always pairs the data it
+		// patches with the metadata (and CAS version) that actually describes it,
+		// even when the cache refreshes between what would otherwise be two
+		// independent reads
+		final Supplier<JsonObject> rawSupplier;
 		if (secretCache == null) {
 			ref = new Ref();
 			ref.data = readSecret(secret);
-			dataSupplier = () -> convertData.apply(ref.data);
-			metadataSupplier = () -> convertMetadata.apply(ref.data);
+			rawSupplier = () -> ref.data;
 		} else {
 			ref = null;
-			dataSupplier = () -> convertData.apply(IuException.unchecked(secret, secretCache));
-			metadataSupplier = () -> convertMetadata.apply(IuException.unchecked(secret, secretCache));
+			rawSupplier = () -> IuException.unchecked(secret, secretCache);
 		}
+		dataSupplier = () -> convertData.apply(rawSupplier.get());
+		metadataSupplier = () -> convertMetadata.apply(rawSupplier.get());
 
 		final Consumer<JsonObject> mergePatchConsumer;
 
 		mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-			final var data = dataSupplier.get();
-			final var metadata = metadataSupplier.get();
+			final var raw = rawSupplier.get();
+			final var data = convertData.apply(raw);
+			final var metadata = convertMetadata.apply(raw);
 
 			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 

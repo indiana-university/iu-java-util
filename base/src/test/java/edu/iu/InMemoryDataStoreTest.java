@@ -37,11 +37,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
@@ -169,6 +178,195 @@ public class InMemoryDataStoreTest {
 		assertEquals(IuText.base64Url(key2), ds.list().iterator().next().getName());
 		assertNull(ds.get(key1));
 		assertArrayEquals(val2, ds.get(key2));
+	}
+
+	@Test
+	void testPutIfAbsentReservesAnAbsentKey() {
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+		final var val = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val);
+
+		assertTrue(ds.putIfAbsent(key, val, Duration.ofMinutes(1L)));
+		assertArrayEquals(val, ds.get(key));
+	}
+
+	@Test
+	void testPutIfAbsentRefusesAnUnexpiredKey() {
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+		final var val1 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val1);
+		final var val2 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val2);
+
+		assertTrue(ds.putIfAbsent(key, val1, Duration.ofMinutes(1L)));
+		assertFalse(ds.putIfAbsent(key, val2, Duration.ofMinutes(1L)));
+
+		// refused, so what was there first is still there
+		assertArrayEquals(val1, ds.get(key));
+	}
+
+	@Test
+	void testPutIfAbsentTreatsAnExpiredKeyAsAbsent() throws InterruptedException {
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+		final var val1 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val1);
+		final var val2 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val2);
+
+		assertTrue(ds.putIfAbsent(key, val1, Duration.ofMillis(1L)));
+		Thread.sleep(50L);
+
+		// still there, just past its own expiry -- putIfAbsent reads that itself
+		// rather than relying on the purge timer to have already run
+		assertTrue(ds.putIfAbsent(key, val2, Duration.ofMinutes(1L)));
+		assertArrayEquals(val2, ds.get(key));
+	}
+
+	@Test
+	void testGetAndPutReturnsNullForAnAbsentKey() {
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+		final var val = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val);
+
+		assertNull(ds.getAndPut(key, val, Duration.ofMinutes(1L)));
+		assertArrayEquals(val, ds.get(key));
+	}
+
+	@Test
+	void testGetAndPutReturnsAndReplacesThePreviousValue() {
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+		final var val1 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val1);
+		final var val2 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val2);
+
+		ds.put(key, val1, Duration.ofMinutes(1L));
+		assertArrayEquals(val1, ds.getAndPut(key, val2, Duration.ofMinutes(1L)));
+		assertArrayEquals(val2, ds.get(key));
+	}
+
+	@Test
+	void testGetAndPutTreatsAnExpiredKeyAsAbsent() throws InterruptedException {
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+		final var val1 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val1);
+		final var val2 = new byte[32];
+		ThreadLocalRandom.current().nextBytes(val2);
+
+		ds.put(key, val1, Duration.ofMillis(1L));
+		Thread.sleep(50L);
+
+		assertNull(ds.getAndPut(key, val2, Duration.ofMinutes(1L)));
+		assertArrayEquals(val2, ds.get(key));
+	}
+
+	@Test
+	void testPutIfAbsentIsAtomicUnderConcurrency() throws Exception {
+		// this is the primitive GrantStore and ClientAuthenticator rely on to close a
+		// reservation race: every racing caller must be lined up to actually contend
+		// for the same key, or the test would pass without ever exercising the race
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+
+		final var threads = 64;
+		final var ready = new CountDownLatch(threads);
+		final var go = new CountDownLatch(1);
+		final var succeeded = new AtomicInteger();
+
+		final var pool = Executors.newFixedThreadPool(threads);
+		try {
+			for (var i = 0; i < threads; i++)
+				pool.submit(() -> {
+					final var value = new byte[32];
+					ThreadLocalRandom.current().nextBytes(value);
+					ready.countDown();
+					IuException.unchecked(() -> go.await());
+					if (ds.putIfAbsent(key, value, Duration.ofMinutes(1L)))
+						succeeded.incrementAndGet();
+				});
+
+			ready.await();
+			go.countDown();
+			pool.shutdown();
+			assertTrue(pool.awaitTermination(10L, TimeUnit.SECONDS));
+		} finally {
+			pool.shutdownNow();
+		}
+
+		assertEquals(1, succeeded.get());
+	}
+
+	@Test
+	void testGetAndPutIsAtomicUnderConcurrency() throws Exception {
+		// every racing swap must read a distinct predecessor, with no value read
+		// twice and none lost -- the signature of an actual hand-off rather than a
+		// get and a put that merely happened not to interleave this time
+		final var ds = new InMemoryDataStore();
+		final var key = new byte[32];
+		ThreadLocalRandom.current().nextBytes(key);
+
+		final var threads = 64;
+		final var initial = new byte[32];
+		ThreadLocalRandom.current().nextBytes(initial);
+		ds.put(key, initial, Duration.ofMinutes(1L));
+
+		final List<byte[]> inputs = new ArrayList<>();
+		for (var i = 0; i < threads; i++) {
+			final var value = new byte[32];
+			ThreadLocalRandom.current().nextBytes(value);
+			inputs.add(value);
+		}
+
+		final var ready = new CountDownLatch(threads);
+		final var go = new CountDownLatch(1);
+		final List<byte[]> previousValues = new CopyOnWriteArrayList<>();
+
+		final var pool = Executors.newFixedThreadPool(threads);
+		try {
+			for (final var value : inputs)
+				pool.submit(() -> {
+					ready.countDown();
+					IuException.unchecked(() -> go.await());
+					previousValues.add(ds.getAndPut(key, value, Duration.ofMinutes(1L)));
+				});
+
+			ready.await();
+			go.countDown();
+			pool.shutdown();
+			assertTrue(pool.awaitTermination(10L, TimeUnit.SECONDS));
+		} finally {
+			pool.shutdownNow();
+		}
+
+		assertEquals(threads, previousValues.size());
+
+		final Set<Key> distinctPrevious = new HashSet<>();
+		for (final var previous : previousValues)
+			assertTrue(distinctPrevious.add(new Key(previous)), "every predecessor must be read exactly once");
+
+		final Set<Key> everWritten = new HashSet<>();
+		everWritten.add(new Key(initial));
+		for (final var value : inputs)
+			everWritten.add(new Key(value));
+
+		// every previous value came from the initial value or from one of the inputs,
+		// and exactly one input -- whichever was written last -- was never read back
+		assertTrue(everWritten.containsAll(distinctPrevious));
+		assertEquals(threads, distinctPrevious.size());
+		assertEquals(threads + 1, everWritten.size());
 	}
 
 }

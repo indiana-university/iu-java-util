@@ -115,6 +115,7 @@ public class ClientAuthenticatorTest {
 
 		when(reference.getConfiguration()).thenReturn(configuration);
 		when(reference.getDataStore()).thenReturn(dataStore);
+		when(dataStore.putIfAbsent(any(), any(), any())).thenReturn(true);
 
 		authenticator = new ClientAuthenticator(reference);
 	}
@@ -352,7 +353,7 @@ public class ClientAuthenticatorTest {
 
 		assertSame(Method.CLIENT_SECRET_JWT,
 				authenticator.authenticate(endpoint, CLIENT_ID, Credential.assertion(assertion(jwk, Algorithm.HS256))));
-		verify(dataStore).put(any(), any(), org.mockito.ArgumentMatchers.eq(TTL));
+		verify(dataStore).putIfAbsent(any(), any(), org.mockito.ArgumentMatchers.eq(TTL));
 	}
 
 	@Test
@@ -676,37 +677,17 @@ public class ClientAuthenticatorTest {
 
 	@Test
 	void testAnAssertionIsGoodOnce() {
+		// the reservation and the check are one atomic store operation, so a false
+		// return is the only signal spend() has to go on -- there is no separate
+		// value to read back and explain
 		final var jwk = secretKey("hunter2");
 		final var endpoint = endpoint(authorization(jwk));
 		final var credential = Credential.assertion(assertion(jwk, Algorithm.HS256));
 
-		final var used = Instant.now();
-		when(dataStore.get(any())).thenReturn(IuText.utf8(used.toString()));
+		when(dataStore.putIfAbsent(any(), any(), any())).thenReturn(false);
 
-		assertEquals("jti was previously used at " + used, assertThrows(SecurityException.class,
+		assertEquals("jti was already used", assertThrows(SecurityException.class,
 				() -> authenticator.authenticate(endpoint, CLIENT_ID, credential)).getMessage());
-	}
-
-	@Test
-	void testARecordOlderThanTheLifetimeDoesntRefuse() {
-		final var jwk = secretKey("hunter2");
-		final var endpoint = endpoint(authorization(jwk));
-		when(dataStore.get(any())).thenReturn(IuText.utf8(Instant.now().minus(TTL).minusSeconds(1L).toString()));
-
-		assertSame(Method.CLIENT_SECRET_JWT,
-				authenticator.authenticate(endpoint, CLIENT_ID, Credential.assertion(assertion(jwk, Algorithm.HS256))));
-	}
-
-	@Test
-	void testAnUnreadableReplayRecordAssumesReplay() {
-		final var jwk = secretKey("hunter2");
-		final var endpoint = endpoint(authorization(jwk));
-		final var credential = Credential.assertion(assertion(jwk, Algorithm.HS256));
-		when(dataStore.get(any())).thenReturn(IuText.utf8("not an instant"));
-
-		assertEquals("Invalid replay cutoff in data store, assuming jti was previously used",
-				assertThrows(SecurityException.class, () -> authenticator.authenticate(endpoint, CLIENT_ID, credential))
-						.getMessage());
 	}
 
 }

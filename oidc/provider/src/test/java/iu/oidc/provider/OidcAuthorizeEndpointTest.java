@@ -759,6 +759,36 @@ public class OidcAuthorizeEndpointTest {
 	}
 
 	@Test
+	void testAResumptionWithAnExpiredPrincipalIsRefused() {
+		// the first pass checks expiry before issuing on the spot; a resumption is a
+		// second admission and must not trust a stale principal just because one
+		// came back non-null
+		grant.setClientId(CLIENT_ID);
+		when(sessionHandler.activate(org.mockito.ArgumentMatchers.any())).thenReturn(session);
+
+		final var request = resumption();
+		final var principal = authenticated(Instant.now().minusSeconds(60L));
+		assertEquals("login_required; Authentication has expired",
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
+
+		// spent before expiry was even checked
+		verify(sessionHandler).remove(request.getCookies());
+	}
+
+	@Test
+	void testAResumptionWithNoExpirySetIsRefused() {
+		// null answers the same as expired, which the first pass already treats this
+		// way -- absence is not a pass
+		grant.setClientId(CLIENT_ID);
+		when(sessionHandler.activate(org.mockito.ArgumentMatchers.any())).thenReturn(session);
+
+		final var request = resumption();
+		final var principal = authenticated(null);
+		assertEquals("login_required; Authentication has expired",
+				assertThrows(IuBadRequestException.class, () -> authorize(request, principal)).getMessage());
+	}
+
+	@Test
 	void testAuthorizationDetailsAreReleasedAgainstTheAuthenticatedPrincipal() throws Exception {
 		register();
 		final var request = request();

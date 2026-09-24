@@ -207,4 +207,43 @@ public class InMemoryDataStore implements IuDataStore {
 		}
 	}
 
+	@Override
+	public boolean putIfAbsent(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
+
+		final var dkey = new Key(key);
+		final var now = Instant.now();
+		final var candidate = new PurgeableData(value, now, now.plus(ttl));
+
+		// merge() calls the remapping function only when an entry is already present,
+		// so a fresh key is stored as candidate without it running at all; either way
+		// the whole decision is made under the map's own per-bin lock, which is what
+		// keeps two racing callers from both reading "absent"
+		final var stored = this.data.merge(dkey, candidate,
+				(current, ignored) -> current.purgeTime.isBefore(now) ? candidate : current);
+
+		return stored == candidate;
+	}
+
+	@Override
+	public byte[] getAndPut(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
+
+		final var dkey = new Key(key);
+		final var now = Instant.now();
+		final var previous = new PurgeableData[1];
+
+		// compute() runs under the map's per-bin lock, so the read of whatever was
+		// there and the write of the replacement happen as one step; a racing caller
+		// either runs entirely before or entirely after, never interleaved with it
+		this.data.compute(dkey, (k, current) -> {
+			previous[0] = (current != null && !current.purgeTime.isBefore(now)) ? current : null;
+			return new PurgeableData(value, now, now.plus(ttl));
+		});
+
+		return previous[0] == null ? null : previous[0].data;
+	}
+
 }

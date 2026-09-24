@@ -77,22 +77,22 @@ class MemoryDataStore implements IuDataStore {
 	}
 
 	@Override
-	public Iterable<IuDataStoreEntry> list() {
+	public synchronized Iterable<IuDataStoreEntry> list() {
 		return IuIterable.map(entries.keySet(), Entry::new);
 	}
 
 	@Override
-	public byte[] get(byte[] key) {
+	public synchronized byte[] get(byte[] key) {
 		return entries.get(IuText.base64Url(key));
 	}
 
 	@Override
-	public Instant lastModified(byte[] key) {
+	public synchronized Instant lastModified(byte[] key) {
 		return modified.get(IuText.base64Url(key));
 	}
 
 	@Override
-	public void put(byte[] key, byte[] data) {
+	public synchronized void put(byte[] key, byte[] data) {
 		if (data == null) {
 			entries.remove(IuText.base64Url(key));
 			modified.remove(IuText.base64Url(key));
@@ -103,7 +103,27 @@ class MemoryDataStore implements IuDataStore {
 	}
 
 	@Override
-	public void put(byte[] key, byte[] value, Duration ttl) {
+	public synchronized void put(byte[] key, byte[] value, Duration ttl) {
 		put(key, value);
+	}
+
+	@Override
+	public synchronized boolean putIfAbsent(byte[] key, byte[] value, Duration ttl) {
+		final var name = IuText.base64Url(key);
+		if (entries.containsKey(name))
+			return false;
+
+		entries.put(name, value);
+		modified.put(name, Instant.now());
+		return true;
+	}
+
+	@Override
+	public synchronized byte[] getAndPut(byte[] key, byte[] value, Duration ttl) {
+		final var name = IuText.base64Url(key);
+		final var previous = entries.get(name);
+		entries.put(name, value);
+		modified.put(name, Instant.now());
+		return previous;
 	}
 }

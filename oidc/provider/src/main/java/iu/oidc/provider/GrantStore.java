@@ -283,6 +283,11 @@ public final class GrantStore {
 	 * The entry is overwritten with a tombstone before the token is verified, so a
 	 * reference is spent by being presented rather than by being accepted. A
 	 * malformed or unverifiable token cannot be retried against the same entry.
+	 * The read of what was stored and the write of the tombstone are one atomic
+	 * {@link IuDataStore#getAndPut store operation}, so two concurrent
+	 * presentations of the same reference can never both read a live grant before
+	 * either writes the tombstone &mdash; the second always reads the tombstone
+	 * the first just wrote, and only the first ever redeems.
 	 * </p>
 	 *
 	 * <p>
@@ -320,7 +325,13 @@ public final class GrantStore {
 		}
 
 		final var key = storeKey(type, secretKey);
-		final var stored = store.get(key);
+
+		// spent by being presented, so an unverifiable token can't be retried, and
+		// atomically so two concurrent presentations can't both read the grant before
+		// either writes the tombstone. Written as a tombstone rather than deleted so
+		// the replay check below is distinguishable from an expiry, and before
+		// verification so that stays true either way
+		final var stored = store.getAndPut(key, SPENT, tombstoneTtl);
 		if (stored == null) {
 			LOG.info(() -> "grant-reject:unknown:" + type);
 			throw new IuBadRequestException("invalid_grant; Unknown or expired " + type + " reference");
@@ -329,7 +340,10 @@ public final class GrantStore {
 		// A reference presented twice is a replay: whoever holds it is not the only
 		// party that does. Revoking the line it belongs to is what keeps the attacker
 		// from keeping the token they rotated to -- refusing this presentation alone
-		// would leave them holding a live one and the legitimate client locked out
+		// would leave them holding a live one and the legitimate client locked out.
+		// A racing presentation that lost the getAndPut above reads the tombstone this
+		// one just wrote and lands here too, which is exactly the point: only one of
+		// the two ever redeems, and the other is refused rather than silently ignored
 		if (isSpent(stored)) {
 			final var family = spentFamily(stored);
 			LOG.warning(() -> "grant-reject:replayed:" + type + (family == null ? "" : ":" + family));
@@ -339,11 +353,6 @@ public final class GrantStore {
 
 			throw new IuBadRequestException("invalid_grant; Replayed " + type + " reference");
 		}
-
-		// spent by being presented, so an unverifiable token can't be retried. Written
-		// as a tombstone rather than deleted so the replay above is distinguishable
-		// from an expiry, and before verification so that stays true either way
-		store.put(key, SPENT, tombstoneTtl);
 
 		final WebToken token;
 		try {

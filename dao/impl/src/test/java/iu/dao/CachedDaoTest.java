@@ -727,6 +727,53 @@ public class CachedDaoTest {
 	}
 
 	@Test
+	public void testTwoInstancesInOneTransactionKeepSeparateBufferedWork() {
+		// a resource key shared across every CachedDao would have the second
+		// instance registered against a transaction reuse the first's buffered
+		// work, and its own writes would invalidate the first instance's cache
+		// while its own cache went stale
+		final var delegate2 = new StubDao();
+		final var sqlBuilder2 = new StubBuilder();
+		final IuRefreshableCacheConfiguration config2 = new IuRefreshableCacheConfiguration() {
+			@Override
+			public Duration getRefreshTtl() {
+				return refreshTtl;
+			}
+		};
+		final var dao2 = new CachedDao(delegate2, sqlBuilder2.builder(), transaction, transaction, () -> config2);
+
+		delegate.rows.put("a", new Bean("a", "one"));
+		delegate2.rows.put("a", new Bean("a", "uno"));
+
+		// warms each instance's own search cache before the transaction
+		assertEquals(1, dao.searchBeans(Bean.class, Map.of(), false, 0).size());
+		assertEquals(1, dao2.searchBeans(Bean.class, Map.of(), false, 0).size());
+		assertEquals(1, delegate.searches.get());
+		assertEquals(1, delegate2.searches.get());
+
+		final var replacement = new Bean("a", "two");
+		final var replacement2 = new Bean("a", "dos");
+		transaction.beginTransaction();
+		dao.saveBean(replacement);
+		dao2.saveBean(replacement2);
+		transaction.complete(Status.STATUS_COMMITTED);
+
+		// a resource key shared across instances would route dao2's invalidation to
+		// dao1's cache instead of its own, leaving dao2's cached search stale and
+		// served without a further delegate call
+		assertEquals(1, dao.searchBeans(Bean.class, Map.of(), false, 0).size());
+		assertEquals(1, dao2.searchBeans(Bean.class, Map.of(), false, 0).size());
+		assertEquals(2, delegate.searches.get(), "dao's own cached search was not invalidated by its own write");
+		assertEquals(2, delegate2.searches.get(), "dao2's own cached search was not invalidated by its own write");
+
+		// each instance's own write also republished its own row directly
+		assertEquals(replacement, dao.loadBean(Bean.class, id("a")));
+		assertEquals(replacement2, dao2.loadBean(Bean.class, id("a")));
+		assertEquals(0, delegate.loads.get(), "dao's own republished row was loaded again");
+		assertEquals(0, delegate2.loads.get(), "dao2's own republished row was loaded again");
+	}
+
+	@Test
 	public void testDeleteInvalidatesTheRowItRemoved() {
 		final var row = new Bean("a", "one");
 		delegate.rows.put("a", row);

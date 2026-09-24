@@ -343,11 +343,13 @@ public class OidcAuthorizeEndpoint {
 
 		final var authenticated = reference.getAuthenticatedPrincipal(request);
 		if (authenticated != null) {
-			final var expires = authenticated.getExpires();
-			if (expires == null || expires.isBefore(Instant.now()))
-				LOG.info(() -> "authn-expired:" + clientId + ":" + authenticated.getName() + " " + authenticated);
+			// the principal and the pending grant are not appended: both carry claims,
+			// and the grant carries state/nonce/code_challenge, none of which belongs at
+			// a log level a deployment watches by default
+			if (isExpired(authenticated))
+				LOG.info(() -> "authn-expired:" + clientId + ":" + authenticated.getName());
 			else {
-				LOG.info(() -> "authn:" + clientId + ":" + authenticated.getName() + " " + authenticated);
+				LOG.info(() -> "authn:" + clientId + ":" + authenticated.getName());
 				return issue(pending, authenticated);
 			}
 		}
@@ -356,7 +358,7 @@ public class OidcAuthorizeEndpoint {
 		// authorization endpoint. The validated request rides in the session, not in a
 		// return URI the identity provider would see.
 		final var returnUri = issuer.endpointUri(OidcProviderMetadata.AUTHORIZE_PATH);
-		LOG.info(() -> "authn-pending:" + clientId + " " + returnUri + " " + pending);
+		LOG.info(() -> "authn-pending:" + clientId + " " + returnUri);
 
 		// Set SamlSite to Lax so session survives redirects
 		session.setSameSite("Lax");
@@ -438,7 +440,8 @@ public class OidcAuthorizeEndpoint {
 	 * @param principal supplies the established principal
 	 * @return what the request came to
 	 * @throws IuBadRequestException if no request was recorded, or the identity
-	 *                               provider established no principal
+	 *                               provider established no principal, or one
+	 *                               already expired
 	 */
 	private OidcAuthorizeResult resume(OidcAuthorizeRequest request) throws Exception {
 		final var cookies = request.getCookies();
@@ -458,6 +461,16 @@ public class OidcAuthorizeEndpoint {
 			throw deny("login_required", "User is not authenticated");
 		}
 
+		// the first pass applies this same check before issuing on the spot; a
+		// resumption is a second admission and must not trust a principal the
+		// identity provider hands back stale -- a session-handling defect returning
+		// one from a session predating this request would otherwise bypass expiry
+		// entirely, since nothing else in this path re-checks it
+		if (isExpired(authenticated)) {
+			LOG.info(() -> "authorize-deny:expired:" + pending.getClientId() + ":" + authenticated.getName());
+			throw deny("login_required", "Authentication has expired");
+		}
+
 		// Re-resolved rather than carried in the session, for two reasons. The code is
 		// signed with the key this endpoint registers, and the token endpoint resolves
 		// the endpoint the same way, so both halves read one registration rather than
@@ -471,8 +484,20 @@ public class OidcAuthorizeEndpoint {
 			throw deny("invalid_request", "Unregistered redirect_uri");
 		}
 
-		LOG.info(() -> "authn-resume:" + pending.getClientId() + ":" + authenticated.getName() + " " + authenticated);
+		LOG.info(() -> "authn-resume:" + pending.getClientId() + ":" + authenticated.getName());
 		return issue(pending, authenticated);
+	}
+
+	/**
+	 * Determines whether an established principal's authentication has expired.
+	 *
+	 * @param principal established principal
+	 * @return true if {@link IuOidcAuthenticatedPrincipal#getExpires()} is absent
+	 *         or in the past
+	 */
+	private static boolean isExpired(IuOidcAuthenticatedPrincipal principal) {
+		final var expires = principal.getExpires();
+		return expires == null || expires.isBefore(Instant.now());
 	}
 
 	/**
@@ -542,7 +567,7 @@ public class OidcAuthorizeEndpoint {
 		final var code = grantStore.put(GrantStore.CODE, issuer.issuer(), issuer.issuerKey(),
 				issuer.configuration().getAuthorizationCodeTimeToLive(), grant);
 
-		LOG.info(() -> "authorize-grant:" + clientId + ":" + principalName + " " + grant);
+		LOG.info(() -> "authorize-grant:" + clientId + ":" + principalName);
 
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		params.put(CODE, IuIterable.iter(code));

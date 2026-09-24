@@ -448,7 +448,9 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 					served = value != null;
 				}
 				if (served)
-					LOG.log(Level.INFO, e, () -> "Remote call refresh failed, serving last good result for " + key);
+					// FINE, not INFO: key is caller-supplied and may not be safe to publish at
+					// a level a deployment watches by default
+					LOG.log(Level.FINE, e, () -> "Remote call refresh failed, serving last good result for " + key);
 				throw e;
 			} finally {
 				synchronized (this) {
@@ -991,7 +993,9 @@ public class IuRefreshableCache<K, V> implements UnsafeFunction<K, V>, AutoClose
 					if (cached.value == null)
 						throw e;
 
-					LOG.log(Level.INFO, e,
+					// FINE, not INFO: key is caller-supplied and may not be safe to publish at
+					// a level a deployment watches by default
+					LOG.log(Level.FINE, e,
 							() -> "Remote call refresh could not be dispatched, serving last good result for " + key);
 					return cached.value.orElse(null);
 				}

@@ -79,6 +79,30 @@ public class ValidationPathTest {
 	}
 
 	@Test
+	public void testMapKeyStructuralCharactersAreEscapedInTheRenderedPath() {
+		// a key carrying the path's own syntax must not be able to forge what the
+		// rendered text reads as
+		assertEquals("byCode[A\\[B\\]C\\\\D]",
+				ValidationPath.ROOT.property("byCode").mapValue("A[B]C\\D").toString());
+	}
+
+	@Test
+	public void testMapKeyControlCharactersAreEscapedInTheRenderedPath() {
+		// a newline in a key must not be able to forge an extra line in a report or
+		// a log record
+		assertEquals("byCode[a\\u000ab]", ValidationPath.ROOT.property("byCode").mapValue("a\nb").toString());
+	}
+
+	@Test
+	public void testAVeryLongMapKeyIsTruncatedInTheRenderedPath() {
+		// unbounded would let a single key inflate every column a report pads to,
+		// not only the line it appears on
+		final var longKey = "x".repeat(200);
+		final var rendered = ValidationPath.ROOT.property("byCode").mapValue(longKey).toString();
+		assertEquals("byCode[" + "x".repeat(64) + "...]", rendered);
+	}
+
+	@Test
 	public void testNodesAreOrderedFromTheRoot() {
 		final var path = ValidationPath.ROOT.property("details").element(2).property("codes").mapKey("X");
 		final var nodes = List.copyOf(path.nodes());

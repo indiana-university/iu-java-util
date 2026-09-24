@@ -111,7 +111,7 @@ final class ValidationPath {
 	 */
 	ValidationPath mapValue(Object key) {
 		return new ValidationPath(this, new PathNode(IuValidationNodeKind.MAP_VALUE, null, null, key),
-				rendered + '[' + key + ']');
+				rendered + '[' + renderKey(key) + ']');
 	}
 
 	/**
@@ -124,7 +124,51 @@ final class ValidationPath {
 	 */
 	ValidationPath mapKey(Object key) {
 		return new ValidationPath(this, new PathNode(IuValidationNodeKind.MAP_KEY, null, null, key),
-				rendered + '[' + key + "]<key>");
+				rendered + '[' + renderKey(key) + "]<key>");
+	}
+
+	/** Bound on how much of a map key's text reaches a rendered path. */
+	private static final int MAX_RENDERED_KEY_LENGTH = 64;
+
+	/**
+	 * Renders a map key for use inside a path, safely.
+	 *
+	 * <p>
+	 * A map key is untrusted input -- validated data supplies it, not this module
+	 * -- so its text is escaped and bounded before joining the path string. Left
+	 * unescaped, a key containing {@code [}, {@code ]}, or a control character
+	 * (a newline, say) could make a rendered path read as a different path than
+	 * the one actually reached, which matters wherever a path is logged or shown
+	 * to someone other than the party who supplied the key. Left unbounded, a
+	 * single very long key would inflate every column {@link ValidationResultImpl}
+	 * pads a report to, not only the line it appears on.
+	 * </p>
+	 *
+	 * <p>
+	 * This affects only the rendered text. The {@link IuValidationNode#key()
+	 * structured key} a caller reads programmatically is never touched.
+	 * </p>
+	 *
+	 * @param key map key; may be null
+	 * @return escaped, length-bounded text
+	 */
+	private static String renderKey(Object key) {
+		final var text = String.valueOf(key);
+		final var bounded = text.length() > MAX_RENDERED_KEY_LENGTH //
+				? text.substring(0, MAX_RENDERED_KEY_LENGTH) + "..."
+				: text;
+
+		final var rendered = new StringBuilder(bounded.length());
+		for (var i = 0; i < bounded.length(); i++) {
+			final var c = bounded.charAt(i);
+			if (c == '[' || c == ']' || c == '\\')
+				rendered.append('\\').append(c);
+			else if (Character.isISOControl(c))
+				rendered.append(String.format("\\u%04x", (int) c));
+			else
+				rendered.append(c);
+		}
+		return rendered.toString();
 	}
 
 	/**

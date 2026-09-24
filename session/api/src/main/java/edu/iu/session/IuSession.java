@@ -83,6 +83,9 @@ public interface IuSession {
 	 *
 	 * @param sameSite {@code SameSite} attribute value, or {@code null} to omit
 	 *                 the attribute
+	 * @throws IllegalArgumentException if {@code sameSite} is anything but
+	 *                                  {@code Strict}, {@code Lax}, {@code None},
+	 *                                  or {@code null}
 	 */
 	void setSameSite(String sameSite);
 

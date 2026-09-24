@@ -1126,7 +1126,11 @@ public class OidcTokenEndpoint {
 		}
 
 		final var subjectName = subject;
-		LOG.info(() -> "token-issue:" + grantType + ":" + clientId + ":" + subjectName + " [" + scope + "] " + redeemed);
+		// redeemed is not appended: its default toString() would carry the full grant
+		// -- released authorization details, resource, nonce -- into a log level a
+		// deployment watches by default, and everything it names worth logging here
+		// is already named above
+		LOG.info(() -> "token-issue:" + grantType + ":" + clientId + ":" + subjectName + " [" + scope + "]");
 
 		// RFC 8693 §2.2.1 requires an exchange to name what it issued; every other
 		// grant type answers a response shape that has no such member, so it is left

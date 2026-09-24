@@ -127,7 +127,11 @@ public class IuRefreshableCacheTest {
 		captured = new CapturedLog();
 		captured.setLevel(Level.ALL);
 
-		log.setLevel(Level.INFO);
+		// ALL, not INFO: a supplier passed to LOG.log is never invoked below the
+		// logger's own level, and a test asserting on a FINE message -- or one
+		// simply exercising the lambda for coverage -- needs it to actually run.
+		// assertOnlyExpectedLog still only flags INFO or higher as unexpected
+		log.setLevel(Level.ALL);
 		log.setUseParentHandlers(false);
 		log.addHandler(captured);
 	}
@@ -734,7 +738,8 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testFailedBackgroundRefreshServesLastGoodValue() throws Throwable {
-		expectLog("Remote call refresh failed, serving last good result for");
+		// logged at FINE, not INFO, so there is nothing here for
+		// assertOnlyExpectedLog to flag
 		final var calls = new AtomicInteger();
 		final var ttl = Duration.ofMillis(75L);
 		try (final var cache = cache(config(ttl, Duration.ofSeconds(30L)), key -> {
@@ -928,7 +933,8 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testDispatchFailureAndClose() throws Throwable {
-		expectLog("Remote call refresh could not be dispatched, serving last good result for");
+		// logged at FINE, not INFO, so there is nothing here for
+		// assertOnlyExpectedLog to flag
 		final var fail = new AtomicBoolean();
 		final var calls = new AtomicInteger();
 		final var ttl = Duration.ofMillis(75L);
@@ -1387,7 +1393,8 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testInvalidationAbandonsARefreshAlreadyInFlight() throws Throwable {
-		expectLog("Remote call refresh failed, serving last good result for");
+		// logged at FINE, not INFO, so there is nothing here for
+		// assertOnlyExpectedLog to flag
 		final var value = new AtomicReference<>("v0");
 		final var slow = new AtomicBoolean();
 		final var started = new CountDownLatch(1);
@@ -1487,7 +1494,8 @@ public class IuRefreshableCacheTest {
 
 	@Test
 	public void testInvalidationDuringTheDispatchWindowIsNotLost() throws Throwable {
-		expectLog("Remote call refresh failed, serving last good result for");
+		// logged at FINE, not INFO, so there is nothing here for
+		// assertOnlyExpectedLog to flag
 		final var gate = new AtomicBoolean();
 		final var dispatched = new CountDownLatch(1);
 		final var release = new CountDownLatch(1);
