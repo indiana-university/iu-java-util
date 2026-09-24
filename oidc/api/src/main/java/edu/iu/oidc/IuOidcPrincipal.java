@@ -269,11 +269,19 @@ public interface IuOidcPrincipal extends Principal {
 	 * token it verified: an ID token for a client principal, or an access token for
 	 * an API bearer principal. Scope names are case-sensitive.
 	 * </p>
-	 * 
+	 *
+	 * <p>
+	 * The default denies every scope, so a principal implementation predating this
+	 * method compiles and answers deny-by-default rather than failing with
+	 * {@link AbstractMethodError}; override it to check an actual claim.
+	 * </p>
+	 *
 	 * @param scope scopes to check for
 	 * @return true if the claim includes at least one requested scope; else false
 	 */
-	boolean hasScope(Iterable<String> scope);
+	default boolean hasScope(Iterable<String> scope) {
+		return false;
+	}
 
 	/**
 	 * Determines whether this principal has an asserted role.
@@ -299,11 +307,19 @@ public interface IuOidcPrincipal extends Principal {
 	 * an ID token for a client principal, or an access token for an API bearer
 	 * principal. Role names compare without regard to case.
 	 * </p>
-	 * 
+	 *
+	 * <p>
+	 * The default denies every role, so a principal implementation predating this
+	 * method compiles and answers deny-by-default rather than failing with
+	 * {@link AbstractMethodError}; override it to check an actual claim.
+	 * </p>
+	 *
 	 * @param role roles to check for
 	 * @return true if the claim includes at least one requested role; else false
 	 */
-	boolean hasRole(Iterable<String> role);
+	default boolean hasRole(Iterable<String> role) {
+		return false;
+	}
 
 	/**
 	 * Gets a claim value.

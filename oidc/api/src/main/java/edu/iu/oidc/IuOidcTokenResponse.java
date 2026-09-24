@@ -121,6 +121,8 @@ public interface IuOidcTokenResponse {
 	 *
 	 * @return released authorization details; null when absent
 	 */
-	Iterable<? extends IuAuthorizationDetails> getAuthorizationDetails();
+	default Iterable<? extends IuAuthorizationDetails> getAuthorizationDetails() {
+		return null;
+	}
 
 }

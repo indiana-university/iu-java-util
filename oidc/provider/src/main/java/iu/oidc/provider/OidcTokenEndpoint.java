@@ -706,7 +706,7 @@ public class OidcTokenEndpoint {
 		final var code = required(request.getCode(), "code");
 		final var redirectUri = required(request.getRedirectUri(), "redirect_uri");
 
-		final var grant = take(GrantStore.CODE, authenticated.endpoint(), code);
+		final var grant = take(GrantStore.CODE, code);
 
 		if (!clientId.equals(grant.getClientId()))
 			throw new TokenError("invalid_grant", "Authorization code was issued to a different client", BAD_REQUEST);
@@ -772,8 +772,7 @@ public class OidcTokenEndpoint {
 		// the wrapped token is addressed to this provider regardless of the endpoint,
 		// so one registering no redirect URI redeems the reference the same as any
 		// other
-		final var grant = take(GrantStore.REFRESH, authenticated.endpoint(),
-				required(request.getRefreshToken(), "refresh_token"));
+		final var grant = take(GrantStore.REFRESH, required(request.getRefreshToken(), "refresh_token"));
 
 		if (!clientId.equals(grant.getClientId()))
 			throw new TokenError("invalid_grant", "Refresh token was issued to a different client", BAD_REQUEST);
@@ -796,12 +795,11 @@ public class OidcTokenEndpoint {
 	 * Reads a grant out of the store, converting a rejection into an OAuth error.
 	 *
 	 * @param type      reference type
-	 * @param endpoint  endpoint that authenticated
 	 * @param reference reference presented
 	 * @return redeemed grant
 	 * @throws TokenError if the reference doesn't redeem
 	 */
-	private OidcGrant take(String type, IuOidcClientEndpoint endpoint, String reference) {
+	private OidcGrant take(String type, String reference) {
 		// A spent reference is remembered for as long as one could still be presented,
 		// which is the longest any reference lives -- a refresh token's ceiling, since
 		// an authorization code's is far shorter. Read here rather than held, like
@@ -810,10 +808,16 @@ public class OidcTokenEndpoint {
 		final var tombstoneTtl = Objects.requireNonNull(issuer.configuration().getRefreshTokenTimeToLive(),
 				"Missing refresh token TTL");
 
+		// verified against this provider's own default signing key rather than the
+		// authenticated endpoint's registered alg: the reference is never read by
+		// anything but this provider, so it has no reason to vary with what the
+		// client's ID tokens are signed with, and a client authenticating through a
+		// different one of its own registrations than the one that issued the
+		// reference -- or a refresh token redeemed through a different endpoint than
+		// the one it descends from -- must still verify
 		try {
 			return Objects.requireNonNull(
-					grantStore.take(type, issuer.issuer(), issuer.issuerKey(endpoint.getAlg()), reference,
-							tombstoneTtl),
+					grantStore.take(type, issuer.issuer(), issuer.issuerKey(), reference, tombstoneTtl),
 					"Empty grant");
 		} catch (RuntimeException e) {
 			throw new TokenError("invalid_grant", "Invalid or expired " + type + " reference", BAD_REQUEST, e);
@@ -1116,8 +1120,8 @@ public class OidcTokenEndpoint {
 				// this close to the absolute limit rather than keep rotating a token that
 				// bottoms out to nothing
 				if (remaining.compareTo(ttl) > 0)
-					refreshToken = grantStore.put(GrantStore.REFRESH, providerIssuer,
-							issuer.issuerKey(endpoint.getAlg()), remaining, redeemed.grant());
+					refreshToken = grantStore.put(GrantStore.REFRESH, providerIssuer, issuer.issuerKey(), remaining,
+							redeemed.grant());
 			}
 		}
 

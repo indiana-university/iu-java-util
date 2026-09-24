@@ -348,7 +348,7 @@ public class OidcAuthorizeEndpoint {
 				LOG.info(() -> "authn-expired:" + clientId + ":" + authenticated.getName() + " " + authenticated);
 			else {
 				LOG.info(() -> "authn:" + clientId + ":" + authenticated.getName() + " " + authenticated);
-				return issue(endpoint, pending, authenticated);
+				return issue(pending, authenticated);
 			}
 		}
 
@@ -472,7 +472,7 @@ public class OidcAuthorizeEndpoint {
 		}
 
 		LOG.info(() -> "authn-resume:" + pending.getClientId() + ":" + authenticated.getName() + " " + authenticated);
-		return issue(endpoint, pending, authenticated);
+		return issue(pending, authenticated);
 	}
 
 	/**
@@ -496,14 +496,12 @@ public class OidcAuthorizeEndpoint {
 	 * none was.
 	 * </p>
 	 *
-	 * @param endpoint  endpoint the request was validated against
 	 * @param grant     validated request, completed here
 	 * @param principal authenticated principal
 	 * @return redirect to the client, carrying a code or
 	 *         {@value #INVALID_AUTHORIZATION_DETAILS}
 	 */
-	private OidcAuthorizeResult issue(IuOidcClientEndpoint endpoint, OidcGrant grant,
-			IuOidcAuthenticatedPrincipal principal) {
+	private OidcAuthorizeResult issue(OidcGrant grant, IuOidcAuthenticatedPrincipal principal) {
 		final var clientId = grant.getClientId();
 		final var principalName = principal.getName();
 		final var redirectUri = grant.getRedirectUri();
@@ -534,10 +532,14 @@ public class OidcAuthorizeEndpoint {
 							issuer.issuer()));
 		}
 
-		// signed with the key this endpoint registers, which is the one
-		// OidcTokenEndpoint verifies with -- an endpoint naming a non-default alg
-		// could otherwise never redeem its own code
-		final var code = grantStore.put(GrantStore.CODE, issuer.issuer(), issuer.issuerKey(endpoint.getAlg()),
+		// signed with this provider's own default key rather than the endpoint's
+		// registered alg: the reference is never read by anything but this provider
+		// (see GrantStore), so it has no reason to vary with what a client's ID tokens
+		// are signed with, and tying it to endpoint.getAlg() meant a client
+		// authenticating through a different one of its own registrations than the one
+		// that issued the code -- or a refresh token reissued through a different
+		// endpoint than the one it descends from -- could fail to verify
+		final var code = grantStore.put(GrantStore.CODE, issuer.issuer(), issuer.issuerKey(),
 				issuer.configuration().getAuthorizationCodeTimeToLive(), grant);
 
 		LOG.info(() -> "authorize-grant:" + clientId + ":" + principalName + " " + grant);

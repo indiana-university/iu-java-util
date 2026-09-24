@@ -46,6 +46,7 @@ import java.net.URI;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -166,6 +167,16 @@ public class OidcPrincipalTest {
 				return true;
 
 		return false;
+	}
+
+	@Test
+	void testScopeAndRoleDenyByDefault() {
+		// a principal implementation compiled before these methods existed answers
+		// deny-by-default rather than failing with AbstractMethodError
+		final var principal = mock(IuOidcPrincipal.class, CALLS_REAL_METHODS);
+
+		assertFalse(principal.hasScope(List.of("openid")));
+		assertFalse(principal.hasRole(List.of("admin")));
 	}
 
 	@Test
