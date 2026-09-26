@@ -37,6 +37,8 @@ import java.util.function.Function;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for types that provide a mechanism for
@@ -84,11 +86,7 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 
 	@Override
 	public T fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-		else
-			return parser.apply(text);
+		return parse(TextJsonAdapter.INSTANCE.fromJson(value));
 	}
 
 	@Override
@@ -97,6 +95,26 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 		else
 			return TextJsonAdapter.INSTANCE.toJson(print.apply(value));
+	}
+
+	@Override
+	public T read(JsonParser parser) {
+		return parse(TextJsonAdapter.INSTANCE.read(parser));
+	}
+
+	@Override
+	public void write(T value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			TextJsonAdapter.INSTANCE.write(print.apply(value), generator);
+	}
+
+	private T parse(String text) {
+		if (text == null)
+			return null;
+		else
+			return parser.apply(text);
 	}
 
 }

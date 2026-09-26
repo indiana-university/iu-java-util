@@ -34,6 +34,8 @@ package iu.client;
 import edu.iu.IuText;
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for byte[]
@@ -50,7 +52,24 @@ class BinaryJsonAdapter implements IuJsonAdapter<byte[]> {
 
 	@Override
 	public byte[] fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		return fromText(TextJsonAdapter.INSTANCE.fromJson(value));
+	}
+
+	@Override
+	public byte[] read(JsonParser parser) {
+		return fromText(TextJsonAdapter.INSTANCE.read(parser));
+	}
+
+	@Override
+	public void write(byte[] data, JsonGenerator generator) {
+		final var text = IuText.base64(data);
+		if (text == null)
+			generator.writeNull();
+		else
+			generator.write(text);
+	}
+
+	private byte[] fromText(String text) {
 		if (text == null)
 			return null;
 		else

@@ -11,9 +11,15 @@
 	</parent>
 
 	<artifactId>iu-java-oidc-client</artifactId>
-	<name>IU OpenID Connect and OAuth 2.0 Client Utilities</name>
+	<name>IU OpenID Connect and OAuth 2.0 Client</name>
 
 	<dependencies>
+		<dependency>
+			<groupId>jakarta.json</groupId>
+			<artifactId>jakarta.json-api</artifactId>
+			<version>${jakarta.json-api.version}</version>
+			<scope>provided</scope>
+		</dependency>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>iu-java-base</artifactId>

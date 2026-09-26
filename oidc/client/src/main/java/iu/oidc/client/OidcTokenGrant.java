@@ -58,7 +58,9 @@ import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
+import edu.iu.oidc.IuOidcActor;
 import edu.iu.oidc.IuOidcTokenResponse;
+import iu.oidc.client.config.IuOidcClient;
 import iu.oidc.client.config.IuOidcClientReference;
 import jakarta.json.JsonObject;
 
@@ -121,6 +123,31 @@ public abstract class OidcTokenGrant {
 			throws IOException;
 
 	/**
+	 * Determines whether an ID token this grant receives must state when its
+	 * subject, or the actor behind them, authenticated.
+	 *
+	 * <p>
+	 * True for every grant that descends from an end user signing in, since a
+	 * {@link IuOidcClient#getMaxAge() maximum authentication age} cannot be
+	 * enforced against an authentication the token never dates.
+	 * {@link OidcTokenExchangeGrant} overrides this, because a provider that has
+	 * not yet started dating its access tokens gives an exchange nothing true to
+	 * carry &mdash; and an exchange is refused outright in production, so
+	 * tolerating that is not a production concession.
+	 * </p>
+	 *
+	 * <p>
+	 * Whether it is required or not, a maximum age <em>is</em> enforced against
+	 * whatever the token does state.
+	 * </p>
+	 *
+	 * @return true to refuse an ID token stating no authentication time
+	 */
+	protected boolean isAuthTimeRequired() {
+		return true;
+	}
+
+	/**
 	 * Creates POST params and passes to
 	 * {@link #tokenAuth(java.net.http.HttpRequest.Builder, Map)}.
 	 *
@@ -132,9 +159,17 @@ public abstract class OidcTokenGrant {
 		final Map<String, Iterable<String>> params = new LinkedHashMap<>();
 		tokenAuth(requestBuilder, params);
 
-		final var scope = config.getScope();
+		final var configuredScope = config.getScope();
+		final var joinedScope = configuredScope == null ? null : String.join(" ", configuredScope);
+		final var scope = joinedScope == null || joinedScope.isEmpty() ? null : joinedScope;
 		if (scope != null)
 			params.put("scope", IuIterable.iter(scope));
+
+		if (!params.containsKey("resource")) {
+			final var resource = config.getClient().getResourceUri();
+			if (resource != null)
+				params.put("resource", IuIterable.map(resource, URI::toString));
+		}
 
 		requestBuilder.header("Content-Type", "application/x-www-form-urlencoded");
 		requestBuilder.POST(BodyPublishers.ofString(IuWebUtils.createQueryString(params)));
@@ -263,13 +298,28 @@ public abstract class OidcTokenGrant {
 
 		final var maxAge = oidcClient.getMaxAge();
 		if (maxAge != null) {
-			final var authTime = Objects.requireNonNull(verifiedIdToken.getClaim("auth_time", Instant.class),
-					"Missing auth_time claim");
-			final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-			final var authAge = Duration.between(authTime, now);
-			if (authAge.compareTo(maxAge) >= 0)
-				throw new IllegalArgumentException(
-						"Authenticated session lifetime " + authAge + " exceeds maximum " + maxAge);
+			// an exchanged token's subject never authenticated -- a caller named them
+			// and the provider was willing to say so -- so it carries no auth_time of
+			// its own. The actor did authenticate, and their time rides inside act,
+			// which is the age worth measuring: the impersonated session is only as
+			// fresh as the session that bought it.
+			var authTime = verifiedIdToken.getClaim("auth_time", Instant.class);
+			if (authTime == null) {
+				final var actor = verifiedIdToken.getClaim("act", IuOidcActor.class);
+				if (actor != null && actor.getAuthTime() != null)
+					authTime = Instant.ofEpochSecond(actor.getAuthTime());
+			}
+
+			if (isAuthTimeRequired())
+				authTime = Objects.requireNonNull(authTime, "Missing auth_time claim");
+
+			if (authTime != null) {
+				final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+				final var authAge = Duration.between(authTime, now);
+				if (authAge.compareTo(maxAge) >= 0)
+					throw new IllegalArgumentException(
+							"Authenticated session lifetime " + authAge + " exceeds maximum " + maxAge);
+			}
 		}
 
 		final var atHash = verifiedIdToken.getClaim("at_hash", String.class);

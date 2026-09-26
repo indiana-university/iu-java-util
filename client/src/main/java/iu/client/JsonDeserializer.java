@@ -34,10 +34,13 @@ package iu.client;
 import java.beans.Introspector;
 import java.lang.reflect.Type;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
 
 /**
@@ -52,8 +55,9 @@ public final class JsonDeserializer {
 	}
 
 	/**
-	 * Deserializes a business object from JSON.
-	 * 
+	 * Deserializes a business object from JSON, reading property names in the
+	 * format supplied by the options in effect.
+	 *
 	 * <p>
 	 * An interface is wrapped by a thin {@link JsonProxy} that reads property
 	 * values directly from {@code value}. Any other type is instantiated using its
@@ -61,16 +65,23 @@ public final class JsonDeserializer {
 	 * defined JSON value is converted and applied. Properties without a setter, and
 	 * setters without a corresponding JSON value, are skipped.
 	 * </p>
-	 * 
-	 * @param <T>   value type
-	 * @param type  value type for introspection
-	 * @param value {@link JsonObject} to deserialize
-	 * @param adapt adapter function
+	 *
+	 * @param <T>     value type
+	 * @param type    value type for introspection
+	 * @param value   {@link JsonObject} to deserialize
+	 * @param options supplies the options in effect; read once per invocation
+	 * @param adapt   adapter function
 	 * @return business object
 	 */
-	public static <T> T deserialize(Class<T> type, JsonObject value, Function<Type, IuJsonAdapter<?>> adapt) {
+	public static <T> T deserialize(Class<T> type, JsonObject value, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> adapt) {
+		return deserialize(type, value, JsonSerializer.propertyNameFormat(JsonSerializer.snapshot(options)), adapt);
+	}
+
+	private static <T> T deserialize(Class<T> type, JsonObject value, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> adapt) {
 		if (type.isInterface())
-			return JsonProxy.wrap(value, type, adapt);
+			return JsonProxy.wrap(value, type, propertyNameFormat, adapt);
 
 		final var bean = IuException.uncheckedInvocation(() -> type.getDeclaredConstructor().newInstance());
 
@@ -80,7 +91,8 @@ public final class JsonDeserializer {
 			if (writeMethod == null)
 				continue;
 
-			final var jsonValue = JsonProxy.valueWithCaseConversion(value, propertyDescriptor.getName());
+			final var jsonValue = value
+					.get(JsonSerializer.formatPropertyName(propertyDescriptor.getName(), propertyNameFormat));
 			if (jsonValue == null)
 				continue;
 

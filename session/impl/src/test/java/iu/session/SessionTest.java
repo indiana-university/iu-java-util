@@ -255,9 +255,42 @@ public class SessionTest {
 	}
 
 	@Test
-	void testStrict() {
-		assertTrue(session.isStrict());
+	void testSameSite() {
+		assertEquals("Strict", session.getSameSite());
+		session.setStrict(true);
+		assertEquals("Strict", session.getSameSite());
+
 		session.setStrict(false);
-		assertFalse(session.isStrict());
+		assertEquals("Lax", session.getSameSite());
+		assertTrue(session.isChanged());
+
+		session.setSameSite("None");
+		assertEquals("None", session.getSameSite());
+
+		session.setSameSite(null);
+		assertNull(session.getSameSite());
+	}
+
+	@Test
+	void testSameSiteAcceptsEachDefinedValueDirectly() {
+		// setStrict() only ever passes "Strict" or "Lax" through; called directly,
+		// setSameSite() must accept both itself rather than refusing anything
+		// setStrict() wouldn't have sent it
+		session.setSameSite("Strict");
+		assertEquals("Strict", session.getSameSite());
+
+		session.setSameSite("Lax");
+		assertEquals("Lax", session.getSameSite());
+	}
+
+	@Test
+	void testSameSiteRejectsAnythingButTheThreeDefinedValues() {
+		// written verbatim into the Set-Cookie header, so anything else could inject
+		// additional cookie attributes rather than merely naming this one
+		assertEquals("Invalid SameSite value: Lax; Domain=example.com",
+				assertThrows(IllegalArgumentException.class,
+						() -> session.setSameSite("Lax; Domain=example.com")).getMessage());
+		assertEquals("Invalid SameSite value: strict",
+				assertThrows(IllegalArgumentException.class, () -> session.setSameSite("strict")).getMessage());
 	}
 }

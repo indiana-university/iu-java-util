@@ -31,13 +31,18 @@
  */
 package iu.client;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Adapts to/from {@link JsonArray} values.
@@ -97,6 +102,38 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 		final var a = IuJson.array();
 		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
 		return a.build();
+	}
+
+	/**
+	 * Reads items as the parser reaches them, collected eagerly since the parser
+	 * moves on. A value other than an array reads as a single item, as in
+	 * {@link #fromJson(JsonValue)}.
+	 */
+	@Override
+	public T read(JsonParser parser) {
+		final var event = parser.currentEvent();
+		if (event == Event.VALUE_NULL)
+			return null;
+
+		final List<E> items = new ArrayList<>();
+		if (event == Event.START_ARRAY)
+			while (parser.next() != Event.END_ARRAY)
+				items.add(itemAdapter.read(parser));
+		else
+			items.add(itemAdapter.read(parser));
+		return collect(items);
+	}
+
+	@Override
+	public void write(T javaValue, JsonGenerator generator) {
+		if (javaValue == null) {
+			generator.writeNull();
+			return;
+		}
+
+		generator.writeStartArray();
+		iterator(javaValue).forEachRemaining(i -> itemAdapter.write(i, generator));
+		generator.writeEnd();
 	}
 
 }

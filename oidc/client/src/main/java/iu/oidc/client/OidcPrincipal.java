@@ -37,8 +37,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
+import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
 import iu.oidc.client.config.IuOidcClientReference;
@@ -59,12 +62,16 @@ import jakarta.json.JsonObject;
  */
 public class OidcPrincipal implements IuOidcPrincipal {
 
+	private static final Logger LOG = Logger.getLogger(OidcPrincipal.class.getName());
+
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
 	private final String setCookie;
 	private final IuOidcClientReference config;
 	private final String accessToken;
 	private final WebToken verifiedAccessToken;
+	private final String scope;
+	private final Iterable<? extends IuAuthorizationDetails> authorizationDetails;
 	private final String principalNameClaimName;
 
 	/** On-behalf-of grants by API root resource URI; synchronized on itself. */
@@ -87,11 +94,17 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 *                               JWT issued by the OpenID Provider; null if it
 	 *                               couldn't be verified as such, in which case its
 	 *                               audience is not considered
+	 * @param scope                  granted, either from token response or original
+	 *                               request if token response omits scope
+	 * @param authorizationDetails   authorization details released by the
+	 *                               authorization server; considered before details
+	 *                               released via token claim
 	 * @param principalNameClaimName claim name for principal name; null to use
 	 *                               "sub"
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie, IuOidcClientReference config,
-			String accessToken, WebToken verifiedAccessToken, String principalNameClaimName) {
+			String accessToken, WebToken verifiedAccessToken, String scope,
+			Iterable<? extends IuAuthorizationDetails> authorizationDetails, String principalNameClaimName) {
 		this.idToken = idToken;
 
 		if (!userinfoClaims.containsKey("sub"))
@@ -105,7 +118,8 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		this.config = config;
 		this.accessToken = accessToken;
 		this.verifiedAccessToken = verifiedAccessToken;
-
+		this.scope = scope;
+		this.authorizationDetails = authorizationDetails;
 		this.principalNameClaimName = principalNameClaimName;
 	}
 
@@ -143,6 +157,71 @@ public class OidcPrincipal implements IuOidcPrincipal {
 			return null;
 
 		return type.cast(config.adaptJson(type).fromJson(userinfoClaimValue));
+	}
+
+	@Override
+	public boolean hasScope(Iterable<String> scopes) {
+		for (final var scope : scopes) {
+			if (this.scope != null)
+				for (final var claimedScope : this.scope.split(" "))
+					if (claimedScope.equals(scope)) {
+						LOG.info(() -> "scope-allow:" + scope + "; " + getName());
+						return true;
+					}
+
+			LOG.info(() -> "scope-deny:" + scope + "; " + getName());
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean hasRole(Iterable<String> roles) {
+		final var configuredRoles = config.getClient().getRoles();
+
+		final Iterable<String> claimedRoles;
+		final var rolesClaim = idToken.getClaim("roles", String[].class);
+		if (rolesClaim == null)
+			return false;
+		else
+			claimedRoles = IuIterable.iter(rolesClaim);
+
+		for (final var role : roles) {
+			var configured = false;
+			if (configuredRoles != null)
+				for (final var configuredRole : configuredRoles)
+					if (role.equalsIgnoreCase(configuredRole)) {
+						configured = true;
+						break;
+					}
+			if (!configured) {
+				LOG.fine(() -> "configured roles " + IuIterable.print(configuredRoles));
+				LOG.info(() -> "role-deny-noconfig:" + role + "; " + getName());
+				continue;
+			}
+
+			for (final var claimedRole : claimedRoles)
+				if (claimedRole.equalsIgnoreCase(role)) {
+					LOG.info(() -> "role-allow:" + role + "; " + getName());
+					return true;
+				}
+
+			LOG.info(() -> "role-deny:" + role + "; " + getName());
+		}
+
+		return false;
+	}
+
+	@Override
+	public <T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface,
+			String type) {
+		if (authorizationDetails != null) {
+			final var detailAdapter = config.adaptJson(detailInterface);
+			final var unwrap = config.adaptJson(IuAuthorizationDetails.class);
+			return IuIterable.map(IuIterable.filter(authorizationDetails, a -> type.equals(a.getType())),
+					a -> detailAdapter.fromJson(unwrap.toJson(a)));
+		} else
+			return idToken.getAuthorizationDetails(detailInterface, type);
 	}
 
 	@Override

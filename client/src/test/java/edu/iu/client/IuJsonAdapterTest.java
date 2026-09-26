@@ -78,6 +78,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -125,6 +127,12 @@ public class IuJsonAdapterTest {
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(getClass()));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentHashMap.class));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentLinkedQueue.class));
+
+		// no adapter for void, Void, or Character, despite what of(Type) once claimed
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(void.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(Void.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(char.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(Character.class));
 	}
 
 	@Test
@@ -163,6 +171,108 @@ public class IuJsonAdapterTest {
 		public void setId(String id) {
 			this.id = id;
 		}
+	}
+
+	public interface ValueAdapterBean {
+		List<String> getStrings();
+	}
+
+	/**
+	 * Creates a value adapter function that converts every {@link String} to a
+	 * fixed value, so a test can tell whether the function was consulted.
+	 */
+	private static Function<Type, IuJsonAdapter<?>> interceptsString(String id) {
+		return type -> type == String.class //
+				? IuJsonAdapter.from(json -> id, value -> IuJson.string(id)) //
+				: IuJsonAdapter.of(type);
+	}
+
+	@Test
+	public void testAdaptWithValueAdapterConvertsAJavaBean() {
+		final var customId = IdGenerator.generateId();
+
+		@SuppressWarnings("unchecked")
+		final var adapter = (IuJsonAdapter<BeanClass>) IuJsonAdapter.adapt(BeanClass.class,
+				IuJsonPropertyNameFormat.IDENTITY, interceptsString(customId));
+
+		final var value = new BeanClass();
+		value.setId(IdGenerator.generateId());
+
+		final var json = adapter.toJson(value).asJsonObject();
+		assertEquals(customId, json.getString("id"));
+		assertEquals(customId, adapter.fromJson(json).getId());
+	}
+
+	@Test
+	public void testAdaptWithValueAdapterDoesntInterceptAPlatformType() throws Exception {
+		final var customId = IdGenerator.generateId();
+
+		@SuppressWarnings("unchecked")
+		final var adapter = (IuJsonAdapter<List<String>>) IuJsonAdapter.adapt(
+				ValueAdapterBean.class.getMethod("getStrings").getGenericReturnType(),
+				IuJsonPropertyNameFormat.IDENTITY, interceptsString(customId));
+
+		// List is a platform type, so it converts as an array rather than a
+		// JavaBean; the function still resolves the item type
+		final var json = adapter.toJson(List.of(IdGenerator.generateId())).asJsonArray();
+		assertEquals(customId, json.getString(0));
+		assertEquals(customId, adapter.fromJson(json).get(0));
+	}
+
+	@Test
+	public void testAdaptWithValueAdapterDoesntInterceptAPrimitive() {
+		@SuppressWarnings("unchecked")
+		final var adapter = (IuJsonAdapter<Integer>) IuJsonAdapter.adapt(int.class,
+				IuJsonPropertyNameFormat.IDENTITY, interceptsString(IdGenerator.generateId()));
+
+		assertEquals(IuJson.number(42), adapter.toJson(42));
+		assertEquals(42, adapter.fromJson(IuJson.number(42)));
+	}
+
+	@Test
+	public void testAdaptWithValueAdapterDoesntInterceptAnArray() {
+		final var customId = IdGenerator.generateId();
+
+		@SuppressWarnings("unchecked")
+		final var adapter = (IuJsonAdapter<String[]>) IuJsonAdapter.adapt(String[].class,
+				IuJsonPropertyNameFormat.IDENTITY, interceptsString(customId));
+
+		// the array itself isn't a JavaBean; its component type goes through the
+		// function
+		final var json = adapter.toJson(new String[] { IdGenerator.generateId() }).asJsonArray();
+		assertEquals(customId, json.getString(0));
+		assertArrayEquals(new String[] { customId }, adapter.fromJson(json));
+	}
+
+	@Test
+	public void testAdaptWithValueAdapterDoesntInterceptAnEnum() {
+		@SuppressWarnings("unchecked")
+		final var adapter = (IuJsonAdapter<AdaptEnumTest>) IuJsonAdapter.adapt(AdaptEnumTest.class,
+				IuJsonPropertyNameFormat.IDENTITY, interceptsString(IdGenerator.generateId()));
+
+		assertEquals(IuJson.string("FOO"), adapter.toJson(AdaptEnumTest.FOO));
+		assertSame(AdaptEnumTest.BAR, adapter.fromJson(IuJson.string("BAR")));
+	}
+
+	@Test
+	public void testAdaptWithValueAdapterDoesntRecurse() {
+		// the function is consulted for every nested type, so recursing is its
+		// job: one that doesn't call back in leaves a nested JavaBean unsupported
+		@SuppressWarnings("unchecked")
+		final var unsupported = (IuJsonAdapter<NestingBean>) IuJsonAdapter.adapt(NestingBean.class,
+				IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertThrows(UnsupportedOperationException.class, () -> unsupported.toJson(new NestingBean()));
+
+		@SuppressWarnings("unchecked")
+		final var recursive = (IuJsonAdapter<NestingBean>) IuJsonAdapter.adapt(NestingBean.class,
+				IuJsonPropertyNameFormat.IDENTITY,
+				new Function<Type, IuJsonAdapter<?>>() {
+					@Override
+					public IuJsonAdapter<?> apply(Type type) {
+						return IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.IDENTITY, this);
+					}
+				});
+		assertEquals(IuJson.object().build(), recursive.toJson(new NestingBean()).asJsonObject().getJsonObject("nested"));
 	}
 
 	@Test
@@ -225,6 +335,64 @@ public class IuJsonAdapterTest {
 				.addNull() //
 				.build(), json);
 		assertNull(adapter.fromJson(json).get(1));
+	}
+
+	/** Declares the two forms that name a bound rather than a type. */
+	public interface BoundedBean<T extends CharSequence> {
+
+		/** @return items typed by a wildcard over a JavaBean */
+		Iterable<? extends BeanClass> getBeans();
+
+		/** @return items typed by a wildcard the factory knows by name */
+		Iterable<? extends CharSequence> getNames();
+
+		/** @return items typed by a variable */
+		Iterable<T> getVariable();
+	}
+
+	private static Type itemsOf(String property) throws Exception {
+		return BoundedBean.class.getMethod(property).getGenericReturnType();
+	}
+
+	@Test
+	public void testWildcardOverAJavaBeanAdaptsAsItsBound() throws Exception {
+		// the caller's function is what knows a bound converts as a JavaBean, so
+		// resolving a wildcard has to go back out through it
+		final var bean = new BeanClass();
+		bean.setId(IdGenerator.generateId());
+
+		final IuJsonAdapter<Iterable<BeanClass>> adapter = IuJsonAdapter.of(itemsOf("getBeans"),
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.IDENTITY));
+
+		assertEquals(IuJson.array().add(IuJson.object().add("id", bean.getId())).build(),
+				adapter.toJson(List.of(bean)).asJsonArray());
+	}
+
+	@Test
+	public void testAWildcardResolvesThroughTheCallersAdapter() throws Exception {
+		// the bound alone, rather than an Iterable over it: whether a bound converts
+		// as a JavaBean is the caller's to decide, so resolution goes back out to it
+		final var wildcard = ((ParameterizedType) itemsOf("getBeans")).getActualTypeArguments()[0];
+
+		final var bean = new BeanClass();
+		bean.setId(IdGenerator.generateId());
+
+		final IuJsonAdapter<BeanClass> adapter = IuJsonAdapter.of(wildcard,
+				t -> IuJsonAdapter.adapt(t, IuJsonPropertyNameFormat.IDENTITY));
+
+		assertEquals(IuJson.object().add("id", bean.getId()).build(), adapter.toJson(bean).asJsonObject());
+	}
+
+	@Test
+	public void testWildcardOverAKnownTypeAdaptsAsItsBound() throws Exception {
+		final IuJsonAdapter<Iterable<CharSequence>> adapter = IuJsonAdapter.of(itemsOf("getNames"));
+		assertEquals(IuJson.array().add("a").build(), adapter.toJson(List.of("a")).asJsonArray());
+	}
+
+	@Test
+	public void testATypeVariableAdaptsAsItsBound() throws Exception {
+		final IuJsonAdapter<Iterable<CharSequence>> adapter = IuJsonAdapter.of(itemsOf("getVariable"));
+		assertEquals(IuJson.array().add("b").build(), adapter.toJson(List.of("b")).asJsonArray());
 	}
 
 	@Test
@@ -1239,6 +1407,324 @@ public class IuJsonAdapterTest {
 
 		assertEquals(object, adapter.toJson(m));
 		assertEquals(m, adapter.fromJson(object));
+	}
+
+	public static class NestingBean {
+		public BeanClass getNested() {
+			return new BeanClass();
+		}
+
+		public List<BeanClass> getList() {
+			return List.of(new BeanClass());
+		}
+
+		public Map<String, BeanClass> getMap() {
+			return Map.of("k", new BeanClass());
+		}
+	}
+
+	public static class NullNestingBean {
+		public BeanClass getNested() {
+			return null;
+		}
+	}
+
+	@Test
+	public void testFromJavaBeansOmitsNullPropertiesByDefault() {
+		final var adapter = IuJsonAdapter.from(BeanClass.class, IuJsonPropertyNameFormat.IDENTITY, IuJsonAdapter::of);
+		assertEquals(IuJson.object().build(), adapter.toJson(new BeanClass()));
+	}
+
+	@Test
+	public void testFromJavaBeansIncludesNullProperties() {
+		final var adapter = IuJsonAdapter.from(BeanClass.class, () -> IuJsonSerializationOptions.INCLUDE_NULLS,
+				IuJsonAdapter::of);
+		assertEquals(IuJson.object().addNull("id").build(), adapter.toJson(new BeanClass()));
+
+		// an explicitly null property is a defined value, so it converts back
+		assertNull(adapter.fromJson(adapter.toJson(new BeanClass())).getId());
+	}
+
+	@Test
+	public void testFromJavaBeansObservesOptionsChangeWithoutBeingRecreated() {
+		final var options = new IuJsonSerializationOptions[] { IuJsonSerializationOptions.DEFAULT };
+		final var adapter = IuJsonAdapter.from(BeanClass.class, () -> options[0], IuJsonAdapter::of);
+		final var value = new BeanClass();
+
+		assertEquals(IuJson.object().build(), adapter.toJson(value));
+
+		options[0] = IuJsonSerializationOptions.INCLUDE_NULLS;
+		assertEquals(IuJson.object().addNull("id").build(), adapter.toJson(value));
+
+		options[0] = IuJsonSerializationOptions.DEFAULT;
+		assertEquals(IuJson.object().build(), adapter.toJson(value));
+	}
+
+	@Test
+	public void testAdaptOmitsNestedNullPropertiesByDefault() {
+		final var adapter = IuJsonAdapter.adapt(NestingBean.class, IuJsonPropertyNameFormat.IDENTITY);
+		assertEquals(IuJson.object() //
+				.add("nested", IuJson.object()) //
+				.add("list", IuJson.array().add(IuJson.object())) //
+				.add("map", IuJson.object().add("k", IuJson.object())) //
+				.build(), adapter.toJson(new NestingBean()));
+	}
+
+	@Test
+	public void testAdaptIncludesNestedNullProperties() {
+		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.INCLUDE_NULLS;
+		final var adapter = IuJsonAdapter.adapt(NestingBean.class, options);
+		assertEquals(IuJson.object() //
+				.add("nested", IuJson.object().addNull("id")) //
+				.add("list", IuJson.array().add(IuJson.object().addNull("id"))) //
+				.add("map", IuJson.object().add("k", IuJson.object().addNull("id"))) //
+				.build(), adapter.toJson(new NestingBean()));
+	}
+
+	@Test
+	public void testAdaptIncludesNullBusinessObjectPropertyAsNull() {
+		final var adapter = IuJsonAdapter.adapt(NullNestingBean.class,
+				(Supplier<IuJsonSerializationOptions>) () -> IuJsonSerializationOptions.INCLUDE_NULLS);
+
+		// a null business object is null, not an object of all-null properties
+		assertEquals(IuJson.object().addNull("nested").build(), adapter.toJson(new NullNestingBean()));
+	}
+
+	@Test
+	public void testAdaptTypeWithOptionsHandlesSimpleTypes() {
+		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.INCLUDE_NULLS;
+		assertEquals(IuJson.number(34), IuJsonAdapter.adapt(int.class, options).toJson(34));
+		assertEquals(IuJson.string("foo"), IuJsonAdapter.adapt(String.class, options).toJson("foo"));
+	}
+
+	public static class DefaultedBean {
+		private String id = "assigned by constructor";
+
+		public String getId() {
+			return id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
+	}
+
+	@Test
+	public void testExplicitNullOverwritesConstructorAssignedValue() {
+		final var adapter = IuJsonAdapter.from(DefaultedBean.class, IuJsonPropertyNameFormat.IDENTITY,
+				IuJsonAdapter::of);
+
+		// an undefined property leaves the constructor-assigned value intact
+		assertEquals("assigned by constructor", adapter.fromJson(IuJson.object().build()).getId());
+
+		// an explicitly null property is a defined value, so it is applied; this is
+		// why including nulls is an egress format rather than a round-trip format
+		assertNull(adapter.fromJson(IuJson.object().addNull("id").build()).getId());
+	}
+
+
+	public enum LabeledEnum {
+		ACTIVE("Active"), INACTIVE("Inactive");
+
+		private final String displayLabel;
+
+		private LabeledEnum(String displayLabel) {
+			this.displayLabel = displayLabel;
+		}
+
+		public String getDisplayLabel() {
+			return displayLabel;
+		}
+
+		public String getDescription() {
+			return null;
+		}
+	}
+
+	public enum NamedEnum {
+		A, B;
+
+		public String getName() {
+			return "declared";
+		}
+	}
+
+	public enum BodiedEnum {
+		A {
+			@Override
+			public String getDisplayLabel() {
+				return "first";
+			}
+		},
+		B {
+			@Override
+			public String getDisplayLabel() {
+				return "second";
+			}
+		};
+
+		public abstract String getDisplayLabel();
+	}
+
+	public static class EnumHolder {
+		private LabeledEnum status;
+		private List<LabeledEnum> history;
+
+		public LabeledEnum getStatus() {
+			return status;
+		}
+
+		public void setStatus(LabeledEnum status) {
+			this.status = status;
+		}
+
+		public List<LabeledEnum> getHistory() {
+			return history;
+		}
+
+		public void setHistory(List<LabeledEnum> history) {
+			this.history = history;
+		}
+	}
+
+	private static JsonObject labeled(String name, String displayLabel) {
+		return IuJson.object().add("name", name).add("displayLabel", displayLabel).build();
+	}
+
+	@Test
+	public void testEnumFromNullReference() {
+		// distinct from JsonValue.NULL, which testEnum covers
+		assertNull(IuJsonAdapter.of(TestEnum.class).fromJson(null));
+	}
+
+	@Test
+	public void testEnumFromObject() {
+		// converting from JSON has no options to read, so both forms are accepted
+		// whatever the options say
+		assertSame(TestEnum.B, IuJsonAdapter.of(TestEnum.class).fromJson(IuJson.object().add("name", "B").build()));
+	}
+
+	@Test
+	public void testEnumFromObjectIgnoresOtherProperties() {
+		assertSame(TestEnum.C, IuJsonAdapter.of(TestEnum.class)
+				.fromJson(IuJson.object().add("name", "C").add("displayLabel", IdGenerator.generateId()).build()));
+	}
+
+	@Test
+	public void testEnumFromObjectRequiresName() {
+		final var adapter = IuJsonAdapter.of(TestEnum.class);
+		final var object = IuJson.object().add("other", IdGenerator.generateId()).build();
+		assertEquals("name", assertThrows(NullPointerException.class, () -> adapter.fromJson(object)).getMessage());
+	}
+
+	@Test
+	public void testEnumAdapterIsCachedByType() {
+		assertSame(IuJsonAdapter.of(TestEnum.class), IuJsonAdapter.of(TestEnum.class));
+	}
+
+	@Test
+	public void testParsingAdapterIsCachedByType() {
+		assertSame(IuJsonAdapter.of(Duration.class), IuJsonAdapter.of(Duration.class));
+	}
+
+	@Test
+	public void testAdaptEnumAsObject() {
+		final var adapter = IuJsonAdapter.adapt(LabeledEnum.class, () -> IuJsonSerializationOptions.ENUM_AS_OBJECT);
+
+		final var json = adapter.toJson(LabeledEnum.ACTIVE).asJsonObject();
+		assertEquals(labeled("ACTIVE", "Active"), json);
+
+		// name is written first, and declaringClass, inherited from Enum, is not
+		// written at all
+		assertEquals("name", json.keySet().iterator().next());
+		assertFalse(json.containsKey("declaringClass"));
+
+		assertSame(LabeledEnum.ACTIVE, adapter.fromJson(json));
+	}
+
+	@Test
+	public void testAdaptEnumAsObjectNullConvention() {
+		final var adapter = IuJsonAdapter.adapt(LabeledEnum.class, () -> IuJsonSerializationOptions.ENUM_AS_OBJECT);
+		assertSame(JsonValue.NULL, adapter.toJson(null));
+		assertNull(adapter.fromJson(JsonValue.NULL));
+		assertNull(adapter.fromJson(null));
+	}
+
+	@Test
+	public void testAdaptEnumAsObjectFormatsTheNameProperty() {
+		final var snakeCase = IuJsonAdapter.adapt(LabeledEnum.class, () -> IuJsonSerializationOptions
+				.of(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, false, true));
+		final var snakeCaseJson = snakeCase.toJson(LabeledEnum.ACTIVE).asJsonObject();
+		assertEquals(IuJson.object().add("name", "ACTIVE").add("display_label", "Active").build(), snakeCaseJson);
+		assertSame(LabeledEnum.ACTIVE, snakeCase.fromJson(snakeCaseJson));
+
+		final var upperCase = IuJsonAdapter.adapt(LabeledEnum.class, () -> IuJsonSerializationOptions
+				.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, false, true));
+		final var upperCaseJson = upperCase.toJson(LabeledEnum.ACTIVE).asJsonObject();
+		assertEquals(IuJson.object().add("NAME", "ACTIVE").add("DISPLAY_LABEL", "Active").build(), upperCaseJson);
+
+		// converting from JSON checks every format, since it has no options to read
+		assertSame(LabeledEnum.ACTIVE, upperCase.fromJson(upperCaseJson));
+	}
+
+	@Test
+	public void testAdaptEnumAsObjectIncludesNullProperties() {
+		final var adapter = IuJsonAdapter.adapt(LabeledEnum.class,
+				() -> IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.IDENTITY, true, true));
+		assertEquals(
+				IuJson.object().add("name", "ACTIVE").add("displayLabel", "Active").addNull("description").build(),
+				adapter.toJson(LabeledEnum.ACTIVE));
+	}
+
+	@Test
+	public void testAdaptEnumAsObjectDeclaredNamePropertyWins() {
+		final var adapter = IuJsonAdapter.adapt(NamedEnum.class, () -> IuJsonSerializationOptions.ENUM_AS_OBJECT);
+		final var json = adapter.toJson(NamedEnum.A).asJsonObject();
+		assertEquals(IuJson.object().add("name", "declared").build(), json);
+
+		// which is only sound when the declared property answers the constant name
+		assertThrows(IllegalArgumentException.class, () -> adapter.fromJson(json));
+	}
+
+	@Test
+	public void testAdaptEnumAsObjectWithAConstantBody() {
+		final var adapter = IuJsonAdapter.adapt(BodiedEnum.class, () -> IuJsonSerializationOptions.ENUM_AS_OBJECT);
+
+		// introspection uses the enum type, so every constant has the same shape,
+		// and a property a constant overrides answers the override
+		assertEquals(labeled("A", "first"), adapter.toJson(BodiedEnum.A).asJsonObject());
+		assertEquals(labeled("B", "second"), adapter.toJson(BodiedEnum.B).asJsonObject());
+		assertSame(BodiedEnum.B, adapter.fromJson(adapter.toJson(BodiedEnum.B)));
+	}
+
+	@Test
+	public void testAdaptEnumAsObjectAppliesToNestedValues() {
+		final var adapter = IuJsonAdapter.adapt(EnumHolder.class, () -> IuJsonSerializationOptions.ENUM_AS_OBJECT);
+
+		final var value = new EnumHolder();
+		value.setStatus(LabeledEnum.ACTIVE);
+		value.setHistory(List.of(LabeledEnum.INACTIVE));
+
+		final var json = adapter.toJson(value).asJsonObject();
+		assertEquals(IuJson.object() //
+				.add("status", labeled("ACTIVE", "Active")) //
+				.add("history", IuJson.array().add(labeled("INACTIVE", "Inactive"))) //
+				.build(), json);
+
+		final var fromJson = adapter.fromJson(json);
+		assertSame(LabeledEnum.ACTIVE, fromJson.getStatus());
+		assertSame(LabeledEnum.INACTIVE, fromJson.getHistory().get(0));
+	}
+
+	@Test
+	public void testAdaptEnumObservesOptionsChangeWithoutBeingRecreated() {
+		final var options = new IuJsonSerializationOptions[] { IuJsonSerializationOptions.DEFAULT };
+		final var adapter = IuJsonAdapter.adapt(LabeledEnum.class, () -> options[0]);
+
+		assertEquals(IuJson.string("ACTIVE"), adapter.toJson(LabeledEnum.ACTIVE));
+
+		options[0] = IuJsonSerializationOptions.ENUM_AS_OBJECT;
+		assertEquals(labeled("ACTIVE", "Active"), adapter.toJson(LabeledEnum.ACTIVE));
 	}
 
 }

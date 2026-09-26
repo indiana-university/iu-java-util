@@ -257,8 +257,9 @@ public interface IuSqlBuilder {
 	 * declares, where the declared type calls for it: a {@link Boolean} bound to a
 	 * character column becomes {@code "Y"} or {@code "N"}, and a
 	 * {@link java.util.Date} bound to a timestamp column becomes a
-	 * {@link java.sql.Timestamp}. A column left to its natural type is bound
-	 * unchanged. Independently of the declared type, an
+	 * {@link java.sql.Timestamp}. A {@link java.net.URI} is bound as its textual
+	 * form. A column left to its natural type is otherwise bound unchanged.
+	 * Independently of the declared type, an
 	 * {@link java.time.Instant} is always bound as a {@link java.sql.Timestamp}, and
 	 * a {@code null} becomes a single space for a {@link SpaceForNull} column.
 	 * </p>

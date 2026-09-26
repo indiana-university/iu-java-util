@@ -24,6 +24,8 @@
 			<modules>
 				<module>api</module>
 				<module>client</module>
+				<module>config</module>
+				<module>provider</module>
 			</modules>
 		</profile>
 	</profiles>

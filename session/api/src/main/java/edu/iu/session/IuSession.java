@@ -53,7 +53,7 @@ public interface IuSession {
 	 * @param type class
 	 */
 	void clearDetail(Class<?> type);
-	
+
 	/**
 	 * Gets whether session object state change
 	 * 
@@ -62,13 +62,33 @@ public interface IuSession {
 	default boolean isChanged() {
 		return false;
 	}
-	
+
 	/**
-	 * Set strict mode
-	 * @param strict strict mode
+	 * Sets the {@code SameSite} attribute for the session cookie to
+	 * {@code Strict} or {@code Lax}.
+	 *
+	 * @param strict {@code true} for {@code Strict}; {@code false} for
+	 *               {@code Lax}
 	 */
 	void setStrict(boolean strict);
-	
+
+	/**
+	 * Sets the {@code SameSite} attribute for the session cookie.
+	 *
+	 * <p>
+	 * Use {@code Strict}, {@code Lax}, or {@code None}. A {@code null} value
+	 * omits the attribute. Cookies with {@code SameSite=None} must also have the
+	 * {@code Secure} attribute, so this value should only be used with an HTTPS
+	 * resource URI.
+	 *
+	 * @param sameSite {@code SameSite} attribute value, or {@code null} to omit
+	 *                 the attribute
+	 * @throws IllegalArgumentException if {@code sameSite} is anything but
+	 *                                  {@code Strict}, {@code Lax}, {@code None},
+	 *                                  or {@code null}
+	 */
+	void setSameSite(String sameSite);
+
 	/**
 	 * Get resource URI
 	 * 

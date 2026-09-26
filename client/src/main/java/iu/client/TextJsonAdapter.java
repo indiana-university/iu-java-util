@@ -38,6 +38,8 @@ import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link CharSequence}
@@ -76,6 +78,28 @@ class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 			return JsonValue.NULL;
 		else
 			return IuJson.PROVIDER.createValue(value.toString());
+	}
+
+	@Override
+	public String read(JsonParser parser) {
+		switch (parser.currentEvent()) {
+		case VALUE_STRING:
+			return parser.getString();
+
+		case VALUE_NULL:
+			return null;
+
+		default:
+			return fromJson(parser.getValue());
+		}
+	}
+
+	@Override
+	public void write(CharSequence value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(value.toString());
 	}
 
 }

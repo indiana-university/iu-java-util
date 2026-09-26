@@ -36,6 +36,8 @@ import jakarta.json.JsonNumber;
 import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Long}
@@ -77,6 +79,37 @@ class BooleanJsonAdapter implements IuJsonAdapter<Boolean> {
 			return JsonValue.NULL;
 		else
 			return value ? JsonValue.TRUE : JsonValue.FALSE;
+	}
+
+	@Override
+	public Boolean read(JsonParser parser) {
+		switch (parser.currentEvent()) {
+		case VALUE_TRUE:
+			return Boolean.TRUE;
+
+		case VALUE_FALSE:
+			return Boolean.FALSE;
+
+		case VALUE_NULL:
+			return nullValue;
+
+		case VALUE_STRING:
+			return Boolean.valueOf(parser.getString());
+
+		case VALUE_NUMBER:
+			return parser.getInt() != 0;
+
+		default:
+			return fromJson(parser.getValue());
+		}
+	}
+
+	@Override
+	public void write(Boolean value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(value.booleanValue());
 	}
 
 }

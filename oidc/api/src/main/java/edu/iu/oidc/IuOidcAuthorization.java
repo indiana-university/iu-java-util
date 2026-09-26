@@ -36,6 +36,7 @@ import java.util.function.Consumer;
 
 import edu.iu.IuRequestAttributes;
 import edu.iu.IuStatefulRedirect;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.session.IuSession;
 
 /**
@@ -44,20 +45,22 @@ import edu.iu.session.IuSession;
 public interface IuOidcAuthorization {
 
 	/**
-	 * Initialized a new authorization session.
+	 * Initializes a new authorization session.
 	 *
-	 * @param delegatingPrincipal       required delegating principal name; null to
-	 *                                  authorize on behalf of the authenticated
-	 *                                  user
-	 * @param impersonatedPrincipalName requested impersonated principal name; null
-	 *                                  if not requesting impersonation, SHOULD be
-	 *                                  null in production environments
+	 * <p>
+	 * When supplied, authorization details are serialized as the
+	 * {@code authorization_details} parameter of the authorization request. Pass
+	 * {@code null} to omit that parameter.
+	 * </p>
+	 *
+	 * @param authorizationDetails rich authorization details to request from the
+	 *                             authorization server; null to request none
 	 *
 	 * @return authorization redirect
 	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	default IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName) throws IOException {
-		return init(delegatingPrincipal, impersonatedPrincipalName, null);
+	default IuStatefulRedirect init(Iterable<IuAuthorizationDetails> authorizationDetails) throws IOException {
+		return init(authorizationDetails, null);
 	}
 
 	/**
@@ -71,25 +74,19 @@ public interface IuOidcAuthorization {
 	 * implementation's own pre-authentication detail is set and before the session
 	 * is stored, so one store carries both. Whatever it writes is readable from the
 	 * session the caller activates on return, and is carried onto the authenticated
-	 * session by
-	 * {@link #authorize(IuRequestAttributes, String, String) authorize}.
+	 * session by {@link #authorize(IuRequestAttributes, String, String) authorize}.
 	 * </p>
 	 *
-	 * @param delegatingPrincipal       required delegating principal name; null to
-	 *                                  authorize on behalf of the authenticated
-	 *                                  user
-	 * @param impersonatedPrincipalName requested impersonated principal name; null
-	 *                                  if not requesting impersonation, SHOULD be
-	 *                                  null in production environments
-	 * @param preAuthDetail             receives the pre-authentication session
-	 *                                  before it is stored; null to record no
-	 *                                  additional detail
+	 * @param authorizationDetails rich authorization details to request from the
+	 *                             authorization server; null to request none
+	 * @param preAuthDetail        receives the pre-authentication session before it
+	 *                             is stored; null to record no additional detail
 	 *
 	 * @return authorization redirect
 	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	IuStatefulRedirect init(String delegatingPrincipal, String impersonatedPrincipalName,
-			Consumer<IuSession> preAuthDetail) throws IOException;
+	IuStatefulRedirect init(Iterable<? extends IuAuthorizationDetails> authorizationDetails, Consumer<IuSession> preAuthDetail)
+			throws IOException;
 
 	/**
 	 * Resumes an authorization session upon return from the authorization server.
@@ -107,10 +104,8 @@ public interface IuOidcAuthorization {
 	 * 
 	 * @param attributes request attributes
 	 * @return Verified {@link IuOidcPrincipal}
-	 * @throws IOException                     if communication with an upstream
-	 *                                         provider is interrupted
+	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
-	IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes)
-			throws IOException;
+	IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes attributes) throws IOException;
 
 }

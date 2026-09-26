@@ -52,10 +52,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
-import edu.iu.IuCacheMap;
 import edu.iu.IuException;
+import edu.iu.IuRefreshableCache;
+import edu.iu.IuRefreshableCacheConfiguration;
+import edu.iu.IuRefreshableCacheHint;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.UnsafeConsumer;
+import edu.iu.UnsafeFunction;
 import edu.iu.client.HttpException;
 import edu.iu.client.HttpResponseHandler;
 import edu.iu.client.IuHttp;
@@ -101,18 +104,13 @@ public final class Vault implements IuVault {
 				throw new NullPointerException("Missing iu.vault.endpoint");
 		}
 
-		final var cacheTtl = prop(properties, "iu.vault.cacheTtl", Duration::parse);
-		final Map<String, JsonObject> secretCache;
-		if (cacheTtl == null)
-			secretCache = null;
-		else
-			secretCache = new IuCacheMap<>(cacheTtl);
+		final var cacheConfig = cacheConfiguration(prop(properties, "iu.vault.cacheTtl", Duration::parse));
 
 		final var secretNames = prop(properties, "iu.vault.secrets", a -> a.split(","));
 		final var token = prop(properties, "iu.vault.token", a -> a);
 		final var cubbyhole = "true".equals(prop(properties, "iu.vault.cubbyhole", a -> a));
 		if (token != null)
-			return new Vault(endpoint, secretNames, token, cubbyhole, valueAdapter, secretCache);
+			return new Vault(endpoint, secretNames, token, cubbyhole, valueAdapter, cacheConfig);
 		else {
 			final var loginEndpoint = Objects.requireNonNull( //
 					prop(properties, "iu.vault.loginEndpoint", URI::create),
@@ -124,10 +122,9 @@ public final class Vault implements IuVault {
 
 			if (kubeRole != null) {
 				// Use Kubernetes authentication
-				final var effectiveTokenPath = tokenPath != null ? tokenPath
-						: "/var/run/secrets/tokens/vault-jwt";
+				final var effectiveTokenPath = tokenPath != null ? tokenPath : "/var/run/secrets/tokens/vault-jwt";
 				return new Vault(endpoint, secretNames, loginEndpoint, AuthType.KUBERNETES, kubeRole,
-						effectiveTokenPath, cubbyhole, valueAdapter, secretCache);
+						effectiveTokenPath, cubbyhole, valueAdapter, cacheConfig);
 			} else {
 				// Use AppRole authentication
 				final var roleId = Objects.requireNonNull( //
@@ -136,9 +133,35 @@ public final class Vault implements IuVault {
 						prop(properties, "iu.vault.secretId", a -> a), "Missing iu.vault.secretId");
 
 				return new Vault(endpoint, secretNames, loginEndpoint, AuthType.APPROLE, roleId, secretId, cubbyhole,
-						valueAdapter, secretCache);
+						valueAdapter, cacheConfig);
 			}
 		}
+	}
+
+	/**
+	 * Creates the refresh-ahead cache configuration for a Vault cache lifetime.
+	 *
+	 * <p>
+	 * A configured cache refreshes after half of its lifetime, leaving the other
+	 * half to serve the last good value while Vault is unavailable. A null lifetime
+	 * disables caching.
+	 * </p>
+	 *
+	 * @param cacheTtl cache lifetime; null to disable caching
+	 * @return cache configuration
+	 */
+	static IuRefreshableCacheConfiguration cacheConfiguration(Duration cacheTtl) {
+		return new IuRefreshableCacheConfiguration() {
+			@Override
+			public Duration getRefreshTtl() {
+				return cacheTtl == null ? null : cacheTtl.dividedBy(2L);
+			}
+
+			@Override
+			public Duration getCacheTtl() {
+				return cacheTtl;
+			}
+		};
 	}
 
 	/**
@@ -177,13 +200,24 @@ public final class Vault implements IuVault {
 	private final String tokenInfo;
 	private final boolean cubbyhole;
 	private final Function<Type, IuJsonAdapter<?>> valueAdapter;
-	private final Map<String, JsonObject> secretCache;
+	private final IuRefreshableCache<String, JsonObject> secretCache;
 
 	private String token;
 	private Instant tokenExpires;
 
-	private Vault(URI endpoint, String[] secretNames, String token, boolean cubbyhole,
-			Function<Type, IuJsonAdapter<?>> valueAdapter, Map<String, JsonObject> secretCache) {
+	/**
+	 * Unit test constructor.
+	 * @param endpoint Vault URI
+	 * @param secretNames secret names
+	 * @param token static token
+	 * @param cubbyhole cubbyhole flag
+	 * @param valueAdapter JSON adapter function
+	 * @param cacheConfig cache configuration
+	 * @param cacheReader cache function
+	 */
+	Vault(URI endpoint, String[] secretNames, String token, boolean cubbyhole,
+			Function<Type, IuJsonAdapter<?>> valueAdapter, IuRefreshableCacheConfiguration cacheConfig,
+			UnsafeFunction<String, JsonObject> cacheReader) {
 		this.endpoint = endpoint;
 		this.secretNames = secretNames;
 		this.token = token;
@@ -193,12 +227,16 @@ public final class Vault implements IuVault {
 		this.tokenInfo = null;
 		this.cubbyhole = cubbyhole;
 		this.valueAdapter = valueAdapter;
-		this.secretCache = secretCache;
+		secretCache = newSecretCache(cacheConfig, cacheReader == null ? this::readSecret : cacheReader);
+	}
+
+	private Vault(URI endpoint, String[] secretNames, String token, boolean cubbyhole,
+			Function<Type, IuJsonAdapter<?>> valueAdapter, IuRefreshableCacheConfiguration cacheConfig) {
+		this(endpoint, secretNames, token, cubbyhole, valueAdapter, cacheConfig, null);
 	}
 
 	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, AuthType authType, String roleInfo,
-			String tokenInfo, boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter,
-			Map<String, JsonObject> secretCache) {
+			String tokenInfo, boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter, IuRefreshableCacheConfiguration cacheConfig) {
 		this.endpoint = endpoint;
 		this.secretNames = secretNames;
 		this.token = null;
@@ -208,7 +246,16 @@ public final class Vault implements IuVault {
 		this.tokenInfo = tokenInfo;
 		this.cubbyhole = cubbyhole;
 		this.valueAdapter = valueAdapter;
-		this.secretCache = secretCache;
+		secretCache = newSecretCache(cacheConfig, this::readSecret);
+	}
+
+	private IuRefreshableCache<String, JsonObject> newSecretCache(IuRefreshableCacheConfiguration cacheConfig,
+			UnsafeFunction<String, JsonObject> cacheReader) {
+		if (cacheConfig.getRefreshTtl() == null)
+			return null;
+
+		return new IuRefreshableCache<>(() -> cacheConfig, cacheReader,
+				a -> IuRefreshableCacheHint.useDefaults());
 	}
 
 	@Override
@@ -269,22 +316,29 @@ public final class Vault implements IuVault {
 			convertMetadata = a -> a.getJsonObject("metadata");
 		}
 
+		// the raw, unsplit document data and metadata are both read out of -- one
+		// call, rather than one each, so a merge patch always pairs the data it
+		// patches with the metadata (and CAS version) that actually describes it,
+		// even when the cache refreshes between what would otherwise be two
+		// independent reads
+		final Supplier<JsonObject> rawSupplier;
 		if (secretCache == null) {
 			ref = new Ref();
 			ref.data = readSecret(secret);
-			dataSupplier = () -> convertData.apply(ref.data);
-			metadataSupplier = () -> convertMetadata.apply(ref.data);
+			rawSupplier = () -> ref.data;
 		} else {
 			ref = null;
-			dataSupplier = () -> convertData.apply(readSecretUsingCache(secret));
-			metadataSupplier = () -> convertMetadata.apply(readSecretUsingCache(secret));
+			rawSupplier = () -> IuException.unchecked(secret, secretCache);
 		}
+		dataSupplier = () -> convertData.apply(rawSupplier.get());
+		metadataSupplier = () -> convertMetadata.apply(rawSupplier.get());
 
 		final Consumer<JsonObject> mergePatchConsumer;
 
 		mergePatchConsumer = mergePatch -> IuException.unchecked(() -> {
-			final var data = dataSupplier.get();
-			final var metadata = metadataSupplier.get();
+			final var raw = rawSupplier.get();
+			final var data = convertData.apply(raw);
+			final var metadata = convertMetadata.apply(raw);
 
 			final var updatedData = IuJson.PROVIDER.createMergePatch(mergePatch).apply(data).asJsonObject();
 
@@ -318,21 +372,15 @@ public final class Vault implements IuVault {
 			final var delete = mergePatch.values().stream().allMatch(JsonValue.NULL::equals);
 			LOG.config(() -> "vault:" + (delete ? "delete:" : "set:") + dataUri + ":" + mergePatch.keySet());
 
+			final var mark = secretCache == null ? 0L : secretCache.mark();
 			final var updated = readSecret(secret);
 			if (secretCache == null)
 				ref.data = updated;
 			else
-				secretCache.put(secret, updated);
+				secretCache.publish(secret, updated, mark);
 		});
 
 		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
-	}
-
-	private JsonObject readSecretUsingCache(String secret) {
-		var data = secretCache.get(secret);
-		if (data == null)
-			secretCache.put(secret, data = readSecret(secret));
-		return data;
 	}
 
 	/**
