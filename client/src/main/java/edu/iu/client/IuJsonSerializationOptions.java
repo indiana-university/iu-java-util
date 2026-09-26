@@ -58,8 +58,10 @@ import jakarta.json.JsonValue;
  * </p>
  * 
  * <p>
- * These options apply only to the JSON conversion direction. Converting from
- * JSON is unaffected.
+ * Converting from JSON reads only the {@link #getPropertyNameFormat() property
+ * name format}: a property, including an enum object's name, is read from the
+ * key formatted as it would be written, and a key in any other format is
+ * ignored. The other options apply only to the JSON conversion direction.
  * </p>
  */
 public interface IuJsonSerializationOptions {

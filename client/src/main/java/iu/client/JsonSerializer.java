@@ -67,7 +67,7 @@ public final class JsonSerializer {
 	 * Name of the property that holds {@link Enum#name()} when an enum value
 	 * converts to a {@link JsonObject}.
 	 */
-	static final String NAME = "name";
+	public static final String NAME = "name";
 
 	/**
 	 * Formats a property name for JSON serialization.
@@ -76,7 +76,7 @@ public final class JsonSerializer {
 	 * @param propertyNameFormat format
 	 * @return formatted property name
 	 */
-	static String formatPropertyName(String propertyName, IuJsonPropertyNameFormat propertyNameFormat) {
+	public static String formatPropertyName(String propertyName, IuJsonPropertyNameFormat propertyNameFormat) {
 		switch (propertyNameFormat) {
 		case LOWER_CASE_WITH_UNDERSCORES:
 			return JsonProxy.convertToSnakeCase(propertyName);
@@ -231,7 +231,7 @@ public final class JsonSerializer {
 	 * @return {@link IuJsonSerializationOptions}; a supplier that answers null
 	 *         reads as {@link IuJsonSerializationOptions#DEFAULT}
 	 */
-	private static IuJsonSerializationOptions snapshot(Supplier<IuJsonSerializationOptions> options) {
+	static IuJsonSerializationOptions snapshot(Supplier<IuJsonSerializationOptions> options) {
 		return Objects.requireNonNullElse(options.get(), IuJsonSerializationOptions.DEFAULT);
 	}
 
@@ -242,7 +242,7 @@ public final class JsonSerializer {
 	 * @return {@link IuJsonPropertyNameFormat}; a snapshot that answers null reads
 	 *         as {@link IuJsonSerializationOptions#PROPERTY_NAME_FORMAT}
 	 */
-	private static IuJsonPropertyNameFormat propertyNameFormat(IuJsonSerializationOptions snapshot) {
+	static IuJsonPropertyNameFormat propertyNameFormat(IuJsonSerializationOptions snapshot) {
 		return Objects.requireNonNullElse(snapshot.getPropertyNameFormat(),
 				IuJsonSerializationOptions.PROPERTY_NAME_FORMAT);
 	}

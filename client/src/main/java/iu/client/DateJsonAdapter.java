@@ -41,6 +41,8 @@ import java.util.Date;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Date}
@@ -61,7 +63,31 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 
 	@Override
 	public Date fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		return fromText(TextJsonAdapter.INSTANCE.fromJson(value));
+	}
+
+	@Override
+	public JsonValue toJson(Date value) {
+		if (value == null)
+			return JsonValue.NULL;
+		else
+			return TextJsonAdapter.INSTANCE.toJson(toText(value));
+	}
+
+	@Override
+	public Date read(JsonParser parser) {
+		return fromText(TextJsonAdapter.INSTANCE.read(parser));
+	}
+
+	@Override
+	public void write(Date value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(toText(value));
+	}
+
+	private Date fromText(String text) {
 		if (text == null)
 			return null;
 
@@ -75,20 +101,12 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 		return Date.from(instant);
 	}
 
-	@Override
-	public JsonValue toJson(Date value) {
-		if (value == null)
-			return JsonValue.NULL;
-
+	private String toText(Date value) {
 		final var instant = value.toInstant();
-
-		final String text;
 		if (LocalTime.from(instant.atZone(ZoneId.systemDefault())).equals(LocalTime.MIDNIGHT))
-			text = DF.format(instant);
+			return DF.format(instant);
 		else
-			text = DTF.format(instant);
-
-		return TextJsonAdapter.INSTANCE.toJson(text);
+			return DTF.format(instant);
 	}
 
 }

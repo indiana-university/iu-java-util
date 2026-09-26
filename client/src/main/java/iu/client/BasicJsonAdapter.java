@@ -50,6 +50,8 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter#basic()}
@@ -129,6 +131,79 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 			return JsonValue.TRUE;
 		else if (Boolean.FALSE.equals(value))
 			return JsonValue.FALSE;
+		else
+			throw new IllegalArgumentException();
+	}
+
+	@Override
+	public Object read(JsonParser parser) {
+		switch (parser.currentEvent()) {
+		case START_ARRAY:
+			return listAdapter.read(parser);
+
+		case START_OBJECT:
+			return mapAdapter.read(parser);
+
+		case VALUE_STRING:
+			return parser.getString();
+
+		case VALUE_NUMBER:
+			return parser.getBigDecimal();
+
+		case VALUE_TRUE:
+			return Boolean.TRUE;
+
+		case VALUE_FALSE:
+			return Boolean.FALSE;
+
+		default: // VALUE_NULL
+			return null;
+		}
+	}
+
+	/**
+	 * Writes the same shape as {@link #toJson(Object)}, dispatching on the
+	 * value's type in the same order.
+	 */
+	@Override
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void write(Object value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else if (value instanceof JsonValue)
+			generator.write((JsonValue) value);
+		else if (value instanceof JsonObjectBuilder)
+			generator.write(((JsonObjectBuilder) value).build());
+		else if (value instanceof JsonArrayBuilder)
+			generator.write(((JsonArrayBuilder) value).build());
+		else if (value instanceof Map)
+			mapAdapter.write((Map<?, ?>) value, generator);
+		else if (value.getClass().isArray())
+			new ArrayAdapter(this, null).write(value, generator);
+		else if (value instanceof List)
+			listAdapter.write((List<?>) value, generator);
+		else if (value instanceof Collection)
+			collectionAdapter.write((Collection<?>) value, generator);
+		else if (value instanceof Iterable)
+			iterableAdapter.write((Iterable<?>) value, generator);
+		else if (value instanceof Iterator)
+			iteratorAdapter.write((Iterator<?>) value, generator);
+		else if (value instanceof Enumeration)
+			enumerationAdapter.write((Enumeration<?>) value, generator);
+		else if (value instanceof Stream)
+			streamAdapter.write((Stream<?>) value, generator);
+		else if (value instanceof String)
+			generator.write((String) value);
+		else if (value instanceof Integer)
+			generator.write(((Integer) value).intValue());
+		else if (value instanceof Long)
+			generator.write(((Long) value).longValue());
+		else if (value instanceof Number)
+			generator.write(IuJson.PROVIDER.createValue((Number) value));
+		else if (Boolean.TRUE.equals(value))
+			generator.write(true);
+		else if (Boolean.FALSE.equals(value))
+			generator.write(false);
 		else
 			throw new IllegalArgumentException();
 	}

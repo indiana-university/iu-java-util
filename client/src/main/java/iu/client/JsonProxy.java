@@ -31,6 +31,7 @@
  */
 package iu.client;
 
+import java.beans.Introspector;
 import java.io.StringWriter;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationHandler;
@@ -60,22 +61,26 @@ public final class JsonProxy implements InvocationHandler {
 	private static final Object NULL = new Object();
 
 	/**
-	 * Wraps a JSON object in a java interface.
-	 * 
-	 * @param <T>             target interface type
-	 * @param value           value
-	 * @param targetInterface target interface class
-	 * @param valueAdapter    transform function: receives a {@link JsonValue} and
-	 *                        method return type, if custom handling returns an
-	 *                        object other than the original {@link JsonValue value}
+	 * Wraps a JSON object in a java interface, reading property names in a
+	 * specific format.
+	 *
+	 * @param <T>                target interface type
+	 * @param value              value
+	 * @param targetInterface    target interface class
+	 * @param propertyNameFormat format of the property names in {@code value}; a
+	 *                           getter reads only the name formatted this way
+	 * @param valueAdapter       transform function: receives a {@link JsonValue}
+	 *                           and method return type, if custom handling returns
+	 *                           an object other than the original
+	 *                           {@link JsonValue value}
 	 * @return {@link JsonProxy}
 	 */
-	public static <T> T wrap(JsonObject value, Class<T> targetInterface,
+	public static <T> T wrap(JsonObject value, Class<T> targetInterface, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		JsonProxy.class.getModule().addReads(targetInterface.getModule());
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),
-				new Class<?>[] { targetInterface }, new JsonProxy(value, valueAdapter)));
+				new Class<?>[] { targetInterface }, new JsonProxy(value, propertyNameFormat, valueAdapter)));
 	}
 
 	/**
@@ -89,11 +94,14 @@ public final class JsonProxy implements InvocationHandler {
 	}
 
 	private final JsonObject value;
+	private final IuJsonPropertyNameFormat propertyNameFormat;
 	private final Function<Type, IuJsonAdapter<?>> valueAdapter;
 	private final Map<String, Object> resolved;
 
-	private JsonProxy(JsonObject value, Function<Type, IuJsonAdapter<?>> valueAdapter) {
+	private JsonProxy(JsonObject value, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		this.value = value;
+		this.propertyNameFormat = propertyNameFormat;
 		this.valueAdapter = valueAdapter;
 		this.resolved = new HashMap<>();
 	}
@@ -137,15 +145,17 @@ public final class JsonProxy implements InvocationHandler {
 			return checkResolvedValue(methodName, writer.toString());
 		}
 
+		// named as Introspector names them, so a getter reads the key JsonSerializer
+		// writes for it
 		final String propertyName;
 		if (methodName.startsWith("get"))
-			propertyName = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
+			propertyName = Introspector.decapitalize(methodName.substring(3));
 		else if (methodName.startsWith("is"))
-			propertyName = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
+			propertyName = Introspector.decapitalize(methodName.substring(2));
 		else
 			throw new UnsupportedOperationException();
 
-		final var jsonValue = returnValueWithCaseConversion(propertyName);
+		final var jsonValue = value.get(JsonSerializer.formatPropertyName(propertyName, propertyNameFormat));
 		if (jsonValue == null && method.isDefault()) {
 			final var type = proxy.getClass().getInterfaces()[0];
 			return checkResolvedValue(methodName, MethodHandles.privateLookupIn(type, MethodHandles.lookup())
@@ -171,30 +181,6 @@ public final class JsonProxy implements InvocationHandler {
 			resolved.put(methodName, value == null ? NULL : value);
 		}
 		return value;
-	}
-
-	private JsonValue returnValueWithCaseConversion(String propertyName) {
-		return valueWithCaseConversion(value, propertyName);
-	}
-
-	/**
-	 * Gets a property value from a {@link JsonObject}, checking each
-	 * {@link IuJsonPropertyNameFormat} in turn.
-	 * 
-	 * @param value        {@link JsonObject}
-	 * @param propertyName camel case property name
-	 * @return {@link JsonValue}; null if the property is undefined in all supported
-	 *         name formats
-	 */
-	static JsonValue valueWithCaseConversion(JsonObject value, String propertyName) {
-		if (value.containsKey(propertyName))
-			return value.get(propertyName);
-
-		String lowerSnakeCasePropertyName = convertToSnakeCase(propertyName).toLowerCase();
-		if (value.containsKey(lowerSnakeCasePropertyName))
-			return value.get(lowerSnakeCasePropertyName);
-
-		return value.get(lowerSnakeCasePropertyName.toUpperCase());
 	}
 
 	/**

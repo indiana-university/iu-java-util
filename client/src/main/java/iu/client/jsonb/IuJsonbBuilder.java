@@ -29,77 +29,44 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package iu.client.jsonb;
 
-import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonParser;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
+import jakarta.json.spi.JsonProvider;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Builds {@link IuJsonb} instances; uses {@link IuJson#PROVIDER} unless another
+ * JSON-P provider is supplied.
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+public class IuJsonbBuilder implements JsonbBuilder {
+
+	private JsonbConfig config = new JsonbConfig();
+	private JsonProvider provider = IuJson.PROVIDER;
 
 	/**
-	 * Singleton instance.
+	 * Default constructor.
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
-	
-	/**
-	 * Default Constructor
-	 */
-	private TextJsonAdapter() {
-		// singleton
+	public IuJsonbBuilder() {
 	}
 
 	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else // if (value == null || JsonValue.NULL.equals(value))
-			return null;
+	public IuJsonbBuilder withConfig(JsonbConfig config) {
+		this.config = config;
+		return this;
 	}
 
 	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
+	public IuJsonbBuilder withProvider(JsonProvider jsonpProvider) {
+		this.provider = jsonpProvider;
+		return this;
 	}
 
 	@Override
-	public String read(JsonParser parser) {
-		switch (parser.currentEvent()) {
-		case VALUE_STRING:
-			return parser.getString();
-
-		case VALUE_NULL:
-			return null;
-
-		default:
-			return fromJson(parser.getValue());
-		}
-	}
-
-	@Override
-	public void write(CharSequence value, JsonGenerator generator) {
-		if (value == null)
-			generator.writeNull();
-		else
-			generator.write(value.toString());
+	public Jsonb build() {
+		return new IuJsonb(config, provider);
 	}
 
 }

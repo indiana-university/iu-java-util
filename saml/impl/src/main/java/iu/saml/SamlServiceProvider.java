@@ -412,6 +412,7 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 		session.setSameSite("None");
 
 		final var setCookie = sessionHandler.store(session);
+		// TODO: verify Secure flag is present, throw ISE if not
 
 		return new IuStatefulRedirect() {
 			@Override

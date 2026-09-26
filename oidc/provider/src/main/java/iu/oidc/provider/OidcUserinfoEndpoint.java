@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.iu.IuBadRequestException;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.config.IuOidcClaimsSource;
 import edu.iu.oidc.config.IuOidcClaimsSource.Usage;
@@ -149,13 +150,13 @@ public class OidcUserinfoEndpoint {
 
 		final var sub = authorization.getSubject();
 		final var scope = authorization.getScope();
-		final var clientId = authorization.getClientId();
+		final var clientId = Objects.requireNonNull(authorization.getClientId(), "missing client_id");
 
-		// read before the claims are asked for, since whether the response will be
-		// signed decides what the rendered document has to carry
-		final var client = client(clientId);
-		final var signed = client != null //
-				&& client.getUserinfoAlg() != null;
+		final var client = reference.getClientSource().client(clientId);
+		if (client == null)
+			throw new IuBadRequestException("client " + clientId + " not registered");
+
+		final var signed = client.getUserinfoAlg() != null;
 
 		// the two halves of disclosure: the sets OpenID Connect fixes, and whatever
 		// the deployment releases for scopes of its own
@@ -191,39 +192,13 @@ public class OidcUserinfoEndpoint {
 		else
 			// an unsigned response is a plain claims document with nothing to lift out of
 			// it, so it names neither party and the source renders it whole
-			document = Objects.requireNonNull(reference.getClaimsSource().claims(sub, admitted), "Missing claims for " + sub)
+			document = Objects
+					.requireNonNull(reference.getClaimsSource().claims(sub, admitted), "Missing claims for " + sub)
 					.toString();
 
 		LOG.info(() -> "userinfo:" + clientId + ":" + sub + " " + scope);
 
 		return secure(document, client);
-	}
-
-	/**
-	 * Reads the registration of the client a token was issued to, for the response
-	 * settings alone.
-	 *
-	 * <p>
-	 * A token this provider signed is already proof the client was registered when
-	 * it was issued, so a registration that has since gone missing isn't a refusal
-	 * here: it means nothing asked for the response to be signed or encrypted, and
-	 * the claims answer as a plain document. Refusing instead would let a client's
-	 * registration being edited take a working token out of service.
-	 * </p>
-	 *
-	 * @param clientId {@code client_id} the token names; may be {@code null}
-	 * @return registration, or {@code null} if there is none to read
-	 */
-	private IuOidcClientConfiguration client(String clientId) {
-		if (clientId == null)
-			return null;
-
-		try {
-			return reference.getClientSource().client(clientId);
-		} catch (Exception e) {
-			LOG.log(Level.INFO, e, () -> "userinfo-unregistered-client:" + clientId);
-			return null;
-		}
 	}
 
 	/**

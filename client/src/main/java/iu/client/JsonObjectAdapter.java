@@ -38,6 +38,9 @@ import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Adapts to/from {@link JsonObject} values.
@@ -86,6 +89,42 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 		for (final var e : javaValue.entrySet())
 			a.add(toString(e.getKey()), valueAdapter.toJson(e.getValue()));
 		return a.build();
+	}
+
+	/**
+	 * Reads entries as the parser reaches them. A value other than an object
+	 * fails, as it does for {@link #fromJson(JsonValue)}.
+	 */
+	@Override
+	public T read(JsonParser parser) {
+		final var event = parser.currentEvent();
+		if (event == Event.VALUE_NULL)
+			return null;
+		if (event != Event.START_OBJECT)
+			throw new ClassCastException("expected an object, found " + event);
+
+		final var map = factory.get();
+		while (parser.next() != Event.END_OBJECT) {
+			final var key = fromString(parser.getString());
+			parser.next();
+			map.put(key, valueAdapter.read(parser));
+		}
+		return map;
+	}
+
+	@Override
+	public void write(T javaValue, JsonGenerator generator) {
+		if (javaValue == null) {
+			generator.writeNull();
+			return;
+		}
+
+		generator.writeStartObject();
+		for (final var e : javaValue.entrySet()) {
+			generator.writeKey(toString(e.getKey()));
+			valueAdapter.write(e.getValue(), generator);
+		}
+		generator.writeEnd();
 	}
 
 	private K fromString(String key) {

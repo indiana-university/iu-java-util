@@ -149,7 +149,27 @@ public class IuJson {
 	 */
 	public static <T> T wrap(JsonObject value, Class<T> targetInterface,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		return JsonProxy.wrap(value, targetInterface, valueAdapter);
+		return wrap(value, targetInterface, IuJsonPropertyNameFormat.IDENTITY, valueAdapter);
+	}
+
+	/**
+	 * Wraps a JSON object in a java interface, reading property names in a
+	 * specific format.
+	 *
+	 * @param <T>                target interface type
+	 * @param value              value
+	 * @param targetInterface    target interface class
+	 * @param propertyNameFormat format of the property names in {@code value}; a
+	 *                           getter reads only the name formatted this way
+	 * @param valueAdapter       transform function: receives a {@link JsonValue}
+	 *                           and method return type, if custom handling returns
+	 *                           an object other than the original
+	 *                           {@link JsonValue value}
+	 * @return {@link JsonProxy}
+	 */
+	public static <T> T wrap(JsonObject value, Class<T> targetInterface, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return JsonProxy.wrap(value, targetInterface, propertyNameFormat, valueAdapter);
 	}
 
 	/**

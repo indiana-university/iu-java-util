@@ -42,6 +42,8 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.client.IuJsonSerializationOptions;
 
 @SuppressWarnings("javadoc")
 public class JsonDeserializerTest {
@@ -53,7 +55,7 @@ public class JsonDeserializerTest {
 	@Test
 	public void testWrapsInterface() {
 		final var value = IuJson.object().add("foo", "bar").build();
-		final var deserialized = JsonDeserializer.deserialize(Wrapped.class, value, IuJsonAdapter::of);
+		final var deserialized = JsonDeserializer.deserialize(Wrapped.class, value, () -> IuJsonSerializationOptions.DEFAULT, IuJsonAdapter::of);
 		assertSame(value, IuJson.unwrap(deserialized));
 		assertEquals("bar", deserialized.getFoo());
 	}
@@ -110,7 +112,7 @@ public class JsonDeserializerTest {
 				.add("notAProperty", IdGenerator.generateId()) //
 				.build();
 
-		final var deserialized = JsonDeserializer.deserialize(Bean.class, value, IuJsonAdapter::of);
+		final var deserialized = JsonDeserializer.deserialize(Bean.class, value, () -> IuJsonSerializationOptions.DEFAULT, IuJsonAdapter::of);
 		assertEquals(id, deserialized.getId());
 		assertEquals(34, deserialized.getCount());
 		assertEquals(writeOnly, deserialized.writeOnly);
@@ -119,16 +121,31 @@ public class JsonDeserializerTest {
 	}
 
 	@Test
-	public void testConvertsPropertyNameCase() {
+	public void testReadsOnlyTheConfiguredPropertyNameFormat() {
 		final var lower = IdGenerator.generateId();
 		final var upper = IdGenerator.generateId();
+		final var snake = IuJson.object().add("not_in_json", lower).add("NOT_IN_JSON", upper).build();
 
-		assertEquals(lower, JsonDeserializer
-				.deserialize(Bean.class, IuJson.object().add("not_in_json", lower).build(), IuJsonAdapter::of)
-				.getNotInJson());
-		assertEquals(upper, JsonDeserializer
-				.deserialize(Bean.class, IuJson.object().add("NOT_IN_JSON", upper).build(), IuJsonAdapter::of)
-				.getNotInJson());
+		assertNull(JsonDeserializer.deserialize(Bean.class, snake, () -> IuJsonSerializationOptions.DEFAULT, IuJsonAdapter::of).getNotInJson());
+		assertEquals(lower, JsonDeserializer.deserialize(Bean.class, snake,
+				() -> IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+				IuJsonAdapter::of).getNotInJson());
+		assertEquals(upper, JsonDeserializer.deserialize(Bean.class, snake,
+				() -> IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES),
+				IuJsonAdapter::of).getNotInJson());
+		assertNull(JsonDeserializer.deserialize(Bean.class, IuJson.object().add("notInJson", lower).build(),
+				() -> IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+				IuJsonAdapter::of).getNotInJson());
+	}
+
+	@Test
+	public void testWrapsInterfaceInConfiguredPropertyNameFormat() {
+		final var value = IuJson.object().add("foo", "bar").build();
+		final var deserialized = JsonDeserializer.deserialize(Wrapped.class, value,
+				() -> IuJsonSerializationOptions.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES),
+				IuJsonAdapter::of);
+		assertSame(value, IuJson.unwrap(deserialized));
+		assertNull(deserialized.getFoo());
 	}
 
 	public static class NoDefaultConstructor {
@@ -143,7 +160,7 @@ public class JsonDeserializerTest {
 	public void testRequiresNoArgConstructor() {
 		final var value = IuJson.object().add("id", IdGenerator.generateId()).build();
 		final var error = assertThrows(IllegalStateException.class,
-				() -> JsonDeserializer.deserialize(NoDefaultConstructor.class, value, IuJsonAdapter::of));
+				() -> JsonDeserializer.deserialize(NoDefaultConstructor.class, value, () -> IuJsonSerializationOptions.DEFAULT, IuJsonAdapter::of));
 		assertInstanceOf(NoSuchMethodException.class, error.getCause());
 	}
 

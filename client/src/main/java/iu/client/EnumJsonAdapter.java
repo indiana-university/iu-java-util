@@ -40,6 +40,9 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Enum} types.
@@ -51,11 +54,12 @@ import jakarta.json.JsonValue;
  * </p>
  * 
  * <p>
- * Converts from either form whatever the options say, since options apply only
- * to the JSON conversion direction: a {@link JsonObject} converts by its
- * {@link JsonSerializer#NAME} property, ignoring every other property, and any
- * other value converts as text. This is what allows a value written as an
- * object to be read by a consumer that converts enum values as text.
+ * Converts from either form whether or not the options write enums as objects:
+ * a {@link JsonObject} converts by its {@link JsonSerializer#NAME} property,
+ * formatted by the options' property name format, ignoring every other
+ * property, and any other value converts as text. This is what allows a value
+ * written as an object to be read by a consumer that converts enum values as
+ * text.
  * </p>
  * 
  * @param <E> enum type
@@ -83,7 +87,7 @@ public class EnumJsonAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 	 * Gets an instance with dynamically supplied options.
 	 * 
 	 * @param type    enum type
-	 * @param options supplies the options in effect for converting to JSON;
+	 * @param options supplies the options in effect for each conversion;
 	 *                <em>should</em> return quickly, as it is called on every
 	 *                conversion. A null value reads as
 	 *                {@link IuJsonSerializationOptions#DEFAULT}
@@ -114,10 +118,9 @@ public class EnumJsonAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 
 		final String name;
 		if (value instanceof JsonObject)
-			// the name property is formatted like any other, and converting from JSON
-			// has no options to read, so every format has to be checked
-			name = TextJsonAdapter.INSTANCE
-					.fromJson(JsonProxy.valueWithCaseConversion((JsonObject) value, JsonSerializer.NAME));
+			// the name property is formatted like any other
+			name = TextJsonAdapter.INSTANCE.fromJson(((JsonObject) value).get(JsonSerializer.formatPropertyName(
+					JsonSerializer.NAME, JsonSerializer.propertyNameFormat(JsonSerializer.snapshot(options)))));
 		else
 			name = TextJsonAdapter.INSTANCE.fromJson(value);
 
@@ -130,6 +133,57 @@ public class EnumJsonAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 			return JsonValue.NULL;
 		else
 			return JsonSerializer.serializeEnum(type, value, options, adapt);
+	}
+
+	/**
+	 * Reads the text form directly, and the object form by scanning for its name
+	 * property, skipping every other property.
+	 */
+	@Override
+	public E read(JsonParser parser) {
+		switch (parser.currentEvent()) {
+		case VALUE_NULL:
+			return null;
+
+		case VALUE_STRING:
+			return Enum.valueOf(type, parser.getString());
+
+		case START_OBJECT: {
+			final var nameKey = JsonSerializer.formatPropertyName(JsonSerializer.NAME,
+					JsonSerializer.propertyNameFormat(JsonSerializer.snapshot(options)));
+
+			String name = null;
+			while (parser.next() != Event.END_OBJECT) {
+				final var key = parser.getString();
+				final var event = parser.next();
+				if (nameKey.equals(key))
+					name = TextJsonAdapter.INSTANCE.read(parser);
+				else if (event == Event.START_OBJECT)
+					parser.skipObject();
+				else if (event == Event.START_ARRAY)
+					parser.skipArray();
+			}
+			return Enum.valueOf(type, Objects.requireNonNull(name, JsonSerializer.NAME));
+		}
+
+		default:
+			return fromJson(parser.getValue());
+		}
+	}
+
+	@Override
+	public void write(E value, JsonGenerator generator) {
+		if (value == null) {
+			generator.writeNull();
+			return;
+		}
+
+		// one snapshot decides the form and, for an object, its contents
+		final var snapshot = JsonSerializer.snapshot(options);
+		if (snapshot.isEnumAsObject())
+			generator.write(JsonSerializer.serializeEnum(type, value, () -> snapshot, adapt));
+		else
+			generator.write(value.toString());
 	}
 
 }

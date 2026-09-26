@@ -36,6 +36,8 @@ import java.util.Optional;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Date}
@@ -71,6 +73,19 @@ class OptionalJsonAdapter<T> implements IuJsonAdapter<Optional<T>> {
 			return JsonValue.NULL;
 		else
 			return adapter.toJson(value.orElse(null));
+	}
+
+	@Override
+	public Optional<T> read(JsonParser parser) {
+		return Optional.ofNullable(adapter.read(parser));
+	}
+
+	@Override
+	public void write(Optional<T> value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			adapter.write(value.orElse(null), generator);
 	}
 
 }

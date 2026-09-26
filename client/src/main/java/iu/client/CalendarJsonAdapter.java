@@ -36,6 +36,8 @@ import java.util.Date;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Calendar}
@@ -52,14 +54,7 @@ public class CalendarJsonAdapter implements IuJsonAdapter<Calendar> {
 
 	@Override
 	public Calendar fromJson(JsonValue value) {
-		final var date = IuJsonAdapter.of(Date.class).fromJson(value);
-		if (date == null)
-			return null;
-		else {
-			final var cal = Calendar.getInstance();
-			cal.setTime(date);
-			return cal;
-		}
+		return fromDate(IuJsonAdapter.of(Date.class).fromJson(value));
 	}
 
 	@Override
@@ -68,6 +63,29 @@ public class CalendarJsonAdapter implements IuJsonAdapter<Calendar> {
 			return JsonValue.NULL;
 		else
 			return IuJsonAdapter.of(Date.class).toJson(value.getTime());
+	}
+
+	@Override
+	public Calendar read(JsonParser parser) {
+		return fromDate(IuJsonAdapter.of(Date.class).read(parser));
+	}
+
+	@Override
+	public void write(Calendar value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			IuJsonAdapter.of(Date.class).write(value.getTime(), generator);
+	}
+
+	private Calendar fromDate(Date date) {
+		if (date == null)
+			return null;
+		else {
+			final var cal = Calendar.getInstance();
+			cal.setTime(date);
+			return cal;
+		}
 	}
 
 }

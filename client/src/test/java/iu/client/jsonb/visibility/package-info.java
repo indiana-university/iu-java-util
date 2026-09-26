@@ -29,60 +29,10 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
-
-import edu.iu.IuText;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonParser;
-
 /**
- * Implements {@link IuJsonAdapter} for byte[]
+ * Fixtures for package-level {@link jakarta.json.bind.annotation.JsonbVisibility}.
  */
-class BinaryJsonAdapter implements IuJsonAdapter<byte[]> {
+@JsonbVisibility(PackageFieldsVisible.class)
+package iu.client.jsonb.visibility;
 
-	/**
-	 * Singleton instance.
-	 */
-	static final BinaryJsonAdapter INSTANCE = new BinaryJsonAdapter();
-
-	private BinaryJsonAdapter() {
-	}
-
-	@Override
-	public byte[] fromJson(JsonValue value) {
-		return fromText(TextJsonAdapter.INSTANCE.fromJson(value));
-	}
-
-	@Override
-	public byte[] read(JsonParser parser) {
-		return fromText(TextJsonAdapter.INSTANCE.read(parser));
-	}
-
-	@Override
-	public void write(byte[] data, JsonGenerator generator) {
-		final var text = IuText.base64(data);
-		if (text == null)
-			generator.writeNull();
-		else
-			generator.write(text);
-	}
-
-	private byte[] fromText(String text) {
-		if (text == null)
-			return null;
-		else
-			return IuText.base64(text);
-	}
-
-	@Override
-	public JsonValue toJson(byte[] data) {
-		final var text = IuText.base64(data);
-		if (text == null)
-			return JsonValue.NULL;
-		else
-			return TextJsonAdapter.INSTANCE.toJson(text);
-	}
-
-}
+import jakarta.json.bind.annotation.JsonbVisibility;

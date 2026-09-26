@@ -95,10 +95,12 @@ import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Adapts JSON values to equivalent Java types.
- * 
+ *
  * @param <T> target type, <em>may</em> be unchecked
  */
 public interface IuJsonAdapter<T> {
@@ -208,18 +210,24 @@ public interface IuJsonAdapter<T> {
 	 * <ul>
 	 * <li>An interface is wrapped by a {@link java.lang.reflect.Proxy} that reads
 	 * property values directly from the {@link JsonObject}; see
-	 * {@link IuJson#wrap(JsonObject, Class, Function)}.</li>
+	 * {@link IuJson#wrap(JsonObject, Class, IuJsonPropertyNameFormat, Function)}.</li>
 	 * <li>Any other type is instantiated using its no-arg constructor, then each
 	 * JavaBeans property with a setter that maps to a defined JSON value is
 	 * converted and applied. Setters without a corresponding JSON value are
 	 * skipped, retaining the value assigned by the constructor.</li>
 	 * </ul>
-	 * 
+	 *
+	 * <p>
+	 * Either way a property is read only from the key {@code propertyNameFormat}
+	 * would write it as.
+	 * </p>
+	 *
 	 * @param <T>                business object type
 	 * @param type               business object class; <em>must</em> declare an
 	 *                           accessible no-arg constructor to convert from JSON
 	 *                           unless it is an interface
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from
+	 *                           JSON
 	 * @param valueAdapter       value adapter function
 	 * @return {@link IuJsonAdapter}; {@link #toJson(Object) toJson} converts a null
 	 *         business object to {@link JsonValue#NULL}, and
@@ -248,8 +256,9 @@ public interface IuJsonAdapter<T> {
 	 * @param type         business object class; <em>must</em> declare an
 	 *                     accessible no-arg constructor to convert from JSON
 	 *                     unless it is an interface
-	 * @param options      supplies the options in effect for converting to JSON;
-	 *                     <em>should</em> return quickly, as it is called on every
+	 * @param options      supplies the options in effect for each conversion; the
+	 *                     property name format applies in both directions.
+	 *                     <em>Should</em> return quickly, as it is called on every
 	 *                     conversion. A null value reads as
 	 *                     {@link IuJsonSerializationOptions#DEFAULT}
 	 * @param valueAdapter value adapter function
@@ -262,7 +271,7 @@ public interface IuJsonAdapter<T> {
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return from(v -> v == null || JsonValue.NULL.equals(v) //
 				? null //
-				: JsonDeserializer.deserialize(type, v.asJsonObject(), valueAdapter), //
+				: JsonDeserializer.deserialize(type, v.asJsonObject(), options, valueAdapter), //
 				v -> v == null //
 						? JsonValue.NULL //
 						: JsonSerializer.serialize(type, v, options, valueAdapter));
@@ -283,7 +292,7 @@ public interface IuJsonAdapter<T> {
 	 * </p>
 	 * 
 	 * @param type               business object class
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from JSON
 	 * @return {@link IuJsonAdapter}
 	 */
 	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat) {
@@ -311,7 +320,7 @@ public interface IuJsonAdapter<T> {
 	 * </p>
 	 * 
 	 * @param type    business object class
-	 * @param options supplies the options in effect for converting to JSON;
+	 * @param options supplies the options in effect for each conversion;
 	 *                <em>should</em> return quickly, as it is called on every
 	 *                conversion. A null value reads as
 	 *                {@link IuJsonSerializationOptions#DEFAULT}
@@ -337,7 +346,7 @@ public interface IuJsonAdapter<T> {
 	 * </p>
 	 * 
 	 * @param type               business object class or type
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from JSON
 	 * @param valueAdapter       factory function for supplying child value type
 	 *                           adapters; called for every nested type, and
 	 *                           responsible for its own recursion
@@ -368,7 +377,7 @@ public interface IuJsonAdapter<T> {
 	 * </p>
 	 * 
 	 * @param type         business object class or type
-	 * @param options      supplies the options in effect for converting to JSON;
+	 * @param options      supplies the options in effect for each conversion;
 	 *                     <em>should</em> return quickly, as it is called on every
 	 *                     conversion. A null value reads as
 	 *                     {@link IuJsonSerializationOptions#DEFAULT}
@@ -397,7 +406,7 @@ public interface IuJsonAdapter<T> {
 	 * 
 	 * @param <T>                business object type
 	 * @param type               business object class
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from JSON
 	 * @return {@link IuJsonAdapter}
 	 * @see #adapt(Type, IuJsonPropertyNameFormat)
 	 */
@@ -413,7 +422,7 @@ public interface IuJsonAdapter<T> {
 	 * 
 	 * @param <T>     business object type
 	 * @param type    business object class
-	 * @param options supplies the options in effect for converting to JSON;
+	 * @param options supplies the options in effect for each conversion;
 	 *                <em>should</em> return quickly, as it is called on every
 	 *                conversion. A null value reads as
 	 *                {@link IuJsonSerializationOptions#DEFAULT}
@@ -623,7 +632,7 @@ public interface IuJsonAdapter<T> {
 
 	/**
 	 * Converts a JSON parameter value to its Java equivalent.
-	 * 
+	 *
 	 * @param jsonValue JSON value
 	 * @return Java equivalent
 	 */
@@ -631,10 +640,47 @@ public interface IuJsonAdapter<T> {
 
 	/**
 	 * Converts a value to its JSON equivalent.
-	 * 
+	 *
 	 * @param value value
 	 * @return JSON equivalent
 	 */
 	JsonValue toJson(T value);
+
+	/**
+	 * Reads a JSON value from a parser and converts it to its Java equivalent.
+	 *
+	 * <p>
+	 * {@code parser} <em>must</em> be positioned at the value's first event:
+	 * {@link JsonParser.Event#START_OBJECT START_OBJECT},
+	 * {@link JsonParser.Event#START_ARRAY START_ARRAY}, or a scalar value event.
+	 * On return, {@code parser} is positioned at the value's last event: the
+	 * matching {@link JsonParser.Event#END_OBJECT END_OBJECT} or
+	 * {@link JsonParser.Event#END_ARRAY END_ARRAY}, or the scalar value event
+	 * itself. This is the contract of {@link JsonParser#getValue()}, which the
+	 * default implementation delegates to.
+	 * </p>
+	 *
+	 * @param parser JSON parser
+	 * @return Java equivalent
+	 */
+	default T read(JsonParser parser) {
+		return fromJson(parser.getValue());
+	}
+
+	/**
+	 * Converts a value to its JSON equivalent and writes it to a generator.
+	 *
+	 * <p>
+	 * Writes exactly one JSON value in the generator's current context; in an
+	 * object context, the caller writes the key first with
+	 * {@link JsonGenerator#writeKey(String)}.
+	 * </p>
+	 *
+	 * @param value     value
+	 * @param generator JSON generator
+	 */
+	default void write(T value, JsonGenerator generator) {
+		generator.write(toJson(value));
+	}
 
 }
