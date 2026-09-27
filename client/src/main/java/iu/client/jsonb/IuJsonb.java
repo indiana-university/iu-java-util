@@ -517,6 +517,12 @@ public class IuJsonb implements Jsonb {
 		return snapshot;
 	}
 
+	/**
+	 * Determines if JSON-B configuration calls for null values.
+	 * 
+	 * @return true when {@link JsonbConfig#withNullValues(Boolean)
+	 *         withNullValues(true)} was invoked on the config
+	 */
 	boolean includeNullValues() {
 		return Boolean.TRUE.equals(configuredNullValues);
 	}
