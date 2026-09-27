@@ -31,13 +31,10 @@
  */
 package iu.client;
 
-import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.Date;
 
 import edu.iu.client.IuJsonAdapter;
@@ -51,8 +48,8 @@ import jakarta.json.stream.JsonParser;
  * <p>
  * Works in UTC throughout. A date at midnight UTC writes as a date, such as
  * {@code 2026-09-26Z}; any other writes as a date and time, such as
- * {@code 2026-09-26T04:01:30Z}. A date read without a time is midnight at its
- * offset, UTC if it has none; a date and time must have an offset or zone.
+ * {@code 2026-09-26T04:01:30Z}. A date read without a time is midnight, and a
+ * date or a date and time read without an offset or zone is in UTC.
  * </p>
  */
 class DateJsonAdapter implements IuJsonAdapter<Date> {
@@ -97,18 +94,18 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 	private Date fromText(String text) {
 		if (text == null)
 			return null;
+		else
+			return Date.from(FormatAdapters.zoned(parse(text)).toInstant());
+	}
 
-		final Instant instant;
-		if (text.indexOf('T') == -1) {
-			final var parsed = DateTimeFormatter.ISO_DATE.parse(text);
-			final var offset = parsed.isSupported(ChronoField.OFFSET_SECONDS) //
-					? ZoneOffset.from(parsed)
-					: ZoneOffset.UTC;
-			instant = LocalDate.from(parsed).atStartOfDay(offset).toInstant();
-		} else
-			instant = ZonedDateTime.parse(text, DateTimeFormatter.ISO_DATE_TIME).toInstant();
-
-		return Date.from(instant);
+	/**
+	 * Parses an ISO date, or an ISO date and time.
+	 *
+	 * @param text text
+	 * @return parsed date, with or without a time, zone, or offset
+	 */
+	static TemporalAccessor parse(String text) {
+		return (text.indexOf('T') == -1 ? DateTimeFormatter.ISO_DATE : DateTimeFormatter.ISO_DATE_TIME).parse(text);
 	}
 
 	private String toText(Date value) {

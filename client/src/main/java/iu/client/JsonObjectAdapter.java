@@ -64,6 +64,12 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 	private final Supplier<T> factory;
 
 	/**
+	 * Tracks the entry converting; set by {@link JsonAdapters} before the adapter
+	 * is shared.
+	 */
+	ItemScope scope = ItemScope.NONE;
+
+	/**
 	 * Constructor
 	 * 
 	 * @param keyAdapter   key adapter
@@ -85,8 +91,17 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 			throw JsonAdapters.expected("an object", jsonValue.getValueType());
 
 		final var map = factory.get();
-		for (final var e : jsonValue.asJsonObject().entrySet())
-			map.put(fromString(e.getKey()), valueAdapter.fromJson(e.getValue()));
+		for (final var e : jsonValue.asJsonObject().entrySet()) {
+			final var key = e.getKey();
+			scope.enterKey(false, key);
+			try {
+				map.put(fromString(key), valueAdapter.fromJson(e.getValue()));
+			} catch (RuntimeException failure) {
+				throw scope.fail(false, failure);
+			} finally {
+				scope.exit(false);
+			}
+		}
 		return map;
 	}
 
@@ -96,8 +111,17 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 
 		final var a = IuJson.object();
-		for (final var e : javaValue.entrySet())
-			a.add(toString(e.getKey()), valueAdapter.toJson(e.getValue()));
+		for (final var e : javaValue.entrySet()) {
+			final var key = toString(e.getKey());
+			scope.enterKey(true, key);
+			try {
+				a.add(key, valueAdapter.toJson(e.getValue()));
+			} catch (RuntimeException failure) {
+				throw scope.fail(true, failure);
+			} finally {
+				scope.exit(true);
+			}
+		}
 		return a.build();
 	}
 
@@ -115,9 +139,17 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 
 		final var map = factory.get();
 		while (parser.next() != Event.END_OBJECT) {
-			final var key = fromString(parser.getString());
-			parser.next();
-			map.put(key, valueAdapter.read(parser));
+			final var name = parser.getString();
+			scope.enterKey(false, name);
+			try {
+				final var key = fromString(name);
+				parser.next();
+				map.put(key, valueAdapter.read(parser));
+			} catch (RuntimeException failure) {
+				throw scope.fail(false, failure);
+			} finally {
+				scope.exit(false);
+			}
 		}
 		return map;
 	}
@@ -131,8 +163,16 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 
 		generator.writeStartObject();
 		for (final var e : javaValue.entrySet()) {
-			generator.writeKey(toString(e.getKey()));
-			valueAdapter.write(e.getValue(), generator);
+			final var key = toString(e.getKey());
+			scope.enterKey(true, key);
+			try {
+				generator.writeKey(key);
+				valueAdapter.write(e.getValue(), generator);
+			} catch (RuntimeException failure) {
+				throw scope.fail(true, failure);
+			} finally {
+				scope.exit(true);
+			}
 		}
 		generator.writeEnd();
 	}

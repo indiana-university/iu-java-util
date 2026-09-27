@@ -200,10 +200,18 @@ public class StreamingJsonAdaptersTest {
 	@Test
 	public void testBinary() {
 		final var binary = adapter(byte[].class);
-		assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) read(binary, "\"AQID\""));
+		assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) read(binary, "[1,2,3]"));
 		assertNull(read(binary, "null"));
-		assertEquals("\"AQID\"", writeBoth(binary, new byte[] { 1, 2, 3 }));
+		assertEquals("[1,2,3]", writeBoth(binary, new byte[] { 1, 2, 3 }));
 		assertEquals("null", writeBoth(binary, null));
+		assertThrows(IllegalArgumentException.class, () -> binary.read(parser("\"AQID\"")));
+
+		final var legacy = IuJsonAdapter.adapt(byte[].class, () -> IuJsonSerializationOptions.LEGACY);
+		assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) read(legacy, "\"AQID\""));
+		assertEquals("\"AQID\"", writeBoth(legacy, new byte[] { 1, 2, 3 }));
+		assertEquals("null", writeBoth(legacy, null));
+		assertThrows(IllegalArgumentException.class, () -> legacy.read(parser("[1]")));
+		assertThrows(IllegalArgumentException.class, () -> legacy.fromJson(IuJson.parse("[1]")));
 	}
 
 	@Test

@@ -54,6 +54,7 @@ abstract class IuJsonbContext {
 
 	private final IuJsonSerializationOptions options;
 	private final IuJsonPropertyNameFormat format;
+	private final IuJsonbNaming naming;
 	private final String root;
 	private final Deque<String> path = new ArrayDeque<>();
 	private Throwable failure;
@@ -71,6 +72,7 @@ abstract class IuJsonbContext {
 		this.jsonb = jsonb;
 		options = jsonb.options();
 		format = IuJsonb.format(options);
+		naming = jsonb.naming() != null ? jsonb.naming() : IuJsonbNaming.of(format);
 
 		final var rootClass = JsonAdapters.erase(root);
 		final var simpleName = rootClass.getSimpleName();
@@ -78,12 +80,22 @@ abstract class IuJsonbContext {
 	}
 
 	/**
-	 * Gets the property name format for the call.
+	 * Gets how the call names properties: by the provider's JSON-B naming
+	 * strategy, or else by the call's property name format.
 	 *
-	 * @return {@link IuJsonPropertyNameFormat}
+	 * @return {@link IuJsonbNaming}
 	 */
-	IuJsonPropertyNameFormat format() {
-		return format;
+	IuJsonbNaming naming() {
+		return naming;
+	}
+
+	/**
+	 * Gets the options snapshot for the call.
+	 *
+	 * @return {@link IuJsonSerializationOptions}
+	 */
+	IuJsonSerializationOptions options() {
+		return options;
 	}
 
 	/**
@@ -173,8 +185,13 @@ abstract class IuJsonbContext {
 	private String path() {
 		final var sb = new StringBuilder(root);
 		final var i = path.descendingIterator();
-		while (i.hasNext())
-			sb.append('.').append(i.next());
+		while (i.hasNext()) {
+			final var segment = i.next();
+			// an index or key follows its collection directly, as in items[2]
+			if (!segment.startsWith("["))
+				sb.append('.');
+			sb.append(segment);
+		}
 		return sb.toString();
 	}
 

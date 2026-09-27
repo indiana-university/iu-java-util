@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
 import iu.client.jsonb.IuJsonb.AdapterReference;
 import jakarta.json.bind.JsonbException;
@@ -122,14 +123,7 @@ final class IuSerializationContext extends IuJsonbContext implements Serializati
 	 *         otherwise the value's class, or {@link Object} for null
 	 */
 	static Type runtimeType(Object value) {
-		if (value == null)
-			return Object.class;
-		else if (value instanceof Enum)
-			return ((Enum<?>) value).getDeclaringClass();
-		else if (isJsonProxy(value))
-			return value.getClass().getInterfaces()[0];
-		else
-			return value.getClass();
+		return JsonAdapters.runtimeType(value);
 	}
 
 	/**
@@ -251,18 +245,19 @@ final class IuSerializationContext extends IuJsonbContext implements Serializati
 	@Override
 	public <T> void serialize(String key, T object, JsonGenerator generator) {
 		within(c -> {
-			push(key);
+			// a null passed by key is omitted with the other nulls
+			if (object == null && !isIncludeNullProperties())
+				return null;
 
-			if (object != null || isIncludeNullProperties())
-				try {
-					generator.writeKey(key);
-					write(object, generator);
-				} catch (RuntimeException e) {
-					throw fail(e);
-				} finally {
-					pop();
-				}
-			
+			push(key);
+			try {
+				generator.writeKey(key);
+				write(object, generator);
+			} catch (RuntimeException e) {
+				throw fail(e);
+			} finally {
+				pop();
+			}
 			return null;
 		});
 	}

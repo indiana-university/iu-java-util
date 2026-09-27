@@ -31,64 +31,80 @@
  */
 package iu.client;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonParser;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Calendar}, as {@link Date}; always
- * reads a {@link GregorianCalendar} in the default time zone, so also adapts that
- * type
+ * Implements {@link IuJsonAdapter} for {@link Calendar}; always reads a
+ * {@link GregorianCalendar}, so also adapts that type.
+ *
+ * <p>
+ * Writes in the calendar's own time zone, as JSON-B does: at midnight as an ISO
+ * date with its offset, such as {@code 2026-09-26-04:00}, and otherwise as an
+ * ISO date and time with its zone, such as
+ * {@code 2026-09-26T08:01:30-04:00[America/New_York]}. Reads in the zone or
+ * offset read, UTC if none, at midnight if no time is read.
+ * </p>
+ *
+ * <p>
+ * {@link #LEGACY} converts as before 7.1: written as {@link Date} in UTC, and
+ * read in the default time zone.
+ * </p>
  */
 public class CalendarJsonAdapter implements IuJsonAdapter<Calendar> {
 
 	/**
 	 * Singleton instance.
 	 */
-	static final CalendarJsonAdapter INSTANCE = new CalendarJsonAdapter();
+	static final CalendarJsonAdapter INSTANCE = new CalendarJsonAdapter(false);
 
-	private CalendarJsonAdapter() {
+	/**
+	 * Converts as before 7.1.
+	 */
+	static final CalendarJsonAdapter LEGACY = new CalendarJsonAdapter(true);
+
+	private final boolean legacy;
+
+	private CalendarJsonAdapter(boolean legacy) {
+		this.legacy = legacy;
 	}
 
 	@Override
 	public Calendar fromJson(JsonValue value) {
-		return fromDate(IuJsonAdapter.of(Date.class).fromJson(value));
+		if (legacy) {
+			final var date = DateJsonAdapter.INSTANCE.fromJson(value);
+			if (date == null)
+				return null;
+			final var calendar = new GregorianCalendar();
+			calendar.setTime(date);
+			return calendar;
+		}
+
+		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
+		if (text == null)
+			return null;
+		else
+			return GregorianCalendar.from(FormatAdapters.zoned(DateJsonAdapter.parse(text)));
 	}
 
 	@Override
 	public JsonValue toJson(Calendar value) {
 		if (value == null)
 			return JsonValue.NULL;
-		else
-			return IuJsonAdapter.of(Date.class).toJson(value.getTime());
-	}
+		else if (legacy)
+			return DateJsonAdapter.INSTANCE.toJson(value.getTime());
 
-	@Override
-	public Calendar read(JsonParser parser) {
-		return fromDate(IuJsonAdapter.of(Date.class).read(parser));
-	}
-
-	@Override
-	public void write(Calendar value, JsonGenerator generator) {
-		if (value == null)
-			generator.writeNull();
-		else
-			IuJsonAdapter.of(Date.class).write(value.getTime(), generator);
-	}
-
-	private Calendar fromDate(Date date) {
-		if (date == null)
-			return null;
-		else {
-			final var cal = new GregorianCalendar();
-			cal.setTime(date);
-			return cal;
-		}
+		final var zoned = value.toInstant().atZone(value.getTimeZone().toZoneId());
+		final var formatter = zoned.toLocalTime().equals(LocalTime.MIDNIGHT) //
+				? DateTimeFormatter.ISO_DATE
+				: DateTimeFormatter.ISO_DATE_TIME;
+		return TextJsonAdapter.INSTANCE.toJson(formatter.format(zoned));
 	}
 
 }

@@ -81,11 +81,13 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	/**
 	 * Gets a parser's position, which advances with every event.
 	 *
-	 * @param parser parser
+	 * @param parser parser, or a deserializer's bounded view of one, which has the
+	 *               position of the parser it reads from
 	 * @return {@link IuJsonbParser#position()} for a tree value; otherwise, the
 	 *         parser's stream offset, which is -1 if it can't report one
 	 */
 	static long position(JsonParser parser) {
+		parser = IuJsonbBoundedParser.underlying(parser);
 		if (parser instanceof IuJsonbParser)
 			return ((IuJsonbParser) parser).position();
 		else
@@ -127,7 +129,27 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	 */
 	static <R> R start(IuJsonb jsonb, Type root, JsonParser parser,
 			Function<IuDeserializationContext, R> conversion) {
-		final var context = new IuDeserializationContext(jsonb, root);
+		return start(jsonb, root, parser, null, conversion);
+	}
+
+	/**
+	 * Runs a conversion as a new call, reading from a parser over text the call
+	 * holds, so a reader can continue an object from the text after the call
+	 * moves past it.
+	 *
+	 * @param <R>        result type
+	 * @param jsonb      provider
+	 * @param root       type converted by the call
+	 * @param parser     parser the call reads from
+	 * @param text       text {@code parser} reads, from its start; null if not text
+	 *                   the call holds
+	 * @param conversion conversion
+	 * @return result
+	 * @throws JsonbException describing where the call failed
+	 */
+	static <R> R start(IuJsonb jsonb, Type root, JsonParser parser, String text,
+			Function<IuDeserializationContext, R> conversion) {
+		final var context = new IuDeserializationContext(jsonb, root, parser, text);
 		try {
 			return context.within(conversion);
 		} catch (RuntimeException e) {
@@ -136,9 +158,44 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	}
 
 	private final Deque<Frame> deserializing = new ArrayDeque<>();
+	private final JsonParser textParser;
+	private final String text;
 
-	private IuDeserializationContext(IuJsonb jsonb, Type root) {
+	private IuDeserializationContext(IuJsonb jsonb, Type root, JsonParser textParser, String text) {
 		super(jsonb, root);
+		this.textParser = textParser;
+		this.text = text;
+	}
+
+	/**
+	 * Opens a parser over the rest of the object a parser is in, from the text the
+	 * call reads.
+	 *
+	 * @param parser parser, or a view of one, between properties of an object:
+	 *               at its {@code START_OBJECT}, or at the last event of one of
+	 *               its values
+	 * @return parser at a {@code START_OBJECT} over the properties not yet read;
+	 *         null if {@code parser} doesn't read text the call holds
+	 */
+	JsonParser continuation(JsonParser parser) {
+		final var underlying = IuJsonbBoundedParser.underlying(parser);
+		if (text == null || underlying != textParser)
+			return null;
+
+		// the offset follows the current event's token; at START_OBJECT the rest
+		// begins there, and after a value, past the comma that separates it from the
+		// next property, or at the closing brace
+		var start = (int) underlying.getLocation().getStreamOffset();
+		if (underlying.currentEvent() != Event.START_OBJECT) {
+			while (Character.isWhitespace(text.charAt(start)))
+				start++;
+			if (text.charAt(start) == ',')
+				start++;
+		}
+
+		final var continuation = jsonb.provider().createParser(new ContinuationReader(text, start));
+		continuation.next();
+		return continuation;
 	}
 
 	/**
@@ -184,12 +241,12 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	boolean enterDeserializer(JsonbDeserializer<?> deserializer, JsonParser parser, long offset,
 			List<AdapterReference> applied) {
 		for (final var frame : deserializing)
-			if (frame.parser == parser //
+			if (frame.parser == IuJsonbBoundedParser.underlying(parser) //
 					&& frame.offset == offset //
 					&& frame.deserializer == deserializer)
 				return false;
 
-		deserializing.push(new Frame(deserializer, parser, offset, applied));
+		deserializing.push(new Frame(deserializer, IuJsonbBoundedParser.underlying(parser), offset, applied));
 		return true;
 	}
 
@@ -208,7 +265,7 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	private Object read(Type type, JsonParser parser) {
 		final var offset = position(parser);
 		for (final var frame : deserializing)
-			if (frame.parser == parser && frame.offset == offset)
+			if (frame.parser == IuJsonbBoundedParser.underlying(parser) && frame.offset == offset)
 				return jsonb.adapt(type).read(parser, this, frame.applied);
 		return jsonb.adapt(type).read(parser, this, List.of());
 	}

@@ -208,13 +208,27 @@ public class JsonSerializerTest {
 		final var bean = new NullableBean();
 		bean.present = IdGenerator.generateId();
 
-		// null list, map, and absentValue are omitted; optional and primitive are not
+		// null list, map, and absentValue, and the empty optional, are omitted; the
+		// primitive is not
+		assertEquals(IuJson.object() //
+				.add("present", bean.present) //
+				.add("number", 0) //
+				.build(), //
+				JsonSerializer.serialize(NullableBean.class, bean, IuJsonPropertyNameFormat.IDENTITY,
+						IuJsonAdapter::of));
+	}
+
+	@Test
+	public void testLegacyWritesEmptyOptionalAsNull() {
+		final var bean = new NullableBean();
+		bean.present = IdGenerator.generateId();
+
 		assertEquals(IuJson.object() //
 				.add("present", bean.present) //
 				.addNull("optional") //
 				.add("number", 0) //
 				.build(), //
-				JsonSerializer.serialize(NullableBean.class, bean, IuJsonPropertyNameFormat.IDENTITY,
+				JsonSerializer.serialize(NullableBean.class, bean, () -> IuJsonSerializationOptions.LEGACY,
 						IuJsonAdapter::of));
 	}
 
@@ -242,7 +256,6 @@ public class JsonSerializerTest {
 
 		assertEquals(IuJson.object() //
 				.add("present", bean.present) //
-				.addNull("optional") //
 				.add("number", 0) //
 				.build(), //
 				JsonSerializer.serialize(NullableBean.class, bean, () -> null, IuJsonAdapter::of));
@@ -263,7 +276,6 @@ public class JsonSerializerTest {
 		// absentValue would be absent_value under LOWER_CASE_WITH_UNDERSCORES
 		assertEquals(IuJson.object() //
 				.add("present", bean.present) //
-				.addNull("optional") //
 				.add("number", 0) //
 				.build(), //
 				JsonSerializer.serialize(NullableBean.class, bean, () -> options, IuJsonAdapter::of));

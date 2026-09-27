@@ -732,16 +732,31 @@ public class IuJsonAdapterTest {
 
 	@Test
 	public void testBinary() {
+		// an array of bytes by default, as in JSON-B
 		final var adapter = IuJsonAdapter.of(byte[].class);
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
-		assertEquals(IuJson.string(""), adapter.toJson(new byte[0]));
+		assertEquals(JsonValue.EMPTY_JSON_ARRAY, adapter.toJson(new byte[0]));
 		assertNull(adapter.fromJson(JsonValue.NULL));
+		assertEquals(IuJson.parse("[1,-1]"), adapter.toJson(new byte[] { 1, -1 }));
+		assertArrayEquals(new byte[] { 1, -1 }, adapter.fromJson(IuJson.parse("[1,-1]")));
 
+		// base64 as before 7.1, by options
+		final var legacy = IuJsonAdapter.adapt(byte[].class, () -> IuJsonSerializationOptions.LEGACY);
 		final var data = new byte[Math.abs(ThreadLocalRandom.current().nextInt(Byte.MAX_VALUE + 1, Short.MAX_VALUE))];
 		ThreadLocalRandom.current().nextBytes(data);
 		final var text = IuText.base64(data);
-		assertEquals(IuJson.string(text), adapter.toJson(data));
-		assertArrayEquals(data, adapter.fromJson(IuJson.string(text)));
+		assertEquals(IuJson.string(text), legacy.toJson(data));
+		assertArrayEquals(data, legacy.fromJson(IuJson.string(text)));
+		assertEquals(IuJson.string(""), legacy.toJson(new byte[0]));
+
+		final var url = IuJsonAdapter.adapt(byte[].class, () -> new IuJsonSerializationOptions() {
+			@Override
+			public String getBinaryDataStrategy() {
+				return "BASE_64_URL";
+			}
+		});
+		assertEquals(IuJson.string("-_8B"), url.toJson(new byte[] { (byte) 0xfb, (byte) 0xff, 1 }));
+		assertArrayEquals(new byte[] { 1 }, url.fromJson(IuJson.string("AQ")));
 	}
 
 	@Test
@@ -772,11 +787,31 @@ public class IuJsonAdapterTest {
 		assertEquals(JsonValue.NULL, adapter.toJson(null));
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
-		final var value = Calendar.getInstance();
-		final var text = IuJson
-				.string(DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC).format(value.getTime().toInstant()));
+		// in its own zone, and read in the zone written
+		final var value = Calendar.getInstance(TimeZone.getTimeZone("America/New_York"));
+		value.set(Calendar.HOUR_OF_DAY, 12);
+		final var text = IuJson.string(DateTimeFormatter.ISO_DATE_TIME
+				.format(value.toInstant().atZone(ZoneId.of("America/New_York"))));
+		assertTrue(text.getString().endsWith("-04:00[America/New_York]")
+				|| text.getString().endsWith("-05:00[America/New_York]"), text::getString);
 		assertEquals(text, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(text));
+		final var read = adapter.fromJson(text);
+		assertEquals(value.getTime(), read.getTime());
+		assertEquals(value.getTimeZone().toZoneId(), read.getTimeZone().toZoneId());
+
+		// before 7.1: as a date in UTC, read in the default zone
+		final var legacy = IuJsonAdapter.adapt(Calendar.class, () -> IuJsonSerializationOptions.LEGACY);
+		final var legacyText = IuJson
+				.string(DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC).format(value.toInstant()));
+		assertEquals(legacyText, legacy.toJson(value));
+		assertEquals(value.getTime(), legacy.fromJson(legacyText).getTime());
+		assertEquals(TimeZone.getDefault(), legacy.fromJson(legacyText).getTimeZone());
+		assertNull(legacy.fromJson(JsonValue.NULL));
+		assertEquals(JsonValue.NULL, legacy.toJson(null));
+		assertEquals(value.getTime(), legacy.fromJson(text).getTime());
+		assertEquals(value.getTime(),
+				IuJsonAdapter.adapt(Calendar.class, () -> IuJsonSerializationOptions.DEFAULT).fromJson(legacyText)
+						.getTime());
 
 		// a date is midnight UTC
 		value.setTimeZone(TimeZone.getTimeZone("UTC"));
@@ -889,9 +924,7 @@ public class IuJsonAdapterTest {
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
 		final var value = LocalTime.now();
-		final var text = IuJson.string(value.toString());
-		assertEquals(text, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(text));
+		assertIsoAndLegacy(LocalTime.class, value, DateTimeFormatter.ISO_LOCAL_TIME);
 	}
 
 	@Test
@@ -901,9 +934,7 @@ public class IuJsonAdapterTest {
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
 		final var value = LocalDateTime.now();
-		final var text = IuJson.string(value.toString());
-		assertEquals(text, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(text));
+		assertIsoAndLegacy(LocalDateTime.class, value, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 	}
 
 	@Test
@@ -913,9 +944,7 @@ public class IuJsonAdapterTest {
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
 		final var value = OffsetDateTime.now();
-		final var text = IuJson.string(value.toString());
-		assertEquals(text, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(text));
+		assertIsoAndLegacy(OffsetDateTime.class, value, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
 	}
 
 	@Test
@@ -925,9 +954,7 @@ public class IuJsonAdapterTest {
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
 		final var value = OffsetTime.now();
-		final var text = IuJson.string(value.toString());
-		assertEquals(text, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(text));
+		assertIsoAndLegacy(OffsetTime.class, value, DateTimeFormatter.ISO_OFFSET_TIME);
 	}
 
 	@Test
@@ -949,9 +976,38 @@ public class IuJsonAdapterTest {
 		assertNull(adapter.fromJson(JsonValue.NULL));
 
 		final var value = ZonedDateTime.now();
-		final var text = IuJson.string(value.toString());
+		assertIsoAndLegacy(ZonedDateTime.class, value, DateTimeFormatter.ISO_ZONED_DATE_TIME);
+	}
+
+	/**
+	 * Checks a date type writes by its ISO formatter by default, and by
+	 * {@code toString()} before 7.1, and reads either way.
+	 */
+	private static <T> void assertIsoAndLegacy(Class<T> type, T value, DateTimeFormatter iso) {
+		final var text = IuJson.string(iso.format((java.time.temporal.TemporalAccessor) value));
+		final var legacyText = IuJson.string(value.toString());
+		final var adapter = IuJsonAdapter.of(type);
 		assertEquals(text, adapter.toJson(value));
 		assertEquals(value, adapter.fromJson(text));
+		assertEquals(value, adapter.fromJson(legacyText));
+
+		final var standard = IuJsonAdapter.adapt(type, () -> IuJsonSerializationOptions.DEFAULT);
+		final var legacy = IuJsonAdapter.adapt(type, () -> IuJsonSerializationOptions.LEGACY);
+		assertEquals(text, standard.toJson(value));
+		assertEquals(legacyText, legacy.toJson(value));
+		assertEquals(value, legacy.fromJson(text));
+		assertEquals(value, standard.fromJson(legacyText));
+
+		// streaming
+		final var writer = new java.io.StringWriter();
+		try (final var generator = IuJson.PROVIDER.createGenerator(writer)) {
+			legacy.write(value, generator);
+		}
+		assertEquals(legacyText.toString(), writer.toString());
+		try (final var parser = IuJson.PROVIDER.createParser(new java.io.StringReader(text.toString()))) {
+			parser.next();
+			assertEquals(value, legacy.read(parser));
+		}
 	}
 
 	@Test

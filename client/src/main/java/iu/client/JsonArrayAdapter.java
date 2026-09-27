@@ -46,6 +46,11 @@ import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Adapts to/from {@link JsonArray} values.
+ *
+ * <p>
+ * Each item converts within the adapter's {@link ItemScope}, so a failure can
+ * name its position.
+ * </p>
  * 
  * @param <T> target type
  * @param <E> element type
@@ -71,6 +76,12 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 	private final IuJsonAdapter<E> itemAdapter;
 
 	/**
+	 * Tracks the item converting; set by {@link JsonAdapters} before the adapter
+	 * is shared.
+	 */
+	ItemScope scope = ItemScope.NONE;
+
+	/**
 	 * Constructor
 	 * 
 	 * @param itemAdapter item adapter
@@ -84,10 +95,22 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 		if (jsonValue == null //
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
-		else if (jsonValue instanceof JsonArray)
-			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson));
-		else
+		else if (jsonValue instanceof JsonArray) {
+			final var index = new int[1];
+			return collect(IuIterable.map(jsonValue.asJsonArray(), item -> fromJson(index[0]++, item)));
+		} else
 			throw JsonAdapters.expected("an array", jsonValue.getValueType());
+	}
+
+	private E fromJson(int index, JsonValue item) {
+		scope.enterIndex(false, index);
+		try {
+			return itemAdapter.fromJson(item);
+		} catch (RuntimeException e) {
+			throw scope.fail(false, e);
+		} finally {
+			scope.exit(false);
+		}
 	}
 
 	@Override
@@ -96,7 +119,18 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 
 		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
+		final var items = iterator(javaValue);
+		for (var index = 0; items.hasNext(); index++) {
+			final var item = items.next();
+			scope.enterIndex(true, index);
+			try {
+				a.add(itemAdapter.toJson(item));
+			} catch (RuntimeException e) {
+				throw scope.fail(true, e);
+			} finally {
+				scope.exit(true);
+			}
+		}
 		return a.build();
 	}
 
@@ -113,8 +147,16 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 			throw JsonAdapters.expected("an array", event);
 
 		final List<E> items = new ArrayList<>();
-		while (parser.next() != Event.END_ARRAY)
-			items.add(itemAdapter.read(parser));
+		for (var index = 0; parser.next() != Event.END_ARRAY; index++) {
+			scope.enterIndex(false, index);
+			try {
+				items.add(itemAdapter.read(parser));
+			} catch (RuntimeException e) {
+				throw scope.fail(false, e);
+			} finally {
+				scope.exit(false);
+			}
+		}
 		return collect(items);
 	}
 
@@ -126,7 +168,18 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 		}
 
 		generator.writeStartArray();
-		iterator(javaValue).forEachRemaining(i -> itemAdapter.write(i, generator));
+		final var items = iterator(javaValue);
+		for (var index = 0; items.hasNext(); index++) {
+			final var item = items.next();
+			scope.enterIndex(true, index);
+			try {
+				itemAdapter.write(item, generator);
+			} catch (RuntimeException e) {
+				throw scope.fail(true, e);
+			} finally {
+				scope.exit(true);
+			}
+		}
 		generator.writeEnd();
 	}
 

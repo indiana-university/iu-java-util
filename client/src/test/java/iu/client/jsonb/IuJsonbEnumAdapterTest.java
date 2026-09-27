@@ -117,10 +117,11 @@ public class IuJsonbEnumAdapterTest {
 		final var holder = new Holder();
 		holder.level = Level.HIGH;
 		holder.levels = List.of(Level.LOW);
-		final var json = "{\"level\":\"high\",\"levels\":[\"low\"]}";
+		// by name(), not toString()
+		final var json = "{\"level\":\"HIGH\",\"levels\":[\"LOW\"]}";
 		assertEquals(json, jsonb.toJson(holder));
 		assertEquals(json, jsonb.adapt(Holder.class).toJson(holder).toString());
-		assertEquals("\"low\"", jsonb.toJson(Level.LOW));
+		assertEquals("\"LOW\"", jsonb.toJson(Level.LOW));
 		assertEquals(JsonValue.NULL, jsonb.adapt(Level.class).toJson(null));
 		assertEquals("{\"labeled\":null,\"level\":null,\"levels\":null}",
 				IuJsonbTest.jsonb(new JsonbConfig().withNullValues(true)).toJson(new Holder()));

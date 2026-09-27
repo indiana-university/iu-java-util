@@ -652,7 +652,9 @@ public class IuJsonbChainTest {
 		assertTrue(IuJsonbValueAdapter.accepts(Map.class, ValueType.OBJECT));
 		assertFalse(IuJsonbValueAdapter.accepts(Map.class, ValueType.ARRAY));
 		assertTrue(IuJsonbValueAdapter.accepts(byte[].class, ValueType.STRING));
-		assertFalse(IuJsonbValueAdapter.accepts(byte[].class, ValueType.ARRAY));
+		// text or an array of bytes, by the binary data strategy
+		assertTrue(IuJsonbValueAdapter.accepts(byte[].class, ValueType.ARRAY));
+		assertFalse(IuJsonbValueAdapter.accepts(byte[].class, ValueType.OBJECT));
 		for (final var arrayLike : new Class<?>[] { String[].class, List.class, Iterator.class, Enumeration.class,
 				Stream.class }) {
 			assertTrue(IuJsonbValueAdapter.accepts(arrayLike, ValueType.ARRAY), arrayLike.getName());

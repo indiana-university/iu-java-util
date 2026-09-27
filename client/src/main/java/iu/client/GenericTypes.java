@@ -98,6 +98,39 @@ public final class GenericTypes {
 	}
 
 	/**
+	 * Resolves a type declared by a member of a generic class, as a subtype sees
+	 * it.
+	 *
+	 * <p>
+	 * Each of {@code declaringClass}'s type variables is replaced by the argument
+	 * {@code context} supplies for it, so a property {@code T getValue()} of
+	 * {@code Base<T>} reads as {@code String} from {@code Foo extends
+	 * Base<String>}, and {@code List<T>} as {@code List<String>}. A variable
+	 * {@code context} doesn't bind is left as is.
+	 * </p>
+	 *
+	 * @param type           member's generic type
+	 * @param context        type the member is seen from
+	 * @param declaringClass class that declares the member
+	 * @return resolved type; {@code type} itself if nothing resolves, or if
+	 *         {@code context} is not a subtype of {@code declaringClass}
+	 */
+	public static Type resolve(Type type, Type context, Class<?> declaringClass) {
+		final var parameters = declaringClass.getTypeParameters();
+		if (parameters.length == 0)
+			return type;
+
+		final var arguments = typeArguments(context, declaringClass);
+		if (arguments == null)
+			return type;
+
+		final Map<TypeVariable<?>, Type> bindings = new HashMap<>();
+		for (var i = 0; i < parameters.length; i++)
+			bindings.put(parameters[i], arguments[i]);
+		return substitute(type, bindings);
+	}
+
+	/**
 	 * Boxes a primitive type.
 	 *
 	 * @param type type

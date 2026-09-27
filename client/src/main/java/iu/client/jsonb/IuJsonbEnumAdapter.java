@@ -34,7 +34,6 @@ package iu.client.jsonb;
 import java.util.Objects;
 
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 import iu.client.JsonAdapters;
 import iu.client.JsonSerializer;
 import jakarta.json.JsonObject;
@@ -92,8 +91,13 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 
 		final String name;
 		if (value instanceof JsonObject) {
-			final var format = IuDeserializationContext.require(jsonb).format();
-			name = TEXT.fromJson(((JsonObject) value).get(JsonSerializer.formatPropertyName(JsonSerializer.NAME, format)));
+			final var naming = IuDeserializationContext.require(jsonb).naming();
+			final var nameKey = naming.key(naming.name(JsonSerializer.NAME));
+			String text = null;
+			for (final var entry : ((JsonObject) value).entrySet())
+				if (naming.key(entry.getKey()).equals(nameKey))
+					text = TEXT.fromJson(entry.getValue());
+			name = text;
 		} else if (value instanceof JsonString)
 			name = ((JsonString) value).getString();
 		else
@@ -116,14 +120,14 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 			return Enum.valueOf(type, parser.getString());
 
 		case START_OBJECT: {
-			final var nameKey = JsonSerializer.formatPropertyName(JsonSerializer.NAME,
-					IuDeserializationContext.require(jsonb).format());
+			final var naming = IuDeserializationContext.require(jsonb).naming();
+			final var nameKey = naming.key(naming.name(JsonSerializer.NAME));
 
 			String name = null;
 			while (parser.next() != Event.END_OBJECT) {
 				final var key = parser.getString();
 				final var event = parser.next();
-				if (nameKey.equals(key))
+				if (nameKey.equals(naming.key(key)))
 					name = TEXT.read(parser);
 				else if (event == Event.START_OBJECT)
 					parser.skipObject();
@@ -145,12 +149,12 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 
 		final var context = IuSerializationContext.require(jsonb);
 		if (!context.isEnumAsObject())
-			return jsonb.provider().createValue(value.toString());
+			return jsonb.provider().createValue(text(value, context));
 
-		final var format = context.format();
-		final var nameKey = JsonSerializer.formatPropertyName(JsonSerializer.NAME, format);
-		final var properties = model().readable(format);
-		final var nameProperty = nameProperty(properties, nameKey, format);
+		final var naming = context.naming();
+		final var nameKey = naming.name(JsonSerializer.NAME);
+		final var properties = model().readable(naming);
+		final var nameProperty = nameProperty(properties, nameKey, naming);
 
 		context.enterBean(value);
 		try {
@@ -177,14 +181,14 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 
 		final var context = IuSerializationContext.require(jsonb);
 		if (!context.isEnumAsObject()) {
-			generator.write(value.toString());
+			generator.write(text(value, context));
 			return;
 		}
 
-		final var format = context.format();
-		final var nameKey = JsonSerializer.formatPropertyName(JsonSerializer.NAME, format);
-		final var properties = model().readable(format);
-		final var nameProperty = nameProperty(properties, nameKey, format);
+		final var naming = context.naming();
+		final var nameKey = naming.name(JsonSerializer.NAME);
+		final var properties = model().readable(naming);
+		final var nameProperty = nameProperty(properties, nameKey, naming);
 
 		context.enterBean(value);
 		try {
@@ -202,10 +206,18 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 		}
 	}
 
+	/**
+	 * Gets an enum value's text: its {@link Enum#name()}, or its
+	 * {@link Enum#toString()} if the call's options ask for it.
+	 */
+	private static String text(Enum<?> value, IuJsonbContext context) {
+		return context.options().isEnumToString() ? value.toString() : value.name();
+	}
+
 	private static IuJsonbModel.Property nameProperty(IuJsonbModel.Property[] properties, String nameKey,
-			IuJsonPropertyNameFormat format) {
+			IuJsonbNaming naming) {
 		for (final var property : properties)
-			if (nameKey.equals(property.jsonName(format)))
+			if (nameKey.equals(property.jsonName(naming)))
 				return property;
 		return null;
 	}

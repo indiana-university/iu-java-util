@@ -32,7 +32,6 @@
 package iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -161,7 +160,7 @@ public class JsonDeserializerTest {
 		final var value = IuJson.object().add("id", IdGenerator.generateId()).build();
 		final var error = assertThrows(IllegalStateException.class,
 				() -> JsonDeserializer.deserialize(NoDefaultConstructor.class, value, () -> IuJsonSerializationOptions.DEFAULT, IuJsonAdapter::of));
-		assertInstanceOf(NoSuchMethodException.class, error.getCause());
+		assertEquals("no default constructor for " + NoDefaultConstructor.class.getName(), error.getMessage());
 	}
 
 }

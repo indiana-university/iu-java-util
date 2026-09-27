@@ -81,8 +81,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import edu.iu.IuObject;
-import edu.iu.IuText;
+import iu.client.BinaryJsonAdapter;
 import iu.client.EnumJsonAdapter;
+import iu.client.FormatAdapters;
+import iu.client.ItemScope;
 import iu.client.JsonAdapters;
 import iu.client.JsonDeserializer;
 import iu.client.JsonSerializer;
@@ -198,10 +200,15 @@ public interface IuJsonAdapter<T> {
 	 * 
 	 * <p>
 	 * {@link #toJson(Object)} returns a {@link JsonObject} with an entry for each
-	 * readable JavaBeans property of {@code type}, including properties inherited
-	 * from superclasses and declared as interface default methods. Properties
-	 * declared by {@link Object}, in particular {@link Object#getClass() class}, are
-	 * skipped, as are properties with a null value.
+	 * readable property of {@code type}, discovered as JSON-B discovers them:
+	 * public fields and public accessors, including those inherited from
+	 * non-platform superclasses and interfaces, in lexicographic order, honoring
+	 * JSON-B annotations such as {@code @JsonbProperty}, {@code @JsonbTransient},
+	 * {@code @JsonbNillable}, {@code @JsonbPropertyOrder}, and
+	 * {@code @JsonbVisibility} when the JSON-B API is present. A property with a
+	 * null value, or an empty {@link Optional}, is skipped unless declared
+	 * nillable. {@link IuJsonSerializationOptions#isLegacyProperties()} restores
+	 * discovery by public accessors only, without annotations.
 	 * </p>
 	 * 
 	 * <p>
@@ -212,9 +219,9 @@ public interface IuJsonAdapter<T> {
 	 * property values directly from the {@link JsonObject}; see
 	 * {@link IuJson#wrap(JsonObject, Class, IuJsonPropertyNameFormat, Function)}.</li>
 	 * <li>Any other type is instantiated using its no-arg constructor, then each
-	 * JavaBeans property with a setter that maps to a defined JSON value is
-	 * converted and applied. Setters without a corresponding JSON value are
-	 * skipped, retaining the value assigned by the constructor.</li>
+	 * writable property, discovered the same way, that maps to a defined JSON
+	 * value is converted and applied. A property without a corresponding JSON
+	 * value is skipped, retaining the value assigned by the constructor.</li>
 	 * </ul>
 	 *
 	 * <p>
@@ -267,7 +274,22 @@ public interface IuJsonAdapter<T> {
 	 *         {@link #fromJson(JsonValue) fromJson} converts
 	 *         {@link JsonValue#NULL} and an undefined value to null
 	 */
+	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> from(Class<T> type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return (IuJsonAdapter<T>) bean(type, options, valueAdapter);
+	}
+
+	/**
+	 * Converts a business object type, or a parameterized type of one, so its
+	 * property types resolve against the type arguments.
+	 *
+	 * @param type         business object type
+	 * @param options      options supplier
+	 * @param valueAdapter value adapter function
+	 * @return {@link IuJsonAdapter}
+	 */
+	private static IuJsonAdapter<Object> bean(Type type, Supplier<IuJsonSerializationOptions> options,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return from(v -> v == null || JsonValue.NULL.equals(v) //
 				? null //
@@ -364,11 +386,20 @@ public interface IuJsonAdapter<T> {
 	 * custom value adapter function and dynamically supplied options.
 	 * 
 	 * <p>
-	 * This is the common implementation behind every {@code adapt} method: an
+	 * This is the common implementation behind every {@code adapt} method:
+	 * {@code byte[]} converts as
+	 * {@link IuJsonSerializationOptions#getBinaryDataStrategy()} says; a date
+	 * type whose format changed in 7.1 converts as
+	 * {@link IuJsonSerializationOptions#isLegacyDates()} says; an
 	 * {@link Class#isEnum() enum} type converts as described by
-	 * {@link IuJsonSerializationOptions#isEnumAsObject()}, {@code type} converts as
-	 * a JavaBeans type when it is a
-	 * {@link IuObject#isPlatformName(String) non-platform} interface or class, and
+	 * {@link IuJsonSerializationOptions#isEnumAsObject()} and
+	 * {@link IuJsonSerializationOptions#isEnumToString()}; {@code type} converts
+	 * as a JavaBeans type when it is a
+	 * {@link IuObject#isPlatformName(String) non-platform} interface or class, or
+	 * a parameterized type of one, with property types resolved against its type
+	 * arguments; {@link Object}, and another type a value of nearly any type may
+	 * be declared as, such as {@link java.io.Serializable} or {@link Comparable},
+	 * converts a value by its runtime type through {@code valueAdapter}; and
 	 * everything else converts through {@link #of(Type, Function)}, including when
 	 * {@link Class#isPrimitive() primitive} or an {@link Class#isArray() array}.
 	 * Nested value types are resolved by {@code valueAdapter}, which is
@@ -389,15 +420,28 @@ public interface IuJsonAdapter<T> {
 	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		final var c = JsonAdapters.erase(type);
+		if (c == byte[].class)
+			return BinaryJsonAdapter.of(options);
+
 		if (c.isEnum())
 			return EnumJsonAdapter.of(c, options, valueAdapter);
 
 		if (!IuObject.isPlatformName(c.getName()) //
 				&& !c.isPrimitive() //
 				&& !c.isArray())
-			return from(c, options, valueAdapter);
+			return bean(type, options, valueAdapter);
 
-		return IuJsonAdapter.of(type, valueAdapter);
+		// a date type that converted differently before 7.1 follows the options
+		if (FormatAdapters.hasLegacyDates(c))
+			return FormatAdapters.legacyDates(c, options);
+
+		// a value declared Object, or another broad type, converts by its runtime
+		// type; Iterable is a java.lang interface with a conversion of its own
+		if (JsonAdapters.isBroad(c) && c != Iterable.class)
+			return JsonAdapters.runtime(valueAdapter);
+
+		// a map key is text: an enum key follows the options' enum text
+		return JsonAdapters.adapt(type, valueAdapter, key -> JsonSerializer.keyAdapter(key, options), ItemScope.NONE);
 	}
 
 	/**
@@ -505,15 +549,14 @@ public interface IuJsonAdapter<T> {
 	 * </li>
 	 * <li>{@link #toJson(Object)} returns {@link JsonString}
 	 * <ul>
-	 * <li>byte[], via {@link IuText#base64(String)} and
-	 * {@link IuText#base64(byte[])}</li>
 	 * <li>{@link BigInteger}</li>
 	 * <li>{@link CharSequence}</li>
 	 * <li>{@link Calendar}, as {@link Date}</li>
 	 * <li>{@link CharSequence}, as {@link String}</li>
 	 * <li>{@link Date}, as {@link Temporal}</li>
 	 * <li>{@link Duration}</li>
-	 * <li>{@link Enum} subtypes; {@link #fromJson(JsonValue)} also accepts a
+	 * <li>{@link Enum} subtypes, by {@link Enum#name()};
+	 * {@link #fromJson(JsonValue)} also accepts a
 	 * {@link JsonObject} naming the constant in its {@code name} property, as
 	 * written by {@link IuJsonSerializationOptions#isEnumAsObject()}</li>
 	 * <li>{@link Instant}</li>
@@ -537,7 +580,8 @@ public interface IuJsonAdapter<T> {
 	 * </li>
 	 * <li>{@link #toJson(Object)} as {@link JsonArray}
 	 * <ul>
-	 * <li>{@link Class#isArray() Array} type</li>
+	 * <li>{@link Class#isArray() Array} type, including {@code byte[]} as an
+	 * array of signed bytes</li>
 	 * <li>{@link ArrayList}</li>
 	 * <li>{@link Collection}, as {@link Queue}</li>
 	 * <li>{@link Deque}, as {@link ArrayDeque}</li>

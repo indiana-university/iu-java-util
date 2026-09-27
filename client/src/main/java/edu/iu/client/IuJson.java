@@ -173,6 +173,28 @@ public class IuJson {
 	}
 
 	/**
+	 * Wraps indexed properties in a java interface, reading property names in a
+	 * specific format.
+	 *
+	 * <p>
+	 * A getter converts its property on first call; {@link #unwrap(Object)}
+	 * returns the object indexed, or one generated from the properties' values.
+	 * </p>
+	 *
+	 * @param <T>                target interface type
+	 * @param properties         properties
+	 * @param targetInterface    target interface class
+	 * @param propertyNameFormat format of the property names in
+	 *                           {@code properties}; a getter reads only the name
+	 *                           formatted this way
+	 * @return {@link JsonProxy}
+	 */
+	public static <T> T wrap(IuJsonProperties properties, Class<T> targetInterface,
+			IuJsonPropertyNameFormat propertyNameFormat) {
+		return JsonProxy.wrap(properties, targetInterface, propertyNameFormat);
+	}
+
+	/**
 	 * Retrieves the {@link JsonObject} from a {@link JsonProxy} wrapper.
 	 * 
 	 * @param jsonProxy wrapper

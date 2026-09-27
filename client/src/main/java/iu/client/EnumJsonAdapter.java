@@ -186,7 +186,7 @@ public class EnumJsonAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 		if (snapshot.isEnumAsObject())
 			generator.write(JsonSerializer.serializeEnum(type, value, () -> snapshot, adapt));
 		else
-			generator.write(value.toString());
+			generator.write(JsonSerializer.enumText(value, snapshot));
 	}
 
 }

@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import iu.client.FormatAdapters;
 import iu.client.GenericTypes;
 import iu.client.JsonAdapters;
 import iu.client.jsonb.IuJsonb.AdapterReference;
@@ -64,24 +65,31 @@ import jakarta.json.stream.JsonParser.Event;
  * tree and streaming conversion. Precedence, for a value:
  * </p>
  * <ol>
- * <li>A configured {@link jakarta.json.bind.adapter.JsonbAdapter} converts to
- * and from its adapted type. Each adapter applies at most once to a value: the
- * adapted value converts through its type's components, less the adapters
- * already applied, so an adapter can't loop through its own output.</li>
- * <li>A configured {@link JsonbSerializer} or {@link JsonbDeserializer}.</li>
+ * <li>The most specific configured component: a
+ * {@link jakarta.json.bind.adapter.JsonbAdapter}, which converts to and from
+ * its adapted type, or a {@link JsonbSerializer} or {@link JsonbDeserializer}.
+ * Between a serializer or deserializer and an adapter registered for types
+ * neither more specific than the other, such as the same type, the serializer
+ * or deserializer runs, as in Yasson. Each adapter applies at most once to a
+ * value: the adapted value converts through its type's components, less the
+ * adapters already applied, so an adapter can't loop through its own
+ * output.</li>
  * <li>The built-in conversion for the declared type: {@link IuJsonbEnumAdapter}
  * for an enum, {@link IuJsonbAdapter} for a non-platform business object,
  * otherwise {@link JsonAdapters#adapt(Type, java.util.function.Function)}.</li>
  * </ol>
  *
  * <p>
- * Components form chains, most specific first; see {@link IuJsonb}. Writing
- * selects components by the value's runtime type, so the order is the same
- * wherever the value is declared, while the built-in conversion stays with the
- * declared type. Writing uses the first adapter; reading uses the first adapter
- * whose adapted type accepts the shape of the JSON value (string, number,
- * boolean, object, or array), or the first adapter if none does, so adapters
- * can accept several formats. Components registered for a
+ * Components form one chain per direction, most specific first; see
+ * {@link IuJsonb}. So a deserializer registered for a type reads it ahead of an
+ * adapter registered for a supertype, which can't be expected to read a value
+ * of the subtype. Writing selects components by the value's runtime type, so
+ * the order is the same wherever the value is declared, while the built-in
+ * conversion stays with the declared type. Reading skips an adapter whose
+ * adapted type doesn't accept the shape of the JSON value (string, number,
+ * boolean, object, or array), and uses the first adapter skipped if no other
+ * component runs, so adapters can accept several formats. Components registered
+ * for a
  * {@link IuJsonb#isBroad(Type) broad} type, such as {@link Object}, are left
  * out of the chain for a {@link IuJsonb#isScalar(Type) scalar} type, null
  * included, and so for a value written with a scalar runtime type; they are
@@ -122,10 +130,13 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	private final IuJsonb jsonb;
 	private final List<AdapterReference> adapters;
 	private final List<AdapterReference> scalarAdapters;
-	private final List<JsonbSerializer> serializers;
-	private final List<JsonbDeserializer> deserializers;
-	private final List<JsonbDeserializer> scalarDeserializers;
+	private final List<Object> writeChain;
+	private final List<Object> readChain;
+	private final List<Object> scalarReadChain;
+	private final boolean deserializes;
+	private final boolean scalarDeserializes;
 	private final boolean runtimeDispatch;
+	private final boolean broad;
 	private volatile IuJsonAdapter builtIn;
 
 	/**
@@ -135,6 +146,20 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 * @param jsonb provider
 	 */
 	IuJsonbValueAdapter(Type type, IuJsonb jsonb) {
+		this(type, jsonb, null);
+	}
+
+	/**
+	 * Resolves the components that apply to {@code type}, with a built-in
+	 * conversion of its own, as for a property that declares a format.
+	 *
+	 * @param type    Java type
+	 * @param jsonb   provider
+	 * @param builtIn built-in conversion, after the components; null to resolve
+	 *                the type's own on first use
+	 */
+	IuJsonbValueAdapter(Type type, IuJsonb jsonb, IuJsonAdapter<?> builtIn) {
+		this.builtIn = builtIn;
 		this.type = type;
 		this.jsonb = jsonb;
 		erased = JsonAdapters.erase(type);
@@ -144,12 +169,15 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		final var scalar = IuJsonb.isScalar(erased);
 		adapters = jsonb.adapters(type, scalar);
 		scalarAdapters = scalar ? adapters : jsonb.adapters(type, true);
-		serializers = jsonb.serializers(type, scalar);
-		deserializers = jsonb.deserializers(type, scalar);
-		scalarDeserializers = scalar ? deserializers : jsonb.deserializers(type, true);
+		writeChain = jsonb.writeChain(type, scalar);
+		readChain = jsonb.readChain(type, scalar);
+		scalarReadChain = scalar ? readChain : jsonb.readChain(type, true);
+		deserializes = readChain.size() > adapters.size();
+		scalarDeserializes = scalarReadChain.size() > scalarAdapters.size();
 
 		// a value of a final type is always of that type
 		runtimeDispatch = jsonb.hasWriteComponents() && !Modifier.isFinal(erased.getModifiers());
+		broad = IuJsonb.isBroad(erased);
 	}
 
 	/**
@@ -176,8 +204,9 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 			return shape == ValueType.NUMBER;
 		if (Map.class.isAssignableFrom(c))
 			return shape == ValueType.OBJECT;
+		// text or an array of bytes, by the binary data strategy
 		if (c == byte[].class)
-			return shape == ValueType.STRING;
+			return shape == ValueType.STRING || shape == ValueType.ARRAY;
 		if (isArrayLike(c))
 			return shape == ValueType.ARRAY;
 		if (c.isEnum())
@@ -262,12 +291,52 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		if (erased.isEnum())
 			return new IuJsonbEnumAdapter(erased, jsonb);
 
+		// a date follows the configured format, then strict I-JSON, then the
+		// options' date formats
+		if (FormatAdapters.isDate(erased)) {
+			final var formatted = jsonb.dateFormat(erased);
+			if (formatted != null)
+				return formatted;
+			if (FormatAdapters.hasLegacyDates(erased))
+				return FormatAdapters.legacyDates(erased, jsonb::callOptions);
+		}
+
+		if (erased == byte[].class)
+			return jsonb.binary();
+
+		// Iterable is the one broad type with a conversion of its own
+		if (broad && erased != Iterable.class)
+			return new IuJsonbObjectAdapter(jsonb);
+
 		if (!IuObject.isPlatformName(erased.getName()) //
 				&& !erased.isPrimitive() //
 				&& !erased.isArray())
-			return new IuJsonbAdapter<>(erased, jsonb);
+			return new IuJsonbAdapter<>(type, jsonb);
 
-		return JsonAdapters.adapt(type, jsonb::adapt);
+		// a platform class with no conversion of its own, such as a JDK-internal
+		// collection, converts as the nearest type that has one
+		if (type instanceof Class //
+				&& !erased.isPrimitive() //
+				&& !erased.isArray()) {
+			final var conversionType = jsonb.conversionType(erased);
+			if (conversionType != erased //
+					&& conversionType != Object.class)
+				return jsonb.adapt(conversionType).builtIn();
+		}
+
+		return JsonAdapters.adapt(type, jsonb::adapt, jsonb::keyAdapter, jsonb.itemScope);
+	}
+
+	/**
+	 * Gets the built-in conversion for a value being written: this type's, or,
+	 * for a non-null value of a {@link IuJsonb#isBroad(Type) broad} type such as
+	 * {@link Object}, its runtime type's.
+	 */
+	private IuJsonAdapter builtIn(Object value) {
+		if (value == null || !broad)
+			return builtIn();
+		else
+			return jsonb.adapt(IuSerializationContext.runtimeType(value)).builtIn();
 	}
 
 	/**
@@ -323,8 +392,15 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		return fits(value, "adapter for " + adapter.original.getTypeName());
 	}
 
+	/**
+	 * Runs a deserializer on a view of the parser bounded to the value, then
+	 * skips whatever it left unread.
+	 */
 	private T deserialize(JsonbDeserializer deserializer, JsonParser parser, IuDeserializationContext context) {
-		return fits(deserializer.deserialize(parser, context, type), "deserializer " + deserializer.getClass().getName());
+		final var view = new IuJsonbBoundedParser(parser, context);
+		final var value = deserializer.deserialize(view, context, type);
+		view.release();
+		return fits(value, "deserializer " + deserializer.getClass().getName());
 	}
 
 	/**
@@ -361,23 +437,24 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 * @return Java value
 	 */
 	T fromJson(JsonValue value, IuDeserializationContext context, List<AdapterReference> applied) {
-		if (adapters.isEmpty() && deserializers.isEmpty())
+		if (readChain.isEmpty())
 			return (T) builtIn().fromJson(value);
 
 		final var shape = value == null ? null : value.getValueType();
 		final var scalar = isScalar(shape);
-		final var adapter = readAdapter(scalar ? scalarAdapters : adapters, shape, applied);
-		if (adapter != null)
-			return adaptFromJson(adapter,
-					jsonb.adapt(adapter.adapted).fromJson(value, context, with(applied, adapter)));
-
-		final var deserializers = scalar ? scalarDeserializers : this.deserializers;
-		if (!deserializers.isEmpty() && value != null) {
-			// a new parser has nothing in progress, so the chain starts at the top
+		if (value != null && (scalar ? scalarDeserializes : deserializes)) {
+			// deserializers read from a parser; a new one has nothing in progress, so
+			// the chain starts at the top
 			final var parser = new IuJsonbParser(value, jsonb.provider());
 			parser.next();
 			return read(parser, context, applied);
 		}
+
+		// an undefined value has no parser event, so only adapters see it
+		final var adapter = readAdapter(scalar ? scalarAdapters : adapters, shape, applied);
+		if (adapter != null)
+			return adaptFromJson(adapter,
+					jsonb.adapt(adapter.adapted).fromJson(value, context, with(applied, adapter)));
 
 		return (T) builtIn().fromJson(value);
 	}
@@ -400,28 +477,47 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 * @return Java value
 	 */
 	T read(JsonParser parser, IuDeserializationContext context, List<AdapterReference> applied) {
-		if (adapters.isEmpty() && deserializers.isEmpty())
+		if (readChain.isEmpty())
 			return (T) builtIn().read(parser);
 
 		final var shape = shape(parser.currentEvent());
 		final var scalar = isScalar(shape);
-		final var adapter = readAdapter(scalar ? scalarAdapters : adapters, shape, applied);
-		if (adapter != null)
-			return adaptFromJson(adapter, jsonb.adapt(adapter.adapted).read(parser, context, with(applied, adapter)));
+		final var offset = (scalar ? scalarDeserializes : deserializes) //
+				? IuDeserializationContext.position(parser)
+				: -1L;
 
-		final var deserializers = scalar ? scalarDeserializers : this.deserializers;
-		if (!deserializers.isEmpty()) {
-			final var offset = IuDeserializationContext.position(parser);
-			for (final var deserializer : deserializers)
+		// the first component that runs: an adapter not already applied whose
+		// adapted type reads this shape, or a deserializer not already in progress
+		// here; failing both, the first adapter not already applied
+		AdapterReference mismatched = null;
+		for (final var component : scalar ? scalarReadChain : readChain)
+			if (component instanceof AdapterReference) {
+				final var adapter = (AdapterReference) component;
+				if (applied.contains(adapter))
+					continue;
+				if (shape == ValueType.NULL || accepts(adapter.adapted, shape))
+					return readAdapted(adapter, parser, context, applied);
+				if (mismatched == null)
+					mismatched = adapter;
+			} else {
+				final var deserializer = (JsonbDeserializer) component;
 				if (context.enterDeserializer(deserializer, parser, offset, applied))
 					try {
 						return deserialize(deserializer, parser, context);
 					} finally {
 						context.exitDeserializer();
 					}
-		}
+			}
+
+		if (mismatched != null)
+			return readAdapted(mismatched, parser, context, applied);
 
 		return (T) builtIn().read(parser);
+	}
+
+	private T readAdapted(AdapterReference adapter, JsonParser parser, IuDeserializationContext context,
+			List<AdapterReference> applied) {
+		return adaptFromJson(adapter, jsonb.adapt(adapter.adapted).read(parser, context, with(applied, adapter)));
 	}
 
 	@Override
@@ -442,23 +538,28 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 * @return JSON value
 	 */
 	JsonValue toJson(Object value, IuSerializationContext context, List<AdapterReference> applied) {
-		final var components = components(value);
-		final var adapter = writeAdapter(components.adapters, applied);
-		if (adapter != null)
-			return jsonb.adapt(adapter.adapted).toJson(adaptToJson(adapter, value), context, with(applied, adapter));
-
-		for (final var serializer : components.serializers)
-			if (context.enterSerializer(serializer, value, this, applied)) {
-				final var generator = new IuJsonbGenerator(jsonb.provider());
-				try {
-					serializer.serialize(value, generator, context);
-				} finally {
-					context.exitSerializer();
+		// the first component that runs: an adapter not already applied, or a
+		// serializer not already in progress for the value
+		for (final var component : components(value).writeChain)
+			if (component instanceof AdapterReference) {
+				final var adapter = (AdapterReference) component;
+				if (!applied.contains(adapter))
+					return jsonb.adapt(adapter.adapted).toJson(adaptToJson(adapter, value), context,
+							with(applied, adapter));
+			} else {
+				final var serializer = (JsonbSerializer) component;
+				if (context.enterSerializer(serializer, value, this, applied)) {
+					final var generator = new IuJsonbGenerator(jsonb.provider());
+					try {
+						serializer.serialize(value, generator, context);
+					} finally {
+						context.exitSerializer();
+					}
+					return generator.value();
 				}
-				return generator.value();
 			}
 
-		return builtIn().toJson(value);
+		return builtIn(value).toJson(value);
 	}
 
 	@Override
@@ -483,23 +584,27 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 */
 	void write(Object value, JsonGenerator generator, IuSerializationContext context,
 			List<AdapterReference> applied) {
-		final var components = components(value);
-		final var adapter = writeAdapter(components.adapters, applied);
-		if (adapter != null) {
-			jsonb.adapt(adapter.adapted).write(adaptToJson(adapter, value), generator, context, with(applied, adapter));
-			return;
-		}
-
-		for (final var serializer : components.serializers)
-			if (context.enterSerializer(serializer, value, this, applied))
-				try {
-					serializer.serialize(value, generator, context);
+		// the same order as toJson
+		for (final var component : components(value).writeChain)
+			if (component instanceof AdapterReference) {
+				final var adapter = (AdapterReference) component;
+				if (!applied.contains(adapter)) {
+					jsonb.adapt(adapter.adapted).write(adaptToJson(adapter, value), generator, context,
+							with(applied, adapter));
 					return;
-				} finally {
-					context.exitSerializer();
 				}
+			} else {
+				final var serializer = (JsonbSerializer) component;
+				if (context.enterSerializer(serializer, value, this, applied))
+					try {
+						serializer.serialize(value, generator, context);
+						return;
+					} finally {
+						context.exitSerializer();
+					}
+			}
 
-		builtIn().write(value, generator);
+		builtIn(value).write(value, generator);
 	}
 
 	/**

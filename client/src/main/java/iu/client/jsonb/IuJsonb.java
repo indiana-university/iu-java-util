@@ -34,35 +34,53 @@ package iu.client.jsonb;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.io.Serializable;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import edu.iu.IuObject;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
+import iu.client.BinaryJsonAdapter;
+import iu.client.BindingMetadata;
+import iu.client.FormatAdapters;
 import iu.client.GenericTypes;
+import iu.client.ItemScope;
 import iu.client.JsonAdapters;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbConfig;
+import jakarta.json.JsonString;
+import jakarta.json.JsonStructure;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.adapter.JsonbAdapter;
-import jakarta.json.bind.config.PropertyNamingStrategy;
+import jakarta.json.bind.config.BinaryDataStrategy;
 import jakarta.json.bind.config.PropertyOrderStrategy;
 import jakarta.json.bind.config.PropertyVisibilityStrategy;
+import jakarta.json.bind.serializer.DeserializationContext;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
+import jakarta.json.bind.serializer.SerializationContext;
 import jakarta.json.spi.JsonProvider;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonGeneratorFactory;
@@ -77,13 +95,39 @@ import jakarta.json.stream.JsonParserFactory;
  *
  * <p>
  * Supports {@link JsonbConfig#FORMATTING}, {@link JsonbConfig#NULL_VALUES},
- * {@link JsonbConfig#PROPERTY_NAMING_STRATEGY}
- * ({@link PropertyNamingStrategy#IDENTITY} and
- * {@link PropertyNamingStrategy#LOWER_CASE_WITH_UNDERSCORES}),
+ * {@link JsonbConfig#ENCODING}, {@link JsonbConfig#BINARY_DATA_STRATEGY}
+ * ({@link BinaryDataStrategy#BYTE} by default),
+ * {@link JsonbConfig#PROPERTY_NAMING_STRATEGY} (every standard strategy, and
+ * {@link jakarta.json.bind.config.PropertyNamingStrategy} instances),
  * {@link JsonbConfig#PROPERTY_ORDER_STRATEGY},
  * {@link JsonbConfig#PROPERTY_VISIBILITY_STRATEGY},
  * {@link JsonbConfig#SERIALIZERS}, {@link JsonbConfig#DESERIALIZERS}, and
- * {@link JsonbConfig#ADAPTERS}, as well as {@link #SERIALIZATION_OPTIONS}.
+ * {@link JsonbConfig#ADAPTERS}, {@link JsonbConfig#DATE_FORMAT} and
+ * {@link JsonbConfig#LOCALE}, and {@link JsonbConfig#STRICT_IJSON}, as well as
+ * {@link #SERIALIZATION_OPTIONS} and {@link #BASE64_URL_UNPADDED}. An enum
+ * converts as text by {@link Enum#name()}.
+ * </p>
+ *
+ * <p>
+ * A date format, from {@link JsonbConfig#DATE_FORMAT} or declared by
+ * {@code @JsonbDateFormat}, is a {@link java.time.format.DateTimeFormatter}
+ * pattern, or {@code TIME_IN_MILLIS}; see {@link FormatAdapters}. A declared
+ * format, on a property's accessor or field, then the class declaring it, then
+ * its package, wins over the configured one, even when it declares the default
+ * format. {@code @JsonbNumberFormat} writes a number as text in its
+ * {@link java.text.DecimalFormat} pattern, and reads that text or a number. A
+ * format replaces the built-in conversion, so configured components still run
+ * first.
+ * </p>
+ *
+ * <p>
+ * {@link JsonbConfig#STRICT_IJSON} writes only an object or array at the top
+ * level, {@code byte[]} as base64url whatever else is configured, and dates
+ * without a format of their own as I-JSON requires: {@link java.util.Date},
+ * {@link java.util.Calendar}, {@link java.time.Instant},
+ * {@link java.time.LocalDate}, and {@link java.time.LocalDateTime} as an ISO
+ * date and time with an offset and seconds. Numbers are not restricted; the
+ * JSON-B specification leaves them out of strict I-JSON.
  * </p>
  *
  * <p>
@@ -123,6 +167,135 @@ public class IuJsonb implements Jsonb {
 	 * {@link JsonbConfig#NULL_VALUES} when those are also set.
 	 */
 	public static final String SERIALIZATION_OPTIONS = "iu.jsonb.serializationOptions";
+
+	/**
+	 * {@link JsonbConfig} property holding a {@link Boolean}: true to write
+	 * {@link BinaryDataStrategy#BASE_64_URL} without padding, as JOSE requires.
+	 * Reading accepts either form regardless.
+	 */
+	public static final String BASE64_URL_UNPADDED = "iu.jsonb.base64UrlUnpadded";
+
+	/**
+	 * A serializer registered for an explicit type.
+	 */
+	private static final class TypedSerializer<T> implements JsonbSerializer<T> {
+		private final Type type;
+		private final JsonbSerializer<T> serializer;
+
+		private TypedSerializer(Type type, JsonbSerializer<T> serializer) {
+			this.type = Objects.requireNonNull(type, "type");
+			this.serializer = Objects.requireNonNull(serializer, "serializer");
+		}
+
+		@Override
+		public void serialize(T obj, JsonGenerator generator, SerializationContext ctx) {
+			serializer.serialize(obj, generator, ctx);
+		}
+	}
+
+	/**
+	 * A deserializer registered for an explicit type.
+	 */
+	private static final class TypedDeserializer<T> implements JsonbDeserializer<T> {
+		private final Type type;
+		private final JsonbDeserializer<T> deserializer;
+
+		private TypedDeserializer(Type type, JsonbDeserializer<T> deserializer) {
+			this.type = Objects.requireNonNull(type, "type");
+			this.deserializer = Objects.requireNonNull(deserializer, "deserializer");
+		}
+
+		@Override
+		public T deserialize(JsonParser parser, DeserializationContext ctx, Type rtType) {
+			return deserializer.deserialize(parser, ctx, rtType);
+		}
+	}
+
+	/**
+	 * An adapter registered for explicit types.
+	 */
+	private static final class TypedAdapter<O, A> implements JsonbAdapter<O, A> {
+		private final Type original;
+		private final Type adapted;
+		private final JsonbAdapter<O, A> adapter;
+
+		private TypedAdapter(Type original, Type adapted, JsonbAdapter<O, A> adapter) {
+			this.original = Objects.requireNonNull(original, "original");
+			this.adapted = Objects.requireNonNull(adapted, "adapted");
+			this.adapter = Objects.requireNonNull(adapter, "adapter");
+		}
+
+		@Override
+		public A adaptToJson(O obj) throws Exception {
+			return adapter.adaptToJson(obj);
+		}
+
+		@Override
+		public O adaptFromJson(A obj) throws Exception {
+			return adapter.adaptFromJson(obj);
+		}
+	}
+
+	/**
+	 * Registers a serializer for an explicit type, such as a lambda, which has no
+	 * type argument to name it, when passed to
+	 * {@link JsonbConfig#withSerializers(JsonbSerializer...)}.
+	 *
+	 * @param <T>        serialized type
+	 * @param type       type the serializer applies to, and to its subtypes
+	 * @param serializer serializer
+	 * @return serializer to configure
+	 */
+	public static <T> JsonbSerializer<T> typedSerializer(Type type, JsonbSerializer<T> serializer) {
+		return new TypedSerializer<>(type, serializer);
+	}
+
+	/**
+	 * Registers a deserializer for an explicit type, such as a lambda, which has
+	 * no type argument to name it, when passed to
+	 * {@link JsonbConfig#withDeserializers(JsonbDeserializer...)}.
+	 *
+	 * @param <T>          deserialized type
+	 * @param type         type the deserializer applies to, and to its subtypes
+	 * @param deserializer deserializer
+	 * @return deserializer to configure
+	 */
+	public static <T> JsonbDeserializer<T> typedDeserializer(Type type, JsonbDeserializer<T> deserializer) {
+		return new TypedDeserializer<>(type, deserializer);
+	}
+
+	/**
+	 * Registers an adapter for explicit types, such as a lambda-backed adapter,
+	 * which has no type arguments to name them, when passed to
+	 * {@link JsonbConfig#withAdapters(JsonbAdapter...)}.
+	 *
+	 * @param <O>      original type
+	 * @param <A>      adapted type
+	 * @param original type the adapter converts from when writing, and applies to
+	 *                 with its subtypes
+	 * @param adapted  type the adapter converts to when writing
+	 * @param adapter  adapter
+	 * @return adapter to configure
+	 */
+	public static <O, A> JsonbAdapter<O, A> typedAdapter(Type original, Type adapted, JsonbAdapter<O, A> adapter) {
+		return new TypedAdapter<>(original, adapted, adapter);
+	}
+
+	/**
+	 * Gets the conversions of the provider running a deserialization, which stay
+	 * valid after the call ends.
+	 *
+	 * @param context deserialization context
+	 * @return function from a type to its configured conversion
+	 * @throws IllegalArgumentException if the context isn't from this provider
+	 */
+	public static Function<Type, IuJsonAdapter<?>> adapters(DeserializationContext context) {
+		if (context instanceof IuDeserializationContext) {
+			final var jsonb = ((IuDeserializationContext) context).jsonb;
+			return jsonb::adapt;
+		} else
+			throw new IllegalArgumentException("not a deserialization by " + IuJsonb.class.getName());
+	}
 
 	/**
 	 * A configured {@link JsonbAdapter} and the types it converts between.
@@ -182,7 +355,14 @@ public class IuJsonb implements Jsonb {
 	private final JsonGeneratorFactory generatorFactory;
 	private final Supplier<IuJsonSerializationOptions> options;
 	private final IuJsonPropertyNameFormat configuredFormat;
+	private final IuJsonbNaming naming;
+	private final IuJsonbBinaryAdapter binary;
+	private final Charset encoding;
 	private final Boolean configuredNullValues;
+	private final String configuredBinary;
+	private final boolean strictIJson;
+	private final String configuredDateFormat;
+	private final Locale locale;
 	private final boolean checkConflicts;
 	private final PropertyVisibilityStrategy propertyVisibilityStrategy;
 	private final String propertyOrderStrategy;
@@ -190,7 +370,7 @@ public class IuJsonb implements Jsonb {
 	private final List<Registration<JsonbSerializer>> serializers;
 	private final List<Registration<AdapterReference>> adapters;
 	private final Map<Type, IuJsonbValueAdapter<?>> valueAdapters = new ConcurrentHashMap<>();
-	private final Map<Class<?>, IuJsonbModel> models = new ConcurrentHashMap<>();
+	private final Map<Type, IuJsonbModel> models = new ConcurrentHashMap<>();
 
 	/**
 	 * Serialization call in progress on each thread.
@@ -238,61 +418,151 @@ public class IuJsonb implements Jsonb {
 			throw new UnsupportedOperationException(propertyOrderStrategy);
 		}
 
+		// a component registered through a typed factory declares its type
+		// explicitly; any other declares it through its type arguments
 		final List<Registration<JsonbDeserializer>> deserializers = new ArrayList<>();
 		for (final var deserializer : (JsonbDeserializer[]) config.getProperty(JsonbConfig.DESERIALIZERS)
 				.orElse(new JsonbDeserializer[0]))
-			register(deserializers, componentTypes(deserializer, JsonbDeserializer.class)[0], deserializer,
-					"deserializer");
+			if (deserializer instanceof TypedDeserializer) {
+				final var typed = (TypedDeserializer) deserializer;
+				register(deserializers, typed.type, typed.deserializer, "deserializer");
+			} else
+				register(deserializers, componentTypes(deserializer, JsonbDeserializer.class)[0], deserializer,
+						"deserializer");
 		this.deserializers = Collections.unmodifiableList(deserializers);
 
 		final List<Registration<JsonbSerializer>> serializers = new ArrayList<>();
 		for (final var serializer : (JsonbSerializer[]) config.getProperty(JsonbConfig.SERIALIZERS)
 				.orElse(new JsonbSerializer[0]))
-			register(serializers, componentTypes(serializer, JsonbSerializer.class)[0], serializer, "serializer");
+			if (serializer instanceof TypedSerializer) {
+				final var typed = (TypedSerializer) serializer;
+				register(serializers, typed.type, typed.serializer, "serializer");
+			} else
+				register(serializers, componentTypes(serializer, JsonbSerializer.class)[0], serializer,
+						"serializer");
 		this.serializers = Collections.unmodifiableList(serializers);
 
 		final List<Registration<AdapterReference>> adapters = new ArrayList<>();
 		for (final var adapter : (JsonbAdapter[]) config.getProperty(JsonbConfig.ADAPTERS)
 				.orElse(new JsonbAdapter[0])) {
-			final var types = componentTypes(adapter, JsonbAdapter.class);
-			register(adapters, types[0], new AdapterReference(types[0], types[1], adapter), "adapter");
+			final Type[] types;
+			final JsonbAdapter component;
+			if (adapter instanceof TypedAdapter) {
+				final var typed = (TypedAdapter) adapter;
+				types = new Type[] { typed.original, typed.adapted };
+				component = typed.adapter;
+			} else {
+				types = componentTypes(adapter, JsonbAdapter.class);
+				component = adapter;
+			}
+			register(adapters, types[0], new AdapterReference(types[0], types[1], component), "adapter");
 		}
 		this.adapters = Collections.unmodifiableList(adapters);
 
-		configuredFormat = IuObject.convert(config.getProperty(JsonbConfig.PROPERTY_NAMING_STRATEGY).orElse(null),
-				IuJsonb::propertyNameFormat);
+		// IDENTITY and LOWER_CASE_WITH_UNDERSCORES are IU formats, which a
+		// SERIALIZATION_OPTIONS supplier may vary; any other strategy is fixed
+		final var configuredNaming = IuObject
+				.convert(config.getProperty(JsonbConfig.PROPERTY_NAMING_STRATEGY).orElse(null), IuJsonbNaming::of);
+		if (configuredNaming != null && configuredNaming.format() == null) {
+			naming = configuredNaming;
+			configuredFormat = null;
+		} else {
+			naming = null;
+			configuredFormat = IuObject.convert(configuredNaming, IuJsonbNaming::format);
+		}
 		configuredNullValues = (Boolean) config.getProperty(JsonbConfig.NULL_VALUES).orElse(null);
+
+		strictIJson = (Boolean) config.getProperty(JsonbConfig.STRICT_IJSON).orElse(false);
+		configuredDateFormat = (String) config.getProperty(JsonbConfig.DATE_FORMAT).orElse(null);
+		final var configuredLocale = config.getProperty(JsonbConfig.LOCALE).orElse(null);
+		locale = configuredLocale instanceof String //
+				? Locale.forLanguageTag((String) configuredLocale)
+				: (Locale) configuredLocale;
+
+		final var configuredStrategy = (String) config.getProperty(JsonbConfig.BINARY_DATA_STRATEGY).orElse(null);
+		final var base64UrlUnpadded = (Boolean) config.getProperty(BASE64_URL_UNPADDED).orElse(false);
+		// an unknown strategy fails now rather than on first use
+		BinaryJsonAdapter.of(configuredStrategy, base64UrlUnpadded);
+		// strict I-JSON writes base64url whatever else is configured
+		configuredBinary = strictIJson ? null : configuredStrategy;
+		binary = new IuJsonbBinaryAdapter(this, base64UrlUnpadded);
+		encoding = IuObject.convert((String) config.getProperty(JsonbConfig.ENCODING).orElse(null), Charset::forName);
 
 		// IU options, when supplied, must agree with the equivalent JSON-B settings;
 		// the supplier is dynamic, so each call's snapshot is checked
 		final var serializationOptions = (Supplier<IuJsonSerializationOptions>) config
 				.getProperty(SERIALIZATION_OPTIONS).orElse(null);
 		if (serializationOptions != null) {
+			if (naming != null)
+				throw new JsonbException(JsonbConfig.PROPERTY_NAMING_STRATEGY + " "
+						+ config.getProperty(JsonbConfig.PROPERTY_NAMING_STRATEGY).get() + " conflicts with "
+						+ SERIALIZATION_OPTIONS + ", which names properties by an IU property name format");
 			options = serializationOptions;
-			checkConflicts = configuredFormat != null || configuredNullValues != null;
+			checkConflicts = configuredFormat != null || configuredNullValues != null || configuredBinary != null;
 		} else {
-			final var configuredOptions = IuJsonSerializationOptions.of( //
-					Objects.requireNonNullElse(configuredFormat, IuJsonPropertyNameFormat.IDENTITY), //
-					Objects.requireNonNullElse(configuredNullValues, false));
+			final var format = Objects.requireNonNullElse(configuredFormat, IuJsonPropertyNameFormat.IDENTITY);
+			final var includeNulls = Objects.requireNonNullElse(configuredNullValues, false);
+			final var binaryStrategy = Objects.requireNonNullElse(configuredBinary, BinaryDataStrategy.BYTE);
+			final IuJsonSerializationOptions configuredOptions = new IuJsonSerializationOptions() {
+				@Override
+				public IuJsonPropertyNameFormat getPropertyNameFormat() {
+					return format;
+				}
+
+				@Override
+				public boolean isIncludeNullProperties() {
+					return includeNulls;
+				}
+
+				@Override
+				public String getBinaryDataStrategy() {
+					return binaryStrategy;
+				}
+			};
 			options = () -> configuredOptions;
 			checkConflicts = false;
 		}
 	}
 
-	private static IuJsonPropertyNameFormat propertyNameFormat(Object propertyNamingStrategy) {
-		if (propertyNamingStrategy instanceof String)
-			switch ((String) propertyNamingStrategy) {
-			case PropertyNamingStrategy.LOWER_CASE_WITH_UNDERSCORES:
-				return IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES;
+	/**
+	 * Gets the fixed naming a JSON-B property naming strategy sets.
+	 *
+	 * @return {@link IuJsonbNaming}; null if properties are named by an IU
+	 *         property name format, per call
+	 */
+	IuJsonbNaming naming() {
+		return naming;
+	}
 
-			case PropertyNamingStrategy.IDENTITY:
-				return IuJsonPropertyNameFormat.IDENTITY;
+	/**
+	 * Gets the {@code byte[]} conversion the binary data strategy sets.
+	 *
+	 * @return {@link IuJsonbBinaryAdapter}
+	 */
+	IuJsonbBinaryAdapter binary() {
+		return binary;
+	}
 
-			default:
-				throw new UnsupportedOperationException((String) propertyNamingStrategy);
-			}
+	/**
+	 * Gets the conversion for a map key: the key type's built-in text conversion,
+	 * with an enum named by {@link Enum#name()}, or written as
+	 * {@link Enum#toString()} when the call's options
+	 * {@link IuJsonSerializationOptions#isEnumToString() say so}.
+	 *
+	 * @param type key type
+	 * @return key adapter
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	IuJsonAdapter<?> keyAdapter(Type type) {
+		final var erased = JsonAdapters.erase(type);
+		if (erased.isEnum())
+			return IuJsonAdapter.from(v -> Enum.valueOf((Class) erased, ((JsonString) v).getString()), e -> {
+				final var context = IuSerializationContext.current(this);
+				final var options = context == null ? options() : context.options();
+				return IuJson.string(options.isEnumToString() ? e.toString() : ((Enum<?>) e).name());
+			});
 		else
-			throw new UnsupportedOperationException(propertyNamingStrategy.toString());
+			return JsonAdapters.adapt(type, null);
 	}
 
 	/**
@@ -314,7 +584,9 @@ public class IuJsonb implements Jsonb {
 					&& ((TypeVariable<?>) type).getGenericDeclaration() == componentInterface)
 				throw new JsonbException("can't determine the type " + component.getClass().getName()
 						+ " converts; declare the type argument of " + componentInterface.getSimpleName()
-						+ " on the class or one of its supertypes, since a lambda or raw implementation has none");
+						+ " on the class or one of its supertypes, since a lambda or raw implementation has none, "
+						+ "or register it with IuJsonb.typed" + componentInterface.getSimpleName().substring(5)
+						+ "(Type, ...)");
 		return types;
 	}
 
@@ -333,7 +605,9 @@ public class IuJsonb implements Jsonb {
 		if (type instanceof TypeVariable)
 			throw new JsonbException(kind + " " + component.getClass().getName() + " converts the type variable "
 					+ type.getTypeName() + ", so would apply to every type; declare a concrete type argument, "
-					+ "or a parameterized type such as List<" + type.getTypeName() + ">");
+					+ "or a parameterized type such as List<" + type.getTypeName() + ">, "
+					+ "or register it for an explicit type with IuJsonb.typed" + Character.toUpperCase(kind.charAt(0))
+					+ kind.substring(1) + "(Type, ...)");
 		registry.add(new Registration<>(type, component));
 	}
 
@@ -347,26 +621,35 @@ public class IuJsonb implements Jsonb {
 	 * same type, run in the order they were configured.
 	 * </p>
 	 *
-	 * @param <T>      component type
-	 * @param registry components in the order they were configured
-	 * @param type     type being converted; a primitive is boxed, and a type
-	 *                 variable or wildcard reads as its upper bound
-	 * @param scalar   true to leave out components registered for a
-	 *                 {@link #isBroad(Type) broad} type, for a scalar value
+	 * <p>
+	 * Several registries merge into one chain by the same rule: between
+	 * components of different registries neither more specific than the other,
+	 * those of the registry listed first run first.
+	 * </p>
+	 *
+	 * @param <T>        component type
+	 * @param type       type being converted; a primitive is boxed, and a type
+	 *                   variable or wildcard reads as its upper bound
+	 * @param scalar     true to leave out components registered for a
+	 *                   {@link #isBroad(Type) broad} type, for a scalar value
+	 * @param registries components in the order they were configured, by
+	 *                   precedence among equally specific components
 	 * @return components that apply, in order
 	 */
-	private static <T> List<T> chain(List<Registration<T>> registry, Type type, boolean scalar) {
+	@SafeVarargs
+	private static <T> List<T> chain(Type type, boolean scalar, List<? extends Registration<? extends T>>... registries) {
 		var lookup = GenericTypes.box(type);
 		while (lookup instanceof TypeVariable || lookup instanceof WildcardType)
 			lookup = lookup instanceof TypeVariable //
 					? ((TypeVariable<?>) lookup).getBounds()[0]
 					: ((WildcardType) lookup).getUpperBounds()[0];
 
-		final List<Registration<T>> candidates = new ArrayList<>();
-		for (final var registration : registry)
-			if (!(scalar && registration.broad) //
-					&& GenericTypes.isAssignable(registration.type, lookup))
-				candidates.add(registration);
+		final List<Registration<? extends T>> candidates = new ArrayList<>();
+		for (final var registry : registries)
+			for (final var registration : registry)
+				if (!(scalar && registration.broad) //
+						&& GenericTypes.isAssignable(registration.type, lookup))
+					candidates.add(registration);
 
 		// specificity is a partial order, so rather than sorting, take the first
 		// configured candidate that no remaining candidate is more specific than
@@ -389,10 +672,7 @@ public class IuJsonb implements Jsonb {
 	 *         subtypes, and the primitive number types and {@code boolean}
 	 */
 	static boolean isScalar(Type type) {
-		final var c = (Class<?>) GenericTypes.box(JsonAdapters.erase(type));
-		return CharSequence.class.isAssignableFrom(c) //
-				|| Number.class.isAssignableFrom(c) //
-				|| c == Boolean.class;
+		return JsonAdapters.isScalar(type);
 	}
 
 	/**
@@ -406,13 +686,7 @@ public class IuJsonb implements Jsonb {
 	 *         isn't {@link #isScalar(Type) scalar}
 	 */
 	static boolean isBroad(Type type) {
-		final var c = JsonAdapters.erase(type);
-		if (c == Object.class || c == Serializable.class)
-			return true;
-		if (!c.isInterface() || isScalar(c))
-			return false;
-		final var packageName = c.getPackageName();
-		return packageName.equals("java.lang") || packageName.startsWith("java.lang.");
+		return JsonAdapters.isBroad(type);
 	}
 
 	private static boolean isLessSpecific(Registration<?> candidate, List<? extends Registration<?>> candidates) {
@@ -443,31 +717,35 @@ public class IuJsonb implements Jsonb {
 	 * @return adapters
 	 */
 	List<AdapterReference> adapters(Type type, boolean scalar) {
-		return chain(adapters, type, scalar);
+		return chain(type, scalar, adapters);
 	}
 
 	/**
-	 * Gets the serializers that apply to a type, most specific first.
+	 * Gets the serializers and adapters that apply to a type, most specific
+	 * first; between a serializer and an adapter neither more specific than the
+	 * other, the serializer first.
 	 *
 	 * @param type   type
-	 * @param scalar true for a scalar value, to leave out serializers registered
+	 * @param scalar true for a scalar value, to leave out components registered
 	 *               for {@link Object}
-	 * @return serializers
+	 * @return {@link JsonbSerializer} and {@link AdapterReference} components
 	 */
-	List<JsonbSerializer> serializers(Type type, boolean scalar) {
-		return chain(serializers, type, scalar);
+	List<Object> writeChain(Type type, boolean scalar) {
+		return chain(type, scalar, serializers, adapters);
 	}
 
 	/**
-	 * Gets the deserializers that apply to a type, most specific first.
+	 * Gets the deserializers and adapters that apply to a type, most specific
+	 * first; between a deserializer and an adapter neither more specific than the
+	 * other, the deserializer first.
 	 *
 	 * @param type   type
-	 * @param scalar true for a scalar value, to leave out deserializers registered
+	 * @param scalar true for a scalar value, to leave out components registered
 	 *               for {@link Object}
-	 * @return deserializers
+	 * @return {@link JsonbDeserializer} and {@link AdapterReference} components
 	 */
-	List<JsonbDeserializer> deserializers(Type type, boolean scalar) {
-		return chain(deserializers, type, scalar);
+	List<Object> readChain(Type type, boolean scalar) {
+		return chain(type, scalar, deserializers, adapters);
 	}
 
 	/**
@@ -513,6 +791,11 @@ public class IuJsonb implements Jsonb {
 			if (configuredNullValues != null && snapshot.isIncludeNullProperties() != configuredNullValues)
 				throw new JsonbException(JsonbConfig.NULL_VALUES + " " + configuredNullValues + " conflicts with "
 						+ SERIALIZATION_OPTIONS + " include null properties " + snapshot.isIncludeNullProperties());
+			final var binaryStrategy = Objects.requireNonNullElse(snapshot.getBinaryDataStrategy(),
+					IuJsonSerializationOptions.BINARY_DATA_STRATEGY);
+			if (configuredBinary != null && !configuredBinary.equals(binaryStrategy))
+				throw new JsonbException(JsonbConfig.BINARY_DATA_STRATEGY + " " + configuredBinary + " conflicts with "
+						+ SERIALIZATION_OPTIONS + " binary data strategy " + binaryStrategy);
 		}
 		return snapshot;
 	}
@@ -530,10 +813,11 @@ public class IuJsonb implements Jsonb {
 	/**
 	 * Gets the property model for a business object type.
 	 *
-	 * @param type business object type
+	 * @param type business object type, or a parameterized type of one, whose
+	 *             arguments the model's property types resolve against
 	 * @return {@link IuJsonbModel}
 	 */
-	IuJsonbModel model(Class<?> type) {
+	IuJsonbModel model(Type type) {
 		return models.computeIfAbsent(type, t -> new IuJsonbModel(t, this));
 	}
 
@@ -554,11 +838,136 @@ public class IuJsonb implements Jsonb {
 	}
 
 	/**
+	 * Gets a value adapter for a property: the type's, or, when the property
+	 * declares a date or number format that applies to its type, one with the
+	 * same components and that format in place of the built-in conversion.
+	 *
+	 * @param type   property type
+	 * @param date   date format declared; null if none
+	 * @param number number format declared; null if none
+	 * @return {@link IuJsonbValueAdapter}
+	 */
+	IuJsonbValueAdapter<Object> adapt(Type type, BindingMetadata.Format date, BindingMetadata.Format number) {
+		final var formatted = FormatAdapters.declared(type, date, number, configuredDateFormat, locale, strictIJson);
+		if (formatted == null)
+			return adapt(type);
+		else
+			return new IuJsonbValueAdapter<>(type, this, formatted);
+	}
+
+	/**
+	 * Gets the configured conversion for a date type: by
+	 * {@link JsonbConfig#DATE_FORMAT} and {@link JsonbConfig#LOCALE}, or as
+	 * {@link JsonbConfig#STRICT_IJSON} writes dates.
+	 *
+	 * @param type date type
+	 * @return conversion; null if neither is configured
+	 */
+	IuJsonAdapter<?> dateFormat(Class<?> type) {
+		return FormatAdapters.date(type, null, configuredDateFormat, locale, strictIJson);
+	}
+
+	/**
+	 * Determines if {@link JsonbConfig#STRICT_IJSON} is enabled.
+	 *
+	 * @return true for strict I-JSON
+	 */
+	boolean isStrictIJson() {
+		return strictIJson;
+	}
+
+	/**
+	 * Gets the options in effect: the call's in progress on this thread, or a
+	 * new snapshot.
+	 *
+	 * @return {@link IuJsonSerializationOptions}
+	 */
+	IuJsonSerializationOptions callOptions() {
+		final var serializing = IuSerializationContext.current(this);
+		if (serializing != null)
+			return serializing.options();
+		final var deserializing = IuDeserializationContext.current(this);
+		if (deserializing != null)
+			return deserializing.options();
+		return options();
+	}
+
+	/**
+	 * Names each array, collection, and map item in the path of the call in
+	 * progress, so a failure reads as {@code Root.items[2].name} or
+	 * {@code Root.byName["k"]}.
+	 *
+	 * <p>
+	 * An item converted with no call in progress, as a lazy {@link Iterable}
+	 * converts its items when iterated, tracks nothing; its own conversion starts
+	 * a call of its own.
+	 * </p>
+	 */
+	final ItemScope itemScope = new ItemScope() {
+		@Override
+		public void enterIndex(boolean writing, int index) {
+			final var context = context(writing);
+			if (context != null)
+				context.push("[" + index + "]");
+		}
+
+		@Override
+		public void enterKey(boolean writing, String key) {
+			// a map converts its entries eagerly, within its own call
+			context(writing).push("[" + IuJson.string(key) + "]");
+		}
+
+		@Override
+		public RuntimeException fail(boolean writing, RuntimeException failure) {
+			final var context = context(writing);
+			if (context != null)
+				return context.fail(failure);
+			else
+				return failure;
+		}
+
+		@Override
+		public void exit(boolean writing) {
+			final var context = context(writing);
+			if (context != null)
+				context.pop();
+		}
+
+		private IuJsonbContext context(boolean writing) {
+			if (writing)
+				return IuSerializationContext.current(IuJsonb.this);
+			else
+				return IuDeserializationContext.current(IuJsonb.this);
+		}
+	};
+
+	/**
+	 * Gets the type a platform class converts as, for a class with no built-in
+	 * conversion of its own, such as a JDK-internal collection or a subclass of a
+	 * supported type.
+	 *
+	 * <p>
+	 * The nearest superclass with a built-in conversion is used, short of
+	 * {@link Object}; failing that, the first of {@link CharSequence}, {@link Map},
+	 * {@link List}, {@link Set}, {@link Collection}, {@link Iterable},
+	 * {@link Iterator}, {@link Enumeration}, and {@link Stream} the class
+	 * implements.
+	 * </p>
+	 *
+	 * @param type platform class
+	 * @return {@code type} itself if it has a conversion of its own; the type it
+	 *         converts as; {@link Object} if none applies
+	 */
+	Type conversionType(Class<?> type) {
+		return JsonAdapters.conversionType(type);
+	}
+
+	/**
 	 * Reads a value as a new call, even when one is already in progress.
 	 */
-	private <T> T read(JsonParser parser, Type type) {
+	private <T> T read(JsonParser parser, Type type, String text) {
 		try (parser) {
-			return IuDeserializationContext.start(this, type, parser, c -> {
+			return IuDeserializationContext.start(this, type, parser, text, c -> {
 				parser.next();
 				return (T) adapt(type).read(parser);
 			});
@@ -572,7 +981,15 @@ public class IuJsonb implements Jsonb {
 		final var runtimeType = type == null ? IuSerializationContext.runtimeType(object) : type;
 		try (generator) {
 			IuSerializationContext.start(this, runtimeType, c -> {
-				adapt(runtimeType).write(object, generator);
+				if (strictIJson) {
+					// I-JSON's top-level value is an object or array
+					final var value = adapt(runtimeType).toJson(object);
+					if (!(value instanceof JsonStructure))
+						throw new JsonbException(JsonbConfig.STRICT_IJSON
+								+ " writes only an object or array at the top level, not " + value.getValueType());
+					generator.write(value);
+				} else
+					adapt(runtimeType).write(object, generator);
 				return null;
 			});
 		}
@@ -588,7 +1005,7 @@ public class IuJsonb implements Jsonb {
 		if (str == null)
 			return null;
 		else
-			return fromJson(new StringReader(str), runtimeType);
+			return read(parserFactory.createParser(new StringReader(str)), runtimeType, str);
 	}
 
 	@Override
@@ -598,7 +1015,7 @@ public class IuJsonb implements Jsonb {
 
 	@Override
 	public <T> T fromJson(Reader reader, Type runtimeType) throws JsonbException {
-		return read(parserFactory.createParser(Objects.requireNonNull(reader, "reader")), runtimeType);
+		return read(parserFactory.createParser(Objects.requireNonNull(reader, "reader")), runtimeType, null);
 	}
 
 	@Override
@@ -608,7 +1025,12 @@ public class IuJsonb implements Jsonb {
 
 	@Override
 	public <T> T fromJson(InputStream stream, Type runtimeType) throws JsonbException {
-		return read(parserFactory.createParser(Objects.requireNonNull(stream, "stream")), runtimeType);
+		Objects.requireNonNull(stream, "stream");
+		// detected from the stream unless configured
+		final var parser = encoding == null //
+				? parserFactory.createParser(stream)
+				: parserFactory.createParser(stream, encoding);
+		return read(parser, runtimeType, null);
 	}
 
 	@Override
@@ -640,7 +1062,8 @@ public class IuJsonb implements Jsonb {
 
 	@Override
 	public void toJson(Object object, Type runtimeType, OutputStream stream) throws JsonbException {
-		write(generatorFactory.createGenerator(stream), object, runtimeType);
+		write(generatorFactory.createGenerator(stream, Objects.requireNonNullElse(encoding, StandardCharsets.UTF_8)),
+				object, runtimeType);
 	}
 
 	@Override

@@ -31,9 +31,11 @@
  */
 package iu.client;
 
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
@@ -52,6 +54,7 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -87,7 +90,9 @@ import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -125,14 +130,48 @@ public final class JsonAdapters {
 	 * @param valueAdapter value type adapter
 	 * @return {@link IuJsonAdapter}
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings("rawtypes")
 	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return adapt(type, valueAdapter, ItemScope.NONE);
+	}
+
+	/**
+	 * {@link IuJsonAdapter} factory method, tracking the items of an array,
+	 * collection, or map as {@link #adapt(Type, Function)} converts them.
+	 *
+	 * @param type         Java type
+	 * @param valueAdapter value type adapter
+	 * @param scope        tracks the item converting, for an array, collection,
+	 *                     or map
+	 * @return {@link IuJsonAdapter}
+	 */
+	@SuppressWarnings("rawtypes")
+	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter, ItemScope scope) {
+		return adapt(type, valueAdapter, t -> adapt(t, null), scope);
+	}
+
+	/**
+	 * {@link IuJsonAdapter} factory method, tracking the items of an array,
+	 * collection, or map, and converting a map's keys by a function of their
+	 * own.
+	 *
+	 * @param type         Java type
+	 * @param valueAdapter value type adapter
+	 * @param keyAdapter   map key type adapter, whose values convert to and from
+	 *                     text
+	 * @param scope        tracks the item converting, for an array, collection,
+	 *                     or map
+	 * @return {@link IuJsonAdapter}
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter,
+			Function<Type, IuJsonAdapter<?>> keyAdapter, ItemScope scope) {
 		final var bound = bound(type);
 		if (bound != null)
 			if (valueAdapter != null)
 				return valueAdapter.apply(bound);
 			else
-				return adapt(bound, null);
+				return adapt(bound, null, keyAdapter, scope);
 
 		Class erased = erase(type);
 
@@ -201,13 +240,15 @@ public final class JsonAdapters {
 		if (erased == LocalDate.class)
 			return ParsingJsonAdapter.of(LocalDate.class, LocalDate::parse);
 		if (erased == LocalTime.class)
-			return ParsingJsonAdapter.of(LocalTime.class, LocalTime::parse);
+			return ParsingJsonAdapter.of(LocalTime.class, LocalTime::parse, DateTimeFormatter.ISO_LOCAL_TIME::format);
 		if (erased == LocalDateTime.class)
-			return ParsingJsonAdapter.of(LocalDateTime.class, LocalDateTime::parse);
+			return ParsingJsonAdapter.of(LocalDateTime.class, LocalDateTime::parse,
+					DateTimeFormatter.ISO_LOCAL_DATE_TIME::format);
 		if (erased == OffsetDateTime.class)
-			return ParsingJsonAdapter.of(OffsetDateTime.class, OffsetDateTime::parse);
+			return ParsingJsonAdapter.of(OffsetDateTime.class, OffsetDateTime::parse,
+					DateTimeFormatter.ISO_OFFSET_DATE_TIME::format);
 		if (erased == OffsetTime.class)
-			return ParsingJsonAdapter.of(OffsetTime.class, OffsetTime::parse);
+			return ParsingJsonAdapter.of(OffsetTime.class, OffsetTime::parse, DateTimeFormatter.ISO_OFFSET_TIME::format);
 		if (erased == Pattern.class)
 			return ParsingJsonAdapter.of(Pattern.class, Pattern::compile);
 		if (erased == Period.class)
@@ -217,7 +258,8 @@ public final class JsonAdapters {
 		if (erased == TimeZone.class)
 			return TimeZoneJsonAdapter.INSTANCE;
 		if (erased == ZonedDateTime.class)
-			return ParsingJsonAdapter.of(ZonedDateTime.class, ZonedDateTime::parse);
+			return ParsingJsonAdapter.of(ZonedDateTime.class, ZonedDateTime::parse,
+					DateTimeFormatter.ISO_ZONED_DATE_TIME::format);
 		if (erased == ZoneId.class)
 			return ParsingJsonAdapter.of(ZoneId.class, ZoneId::of);
 		if (erased == ZoneOffset.class)
@@ -257,10 +299,10 @@ public final class JsonAdapters {
 
 			final var component = erased.getComponentType();
 			if (component.isPrimitive())
-				return new PrimitiveArrayAdapter(itemAdapter, component);
+				return scoped(new PrimitiveArrayAdapter(itemAdapter, component), scope);
 
 			final IntFunction factory = n -> Array.newInstance(component, n);
-			return new ArrayAdapter(itemAdapter, factory);
+			return scoped(new ArrayAdapter(itemAdapter, factory), scope);
 		}
 
 		if (Iterable.class.isAssignableFrom(erased) //
@@ -276,47 +318,47 @@ public final class JsonAdapters {
 				itemAdapter = BasicJsonAdapter.INSTANCE;
 
 			if (erased == Iterable.class)
-				return new IterableAdapter(itemAdapter);
+				return scoped(new IterableAdapter(itemAdapter), scope);
 
 			if (erased == Collection.class //
 					|| erased == Queue.class //
 					|| erased == Deque.class //
 					|| erased == ArrayDeque.class)
-				return new CollectionAdapter(itemAdapter, ArrayDeque::new);
+				return scoped(new CollectionAdapter(itemAdapter, ArrayDeque::new), scope);
 
 			if (erased == List.class //
 					|| erased == ArrayList.class)
-				return new CollectionAdapter(itemAdapter, ArrayList::new);
+				return scoped(new CollectionAdapter(itemAdapter, ArrayList::new), scope);
 
 			if (erased == LinkedList.class)
-				return new CollectionAdapter(itemAdapter, LinkedList::new);
+				return scoped(new CollectionAdapter(itemAdapter, LinkedList::new), scope);
 
 			if (erased == PriorityQueue.class)
-				return new CollectionAdapter(itemAdapter, PriorityQueue::new);
+				return scoped(new CollectionAdapter(itemAdapter, PriorityQueue::new), scope);
 
 			if (erased == EnumSet.class) {
 				final Class element = enumType(item(type), type);
-				return new CollectionAdapter(itemAdapter, () -> EnumSet.noneOf(element));
+				return scoped(new CollectionAdapter(itemAdapter, () -> EnumSet.noneOf(element)), scope);
 			}
 
 			if (erased == Set.class //
 					|| erased == LinkedHashSet.class)
-				return new CollectionAdapter(itemAdapter, LinkedHashSet::new);
+				return scoped(new CollectionAdapter(itemAdapter, LinkedHashSet::new), scope);
 
 			if (erased == SortedSet.class //
 					|| erased == NavigableSet.class //
 					|| erased == TreeSet.class)
-				return new CollectionAdapter(itemAdapter, TreeSet::new);
+				return scoped(new CollectionAdapter(itemAdapter, TreeSet::new), scope);
 
 			if (erased == HashSet.class)
-				return new CollectionAdapter(itemAdapter, HashSet::new);
+				return scoped(new CollectionAdapter(itemAdapter, HashSet::new), scope);
 
 			if (erased == Enumeration.class)
-				return new EnumerationAdapter(itemAdapter);
+				return scoped(new EnumerationAdapter(itemAdapter), scope);
 			if (erased == Iterator.class)
-				return new IteratorAdapter(itemAdapter);
+				return scoped(new IteratorAdapter(itemAdapter), scope);
 			if (erased == Stream.class)
-				return new StreamAdapter(itemAdapter);
+				return scoped(new StreamAdapter(itemAdapter), scope);
 		}
 
 		if (Map.class.isAssignableFrom(erased)) {
@@ -329,35 +371,38 @@ public final class JsonAdapters {
 			// a key is a JSON name, not a value: it converts through the key type's
 			// built-in text conversion, never through valueAdapter
 			final Type keyType;
-			final IuJsonAdapter keyAdapter;
+			final IuJsonAdapter keys;
 			if (type instanceof ParameterizedType) {
 				keyType = ((ParameterizedType) type).getActualTypeArguments()[0];
-				keyAdapter = adapt(keyType, null);
+				keys = keyAdapter.apply(keyType);
 			} else {
 				keyType = Object.class;
-				keyAdapter = BasicJsonAdapter.INSTANCE;
+				keys = BasicJsonAdapter.INSTANCE;
 			}
 
+			final Supplier<Map> factory;
 			if (erased == EnumMap.class) {
 				final Class keyClass = enumType(keyType, type);
-				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)),
-						() -> new EnumMap(keyClass));
-			}
-
-			if (erased == Map.class //
+				factory = () -> new EnumMap(keyClass);
+			} else if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
-				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), LinkedHashMap::new);
-
-			if (erased == HashMap.class)
-				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), HashMap::new);
-
-			if (erased == SortedMap.class //
+				factory = LinkedHashMap::new;
+			else if (erased == HashMap.class)
+				factory = HashMap::new;
+			else if (erased == SortedMap.class //
 					|| erased == NavigableMap.class //
 					|| erased == TreeMap.class)
-				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), TreeMap::new);
+				factory = TreeMap::new;
+			else if (erased == Properties.class)
+				factory = Properties::new;
+			else
+				factory = null;
 
-			if (erased == Properties.class)
-				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)), Properties::new);
+			if (factory != null) {
+				final var adapter = new JsonObjectAdapter(keys, valueAdapter.apply(item(type)), factory);
+				adapter.scope = scope;
+				return adapter;
+			}
 		}
 
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
@@ -421,6 +466,124 @@ public final class JsonAdapters {
 				return p.getActualTypeArguments()[1];
 			else
 				return p.getActualTypeArguments()[0];
+		}
+	}
+
+	private static <A extends JsonArrayAdapter<?, ?>> A scoped(A adapter, ItemScope scope) {
+		adapter.scope = scope;
+		return adapter;
+	}
+
+	/**
+	 * Determines if values of a type are scalar: text, a number, or a boolean.
+	 *
+	 * @param type type
+	 * @return true for {@link CharSequence}, {@link Number}, {@link Boolean}, their
+	 *         subtypes, and the primitive number types and {@code boolean}
+	 */
+	public static boolean isScalar(Type type) {
+		final var c = (Class<?>) GenericTypes.box(erase(type));
+		return CharSequence.class.isAssignableFrom(c) //
+				|| Number.class.isAssignableFrom(c) //
+				|| c == Boolean.class;
+	}
+
+	/**
+	 * Determines if a type is broad: a value declared as it may be of nearly any
+	 * type, so converts as its runtime type.
+	 *
+	 * @param type type
+	 * @return true for {@link Object}, {@link java.io.Serializable}, and an
+	 *         interface in {@code java.lang} or one of its subpackages, such as
+	 *         {@link Comparable} or {@code java.lang.constant.Constable}, that
+	 *         isn't {@link #isScalar(Type) scalar}
+	 */
+	public static boolean isBroad(Type type) {
+		final var c = erase(type);
+		if (c == Object.class || c == Serializable.class)
+			return true;
+		if (!c.isInterface() || isScalar(c))
+			return false;
+		final var packageName = c.getPackageName();
+		return packageName.equals("java.lang") || packageName.startsWith("java.lang.");
+	}
+
+	/**
+	 * Gets the type to convert a value as when no declared type applies.
+	 *
+	 * @param value value
+	 * @return {@link Enum#getDeclaringClass()} for an enum constant, including one
+	 *         with a class body; the wrapped interface for a {@link JsonProxy};
+	 *         otherwise the value's class, or {@link Object} for null
+	 */
+	public static Class<?> runtimeType(Object value) {
+		if (value == null)
+			return Object.class;
+		else if (value instanceof Enum)
+			return ((Enum<?>) value).getDeclaringClass();
+		else if (Proxy.isProxyClass(value.getClass()) //
+				&& Proxy.getInvocationHandler(value) instanceof JsonProxy)
+			return value.getClass().getInterfaces()[0];
+		else
+			return value.getClass();
+	}
+
+	/**
+	 * Gets a conversion for a value of a {@link #isBroad(Type) broad} declared
+	 * type, by its runtime type.
+	 *
+	 * @param valueAdapter value adapter function, given the runtime type of each
+	 *                     value written
+	 * @return {@link IuJsonAdapter}
+	 */
+	public static IuJsonAdapter<Object> runtime(Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return new RuntimeTypeAdapter(valueAdapter);
+	}
+
+	private static final Map<Class<?>, Type> CONVERSION_TYPES = new ConcurrentHashMap<>();
+
+	private static final Class<?>[] CONVERSION_INTERFACES = { CharSequence.class, Map.class, List.class, Set.class,
+			Collection.class, Iterable.class, Iterator.class, Enumeration.class, Stream.class };
+
+	/**
+	 * Gets the type a platform class converts as, for a class with no built-in
+	 * conversion of its own, such as a JDK-internal collection or a subclass of a
+	 * supported type.
+	 *
+	 * <p>
+	 * The nearest superclass with a built-in conversion is used, short of
+	 * {@link Object}; failing that, the first of {@link CharSequence}, {@link Map},
+	 * {@link List}, {@link Set}, {@link Collection}, {@link Iterable},
+	 * {@link Iterator}, {@link Enumeration}, and {@link Stream} the class
+	 * implements.
+	 * </p>
+	 *
+	 * @param type platform class
+	 * @return {@code type} itself if it has a conversion of its own; the type it
+	 *         converts as; {@link Object} if none applies
+	 */
+	public static Type conversionType(Class<?> type) {
+		return CONVERSION_TYPES.computeIfAbsent(type, JsonAdapters::resolveConversionType);
+	}
+
+	private static Type resolveConversionType(Class<?> type) {
+		for (Class<?> next = type; next != null && next != Object.class; next = next.getSuperclass())
+			if (hasConversion(next))
+				return next;
+
+		for (final var conversionInterface : CONVERSION_INTERFACES)
+			if (conversionInterface.isAssignableFrom(type))
+				return conversionInterface;
+
+		return Object.class;
+	}
+
+	private static boolean hasConversion(Class<?> type) {
+		try {
+			adapt(type, null);
+			return true;
+		} catch (UnsupportedOperationException e) {
+			return false;
 		}
 	}
 

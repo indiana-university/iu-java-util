@@ -355,4 +355,46 @@ public class GenericTypesTest {
 		assertInstanceOf(TypeVariable.class, ((ParameterizedType) listOfT).getActualTypeArguments()[0]);
 	}
 
+
+	static abstract class TypeReference<T> {
+		Type type() {
+			return ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[0];
+		}
+	}
+
+	static class Holder<T> {
+		T value;
+		List<T> values;
+		T[] array;
+	}
+
+	static class TextHolder extends Holder<String> {
+	}
+
+	static class Plain {
+		String text;
+	}
+
+	@Test
+	public void testResolve() throws Exception {
+		final var value = Holder.class.getDeclaredField("value").getGenericType();
+		final var values = Holder.class.getDeclaredField("values").getGenericType();
+		final var array = Holder.class.getDeclaredField("array").getGenericType();
+
+		assertEquals(String.class, GenericTypes.resolve(value, TextHolder.class, Holder.class));
+		assertEquals(new TypeReference<List<String>>() {
+		}.type(), GenericTypes.resolve(values, TextHolder.class, Holder.class));
+		assertEquals(String[].class, GenericTypes.resolve(array, TextHolder.class, Holder.class));
+
+		// from a parameterized type
+		final var holderOfInteger = new TypeReference<Holder<Integer>>() {
+		}.type();
+		assertEquals(Integer.class, GenericTypes.resolve(value, holderOfInteger, Holder.class));
+
+		// unbound, not generic, or not a subtype
+		assertSame(value, GenericTypes.resolve(value, Holder.class, Holder.class));
+		assertSame(String.class, GenericTypes.resolve(String.class, Plain.class, Plain.class));
+		assertSame(value, GenericTypes.resolve(value, Plain.class, Holder.class));
+	}
+
 }

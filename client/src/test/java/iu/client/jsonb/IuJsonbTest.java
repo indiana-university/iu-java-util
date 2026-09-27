@@ -48,6 +48,7 @@ import java.io.StringWriter;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -201,10 +202,66 @@ public class IuJsonbTest {
 		assertEquals("{\"firstName\":\"first\"}",
 				jsonb(new JsonbConfig().withPropertyNamingStrategy(PropertyNamingStrategy.IDENTITY))
 						.toJson(new Bean()));
-		assertThrows(UnsupportedOperationException.class, () -> jsonb(
-				new JsonbConfig().withPropertyNamingStrategy(PropertyNamingStrategy.LOWER_CASE_WITH_DASHES)));
+
+		final Map<String, String> names = Map.of( //
+				PropertyNamingStrategy.LOWER_CASE_WITH_DASHES, "first-name", //
+				PropertyNamingStrategy.UPPER_CAMEL_CASE, "FirstName", //
+				PropertyNamingStrategy.UPPER_CAMEL_CASE_WITH_SPACES, "First Name", //
+				PropertyNamingStrategy.CASE_INSENSITIVE, "firstName");
+		for (final var entry : names.entrySet()) {
+			final var jsonb = jsonb(new JsonbConfig().withPropertyNamingStrategy(entry.getKey()));
+			final var json = "{\"" + entry.getValue() + "\":\"first\"}";
+			assertEquals(json, jsonb.toJson(new Bean()), entry.getKey());
+			assertEquals("x", jsonb.fromJson(json.replace("first\"}", "x\"}"), Bean.class).firstName,
+					entry.getKey());
+		}
+
+		// a custom strategy
+		assertEquals("{\"x_count\":null,\"x_firstName\":\"first\"}",
+				jsonb(new JsonbConfig().withPropertyNamingStrategy(name -> "x_" + name).withNullValues(true))
+						.toJson(new Bean()));
+
 		assertThrows(UnsupportedOperationException.class,
-				() -> jsonb(new JsonbConfig().withPropertyNamingStrategy(name -> name)));
+				() -> jsonb(new JsonbConfig().withPropertyNamingStrategy("NOT_A_STRATEGY")));
+		assertThrows(UnsupportedOperationException.class,
+				() -> jsonb(new JsonbConfig().setProperty(JsonbConfig.PROPERTY_NAMING_STRATEGY, 5)));
+	}
+
+	@Test
+	public void testCaseInsensitive() {
+		final var jsonb = jsonb(new JsonbConfig().withPropertyNamingStrategy(PropertyNamingStrategy.CASE_INSENSITIVE));
+		assertEquals("x", jsonb.fromJson("{\"FIRSTNAME\":\"x\"}", Bean.class).firstName);
+		assertEquals("x", ((Bean) jsonb.adapt(Bean.class).fromJson(IuJson.parse("{\"FirstName\":\"x\"}"))).firstName);
+
+		// without the strategy, only the exact name matches
+		assertEquals("first", jsonb(new JsonbConfig()).fromJson("{\"FIRSTNAME\":\"x\"}", Bean.class).firstName);
+	}
+
+	@Test
+	public void testNamingStrategyConflictsWithSerializationOptions() {
+		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.DEFAULT;
+		final var error = assertThrows(JsonbException.class,
+				() -> jsonb(new JsonbConfig().withPropertyNamingStrategy(PropertyNamingStrategy.UPPER_CAMEL_CASE)
+						.setProperty(IuJsonb.SERIALIZATION_OPTIONS, options)));
+		assertTrue(error.getMessage().contains("conflicts with " + IuJsonb.SERIALIZATION_OPTIONS),
+				error::getMessage);
+	}
+
+	@Test
+	public void testStrategyMustName() {
+		final var jsonb = jsonb(new JsonbConfig().withPropertyNamingStrategy(name -> null));
+		final var error = assertThrows(JsonbException.class, () -> jsonb.toJson(new Bean()));
+		assertInstanceOf(NullPointerException.class, error.getCause());
+		assertEquals("translated name", error.getCause().getMessage());
+	}
+
+	@Test
+	public void testStandardNames() {
+		assertEquals("", IuJsonbNaming.capitalized(""));
+		assertEquals("URL", IuJsonbNaming.capitalized("uRL"));
+		assertEquals("u-r-l", IuJsonbNaming.separated("URL", '-', false));
+		assertEquals("Url Name", IuJsonbNaming.separated("urlName", ' ', true));
+		assertEquals("a", IuJsonbNaming.separated("a", ' ', false));
 	}
 
 	@Test
@@ -274,7 +331,7 @@ public class IuJsonbTest {
 		assertThrows(JsonbException.class, () -> jsonb(new JsonbConfig().withAdapters(new Identity<>())));
 	}
 
-	static List<String> texts(List<JsonbSerializer> chain) {
+	static List<String> texts(List<?> chain) {
 		return chain.stream().map(s -> s instanceof Writes ? ((Writes) s).text : "?").collect(Collectors.toList());
 	}
 
@@ -287,8 +344,12 @@ public class IuJsonbTest {
 		}).withAdapters(new Identity<String>() {
 		}, new Identity<String>() {
 		}));
-		assertEquals(List.of("x", "y"), texts(jsonb.serializers(String.class, false)));
-		assertEquals(2, jsonb.deserializers(String.class, false).size());
+		// serializers and deserializers before adapters for the same type
+		assertEquals(List.of("x", "y", "?", "?"), texts(jsonb.writeChain(String.class, false)));
+		final var read = jsonb.readChain(String.class, false);
+		assertEquals(4, read.size());
+		assertInstanceOf(Reads.class, read.get(0));
+		assertInstanceOf(Reads.class, read.get(1));
 		assertEquals(2, jsonb.adapters(String.class, false).size());
 	}
 
@@ -304,15 +365,15 @@ public class IuJsonbTest {
 				.withAdapters(new Identity<Integer>() {
 				}));
 
-		assertEquals(List.of(), jsonb(new JsonbConfig()).serializers(String.class, false));
-		assertEquals(List.of("text"), texts(jsonb.serializers(String.class, false)));
-		assertEquals(List.of("named"), texts(jsonb.serializers(Named.class, false)));
-		assertEquals(List.of(), jsonb.serializers(Integer.class, false));
+		assertEquals(List.of(), jsonb(new JsonbConfig()).writeChain(String.class, false));
+		assertEquals(List.of("text"), texts(jsonb.writeChain(String.class, false)));
+		assertEquals(List.of("named"), texts(jsonb.writeChain(Named.class, false)));
+		assertEquals(List.of("?"), texts(jsonb.writeChain(Integer.class, false)));
 		// neither is more specific, so they run in the order configured
-		assertEquals(List.of("named", "tagged"), texts(jsonb.serializers(Both.class, false)));
+		assertEquals(List.of("named", "tagged"), texts(jsonb.writeChain(Both.class, false)));
 
-		assertEquals("read", ((Reads) jsonb.deserializers(String.class, false).get(0)).value);
-		assertEquals(List.of(), jsonb.deserializers(CharSequence.class, false));
+		assertEquals("read", ((Reads) jsonb.readChain(String.class, false).get(0)).value);
+		assertEquals(List.of(), jsonb.readChain(CharSequence.class, false));
 
 		assertEquals(Integer.class, jsonb.adapters(int.class, false).get(0).original);
 		assertEquals(Integer.class, jsonb.adapters(Integer.class, false).get(0).adapted);
@@ -330,10 +391,10 @@ public class IuJsonbTest {
 		final var jsonb = jsonb(new JsonbConfig().withSerializers(new Writes<CharSequence>("text") {
 		}));
 		assertEquals(List.of("text"),
-				texts(jsonb.serializers(Holder.class.getDeclaredField("value").getGenericType(), false)));
+				texts(jsonb.writeChain(Holder.class.getDeclaredField("value").getGenericType(), false)));
 		final var wildcard = ((java.lang.reflect.ParameterizedType) Holder.class.getDeclaredField("values")
 				.getGenericType()).getActualTypeArguments()[0];
-		assertEquals(List.of("text"), texts(jsonb.serializers(wildcard, false)));
+		assertEquals(List.of("text"), texts(jsonb.writeChain(wildcard, false)));
 	}
 
 	@Test
@@ -345,12 +406,12 @@ public class IuJsonbTest {
 		}));
 		// String is both a CharSequence and a Comparable, which are unrelated, so
 		// those two run in the order configured
-		assertEquals(List.of("string", "text", "comparable", "object"), texts(jsonb.serializers(String.class, false)));
-		assertEquals(List.of("comparable", "object"), texts(jsonb.serializers(Integer.class, false)));
+		assertEquals(List.of("string", "text", "comparable", "object"), texts(jsonb.writeChain(String.class, false)));
+		assertEquals(List.of("comparable", "object"), texts(jsonb.writeChain(Integer.class, false)));
 
 		// a scalar value leaves out the broad serializers, for Object and Comparable
-		assertEquals(List.of("string", "text"), texts(jsonb.serializers(String.class, true)));
-		assertEquals(List.of(), texts(jsonb.serializers(int.class, true)));
+		assertEquals(List.of("string", "text"), texts(jsonb.writeChain(String.class, true)));
+		assertEquals(List.of(), texts(jsonb.writeChain(int.class, true)));
 	}
 
 	@Test
@@ -387,7 +448,7 @@ public class IuJsonbTest {
 		final var jsonb = jsonb(new JsonbConfig().withSerializers(new Lists<>(), new Writes<List<?>>("any") {
 		}));
 		final var listOfString = Holder.class.getDeclaredField("values").getGenericType();
-		assertEquals(List.of("?", "any"), texts(jsonb.serializers(listOfString, false)));
+		assertEquals(List.of("?", "any"), texts(jsonb.writeChain(listOfString, false)));
 	}
 
 	@Test
@@ -443,7 +504,8 @@ public class IuJsonbTest {
 	public void testToJsonFailure() {
 		final var jsonb = jsonb(new JsonbConfig());
 		final var error = assertThrows(JsonbException.class, () -> jsonb.toJson(new Object()));
-		assertInstanceOf(IllegalArgumentException.class, error.getCause());
+		assertInstanceOf(UnsupportedOperationException.class, error.getCause());
+		assertEquals("Unsupported for JSON conversion: class java.lang.Object", error.getCause().getMessage());
 	}
 
 	@Test

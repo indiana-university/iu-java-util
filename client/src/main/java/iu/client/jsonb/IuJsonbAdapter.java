@@ -31,7 +31,11 @@
  */
 package iu.client.jsonb;
 
+import java.lang.reflect.Type;
+
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
+import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
@@ -55,6 +59,7 @@ import jakarta.json.stream.JsonParser.Event;
  */
 final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 
+	private final Type declared;
 	private final Class<T> type;
 	private final IuJsonb jsonb;
 	private volatile IuJsonbModel model;
@@ -62,18 +67,21 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 	/**
 	 * Constructor; the model is introspected on first use.
 	 *
-	 * @param type  business object type
+	 * @param type  business object type, or a parameterized type of one, whose
+	 *              arguments its property types resolve against
 	 * @param jsonb provider
 	 */
-	IuJsonbAdapter(Class<T> type, IuJsonb jsonb) {
-		this.type = type;
+	@SuppressWarnings("unchecked")
+	IuJsonbAdapter(Type type, IuJsonb jsonb) {
+		this.declared = type;
+		this.type = (Class<T>) JsonAdapters.erase(type);
 		this.jsonb = jsonb;
 	}
 
 	private IuJsonbModel model() {
 		var model = this.model;
 		if (model == null)
-			this.model = model = jsonb.model(type);
+			this.model = model = jsonb.model(declared);
 		return model;
 	}
 
@@ -86,16 +94,17 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 			throw new JsonbException("expected object for " + type.getName() + ", found " + value.getValueType());
 
 		final var context = IuDeserializationContext.require(jsonb);
-		final var format = context.format();
+		final var naming = context.naming();
 		final var object = value.asJsonObject();
 		if (type.isInterface())
-			return JsonProxy.wrap(object, type, format, jsonb::adapt);
+			return JsonProxy.wrap(IuJsonProperties.of(object, jsonb::adapt), type, naming::name,
+					naming.ignoresCase());
 
 		final var model = model();
 		final var bean = (T) model.newInstance();
 		for (final var entry : object.entrySet()) {
 			final var key = entry.getKey();
-			final var property = model.writable(format, key);
+			final var property = model.writable(naming, key);
 			if (property != null)
 				property.fromJson(bean, key, entry.getValue(), context);
 		}
@@ -112,15 +121,22 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 			throw new JsonbException("expected START_OBJECT for " + type.getName() + ", found " + event);
 
 		final var context = IuDeserializationContext.require(jsonb);
-		final var format = context.format();
-		if (type.isInterface())
-			return JsonProxy.wrap(parser.getObject(), type, format, jsonb::adapt);
+		final var naming = context.naming();
+		if (type.isInterface()) {
+			// the proxy converts each property when its getter is first called: from
+			// the text this call reads, in place, when there is some; otherwise from
+			// the tree, or from the rest captured raw as the parser moves on
+			final var view = new IuJsonbBoundedParser(parser, context);
+			final var properties = IuJsonProperties.read(view, jsonb::adapt);
+			view.release();
+			return JsonProxy.wrap(properties, type, naming::name, naming.ignoresCase());
+		}
 
 		final var model = model();
 		final var bean = (T) model.newInstance();
 		while (parser.next() != Event.END_OBJECT) {
 			final var key = parser.getString();
-			final var property = model.writable(format, key);
+			final var property = model.writable(naming, key);
 			event = parser.next();
 			if (property != null)
 				property.read(bean, key, parser, context);
@@ -143,7 +159,7 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		context.enterBean(value);
 		try {
 			final var builder = jsonb.provider().createObjectBuilder();
-			for (final var property : model().readable(context.format()))
+			for (final var property : model().readable(context.naming()))
 				property.add(value, builder, context);
 			return builder.build();
 		} finally {
@@ -166,7 +182,7 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		context.enterBean(value);
 		try {
 			generator.writeStartObject();
-			for (final var property : model().readable(context.format()))
+			for (final var property : model().readable(context.naming()))
 				property.write(value, generator, context);
 			generator.writeEnd();
 		} finally {
