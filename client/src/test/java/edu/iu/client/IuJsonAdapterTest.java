@@ -72,7 +72,10 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Deque;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Enumeration;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -128,11 +131,13 @@ public class IuJsonAdapterTest {
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentHashMap.class));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(ConcurrentLinkedQueue.class));
 
-		// no adapter for void, Void, or Character, despite what of(Type) once claimed
+		// no adapter for void or Void
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(void.class));
 		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(Void.class));
-		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(char.class));
-		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(Character.class));
+
+		// an EnumSet or EnumMap needs its enum type
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(EnumSet.class));
+		assertThrows(UnsupportedOperationException.class, () -> IuJsonAdapter.of(EnumMap.class));
 	}
 
 	@Test
@@ -596,13 +601,14 @@ public class IuJsonAdapterTest {
 	public void testAsText() {
 		final var id = IdGenerator.generateId();
 		assertEquals(id, IuJsonAdapter.of(String.class).fromJson(IuJson.string(id)));
-		assertEquals("34", IuJsonAdapter.of(String.class).fromJson(IuJson.number(new BigDecimal("34"))));
-		assertEquals("true", IuJsonAdapter.of(String.class).fromJson(JsonValue.TRUE));
-		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(JsonValue.FALSE));
 		assertNull(IuJsonAdapter.of(String.class).fromJson(JsonValue.NULL));
 		assertNull(IuJsonAdapter.of(String.class).fromJson(null));
-		assertEquals("a,1,true",
-				IuJsonAdapter.of(String.class).fromJson(IuJson.array().add("a").add(1).add(true).build()));
+
+		// only a string reads as text
+		for (final var other : new JsonValue[] { IuJson.number(new BigDecimal("34")), JsonValue.TRUE,
+				JsonValue.FALSE, IuJson.array().add("a").build(), JsonValue.EMPTY_JSON_OBJECT })
+			assertEquals("expected a string, found " + other.getValueType(), assertThrows(
+					IllegalArgumentException.class, () -> IuJsonAdapter.of(String.class).fromJson(other)).getMessage());
 	}
 
 	@Test
@@ -646,12 +652,9 @@ public class IuJsonAdapterTest {
 		final var adapter = IuJsonAdapter.of(Boolean.class);
 		assertTrue(adapter.fromJson(JsonValue.TRUE));
 		assertFalse(adapter.fromJson(JsonValue.FALSE));
-		assertTrue(adapter.fromJson(IuJson.string("true")));
-		assertFalse(adapter.fromJson(IuJson.string("false")));
-		assertTrue(adapter.fromJson(IuJson.number(1)));
-		assertFalse(adapter.fromJson(IuJson.number(0)));
-		assertTrue(adapter.fromJson(IuJson.array().build()));
-		assertTrue(adapter.fromJson(IuJson.object().build()));
+		for (final var other : new JsonValue[] { IuJson.string("true"), IuJson.number(1), IuJson.array().build(),
+				IuJson.object().build() })
+			assertThrows(IllegalArgumentException.class, () -> adapter.fromJson(other));
 		assertNull(adapter.fromJson(JsonValue.NULL));
 		assertNull(adapter.fromJson(null));
 		assertEquals(JsonValue.TRUE, adapter.toJson(true));
@@ -771,18 +774,24 @@ public class IuJsonAdapterTest {
 
 		final var value = Calendar.getInstance();
 		final var text = IuJson
-				.string(DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneId.of("UTC")).format(value.getTime().toInstant()));
+				.string(DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC).format(value.getTime().toInstant()));
 		assertEquals(text, adapter.toJson(value));
 		assertEquals(value, adapter.fromJson(text));
 
+		// a date is midnight UTC
+		value.setTimeZone(TimeZone.getTimeZone("UTC"));
 		value.set(Calendar.HOUR_OF_DAY, 0);
 		value.set(Calendar.MINUTE, 0);
 		value.set(Calendar.SECOND, 0);
 		value.set(Calendar.MILLISECOND, 0);
 		final var datetext = IuJson
-				.string(DateTimeFormatter.ISO_DATE.withZone(ZoneId.of("UTC")).format(value.getTime().toInstant()));
+				.string(DateTimeFormatter.ISO_DATE.withZone(ZoneOffset.UTC).format(value.getTime().toInstant()));
 		assertEquals(datetext, adapter.toJson(value));
-		assertEquals(value, adapter.fromJson(datetext));
+		assertEquals(value.getTime(), adapter.fromJson(datetext).getTime());
+
+		// reads as a GregorianCalendar, whatever the declared calendar type
+		assertInstanceOf(GregorianCalendar.class, adapter.fromJson(datetext));
+		assertEquals(value.getTime(), IuJsonAdapter.of(GregorianCalendar.class).fromJson(datetext).getTime());
 	}
 
 	@Test
@@ -793,9 +802,32 @@ public class IuJsonAdapterTest {
 
 		final var value = new Date();
 		final var text = IuJson
-				.string(DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneId.of("UTC")).format(value.toInstant()));
+				.string(DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC).format(value.toInstant()));
 		assertEquals(text, adapter.toJson(value));
 		assertEquals(value, adapter.fromJson(text));
+		assertTrue(text.getString().endsWith("Z"), text::getString);
+	}
+
+	@Test
+	public void testDateIsUtcInAnyZone() {
+		final var adapter = IuJsonAdapter.of(Date.class);
+		final var defaultZone = TimeZone.getDefault();
+		try {
+			// east of UTC, where local midnight is the day before in UTC
+			TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"));
+			final var midnightUtc = Date.from(Instant.parse("2026-09-26T00:00:00Z"));
+			assertEquals(IuJson.string("2026-09-26Z"), adapter.toJson(midnightUtc));
+			assertEquals(midnightUtc, adapter.fromJson(IuJson.string("2026-09-26Z")));
+			assertEquals(midnightUtc, adapter.fromJson(IuJson.string("2026-09-26")));
+
+			final var localMidnight = Date.from(Instant.parse("2026-09-25T15:00:00Z"));
+			assertEquals(IuJson.string("2026-09-25T15:00:00Z"), adapter.toJson(localMidnight));
+
+			// a date with an offset is midnight at that offset
+			assertEquals(localMidnight, adapter.fromJson(IuJson.string("2026-09-26+09:00")));
+		} finally {
+			TimeZone.setDefault(defaultZone);
+		}
 	}
 
 	@Test
@@ -1284,9 +1316,11 @@ public class IuJsonAdapterTest {
 	}
 
 	@Test
-	public void testSingleAsArray() {
+	public void testSingleIsNotAnArray() {
 		final var s = IuJson.string(IdGenerator.generateId());
-		assertEquals(Set.of(s.getString()), IuJsonAdapter.of(Set.class).fromJson(s));
+		assertEquals("expected an array, found STRING",
+				assertThrows(IllegalArgumentException.class, () -> IuJsonAdapter.of(Set.class).fromJson(s))
+						.getMessage());
 	}
 
 	@Test
@@ -1302,7 +1336,8 @@ public class IuJsonAdapterTest {
 
 		final var n = rand.get();
 		assertEquals(n, adapter.fromJson(IuJson.number(n)));
-		assertEquals(n, adapter.fromJson(IuJson.string(toString.apply(n))));
+		final var text = IuJson.string(toString.apply(n));
+		assertThrows(IllegalArgumentException.class, () -> adapter.fromJson(text));
 		assertEquals(n, fromJson.apply((JsonNumber) adapter.toJson(n)));
 
 		if (pc == null)
@@ -1312,7 +1347,7 @@ public class IuJsonAdapterTest {
 		assertEquals(def, primitive.fromJson(JsonValue.NULL));
 		assertEquals(def, primitive.fromJson(null));
 		assertEquals(n, primitive.fromJson(IuJson.number(n)));
-		assertEquals(n, primitive.fromJson(IuJson.string(toString.apply(n))));
+		assertThrows(IllegalArgumentException.class, () -> primitive.fromJson(text));
 		assertEquals(n, fromJson.apply((JsonNumber) primitive.toJson(n)));
 	}
 

@@ -34,6 +34,7 @@ package iu.client.jsonb;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.Serializable;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -76,8 +77,9 @@ import jakarta.json.stream.JsonParserFactory;
  *
  * <p>
  * Supports {@link JsonbConfig#FORMATTING}, {@link JsonbConfig#NULL_VALUES},
- * {@link JsonbConfig#PROPERTY_NAMING_STRATEGY} ({@link PropertyNamingStrategy#IDENTITY}
- * and {@link PropertyNamingStrategy#LOWER_CASE_WITH_UNDERSCORES}),
+ * {@link JsonbConfig#PROPERTY_NAMING_STRATEGY}
+ * ({@link PropertyNamingStrategy#IDENTITY} and
+ * {@link PropertyNamingStrategy#LOWER_CASE_WITH_UNDERSCORES}),
  * {@link JsonbConfig#PROPERTY_ORDER_STRATEGY},
  * {@link JsonbConfig#PROPERTY_VISIBILITY_STRATEGY},
  * {@link JsonbConfig#SERIALIZERS}, {@link JsonbConfig#DESERIALIZERS}, and
@@ -92,16 +94,17 @@ import jakarta.json.stream.JsonParserFactory;
  * </p>
  *
  * <p>
- * A component registered for {@link Object} doesn't apply to a
- * {@link #isScalar(Type) scalar} type: text, a number, or a boolean. It doesn't
- * see a null declared as one of those types, nor a value written whose runtime
- * type is one, nor a JSON string, number, or boolean read as any type. It does
- * see a null of a type that isn't scalar, or that isn't known, as when a null
- * is written without a type or passed to a context by a serializer that isn't
- * already converting it. Other values written as text, such as dates, still
- * reach {@link Object} components. Components registered for a supertype of a
- * scalar type, such as {@link CharSequence}, {@link Number}, or
- * {@link Comparable}, apply as usual.
+ * A component registered for a {@link #isBroad(Type) broad} type, such as
+ * {@link Object}, {@link Comparable}, or {@link java.io.Serializable}, doesn't
+ * apply to a {@link #isScalar(Type) scalar} type: text, a number, or a boolean.
+ * It doesn't see a null declared as one of those types, nor a value written
+ * whose runtime type is one, nor a JSON string, number, or boolean read as any
+ * type. It does see a null of a type that isn't scalar, or that isn't known, as
+ * when a null is written without a type or passed to a context by a serializer
+ * that isn't already converting it. Other values written as text, such as
+ * dates, still reach broad components. Components registered for a scalar type,
+ * such as {@link CharSequence}, {@link Number}, or {@link Boolean}, apply to
+ * scalars as usual.
  * </p>
  *
  * <p>
@@ -115,8 +118,8 @@ public class IuJsonb implements Jsonb {
 
 	/**
 	 * {@link JsonbConfig} property holding a
-	 * {@code Supplier<IuJsonSerializationOptions>}, read once per call; must
-	 * agree with {@link JsonbConfig#PROPERTY_NAMING_STRATEGY} and
+	 * {@code Supplier<IuJsonSerializationOptions>}, read once per call; must agree
+	 * with {@link JsonbConfig#PROPERTY_NAMING_STRATEGY} and
 	 * {@link JsonbConfig#NULL_VALUES} when those are also set.
 	 */
 	public static final String SERIALIZATION_OPTIONS = "iu.jsonb.serializationOptions";
@@ -153,10 +156,12 @@ public class IuJsonb implements Jsonb {
 	private static class Registration<T> {
 		private final Type type;
 		private final T component;
+		private final boolean broad;
 
 		private Registration(Type type, T component) {
 			this.type = type;
 			this.component = component;
+			broad = isBroad(type);
 		}
 	}
 
@@ -291,13 +296,13 @@ public class IuJsonb implements Jsonb {
 	}
 
 	/**
-	 * Resolves the types a configured component converts, through
-	 * sub-interfaces and generic superclasses.
+	 * Resolves the types a configured component converts, through sub-interfaces
+	 * and generic superclasses.
 	 *
 	 * @param component          serializer, deserializer, or adapter
 	 * @param componentInterface interface it implements
-	 * @return one type per type parameter of {@code componentInterface}, which
-	 *         may be or contain a type variable the component itself declares
+	 * @return one type per type parameter of {@code componentInterface}, which may
+	 *         be or contain a type variable the component itself declares
 	 * @throws JsonbException if an argument isn't declared anywhere in the
 	 *                        component's hierarchy, as for a lambda or a raw
 	 *                        implementation
@@ -336,18 +341,18 @@ public class IuJsonb implements Jsonb {
 	 * Orders the components that apply to a type.
 	 *
 	 * <p>
-	 * A component applies to the type it is registered for and every subtype.
-	 * The chain runs from the most specific registration to the least;
-	 * registrations neither more nor less specific than each other, including
-	 * several for the same type, run in the order they were configured.
+	 * A component applies to the type it is registered for and every subtype. The
+	 * chain runs from the most specific registration to the least; registrations
+	 * neither more nor less specific than each other, including several for the
+	 * same type, run in the order they were configured.
 	 * </p>
 	 *
 	 * @param <T>      component type
 	 * @param registry components in the order they were configured
 	 * @param type     type being converted; a primitive is boxed, and a type
 	 *                 variable or wildcard reads as its upper bound
-	 * @param scalar   true to leave out components registered for
-	 *                 {@link Object}, for a scalar value
+	 * @param scalar   true to leave out components registered for a
+	 *                 {@link #isBroad(Type) broad} type, for a scalar value
 	 * @return components that apply, in order
 	 */
 	private static <T> List<T> chain(List<Registration<T>> registry, Type type, boolean scalar) {
@@ -359,8 +364,8 @@ public class IuJsonb implements Jsonb {
 
 		final List<Registration<T>> candidates = new ArrayList<>();
 		for (final var registration : registry)
-			if (GenericTypes.isAssignable(registration.type, lookup) //
-					&& !(scalar && registration.type == Object.class))
+			if (!(scalar && registration.broad) //
+					&& GenericTypes.isAssignable(registration.type, lookup))
 				candidates.add(registration);
 
 		// specificity is a partial order, so rather than sorting, take the first
@@ -376,8 +381,8 @@ public class IuJsonb implements Jsonb {
 	}
 
 	/**
-	 * Determines if values of a type are scalar, so components registered for
-	 * {@link Object} leave them alone.
+	 * Determines if values of a type are scalar, so components registered for a
+	 * {@link #isBroad(Type) broad} type leave them alone.
 	 *
 	 * @param type type
 	 * @return true for {@link CharSequence}, {@link Number}, {@link Boolean}, their
@@ -388,6 +393,26 @@ public class IuJsonb implements Jsonb {
 		return CharSequence.class.isAssignableFrom(c) //
 				|| Number.class.isAssignableFrom(c) //
 				|| c == Boolean.class;
+	}
+
+	/**
+	 * Determines if components registered for a type are broad, so leave scalar
+	 * values alone.
+	 *
+	 * @param type type a component is registered for
+	 * @return true for {@link Object}, {@link java.io.Serializable}, and an
+	 *         interface in {@code java.lang} or one of its subpackages, such as
+	 *         {@link Comparable} or {@code java.lang.constant.Constable}, that
+	 *         isn't {@link #isScalar(Type) scalar}
+	 */
+	static boolean isBroad(Type type) {
+		final var c = JsonAdapters.erase(type);
+		if (c == Object.class || c == Serializable.class)
+			return true;
+		if (!c.isInterface() || isScalar(c))
+			return false;
+		final var packageName = c.getPackageName();
+		return packageName.equals("java.lang") || packageName.startsWith("java.lang.");
 	}
 
 	private static boolean isLessSpecific(Registration<?> candidate, List<? extends Registration<?>> candidates) {
@@ -437,8 +462,8 @@ public class IuJsonb implements Jsonb {
 	 * Gets the deserializers that apply to a type, most specific first.
 	 *
 	 * @param type   type
-	 * @param scalar true for a scalar value, to leave out deserializers
-	 *               registered for {@link Object}
+	 * @param scalar true for a scalar value, to leave out deserializers registered
+	 *               for {@link Object}
 	 * @return deserializers
 	 */
 	List<JsonbDeserializer> deserializers(Type type, boolean scalar) {
@@ -492,6 +517,10 @@ public class IuJsonb implements Jsonb {
 		return snapshot;
 	}
 
+	boolean includeNullValues() {
+		return Boolean.TRUE.equals(configuredNullValues);
+	}
+
 	/**
 	 * Gets the property model for a business object type.
 	 *
@@ -506,8 +535,8 @@ public class IuJsonb implements Jsonb {
 	 * Gets the adapter for a Java type, as configured.
 	 *
 	 * <p>
-	 * Adapters are created without resolving their dependencies, so this is safe
-	 * to call while another adapter is being created.
+	 * Adapters are created without resolving their dependencies, so this is safe to
+	 * call while another adapter is being created.
 	 * </p>
 	 *
 	 * @param type Java type

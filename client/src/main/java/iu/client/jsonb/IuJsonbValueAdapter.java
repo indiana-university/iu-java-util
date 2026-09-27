@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
 import iu.client.GenericTypes;
@@ -82,7 +81,8 @@ import jakarta.json.stream.JsonParser.Event;
  * declared type. Writing uses the first adapter; reading uses the first adapter
  * whose adapted type accepts the shape of the JSON value (string, number,
  * boolean, object, or array), or the first adapter if none does, so adapters
- * can accept several formats. Components registered for {@link Object} are left
+ * can accept several formats. Components registered for a
+ * {@link IuJsonb#isBroad(Type) broad} type, such as {@link Object}, are left
  * out of the chain for a {@link IuJsonb#isScalar(Type) scalar} type, null
  * included, and so for a value written with a scalar runtime type; they are
  * also left out when reading a JSON string, number, or boolean as any type.
@@ -139,7 +139,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		this.jsonb = jsonb;
 		erased = JsonAdapters.erase(type);
 		readType = (Class<?>) GenericTypes.box(erased);
-		// Object components leave a scalar type alone, null included; a value of
+		// broad components leave a scalar type alone, null included; a value of
 		// any other type may still read from a JSON scalar, which they leave alone
 		final var scalar = IuJsonb.isScalar(erased);
 		adapters = jsonb.adapters(type, scalar);
@@ -227,8 +227,8 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	}
 
 	/**
-	 * Determines if a JSON value is scalar, so components registered for
-	 * {@link Object} leave it alone.
+	 * Determines if a JSON value is scalar, so components registered for a
+	 * {@link IuJsonb#isBroad(Type) broad} type leave it alone.
 	 *
 	 * @param shape JSON value type; null if undefined
 	 * @return true for a string, number, or boolean
@@ -373,16 +373,10 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 
 		final var deserializers = scalar ? scalarDeserializers : this.deserializers;
 		if (!deserializers.isEmpty() && value != null) {
-			final var parser = new IuJsonbParser(value);
-			parser.next();
 			// a new parser has nothing in progress, so the chain starts at the top
-			final var deserializer = deserializers.get(0);
-			context.enterDeserializer(deserializer, parser, parser.getLocation().getStreamOffset(), applied);
-			try {
-				return deserialize(deserializer, parser, context);
-			} finally {
-				context.exitDeserializer();
-			}
+			final var parser = new IuJsonbParser(value, jsonb.provider());
+			parser.next();
+			return read(parser, context, applied);
 		}
 
 		return (T) builtIn().fromJson(value);
@@ -417,7 +411,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 
 		final var deserializers = scalar ? scalarDeserializers : this.deserializers;
 		if (!deserializers.isEmpty()) {
-			final var offset = parser.getLocation().getStreamOffset();
+			final var offset = IuDeserializationContext.position(parser);
 			for (final var deserializer : deserializers)
 				if (context.enterDeserializer(deserializer, parser, offset, applied))
 					try {
@@ -455,13 +449,13 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 
 		for (final var serializer : components.serializers)
 			if (context.enterSerializer(serializer, value, this, applied)) {
-				final var writer = new IuJsonbWriter();
+				final var generator = new IuJsonbGenerator(jsonb.provider());
 				try {
-					serializer.serialize(value, new IuJsonbGenerator(writer, jsonb.provider()), context);
+					serializer.serialize(value, generator, context);
 				} finally {
 					context.exitSerializer();
 				}
-				return IuIterable.single(writer);
+				return generator.value();
 			}
 
 		return builtIn().toJson(value);

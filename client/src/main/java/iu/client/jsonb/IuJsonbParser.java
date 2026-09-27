@@ -6,18 +6,18 @@
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * - Redistributions of source code must retain the above copyright notice, this
  *   list of conditions and the following disclaimer.
- * 
+ *
  * - Redistributions in binary form must reproduce the above copyright notice,
  *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * 
+ *
  * - Neither the name of the copyright holder nor the names of its
  *   contributors may be used to endorse or promote products derived from
  *   this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -32,342 +32,383 @@
 package iu.client.jsonb;
 
 import java.math.BigDecimal;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
+import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators.AbstractSpliterator;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import jakarta.json.JsonArray;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
+import jakarta.json.spi.JsonProvider;
 import jakarta.json.stream.JsonLocation;
 import jakarta.json.stream.JsonParser;
-import jakarta.json.stream.JsonParsingException;
 
 /**
  * Reports a {@link JsonValue} as {@link JsonParser} events, so a
  * {@link jakarta.json.bind.serializer.JsonbDeserializer} can run in a tree
  * conversion.
+ *
+ * <p>
+ * Walks the value in place, as JSON-P's own parser over a
+ * {@link jakarta.json.JsonStructure} does, and like that parser reports an
+ * unknown {@link #getLocation() location}, since a value has no source text.
+ * {@link #position()} identifies the parser state instead. For the same
+ * reason, {@link #getString()} gives a number as the canonical text of its
+ * value, such as {@code 2.5E+3} for {@code 2.5e3}.
+ * </p>
  */
-public class IuJsonbParser implements JsonParser {
+final class IuJsonbParser implements JsonParser {
 
-	private static class State {
-		private String name;
-		private JsonValue value;
-		private Event event;
-
-		private State(String name) {
-			this.name = name;
-		}
-
-		private State(JsonValue value) {
-			this.value = value;
-		}
-
-		private State(Event event) {
-			this.event = event;
-		}
-
-		private Event event() {
-			if (name != null)
-				return Event.KEY_NAME;
-			else if (value instanceof JsonArray)
-				return Event.START_ARRAY;
-			else if (value instanceof JsonObject)
-				return Event.START_OBJECT;
-			else if (value instanceof JsonString)
-				return Event.VALUE_STRING;
-			else if (value instanceof JsonNumber)
-				return Event.VALUE_NUMBER;
-			else if (value.equals(JsonValue.TRUE))
-				return Event.VALUE_TRUE;
-			else if (value.equals(JsonValue.FALSE))
-				return Event.VALUE_FALSE;
-			else if (value.equals(JsonValue.NULL))
-				return Event.VALUE_NULL;
-			else
-				return event;
-		}
-
-		private JsonValue value() {
-			return Objects.requireNonNull(value, "unexpected " + event());
-		}
-	}
-
-	private static class Location implements JsonLocation {
-		// tracks "pretty-printed" parse position without printing
-		// 2-space indent, LF line endings
-
-		private long line;
-		private long column;
-		private long streamOffset;
-
+	private static final JsonLocation UNKNOWN = new JsonLocation() {
 		@Override
 		public long getLineNumber() {
-			return line;
+			return -1;
 		}
 
 		@Override
 		public long getColumnNumber() {
-			return column;
+			return -1;
 		}
 
 		@Override
 		public long getStreamOffset() {
-			return streamOffset;
+			return -1;
+		}
+	};
+
+	/**
+	 * An array or object the parser is in.
+	 */
+	private static final class Context {
+		private final JsonValue value;
+		private final Iterator<JsonValue> values;
+		private final Iterator<Entry<String, JsonValue>> entries;
+		private JsonValue pending;
+
+		private Context(JsonArray array) {
+			value = array;
+			values = array.iterator();
+			entries = null;
 		}
 
-		private void advance(long n) {
-			column += n;
-			streamOffset += n;
-		}
-
-		private void advance(String name) {
-			final var len = name.length();
-			advance(len + 2L); // + 2 quotes
-			for (var i = 0; i < len; i++) {
-				final var c = name.charAt(i);
-				if (c == '\\' || c == '\"')
-					advance(1L); // esc char
-			}
-		}
-
-		private void line(long d) {
-			column = 0;
-			line++;
-			streamOffset += d * 2 + 1;
+		private Context(JsonObject object) {
+			value = object;
+			values = null;
+			entries = object.entrySet().iterator();
 		}
 	}
 
-	private final JsonValue value;
-	private Deque<State> stack = new ArrayDeque<>();
-	private Location location = new Location();
-	private State current;
-	private int depth;
+	private final JsonValue root;
+	private final JsonProvider provider;
+	private final Deque<Context> contexts = new ArrayDeque<>();
+	private Event event;
+	private JsonValue value;
+	private String key;
+	private boolean done;
+	private long position;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param value value to report
+	 * @param root     value to report
+	 * @param provider creates the value of a {@link Event#KEY_NAME KEY_NAME}
 	 */
-	public IuJsonbParser(JsonValue value) {
-		this.value = value;
+	IuJsonbParser(JsonValue root, JsonProvider provider) {
+		this.root = root;
+		this.provider = provider;
 	}
 
-	private State current() {
-		return Objects.requireNonNull(current, "before start");
+	/**
+	 * Gets the number of events the parser has advanced through, which
+	 * identifies its state.
+	 *
+	 * @return position; 0 before the first event
+	 */
+	long position() {
+		return position;
 	}
 
 	@Override
 	public boolean hasNext() {
-		return value != null && (current == null || !stack.isEmpty());
+		return !done;
 	}
 
 	@Override
 	public Event next() {
-		if (value == null)
-			throw new JsonParsingException(null, location);
+		if (done)
+			throw new NoSuchElementException();
+		position++;
 
-		if (current == null) {
-			final var init = new State(value);
-			stack.push(init);
-			current = init;
-		} else {
-			final var next = stack.pop();
+		final var context = contexts.peek();
+		if (context == null)
+			start(root);
+		else if (context.entries == null)
+			if (context.values.hasNext())
+				start(context.values.next());
+			else
+				end(Event.END_ARRAY);
+		else if (context.pending != null) {
+			final var pending = context.pending;
+			context.pending = null;
+			start(pending);
+		} else if (context.entries.hasNext()) {
+			final var entry = context.entries.next();
+			event = Event.KEY_NAME;
+			key = entry.getKey();
+			value = null;
+			context.pending = entry.getValue();
+		} else
+			end(Event.END_OBJECT);
 
-			if (next.value instanceof JsonObject) {
-				final var o = next.value.asJsonObject();
-				stack.push(new State(Event.END_OBJECT));
+		return event;
+	}
 
-				final Deque<Map.Entry<String, JsonValue>> entries = new ArrayDeque<>();
-				o.entrySet().forEach(entries::push);
-				for (final var e : entries) {
-					stack.push(new State(e.getValue()));
-					stack.push(new State(e.getKey()));
-				}
+	/**
+	 * Enters a value.
+	 */
+	private void start(JsonValue value) {
+		this.value = value;
+		switch (value.getValueType()) {
+		case OBJECT:
+			event = Event.START_OBJECT;
+			contexts.push(new Context(value.asJsonObject()));
+			return;
 
-				location.advance(1);
-				location.line(++depth);
+		case ARRAY:
+			event = Event.START_ARRAY;
+			contexts.push(new Context(value.asJsonArray()));
+			return;
 
-			} else if (next.value instanceof JsonArray) {
-				final var a = next.value.asJsonArray();
-				stack.push(new State(Event.END_ARRAY));
+		case STRING:
+			event = Event.VALUE_STRING;
+			break;
 
-				final var size = a.size();
-				for (var i = 0; i < size; i++)
-					stack.push(new State(a.get(size - (i + 1))));
+		case NUMBER:
+			event = Event.VALUE_NUMBER;
+			break;
 
-				location.advance(1);
-				location.line(++depth);
-			} else if (next.value != null) {
-				location.advance(next.value.toString().length());
+		case TRUE:
+			event = Event.VALUE_TRUE;
+			break;
 
-				final var n = stack.peek();
-				if (n == null || Event.END_ARRAY.equals(n.event) || Event.END_OBJECT.equals(n.event))
-					location.line(Long.max(0, depth - 1));
-				else {
-					location.advance(1L); // comma
-					location.line(depth);
-				}
+		case FALSE:
+			event = Event.VALUE_FALSE;
+			break;
 
-			} else if (next.name != null) {
-				location.advance(next.name);
-				location.advance(2L); // colon + space
-
-			} else if (Event.END_ARRAY.equals(next.event) || Event.END_OBJECT.equals(next.event)) {
-				location.advance(1L); // close brace or bracket
-
-				final var n = stack.peek();
-				if (n != null && (Event.END_ARRAY.equals(n.event) || Event.END_OBJECT.equals(n.event)))
-					location.advance(1L); // comma
-
-				location.line(--depth);
-			}
-
-			current = next;
+		default: // NULL
+			event = Event.VALUE_NULL;
+			break;
 		}
-
-		return currentEvent();
+		done = contexts.isEmpty();
 	}
 
-	@Override
-	public String getString() {
-		final var current = current();
-		switch (current.event()) {
-		case KEY_NAME:
-			return current.name;
-
-		case VALUE_NUMBER:
-		case VALUE_STRING:
-			return current.value().toString();
-
-		default:
-			throw new JsonParsingException("expected name, string, or number", location);
-		}
+	/**
+	 * Leaves the innermost array or object.
+	 */
+	private void end(Event end) {
+		event = end;
+		value = contexts.pop().value;
+		done = contexts.isEmpty();
 	}
 
-	@Override
-	public boolean isIntegralNumber() {
-		final var value = current().value();
-		return (value instanceof JsonNumber) && ((JsonNumber) value).isIntegral();
+	/**
+	 * Leaves the innermost array or object without reading the rest of it.
+	 */
+	private void skip(Event end) {
+		position++;
+		end(end);
 	}
 
-	@Override
-	public int getInt() {
-		return ((JsonNumber) current().value()).intValue();
-	}
-
-	@Override
-	public long getLong() {
-		return ((JsonNumber) current().value()).longValue();
-	}
-
-	@Override
-	public BigDecimal getBigDecimal() {
-		return ((JsonNumber) current().value()).bigDecimalValue();
-	}
-
-	@Override
-	public JsonLocation getLocation() {
-		return location;
+	private IllegalStateException illegal(String method) {
+		return new IllegalStateException(method + " not valid at " + event);
 	}
 
 	@Override
 	public Event currentEvent() {
-		return current().event();
+		return event;
+	}
+
+	@Override
+	public String getString() {
+		if (event == Event.KEY_NAME)
+			return key;
+		else if (event == Event.VALUE_STRING)
+			return ((JsonString) value).getString();
+		else if (event == Event.VALUE_NUMBER)
+			return value.toString();
+		else
+			throw illegal("getString()");
+	}
+
+	private JsonNumber number(String method) {
+		if (event == Event.VALUE_NUMBER)
+			return (JsonNumber) value;
+		else
+			throw illegal(method);
+	}
+
+	@Override
+	public boolean isIntegralNumber() {
+		return number("isIntegralNumber()").isIntegral();
+	}
+
+	@Override
+	public int getInt() {
+		return number("getInt()").intValue();
+	}
+
+	@Override
+	public long getLong() {
+		return number("getLong()").longValue();
+	}
+
+	@Override
+	public BigDecimal getBigDecimal() {
+		return number("getBigDecimal()").bigDecimalValue();
+	}
+
+	@Override
+	public JsonLocation getLocation() {
+		return UNKNOWN;
 	}
 
 	@Override
 	public JsonObject getObject() {
-		return getValue().asJsonObject();
-	}
-
-	@Override
-	public JsonValue getValue() {
-		return current().value();
+		if (event != Event.START_OBJECT)
+			throw illegal("getObject()");
+		skip(Event.END_OBJECT);
+		return value.asJsonObject();
 	}
 
 	@Override
 	public JsonArray getArray() {
-		return getValue().asJsonArray();
+		if (event != Event.START_ARRAY)
+			throw illegal("getArray()");
+		skip(Event.END_ARRAY);
+		return value.asJsonArray();
+	}
+
+	@Override
+	public JsonValue getValue() {
+		if (event == null)
+			throw illegal("getValue()");
+
+		switch (event) {
+		case START_OBJECT:
+			return getObject();
+
+		case START_ARRAY:
+			return getArray();
+
+		case KEY_NAME:
+			return provider.createValue(key);
+
+		case END_OBJECT:
+		case END_ARRAY:
+			throw illegal("getValue()");
+
+		default:
+			return value;
+		}
+	}
+
+	/**
+	 * Reads the next item of a stream by advancing the parser.
+	 *
+	 * @param <T> item type
+	 */
+	@FunctionalInterface
+	private interface Advance<T> {
+		/**
+		 * Reads the next item.
+		 *
+		 * @param action receives the item
+		 * @return false if there are no more items
+		 */
+		boolean tryAdvance(Consumer<? super T> action);
+	}
+
+	/**
+	 * Streams items read lazily by advancing this parser.
+	 */
+	private <T> Stream<T> stream(Advance<T> advance) {
+		return StreamSupport.stream(new AbstractSpliterator<T>(Long.MAX_VALUE, Spliterator.ORDERED) {
+			@Override
+			public boolean tryAdvance(Consumer<? super T> action) {
+				return advance.tryAdvance(action);
+			}
+		}, false);
 	}
 
 	@Override
 	public Stream<JsonValue> getArrayStream() {
-		return getArray().stream();
+		if (event != Event.START_ARRAY)
+			throw illegal("getArrayStream()");
+		return stream(action -> {
+			if (next() == Event.END_ARRAY)
+				return false;
+			action.accept(getValue());
+			return true;
+		});
 	}
 
 	@Override
-	public Stream<Entry<String, JsonValue>> getObjectStream() {
-		return getObject().entrySet().stream();
+	public Stream<Map.Entry<String, JsonValue>> getObjectStream() {
+		if (event != Event.START_OBJECT)
+			throw illegal("getObjectStream()");
+		return stream(action -> {
+			if (next() == Event.END_OBJECT)
+				return false;
+			final var name = key;
+			next();
+			action.accept(new SimpleImmutableEntry<>(name, getValue()));
+			return true;
+		});
 	}
 
 	@Override
 	public Stream<JsonValue> getValueStream() {
-		final var value = getValue();
-		if (value instanceof JsonArray)
-			return getArrayStream();
-		else if (value instanceof JsonObject)
-			return getObject().values().stream();
-		else
-			return Stream.of(value);
-	}
-
-	private void skipTo(Event eventToReach) {
-		var depth = 0;
-		var count = 0;
-
-		boolean found = false;
-		scan: for (final var s : stack) {
-			count++;
-
-			final var event = s.event();
-			switch (event) {
-			case START_ARRAY:
-			case START_OBJECT:
-				depth++;
-				break;
-
-			case END_ARRAY:
-			case END_OBJECT:
-				if (depth > 0) {
-					depth--;
-					break;
-				}
-
-			default:
-				if (event.equals(eventToReach)) {
-					found = true;
-					break scan;
-				}
-			}
-		}
-
-		if (!found)
-			return;
-		else
-			for (var i = 0; i < count; i++)
-				stack.pop();
+		if (!contexts.isEmpty())
+			throw illegal("getValueStream()");
+		return stream(action -> {
+			if (done)
+				return false;
+			next();
+			action.accept(getValue());
+			return true;
+		});
 	}
 
 	@Override
 	public void skipArray() {
-		skipTo(Event.END_ARRAY);
+		final var context = contexts.peek();
+		if (context != null && context.entries == null)
+			skip(Event.END_ARRAY);
 	}
 
 	@Override
 	public void skipObject() {
-		skipTo(Event.END_OBJECT);
+		final var context = contexts.peek();
+		if (context != null && context.entries != null)
+			skip(Event.END_OBJECT);
 	}
 
+	/**
+	 * Does nothing, since the parser holds no resources.
+	 */
 	@Override
 	public void close() {
-		// TODO Auto-generated method stub
-
 	}
 
 }

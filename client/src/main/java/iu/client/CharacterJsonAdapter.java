@@ -6,18 +6,18 @@
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * - Redistributions of source code must retain the above copyright notice, this
  *   list of conditions and the following disclaimer.
- * 
+ *
  * - Redistributions in binary form must reproduce the above copyright notice,
  *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * 
+ *
  * - Neither the name of the copyright holder nor the names of its
  *   contributors may be used to endorse or promote products derived from
  *   this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -31,103 +31,79 @@
  */
 package iu.client;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-
-import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
 import jakarta.json.stream.JsonParser.Event;
 
 /**
- * Adapts to/from {@link JsonArray} values.
- * 
- * @param <T> target type
- * @param <E> element type
+ * Implements {@link IuJsonAdapter} for {@link Character}, as a JSON string of
+ * exactly one character
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
+class CharacterJsonAdapter implements IuJsonAdapter<Character> {
 
 	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
+	 * Adapts {@link Character}
 	 */
-	abstract protected Iterator<E> iterator(T value);
+	static final CharacterJsonAdapter INSTANCE = new CharacterJsonAdapter(null);
 
 	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
+	 * Adapts {@link Character#TYPE}
 	 */
-	abstract protected T collect(Iterable<E> items);
+	static final CharacterJsonAdapter PRIMITIVE = new CharacterJsonAdapter('\0');
 
-	private final IuJsonAdapter<E> itemAdapter;
+	private final Character nullValue;
 
-	/**
-	 * Constructor
-	 * 
-	 * @param itemAdapter item adapter
-	 */
-	protected JsonArrayAdapter(IuJsonAdapter<E> itemAdapter) {
-		this.itemAdapter = itemAdapter;
+	private CharacterJsonAdapter(Character nullValue) {
+		this.nullValue = nullValue;
 	}
 
 	@Override
-	public T fromJson(JsonValue jsonValue) {
-		if (jsonValue == null //
-				|| JsonValue.NULL.equals(jsonValue))
-			return null;
-		else if (jsonValue instanceof JsonArray)
-			return collect(IuIterable.map(jsonValue.asJsonArray(), itemAdapter::fromJson));
+	public Character fromJson(JsonValue value) {
+		if (value == null //
+				|| JsonValue.NULL.equals(value))
+			return nullValue;
+		else if (value instanceof JsonString)
+			return fromText(((JsonString) value).getString());
 		else
-			throw JsonAdapters.expected("an array", jsonValue.getValueType());
+			throw JsonAdapters.expected("a character", value.getValueType());
 	}
 
 	@Override
-	public JsonValue toJson(T javaValue) {
-		if (javaValue == null)
+	public JsonValue toJson(Character value) {
+		if (value == null)
 			return JsonValue.NULL;
-
-		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
-		return a.build();
+		else
+			return IuJson.string(value.toString());
 	}
 
-	/**
-	 * Reads items as the parser reaches them, collected eagerly since the parser
-	 * moves on.
-	 */
 	@Override
-	public T read(JsonParser parser) {
+	public Character read(JsonParser parser) {
 		final var event = parser.currentEvent();
-		if (event == Event.VALUE_NULL)
-			return null;
-		if (event != Event.START_ARRAY)
-			throw JsonAdapters.expected("an array", event);
-
-		final List<E> items = new ArrayList<>();
-		while (parser.next() != Event.END_ARRAY)
-			items.add(itemAdapter.read(parser));
-		return collect(items);
+		if (event == Event.VALUE_STRING)
+			return fromText(parser.getString());
+		else if (event == Event.VALUE_NULL)
+			return nullValue;
+		else
+			throw JsonAdapters.expected("a character", event);
 	}
 
 	@Override
-	public void write(T javaValue, JsonGenerator generator) {
-		if (javaValue == null) {
+	public void write(Character value, JsonGenerator generator) {
+		if (value == null)
 			generator.writeNull();
-			return;
-		}
+		else
+			generator.write(value.toString());
+	}
 
-		generator.writeStartArray();
-		iterator(javaValue).forEachRemaining(i -> itemAdapter.write(i, generator));
-		generator.writeEnd();
+	private Character fromText(String text) {
+		if (text.length() == 1)
+			return text.charAt(0);
+		else
+			throw JsonAdapters.expected("a single character", text.length() + " characters");
 	}
 
 }

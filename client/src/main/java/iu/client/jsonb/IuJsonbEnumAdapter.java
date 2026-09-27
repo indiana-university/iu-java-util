@@ -35,8 +35,10 @@ import java.util.Objects;
 
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
+import iu.client.JsonAdapters;
 import iu.client.JsonSerializer;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
@@ -92,8 +94,10 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 		if (value instanceof JsonObject) {
 			final var format = IuDeserializationContext.require(jsonb).format();
 			name = TEXT.fromJson(((JsonObject) value).get(JsonSerializer.formatPropertyName(JsonSerializer.NAME, format)));
-		} else
-			name = TEXT.fromJson(value);
+		} else if (value instanceof JsonString)
+			name = ((JsonString) value).getString();
+		else
+			throw JsonAdapters.expected("a string or object", value.getValueType());
 
 		return Enum.valueOf(type, Objects.requireNonNull(name, JsonSerializer.NAME));
 	}
@@ -130,7 +134,7 @@ final class IuJsonbEnumAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 		}
 
 		default:
-			return fromJson(parser.getValue());
+			throw JsonAdapters.expected("a string or object", parser.currentEvent());
 		}
 	}
 

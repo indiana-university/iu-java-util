@@ -6,18 +6,18 @@
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * - Redistributions of source code must retain the above copyright notice, this
  *   list of conditions and the following disclaimer.
- * 
+ *
  * - Redistributions in binary form must reproduce the above copyright notice,
  *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * 
+ *
  * - Neither the name of the copyright holder nor the names of its
  *   contributors may be used to endorse or promote products derived from
  *   this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -31,68 +31,50 @@
  */
 package iu.client;
 
-import edu.iu.client.IuJson;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.IntStream;
+
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonParser;
-import jakarta.json.stream.JsonParser.Event;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}, reading only JSON
- * strings
+ * Adapts arrays of a primitive component type, such as {@code int[]}, whose
+ * items box to and from their wrapper type.
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+class PrimitiveArrayAdapter extends JsonArrayAdapter<Object, Object> {
+
+	private final Class<?> component;
 
 	/**
-	 * Singleton instance.
+	 * Constructor
+	 *
+	 * @param itemAdapter adapts the boxed component type; reads a JSON null as
+	 *                    the primitive default
+	 * @param component   primitive component type
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
-	
-	/**
-	 * Default Constructor
-	 */
-	private TextJsonAdapter() {
-		// singleton
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	PrimitiveArrayAdapter(IuJsonAdapter itemAdapter, Class<?> component) {
+		super(itemAdapter);
+		this.component = component;
 	}
 
 	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if (value == null //
-				|| JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw JsonAdapters.expected("a string", value.getValueType());
+	protected Iterator<Object> iterator(Object value) {
+		return IntStream.range(0, Array.getLength(value)).mapToObj(i -> Array.get(value, i)).iterator();
 	}
 
 	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
+	protected Object collect(Iterable<Object> items) {
+		final List<Object> list = new ArrayList<>();
+		items.forEach(list::add);
 
-	@Override
-	public String read(JsonParser parser) {
-		final var event = parser.currentEvent();
-		if (event == Event.VALUE_STRING)
-			return parser.getString();
-		else if (event == Event.VALUE_NULL)
-			return null;
-		else
-			throw JsonAdapters.expected("a string", event);
-	}
-
-	@Override
-	public void write(CharSequence value, JsonGenerator generator) {
-		if (value == null)
-			generator.writeNull();
-		else
-			generator.write(value.toString());
+		final var size = list.size();
+		final var array = Array.newInstance(component, size);
+		for (var i = 0; i < size; i++)
+			Array.set(array, i, list.get(i));
+		return array;
 	}
 
 }

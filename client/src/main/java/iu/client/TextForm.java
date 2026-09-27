@@ -31,68 +31,34 @@
  */
 package iu.client;
 
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonParser;
-import jakarta.json.stream.JsonParser.Event;
-
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}, reading only JSON
- * strings
+ * Converts values of a type that JSON represents as a number or boolean to and
+ * from text, for use as a JSON object key.
+ *
+ * <p>
+ * A type whose JSON value is already text needs no text form: its key is the
+ * JSON string.
+ * </p>
+ *
+ * @param <T> value type
  */
-class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
+interface TextForm<T> {
 
 	/**
-	 * Singleton instance.
+	 * Reads a value from its text form.
+	 *
+	 * @param text text form
+	 * @return value
+	 * @throws IllegalArgumentException if the text isn't a value of this type
 	 */
-	static TextJsonAdapter INSTANCE = new TextJsonAdapter();
-	
+	T fromText(String text);
+
 	/**
-	 * Default Constructor
+	 * Gets a value's text form.
+	 *
+	 * @param value value, not null
+	 * @return text form
 	 */
-	private TextJsonAdapter() {
-		// singleton
-	}
-
-	@Override
-	public String fromJson(JsonValue value) {
-		if (value instanceof JsonString)
-			return ((JsonString) value).getString();
-		else if (value == null //
-				|| JsonValue.NULL.equals(value))
-			return null;
-		else
-			throw JsonAdapters.expected("a string", value.getValueType());
-	}
-
-	@Override
-	public JsonValue toJson(CharSequence value) {
-		if (value == null)
-			return JsonValue.NULL;
-		else
-			return IuJson.PROVIDER.createValue(value.toString());
-	}
-
-	@Override
-	public String read(JsonParser parser) {
-		final var event = parser.currentEvent();
-		if (event == Event.VALUE_STRING)
-			return parser.getString();
-		else if (event == Event.VALUE_NULL)
-			return null;
-		else
-			throw JsonAdapters.expected("a string", event);
-	}
-
-	@Override
-	public void write(CharSequence value, JsonGenerator generator) {
-		if (value == null)
-			generator.writeNull();
-		else
-			generator.write(value.toString());
-	}
+	String toText(T value);
 
 }

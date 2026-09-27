@@ -79,6 +79,20 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	}
 
 	/**
+	 * Gets a parser's position, which advances with every event.
+	 *
+	 * @param parser parser
+	 * @return {@link IuJsonbParser#position()} for a tree value; otherwise, the
+	 *         parser's stream offset, which is -1 if it can't report one
+	 */
+	static long position(JsonParser parser) {
+		if (parser instanceof IuJsonbParser)
+			return ((IuJsonbParser) parser).position();
+		else
+			return parser.getLocation().getStreamOffset();
+	}
+
+	/**
 	 * Gets the call in progress on this thread.
 	 *
 	 * @param jsonb provider
@@ -162,7 +176,7 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	 *
 	 * @param deserializer deserializer
 	 * @param parser       parser, positioned at the value's first event
-	 * @param offset       the parser's stream offset
+	 * @param offset       the parser's {@link #position(JsonParser) position}
 	 * @param applied      adapters already applied in the conversion
 	 * @return true if marked; false if the deserializer is already in progress on
 	 *         the same parser at the same position
@@ -192,7 +206,7 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 	 * conversion if a deserializer is already in progress at the same position.
 	 */
 	private Object read(Type type, JsonParser parser) {
-		final var offset = parser.getLocation().getStreamOffset();
+		final var offset = position(parser);
 		for (final var frame : deserializing)
 			if (frame.parser == parser && frame.offset == offset)
 				return jsonb.adapt(type).read(parser, this, frame.applied);

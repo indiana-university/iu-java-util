@@ -39,6 +39,7 @@ import java.util.function.Supplier;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
@@ -121,8 +122,10 @@ public class EnumJsonAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 			// the name property is formatted like any other
 			name = TextJsonAdapter.INSTANCE.fromJson(((JsonObject) value).get(JsonSerializer.formatPropertyName(
 					JsonSerializer.NAME, JsonSerializer.propertyNameFormat(JsonSerializer.snapshot(options)))));
+		else if (value instanceof JsonString)
+			name = ((JsonString) value).getString();
 		else
-			name = TextJsonAdapter.INSTANCE.fromJson(value);
+			throw JsonAdapters.expected("a string or object", value.getValueType());
 
 		return Enum.valueOf(type, Objects.requireNonNull(name, JsonSerializer.NAME));
 	}
@@ -167,7 +170,7 @@ public class EnumJsonAdapter<E extends Enum<E>> implements IuJsonAdapter<E> {
 		}
 
 		default:
-			return fromJson(parser.getValue());
+			throw JsonAdapters.expected("a string or object", parser.currentEvent());
 		}
 	}
 

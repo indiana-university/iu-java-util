@@ -322,6 +322,7 @@ public class IuJsonbTest {
 	static class Holder<T extends CharSequence> {
 		T value;
 		List<? extends CharSequence> values;
+		Comparable<String> comparable;
 	}
 
 	@Test
@@ -347,9 +348,21 @@ public class IuJsonbTest {
 		assertEquals(List.of("string", "text", "comparable", "object"), texts(jsonb.serializers(String.class, false)));
 		assertEquals(List.of("comparable", "object"), texts(jsonb.serializers(Integer.class, false)));
 
-		// a scalar value leaves out only the Object serializer
-		assertEquals(List.of("string", "text", "comparable"), texts(jsonb.serializers(String.class, true)));
-		assertEquals(List.of("comparable"), texts(jsonb.serializers(int.class, true)));
+		// a scalar value leaves out the broad serializers, for Object and Comparable
+		assertEquals(List.of("string", "text"), texts(jsonb.serializers(String.class, true)));
+		assertEquals(List.of(), texts(jsonb.serializers(int.class, true)));
+	}
+
+	@Test
+	public void testIsBroad() throws Exception {
+		for (final var broad : new Type[] { Object.class, java.io.Serializable.class, Comparable.class,
+				Iterable.class, Appendable.class, Class.forName("java.lang.constant.Constable"),
+				Class.forName("java.lang.constant.ConstantDesc"),
+				Holder.class.getDeclaredField("comparable").getGenericType() })
+			assertTrue(IuJsonb.isBroad(broad), broad.getTypeName());
+		for (final var other : new Class<?>[] { CharSequence.class, Number.class, String.class, Boolean.class,
+				Enum.class, List.class, Named.class, java.time.temporal.Temporal.class })
+			assertFalse(IuJsonb.isBroad(other), other.getName());
 	}
 
 	@Test
@@ -395,7 +408,8 @@ public class IuJsonbTest {
 		final var jsonb = jsonb(new JsonbConfig());
 		final var error = assertThrows(JsonbException.class, () -> jsonb.fromJson("{\"count\":\"x\"}", Bean.class));
 		assertTrue(error.getMessage().startsWith("failed to read Bean.count (line 1"), error.getMessage());
-		assertInstanceOf(NumberFormatException.class, error.getCause());
+		assertInstanceOf(IllegalArgumentException.class, error.getCause());
+		assertEquals("expected an int, found VALUE_STRING", error.getCause().getMessage());
 	}
 
 	@Test

@@ -58,17 +58,25 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Deque;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Enumeration;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
 import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
+import java.util.PriorityQueue;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.Set;
@@ -78,6 +86,7 @@ import java.util.SortedSet;
 import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.regex.Pattern;
@@ -85,6 +94,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuException;
 import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonValue;
 
 /**
  * Provides standard {@link IuJsonAdapter} instances.
@@ -129,6 +139,10 @@ public final class JsonAdapters {
 		if (erased == Object.class)
 			return BasicJsonAdapter.INSTANCE;
 
+		// before Map and Iterable, which JsonObject and JsonArray implement
+		if (JsonValue.class.isAssignableFrom(erased))
+			return new JsonValueAdapter(erased);
+
 		if (erased == Boolean.class)
 			return BooleanJsonAdapter.INSTANCE;
 		if (erased == boolean.class)
@@ -167,11 +181,16 @@ public final class JsonAdapters {
 		if (erased == CharSequence.class //
 				|| erased == String.class)
 			return TextJsonAdapter.INSTANCE;
+		if (erased == Character.class)
+			return CharacterJsonAdapter.INSTANCE;
+		if (erased == char.class)
+			return CharacterJsonAdapter.PRIMITIVE;
 
 		if (erased == byte[].class)
 			return BinaryJsonAdapter.INSTANCE;
 
-		if (erased == Calendar.class)
+		if (erased == Calendar.class //
+				|| erased == GregorianCalendar.class)
 			return CalendarJsonAdapter.INSTANCE;
 		if (erased == Date.class)
 			return DateJsonAdapter.INSTANCE;
@@ -207,9 +226,18 @@ public final class JsonAdapters {
 			return ParsingJsonAdapter.of(URI.class, URI::create);
 		if (erased == URL.class)
 			return ParsingJsonAdapter.of(URL.class, a -> IuException.unchecked(() -> URI.create(a).toURL()));
+		if (erased == UUID.class)
+			return ParsingJsonAdapter.of(UUID.class, UUID::fromString);
 
 		if (erased.isEnum())
 			return EnumJsonAdapter.of(erased);
+
+		if (erased == OptionalInt.class)
+			return OptionalNumberAdapter.INT;
+		if (erased == OptionalLong.class)
+			return OptionalNumberAdapter.LONG;
+		if (erased == OptionalDouble.class)
+			return OptionalNumberAdapter.DOUBLE;
 
 		if (erased == Optional.class)
 			if (valueAdapter != null)
@@ -221,13 +249,17 @@ public final class JsonAdapters {
 
 		if (erased.isArray()) {
 			final var item = item(type);
-			final IntFunction factory = n -> Array.newInstance(erase(item), n);
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
 				itemAdapter = valueAdapter.apply(item);
 			else
 				itemAdapter = IuJsonAdapter.of(item);
 
+			final var component = erased.getComponentType();
+			if (component.isPrimitive())
+				return new PrimitiveArrayAdapter(itemAdapter, component);
+
+			final IntFunction factory = n -> Array.newInstance(component, n);
 			return new ArrayAdapter(itemAdapter, factory);
 		}
 
@@ -256,6 +288,17 @@ public final class JsonAdapters {
 					|| erased == ArrayList.class)
 				return new CollectionAdapter(itemAdapter, ArrayList::new);
 
+			if (erased == LinkedList.class)
+				return new CollectionAdapter(itemAdapter, LinkedList::new);
+
+			if (erased == PriorityQueue.class)
+				return new CollectionAdapter(itemAdapter, PriorityQueue::new);
+
+			if (erased == EnumSet.class) {
+				final Class element = enumType(item(type), type);
+				return new CollectionAdapter(itemAdapter, () -> EnumSet.noneOf(element));
+			}
+
 			if (erased == Set.class //
 					|| erased == LinkedHashSet.class)
 				return new CollectionAdapter(itemAdapter, LinkedHashSet::new);
@@ -282,11 +325,24 @@ public final class JsonAdapters {
 					valueAdapter = IuJsonAdapter::of;
 				else
 					valueAdapter = a -> BasicJsonAdapter.INSTANCE;
+
+			// a key is a JSON name, not a value: it converts through the key type's
+			// built-in text conversion, never through valueAdapter
+			final Type keyType;
 			final IuJsonAdapter keyAdapter;
-			if (type instanceof ParameterizedType)
-				keyAdapter = valueAdapter.apply(((ParameterizedType) type).getActualTypeArguments()[0]);
-			else
+			if (type instanceof ParameterizedType) {
+				keyType = ((ParameterizedType) type).getActualTypeArguments()[0];
+				keyAdapter = adapt(keyType, null);
+			} else {
+				keyType = Object.class;
 				keyAdapter = BasicJsonAdapter.INSTANCE;
+			}
+
+			if (erased == EnumMap.class) {
+				final Class keyClass = enumType(keyType, type);
+				return new JsonObjectAdapter(keyAdapter, valueAdapter.apply(item(type)),
+						() -> new EnumMap(keyClass));
+			}
 
 			if (erased == Map.class //
 					|| erased == LinkedHashMap.class)
@@ -366,6 +422,35 @@ public final class JsonAdapters {
 			else
 				return p.getActualTypeArguments()[0];
 		}
+	}
+
+	/**
+	 * Gets the enum type an {@link EnumSet} or {@link EnumMap} is keyed by.
+	 *
+	 * @param argument type argument naming the enum type
+	 * @param type     {@link EnumSet} or {@link EnumMap} type
+	 * @return enum type
+	 * @throws UnsupportedOperationException if the argument isn't an enum type, as
+	 *                                       for a raw type
+	 */
+	private static Class<?> enumType(Type argument, Type type) {
+		final var c = erase(argument);
+		if (c.isEnum())
+			return c;
+		else
+			throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type
+					+ "; declare the enum type, as in EnumSet<E> or EnumMap<E, V>");
+	}
+
+	/**
+	 * Describes a JSON value of the wrong shape for the type being read.
+	 *
+	 * @param expected describes what the type reads, such as "a string"
+	 * @param found    JSON value type or parser event found instead
+	 * @return {@link IllegalArgumentException} to throw
+	 */
+	public static IllegalArgumentException expected(String expected, Object found) {
+		return new IllegalArgumentException("expected " + expected + ", found " + found);
 	}
 
 	private JsonAdapters() {

@@ -34,6 +34,7 @@ package iu.client.jsonb;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.StringReader;
@@ -53,6 +54,7 @@ import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.JsonValue.ValueType;
 import jakarta.json.bind.JsonbConfig;
+import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.DeserializationContext;
 import jakarta.json.bind.serializer.JsonbDeserializer;
@@ -377,7 +379,9 @@ public class IuJsonbChainTest {
 	@Test
 	public void testFirstAdapterReadsAShapeNoneAccepts() {
 		final var jsonb = jsonb(new JsonbConfig().withAdapters(new FlagText(), new FlagNumber()));
-		assertEquals("true", jsonb.fromJson("{\"flag\":true}", Flags.class).flag.text);
+		// the first adapter reads text, which a boolean isn't
+		final var error = assertThrows(JsonbException.class, () -> jsonb.fromJson("{\"flag\":true}", Flags.class));
+		assertEquals("expected a string, found VALUE_TRUE", error.getCause().getMessage());
 		assertEquals("#5", jsonb.fromJson("{\"flag\":5}", Flags.class).flag.text);
 		assertEquals("x", jsonb.fromJson("{\"flag\":\"x\"}", Flags.class).flag.text);
 	}
@@ -491,9 +495,15 @@ public class IuJsonbChainTest {
 	@Test
 	public void testObjectSerializerSeesUntypedNulls() {
 		final List<String> seen = new ArrayList<>();
-		final var jsonb = jsonb(new JsonbConfig().withSerializers(new Sees(seen), new Untyped()));
+		final var jsonb = jsonb(new JsonbConfig().withNullValues(true).withSerializers(new Sees(seen), new Untyped()));
 		assertEquals("{\"text\":null}", jsonb.toJson(new Text()));
 		assertEquals(List.of("null"), seen);
+
+		// a null passed by key is omitted with the other nulls
+		seen.clear();
+		final var omitting = jsonb(new JsonbConfig().withSerializers(new Sees(seen), new Untyped()));
+		assertEquals("{}", omitting.toJson(new Text()));
+		assertEquals(List.of(), seen);
 	}
 
 	@Test
@@ -504,9 +514,13 @@ public class IuJsonbChainTest {
 				}, new Passing<CharSequence>("text", calls) {
 				}, new Passing<Number>("number", calls) {
 				}, new Passing<Boolean>("boolean", calls) {
+				}, new Passing<Comparable<?>>("comparable", calls) {
+				}, new Passing<java.io.Serializable>("serializable", calls) {
 				}));
 		jsonb.toJson(new Scalars());
-		assertEquals(List.of("object", "text", "number", "boolean", "number", "object"), calls);
+		// scalars see only scalar components; the date sees every broad one
+		assertEquals(List.of("object", "text", "number", "boolean", "number", "comparable", "serializable", "object"),
+				calls);
 	}
 
 	@Test
@@ -590,6 +604,24 @@ public class IuJsonbChainTest {
 		assertNull(jsonb.fromJson("null", Instant.class));
 		assertNull(jsonb.adapt(Instant.class).fromJson(JsonValue.NULL));
 		assertEquals(List.of("null", "null"), tags.seen);
+	}
+
+	public static class Keyed {
+		public Map<String, String> byName = Map.of("k", "v");
+	}
+
+	@Test
+	public void testMapKeysBypassComponents() {
+		final List<String> calls = new ArrayList<>();
+		final var jsonb = jsonb(new JsonbConfig() //
+				.withSerializers(new Passing<String>("write", calls) {
+				}) //
+				.withDeserializers(new Passing<String>("read", calls) {
+				}));
+		assertEquals("{\"byName\":{\"k\":\"v\"}}", jsonb.toJson(new Keyed()));
+		assertEquals(Map.of("k", "v"), jsonb.fromJson("{\"byName\":{\"k\":\"v\"}}", Keyed.class).byName);
+		// once per value, never for the key
+		assertEquals(List.of("write", "read"), calls);
 	}
 
 	@Test

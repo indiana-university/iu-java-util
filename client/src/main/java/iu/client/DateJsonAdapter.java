@@ -34,9 +34,10 @@ package iu.client;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.util.Date;
 
 import edu.iu.client.IuJsonAdapter;
@@ -46,6 +47,13 @@ import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Date}
+ *
+ * <p>
+ * Works in UTC throughout. A date at midnight UTC writes as a date, such as
+ * {@code 2026-09-26Z}; any other writes as a date and time, such as
+ * {@code 2026-09-26T04:01:30Z}. A date read without a time is midnight at its
+ * offset, UTC if it has none; a date and time must have an offset or zone.
+ * </p>
  */
 class DateJsonAdapter implements IuJsonAdapter<Date> {
 
@@ -54,9 +62,8 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 	 */
 	static final DateJsonAdapter INSTANCE = new DateJsonAdapter();
 
-	private final ZoneId UTC = ZoneId.of("UTC");
-	private final DateTimeFormatter DF = DateTimeFormatter.ISO_DATE.withZone(UTC);
-	private final DateTimeFormatter DTF = DateTimeFormatter.ISO_DATE_TIME.withZone(UTC);
+	private static final DateTimeFormatter DF = DateTimeFormatter.ISO_DATE.withZone(ZoneOffset.UTC);
+	private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC);
 
 	private DateJsonAdapter() {
 	}
@@ -92,10 +99,13 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 			return null;
 
 		final Instant instant;
-		if (text.indexOf('T') == -1)
-			instant = LocalDate.parse(text, DateTimeFormatter.ISO_DATE).atStartOfDay().atZone(ZoneId.systemDefault())
-					.toInstant();
-		else
+		if (text.indexOf('T') == -1) {
+			final var parsed = DateTimeFormatter.ISO_DATE.parse(text);
+			final var offset = parsed.isSupported(ChronoField.OFFSET_SECONDS) //
+					? ZoneOffset.from(parsed)
+					: ZoneOffset.UTC;
+			instant = LocalDate.from(parsed).atStartOfDay(offset).toInstant();
+		} else
 			instant = ZonedDateTime.parse(text, DateTimeFormatter.ISO_DATE_TIME).toInstant();
 
 		return Date.from(instant);
@@ -103,7 +113,7 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 
 	private String toText(Date value) {
 		final var instant = value.toInstant();
-		if (LocalTime.from(instant.atZone(ZoneId.systemDefault())).equals(LocalTime.MIDNIGHT))
+		if (LocalTime.from(instant.atOffset(ZoneOffset.UTC)).equals(LocalTime.MIDNIGHT))
 			return DF.format(instant);
 		else
 			return DTF.format(instant);

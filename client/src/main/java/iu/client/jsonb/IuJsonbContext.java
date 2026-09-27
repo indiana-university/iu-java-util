@@ -92,7 +92,7 @@ abstract class IuJsonbContext {
 	 * @return true to write null properties; false to omit them
 	 */
 	boolean isIncludeNullProperties() {
-		return options.isIncludeNullProperties();
+		return jsonb.includeNullValues() || options.isIncludeNullProperties();
 	}
 
 	/**

@@ -32,6 +32,7 @@
 package iu.client.jsonb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -129,7 +130,7 @@ public class IuJsonbEnumAdapterTest {
 	public void testRead() {
 		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig());
 		final var json = "{\"level\":\"HIGH\",\"levels\":[{\"x\":{\"y\":1},\"z\":[1],\"w\":1,\"name\":\"LOW\"},"
-				+ "[\"HIGH\"]],\"labeled\":null}";
+				+ "\"HIGH\"],\"labeled\":null}";
 		for (final var holder : new Holder[] { jsonb.fromJson(json, Holder.class),
 				(Holder) jsonb.adapt(Holder.class).fromJson(IuJson.parse(json)) }) {
 			assertEquals(Level.HIGH, holder.level);
@@ -138,6 +139,10 @@ public class IuJsonbEnumAdapterTest {
 		}
 		assertNull(jsonb.adapt(Level.class).fromJson(null));
 		assertThrows(JsonbException.class, () -> jsonb.fromJson("{}", Level.class));
+		assertEquals("expected a string or object, found VALUE_NUMBER",
+				assertThrows(JsonbException.class, () -> jsonb.fromJson("5", Level.class)).getCause().getMessage());
+		assertInstanceOf(IllegalArgumentException.class,
+				assertThrows(JsonbException.class, () -> jsonb.adapt(Level.class).fromJson(IuJson.number(5))).getCause());
 	}
 
 	@Test

@@ -205,7 +205,7 @@ class BasicJsonAdapter implements IuJsonAdapter<Object> {
 		else if (Boolean.FALSE.equals(value))
 			generator.write(false);
 		else
-			throw new IllegalArgumentException();
+			throw new IllegalArgumentException(value.toString());
 	}
 
 	private BasicJsonAdapter() {

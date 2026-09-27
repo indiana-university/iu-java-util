@@ -226,8 +226,8 @@ final class IuSerializationContext extends IuJsonbContext implements Serializati
 	}
 
 	/**
-	 * Marks a value as in progress by the built-in business object or enum
-	 * object conversion.
+	 * Marks a value as in progress by the built-in business object or enum object
+	 * conversion.
 	 *
 	 * @param value value
 	 * @throws JsonbException if the value is already in progress
@@ -252,14 +252,17 @@ final class IuSerializationContext extends IuJsonbContext implements Serializati
 	public <T> void serialize(String key, T object, JsonGenerator generator) {
 		within(c -> {
 			push(key);
-			try {
-				generator.writeKey(key);
-				write(object, generator);
-			} catch (RuntimeException e) {
-				throw fail(e);
-			} finally {
-				pop();
-			}
+
+			if (object != null || isIncludeNullProperties())
+				try {
+					generator.writeKey(key);
+					write(object, generator);
+				} catch (RuntimeException e) {
+					throw fail(e);
+				} finally {
+					pop();
+				}
+			
 			return null;
 		});
 	}

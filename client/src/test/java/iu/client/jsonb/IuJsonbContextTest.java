@@ -167,7 +167,8 @@ public class IuJsonbContextTest {
 		root.outer.child = new Child();
 		root.outer.child.value = "v";
 		assertEquals("{\"outer\":{\"child\":{\"value\":\"v\"}}}", jsonb.toJson(root));
-		assertEquals("{\"outer\":{\"child\":null}}", jsonb.toJson(new Root() {
+		// a null passed by key is omitted with the other nulls
+		assertEquals("{\"outer\":{}}", jsonb.toJson(new Root() {
 			{
 				outer = new Outer();
 			}

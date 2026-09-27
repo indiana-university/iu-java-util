@@ -36,7 +36,9 @@ import java.util.function.Supplier;
 
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
@@ -44,6 +46,12 @@ import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Adapts to/from {@link JsonObject} values.
+ *
+ * <p>
+ * Keys convert through the key type's text: the {@link TextForm} of a number or
+ * boolean type, or the text of its JSON string, number, or boolean. A null key,
+ * or one that converts to an object or array, fails.
+ * </p>
  * 
  * @param <T> target type
  * @param <V> value type
@@ -73,6 +81,8 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 		if (jsonValue == null //
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
+		if (!(jsonValue instanceof JsonObject))
+			throw JsonAdapters.expected("an object", jsonValue.getValueType());
 
 		final var map = factory.get();
 		for (final var e : jsonValue.asJsonObject().entrySet())
@@ -101,7 +111,7 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 		if (event == Event.VALUE_NULL)
 			return null;
 		if (event != Event.START_OBJECT)
-			throw new ClassCastException("expected an object, found " + event);
+			throw JsonAdapters.expected("an object", event);
 
 		final var map = factory.get();
 		while (parser.next() != Event.END_OBJECT) {
@@ -127,12 +137,39 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 		generator.writeEnd();
 	}
 
+	/**
+	 * Reads a key from its text: through the key type's {@link TextForm} when it
+	 * has one, otherwise as the JSON string it was written as.
+	 */
+	@SuppressWarnings("unchecked")
 	private K fromString(String key) {
-		return keyAdapter.fromJson(IuJsonAdapter.of(String.class).toJson(key));
+		if (keyAdapter instanceof TextForm)
+			return ((TextForm<K>) keyAdapter).fromText(key);
+		else
+			return keyAdapter.fromJson(IuJson.string(key));
 	}
 
+	/**
+	 * Gets a key's text: the {@link TextForm} of a number or boolean type, or its
+	 * JSON value, which must be a string, number, or boolean.
+	 */
+	@SuppressWarnings("unchecked")
 	private String toString(K key) {
-		return IuJsonAdapter.of(String.class).fromJson(keyAdapter.toJson(key));
+		if (key == null)
+			throw new IllegalArgumentException("null key");
+		if (keyAdapter instanceof TextForm)
+			return ((TextForm<K>) keyAdapter).toText(key);
+
+		final var value = keyAdapter.toJson(key);
+		if (value instanceof JsonString)
+			return ((JsonString) value).getString();
+		else if (value instanceof JsonNumber //
+				|| JsonValue.TRUE.equals(value) //
+				|| JsonValue.FALSE.equals(value))
+			return value.toString();
+		else
+			throw new IllegalArgumentException(
+					"key " + key.getClass().getName() + " has no text form; converts to " + value.getValueType());
 	}
 
 }

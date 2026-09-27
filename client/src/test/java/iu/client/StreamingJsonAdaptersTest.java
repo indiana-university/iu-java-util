@@ -120,6 +120,12 @@ public class StreamingJsonAdaptersTest {
 	static Object normalize(Object value) {
 		if (value instanceof byte[])
 			return List.of(((byte[]) value).length);
+		if (value != null && value.getClass().isArray()) {
+			final List<Object> items = new ArrayList<>();
+			for (var i = 0; i < java.lang.reflect.Array.getLength(value); i++)
+				items.add(java.lang.reflect.Array.get(value, i));
+			return items;
+		}
 		if (value instanceof Calendar)
 			return ((Calendar) value).getTime();
 		if (value instanceof TimeZone)
@@ -145,7 +151,7 @@ public class StreamingJsonAdaptersTest {
 		final var text = adapter(String.class);
 		assertEquals("s", read(text, "\"s\""));
 		assertNull(read(text, "null"));
-		assertEquals("1.5", read(text, "1.5"));
+		assertThrows(IllegalArgumentException.class, () -> text.read(parser("1.5")));
 		assertEquals("\"s\"", writeBoth(text, "s"));
 		assertEquals("null", writeBoth(text, null));
 	}
@@ -157,9 +163,9 @@ public class StreamingJsonAdaptersTest {
 				BigDecimal.class, BigInteger.class, Number.class }) {
 			final var number = adapter(type);
 			assertEquals("5", read(number, "5").toString().replaceAll("\\.0$", ""), type.getName());
-			assertEquals("7", read(number, "\"7\"").toString().replaceAll("\\.0$", ""), type.getName());
+			assertThrows(IllegalArgumentException.class, () -> number.read(parser("\"7\"")), type.getName());
 			read(number, "null");
-			assertThrows(ClassCastException.class, () -> number.read(parser("true")), type.getName());
+			assertThrows(IllegalArgumentException.class, () -> number.read(parser("true")), type.getName());
 		}
 
 		assertEquals(0, read(adapter(int.class), "null"));
@@ -176,10 +182,8 @@ public class StreamingJsonAdaptersTest {
 		assertEquals(false, read(bool, "false"));
 		assertNull(read(bool, "null"));
 		assertEquals(false, read(adapter(boolean.class), "null"));
-		assertEquals(true, read(bool, "\"true\""));
-		assertEquals(true, read(bool, "1"));
-		assertEquals(false, read(bool, "0"));
-		assertEquals(true, read(bool, "{}"));
+		for (final var other : new String[] { "\"true\"", "1", "0", "{}" })
+			assertThrows(IllegalArgumentException.class, () -> bool.read(parser(other)), other);
 		assertEquals("true", writeBoth(bool, true));
 		assertEquals("null", writeBoth(bool, null));
 	}
@@ -236,7 +240,9 @@ public class StreamingJsonAdaptersTest {
 		assertEquals(Letter.A, read(letter, "\"A\""));
 		assertEquals(Letter.B, read(letter, "{\"x\":{\"y\":[1]},\"z\":[1],\"w\":1,\"name\":\"B\"}"));
 		assertThrows(IllegalArgumentException.class, () -> letter.read(parser("5")));
-		assertEquals(Letter.A, read(letter, "[\"A\"]"));
+		assertEquals("expected a string or object, found NUMBER",
+				assertThrows(IllegalArgumentException.class, () -> letter.fromJson(IuJson.number(5))).getMessage());
+		assertThrows(IllegalArgumentException.class, () -> letter.read(parser("[\"A\"]")));
 		assertThrows(NullPointerException.class, () -> letter.read(parser("{}")));
 		assertEquals("\"A\"", writeBoth(letter, Letter.A));
 		assertEquals("null", writeBoth(letter, null));
@@ -265,7 +271,7 @@ public class StreamingJsonAdaptersTest {
 		assertNull(read(list, "null"));
 		assertEquals(List.of(), read(list, "[]"));
 		assertEquals(List.of(1, 2), read(list, "[1,2]"));
-		assertEquals(List.of(5), read(list, "5"));
+		assertThrows(IllegalArgumentException.class, () -> list.read(parser("5")));
 		assertEquals("[1,2]", writeBoth(list, List.of(1, 2)));
 		assertEquals("null", writeBoth(list, null));
 
@@ -279,7 +285,7 @@ public class StreamingJsonAdaptersTest {
 		}.type());
 		assertNull(read(map, "null"));
 		assertEquals(Map.of("a", 1), read(map, "{\"a\":1}"));
-		assertThrows(ClassCastException.class, () -> map.read(parser("[1]")));
+		assertThrows(IllegalArgumentException.class, () -> map.read(parser("[1]")));
 		final Map<String, Integer> value = new LinkedHashMap<>();
 		value.put("a", 1);
 		value.put("b", null);

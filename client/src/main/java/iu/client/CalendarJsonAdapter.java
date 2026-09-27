@@ -33,6 +33,7 @@ package iu.client;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
@@ -40,7 +41,9 @@ import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Calendar}
+ * Implements {@link IuJsonAdapter} for {@link Calendar}, as {@link Date}; always
+ * reads a {@link GregorianCalendar} in the default time zone, so also adapts that
+ * type
  */
 public class CalendarJsonAdapter implements IuJsonAdapter<Calendar> {
 
@@ -82,7 +85,7 @@ public class CalendarJsonAdapter implements IuJsonAdapter<Calendar> {
 		if (date == null)
 			return null;
 		else {
-			final var cal = Calendar.getInstance();
+			final var cal = new GregorianCalendar();
 			cal.setTime(date);
 			return cal;
 		}
