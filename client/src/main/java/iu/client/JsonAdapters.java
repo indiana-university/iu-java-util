@@ -99,6 +99,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuException;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import jakarta.json.JsonValue;
 
 /**
@@ -181,6 +182,11 @@ public final class JsonAdapters {
 		// before Map and Iterable, which JsonObject and JsonArray implement
 		if (JsonValue.class.isAssignableFrom(erased))
 			return new JsonValueAdapter(erased);
+
+		// an index read converts by the value adapter, or else as the JSON-B call
+		// in progress does
+		if (erased == IuJsonProperties.class)
+			return new PropertiesJsonAdapter(valueAdapter);
 
 		if (erased == Boolean.class)
 			return BooleanJsonAdapter.INSTANCE;

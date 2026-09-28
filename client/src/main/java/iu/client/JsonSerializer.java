@@ -31,6 +31,7 @@
  */
 package iu.client;
 
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.Objects;
@@ -312,32 +313,45 @@ public final class JsonSerializer {
 	}
 
 	/**
-	 * Gets the conversion for writing a property to JSON: by the date or number
-	 * format it declares, if one applies to its type, else by its type.
+	 * Gets the conversion for writing a property to JSON: by the JSON-B
+	 * components it declares, else by the date or number format it declares, if
+	 * one applies to its type, else by its type.
 	 *
 	 * @param property property
 	 * @param adapt    adapter function
+	 * @param snapshot options
 	 * @return {@link IuJsonAdapter}
 	 */
-	static IuJsonAdapter<?> readAdapter(BeanModel.Property property, Function<Type, IuJsonAdapter<?>> adapt) {
-		final var type = property.readType();
-		final var formatted = FormatAdapters.declared(type, property.readDateFormat(), property.readNumberFormat(),
-				null, null, false);
-		return formatted == null ? adapt.apply(type) : formatted;
+	static IuJsonAdapter<?> readAdapter(BeanModel.Property property, Function<Type, IuJsonAdapter<?>> adapt,
+			IuJsonSerializationOptions snapshot) {
+		return declared(property.readType(), property.readDateFormat(), property.readNumberFormat(),
+				property.readMembers(), adapt, snapshot);
 	}
 
 	/**
-	 * Gets the conversion for reading a property from JSON: by the date or number
-	 * format it declares, if one applies to its type, else by its type.
+	 * Gets the conversion for reading a property from JSON: by the JSON-B
+	 * components it declares, else by the date or number format it declares, if
+	 * one applies to its type, else by its type.
 	 *
 	 * @param property property
 	 * @param adapt    adapter function
+	 * @param snapshot options
 	 * @return {@link IuJsonAdapter}
 	 */
-	static IuJsonAdapter<?> writeAdapter(BeanModel.Property property, Function<Type, IuJsonAdapter<?>> adapt) {
-		final var type = property.writeType();
-		final var formatted = FormatAdapters.declared(type, property.writeDateFormat(), property.writeNumberFormat(),
-				null, null, false);
+	static IuJsonAdapter<?> writeAdapter(BeanModel.Property property, Function<Type, IuJsonAdapter<?>> adapt,
+			IuJsonSerializationOptions snapshot) {
+		return declared(property.writeType(), property.writeDateFormat(), property.writeNumberFormat(),
+				property.writeMembers(), adapt, snapshot);
+	}
+
+	private static IuJsonAdapter<?> declared(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
+			AnnotatedElement[] members, Function<Type, IuJsonAdapter<?>> adapt, IuJsonSerializationOptions snapshot) {
+		final var metadata = snapshot.isLegacyProperties() ? BindingMetadata.NONE : BindingMetadata.get();
+		final var components = metadata.components(type, date, number, members, () -> snapshot);
+		if (components != null)
+			return components;
+
+		final var formatted = FormatAdapters.declared(type, date, number, null, null, false);
 		return formatted == null ? adapt.apply(type) : formatted;
 	}
 
@@ -359,7 +373,7 @@ public final class JsonSerializer {
 			final var propertyValue = property.get(value);
 			if (propertyValue != null //
 					&& (snapshot.isEmptyOptionalPresent() || !BeanModel.isAbsent(propertyValue)))
-				builder.add(name, ((IuJsonAdapter) readAdapter(property, adapt)).toJson(propertyValue));
+				builder.add(name, ((IuJsonAdapter) readAdapter(property, adapt, snapshot)).toJson(propertyValue));
 			else if (Objects.requireNonNullElse(property.nillable(), snapshot.isIncludeNullProperties()))
 				builder.addNull(name);
 		}

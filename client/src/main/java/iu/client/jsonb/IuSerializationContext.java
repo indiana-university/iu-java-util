@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import iu.client.ConversionScope;
 import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
 import iu.client.jsonb.IuJsonb.AdapterReference;
@@ -158,11 +159,11 @@ final class IuSerializationContext extends IuJsonbContext implements Serializati
 		final var local = jsonb.serialization;
 		final var previous = local.get();
 		if (previous == this)
-			return conversion.apply(this);
+			return ConversionScope.within(jsonb.conversions(), () -> conversion.apply(this));
 
 		local.set(this);
 		try {
-			return conversion.apply(this);
+			return ConversionScope.within(jsonb.conversions(), () -> conversion.apply(this));
 		} finally {
 			if (previous == null)
 				local.remove();

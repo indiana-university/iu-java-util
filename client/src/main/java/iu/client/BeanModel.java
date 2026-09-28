@@ -51,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
@@ -213,6 +214,8 @@ public final class BeanModel {
 		private boolean writeHidden;
 		private Field writeField;
 		private final List<AnnotatedElement> members = new ArrayList<>();
+		private AnnotatedElement[] readMembers;
+		private AnnotatedElement[] writeMembers;
 		private String readName;
 		private String writeName;
 		private Boolean nillable;
@@ -341,6 +344,9 @@ public final class BeanModel {
 					nillable = metadata.nillable(member);
 			if (nillable == null)
 				nillable = metadata.nillable(type);
+
+			readMembers = Stream.of(getter, field).filter(Objects::nonNull).toArray(AnnotatedElement[]::new);
+			writeMembers = Stream.of(setter, field).filter(Objects::nonNull).toArray(AnnotatedElement[]::new);
 
 			readDateFormat = format(metadata::dateFormat, getter, field);
 			writeDateFormat = format(metadata::dateFormat, setter, field);
@@ -490,6 +496,24 @@ public final class BeanModel {
 		 */
 		public List<AnnotatedElement> members() {
 			return members;
+		}
+
+		/**
+		 * Gets the members that declare how the property is written to JSON.
+		 *
+		 * @return getter, then field, where present
+		 */
+		public AnnotatedElement[] readMembers() {
+			return readMembers.clone();
+		}
+
+		/**
+		 * Gets the members that declare how the property is read from JSON.
+		 *
+		 * @return setter, then field, where present
+		 */
+		public AnnotatedElement[] writeMembers() {
+			return writeMembers.clone();
 		}
 
 		/**

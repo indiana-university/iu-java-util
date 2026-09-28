@@ -32,6 +32,11 @@
 package iu.client;
 
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Type;
+import java.util.function.Supplier;
+
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonSerializationOptions;
 
 /**
  * Binding annotations on a business object type and its members, as JSON-B
@@ -184,6 +189,35 @@ public interface BindingMetadata {
 	 * @return number format; null if not declared
 	 */
 	default Format numberFormat(AnnotatedElement element) {
+		return null;
+	}
+
+	/**
+	 * Gets a conversion by the JSON-B components a type, or one of its
+	 * supertypes, declares by annotation.
+	 *
+	 * @param type    type
+	 * @param options supplies the options in effect for each conversion
+	 * @return conversion; null if none are declared
+	 */
+	default IuJsonAdapter<?> components(Type type, Supplier<IuJsonSerializationOptions> options) {
+		return null;
+	}
+
+	/**
+	 * Gets a conversion by the JSON-B components a property declares by
+	 * annotation, for one direction, with any format it declares.
+	 *
+	 * @param type    property type
+	 * @param date    date format declared; null if none
+	 * @param number  number format declared; null if none
+	 * @param members accessor, then field, that declare how the property converts
+	 *                in the direction converted
+	 * @param options supplies the options in effect for each conversion
+	 * @return conversion; null if the members declare no components
+	 */
+	default IuJsonAdapter<?> components(Type type, Format date, Format number, AnnotatedElement[] members,
+			Supplier<IuJsonSerializationOptions> options) {
 		return null;
 	}
 

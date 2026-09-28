@@ -53,6 +53,7 @@ import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
+import iu.client.jsonb.IuJsonbComponentAnnotationsTest;
 import iu.client.jsonb.JsonbMetadata;
 import jakarta.json.JsonValue;
 import jakarta.json.bind.annotation.JsonbDateFormat;
@@ -61,6 +62,11 @@ import jakarta.json.bind.annotation.JsonbNumberFormat;
 import jakarta.json.bind.annotation.JsonbProperty;
 import jakarta.json.bind.annotation.JsonbPropertyOrder;
 import jakarta.json.bind.annotation.JsonbTransient;
+import jakarta.json.bind.annotation.JsonbTypeDeserializer;
+import jakarta.json.bind.annotation.JsonbTypeSerializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
+import jakarta.json.bind.serializer.SerializationContext;
+import jakarta.json.stream.JsonGenerator;
 
 @SuppressWarnings("javadoc")
 public class BindingAnnotationsTest {
@@ -441,6 +447,96 @@ public class BindingAnnotationsTest {
 	}
 
 	@Test
+	public void testTypeComponents() {
+		final var money = adapt(IuJsonbComponentAnnotationsTest.Money.class, DEFAULT);
+		final var value = new IuJsonbComponentAnnotationsTest.Money();
+		value.amount = "1";
+		assertEquals(IuJson.string("$1"), money.toJson(value));
+		assertEquals("1", money.fromJson(IuJson.string("$1")).amount);
+
+		// streaming
+		final var writer = new StringWriter();
+		try (final var generator = IuJson.PROVIDER.createGenerator(writer)) {
+			money.write(value, generator);
+		}
+		assertEquals("\"$1\"", writer.toString());
+		try (final var parser = IuJson.PROVIDER.createParser(new StringReader("\"$2\""))) {
+			parser.next();
+			assertEquals("2", money.read(parser).amount);
+		}
+
+		// before 7.1, the type converts as a business object
+		final var legacy = adapt(IuJsonbComponentAnnotationsTest.Money.class, LEGACY);
+		assertEquals(IuJson.object().build(), legacy.toJson(value));
+
+		// declared on an interface, and on a superclass
+		assertEquals(IuJson.string("shape:circle"), adapt(IuJsonbComponentAnnotationsTest.Circle.class, DEFAULT)
+				.toJson(new IuJsonbComponentAnnotationsTest.Circle()));
+		assertEquals(IuJson.string("$null"), adapt(IuJsonbComponentAnnotationsTest.SpecialMoney.class, DEFAULT)
+				.toJson(new IuJsonbComponentAnnotationsTest.SpecialMoney()));
+	}
+
+	@Test
+	public void testPropertyComponents() {
+		final var adapter = adapt(IuJsonbComponentAnnotationsTest.Holder.class, DEFAULT);
+		assertEquals(IuJsonbComponentAnnotationsTest.JSON,
+				adapter.toJson(IuJsonbComponentAnnotationsTest.holder()).toString());
+
+		final var read = adapter.fromJson(IuJson.parse("{\"code\":\"cba\",\"money\":\"$1\",\"name\":\"N\","
+				+ "\"point\":[1,2],\"viaAccessors\":\"XY\"}"));
+		assertEquals("abc", read.code);
+		assertEquals("1", read.money.amount);
+		assertEquals("n", read.name);
+		assertEquals(2, read.point.y);
+		assertEquals("xy", read.getViaAccessors());
+
+		// before 7.1, public fields and annotations are left out
+		assertEquals("{\"viaAccessors\":\"xy\"}", adapt(IuJsonbComponentAnnotationsTest.Holder.class, LEGACY)
+				.toJson(IuJsonbComponentAnnotationsTest.holder()).toString());
+	}
+
+	public interface ProxiedComponents {
+		@JsonbTypeDeserializer(IuJsonbComponentAnnotationsTest.Reverse.class)
+		String getCode();
+
+		String getPlain();
+	}
+
+	@Test
+	public void testProxyComponents() {
+		final var json = IuJson.parse("{\"code\":\"cba\",\"plain\":\"p\"}");
+		final var proxied = adapt(ProxiedComponents.class, DEFAULT).fromJson(json);
+		assertEquals("abc", proxied.getCode());
+		assertEquals("p", proxied.getPlain());
+		assertEquals("cba", adapt(ProxiedComponents.class, LEGACY).fromJson(json).getCode());
+
+		// wrapped for IU conversions
+		assertEquals("abc", IuJson.wrap(json.asJsonObject(), ProxiedComponents.class).getCode());
+	}
+
+	/**
+	 * Converts through the IU conversions from inside a JSON-B component.
+	 */
+	public static class ReentersIu implements JsonbSerializer<String> {
+		@Override
+		public void serialize(String obj, JsonGenerator generator, SerializationContext ctx) {
+			final var money = new IuJsonbComponentAnnotationsTest.Money();
+			money.amount = obj;
+			generator.write(adapt(IuJsonbComponentAnnotationsTest.Money.class, DEFAULT).toJson(money));
+		}
+	}
+
+	public static class Reentrant {
+		@JsonbTypeSerializer(ReentersIu.class)
+		public String amount = "7";
+	}
+
+	@Test
+	public void testNestedComponents() {
+		assertEquals("{\"amount\":\"$7\"}", adapt(Reentrant.class, DEFAULT).toJson(new Reentrant()).toString());
+	}
+
+	@Test
 	public void testModel() throws Exception {
 		final var model = BeanModel.of(Annotated.class);
 		assertSame(Annotated.class, model.type());
@@ -481,6 +577,9 @@ public class BindingAnnotationsTest {
 		assertFalse(none.isTransient(field));
 		assertFalse(none.isCustomized(field));
 		assertNull(none.nillable(field));
+		assertNull(none.components(Annotated.class, DEFAULT));
+		assertNull(none.components(String.class, null, null, new java.lang.reflect.AnnotatedElement[] { field },
+				DEFAULT));
 	}
 
 }

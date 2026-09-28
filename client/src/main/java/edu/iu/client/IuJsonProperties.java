@@ -31,6 +31,7 @@
  */
 package edu.iu.client;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -39,10 +40,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import iu.client.ConversionScope;
 import iu.client.GenericTypes;
 import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
@@ -82,8 +88,37 @@ import jakarta.json.stream.JsonParser.Event;
  * <p>
  * A property the reader never asks for is kept raw and written back
  * unchanged; {@link #requireOnly(Set)} checks for unexpected ones. The index
- * is immutable: {@link #builder(Function)} creates one from Java values, and
+ * is immutable: {@link #builder()} creates one from Java values, and
  * {@link #with(String, Object)} copies one with a value replaced.
+ * </p>
+ *
+ * <p>
+ * An index converts by the conversions it's created with, or, created without
+ * them, by the first of:
+ * </p>
+ * <ol>
+ * <li>the IU JSON-B provider's call in progress when it converts, so values an
+ * application indexes and passes to {@link jakarta.json.bind.Jsonb#toJson},
+ * or writes from a serializer, convert by that call's configuration;</li>
+ * <li>the provider's call in progress when the index was created, so an index a
+ * deserializer creates converts that way after the call returns;</li>
+ * <li>the IU conversions, as {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)}
+ * converts with {@link IuJsonSerializationOptions#DEFAULT}.</li>
+ * </ol>
+ *
+ * <p>
+ * An index is itself a value both the IU conversions and the IU JSON-B provider
+ * convert, with nothing to register: written as the object it indexes, and read
+ * as an index of the object, as a top-level value, a property, or an item.
+ * Read by {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)}, it
+ * converts as that adapter's value types do; read by JSON-B, as described
+ * above.
+ * </p>
+ *
+ * <p>
+ * The same index may so convert differently in different calls. A serializer
+ * running under any JSON-B provider can write an index through the call's
+ * context with {@link #write(JsonGenerator, jakarta.json.bind.serializer.SerializationContext)}.
  * </p>
  */
 public final class IuJsonProperties {
@@ -98,18 +133,29 @@ public final class IuJsonProperties {
 	 */
 	private static final Object ABSENT = new Object();
 
+	private static final Map<Type, IuJsonAdapter<?>> DEFAULT_ADAPTERS = new ConcurrentHashMap<>();
+
+	/**
+	 * The IU conversions with default options, for an index converting with no
+	 * JSON-B call to take conversions from.
+	 */
+	private static final Function<Type, IuJsonAdapter<?>> DEFAULTS = type -> DEFAULT_ADAPTERS
+			.computeIfAbsent(type, t -> IuJsonAdapter.adapt(t, () -> IuJsonSerializationOptions.DEFAULT));
+
 	/**
 	 * Builds an index from Java values.
 	 */
 	public static final class Builder {
 		private final Function<Type, IuJsonAdapter<?>> adapt;
+		private final Function<Type, IuJsonAdapter<?>> captured;
 		private final List<String> names = new ArrayList<>();
 		private final Map<String, Object> values = new ConcurrentHashMap<>();
 		private final Map<String, Type> types = new ConcurrentHashMap<>();
 		private final Map<String, JsonValue> raw = new ConcurrentHashMap<>();
 
-		private Builder(Function<Type, IuJsonAdapter<?>> adapt) {
-			this.adapt = Objects.requireNonNull(adapt, "adapt");
+		private Builder(Function<Type, IuJsonAdapter<?>> adapt, Function<Type, IuJsonAdapter<?>> captured) {
+			this.adapt = adapt;
+			this.captured = captured;
 		}
 
 		private void name(String name) {
@@ -188,6 +234,17 @@ public final class IuJsonProperties {
 	}
 
 	/**
+	 * Indexes a JSON object, converting as the JSON-B call in progress converts.
+	 *
+	 * @param object JSON object, referenced rather than copied
+	 * @return {@link IuJsonProperties}
+	 * @see IuJsonProperties
+	 */
+	public static IuJsonProperties of(JsonObject object) {
+		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null);
+	}
+
+	/**
 	 * Indexes a JSON object.
 	 *
 	 * @param object JSON object, referenced rather than copied
@@ -195,7 +252,21 @@ public final class IuJsonProperties {
 	 * @return {@link IuJsonProperties}
 	 */
 	public static IuJsonProperties of(JsonObject object, Function<Type, IuJsonAdapter<?>> adapt) {
-		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, adapt);
+		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null,
+				Objects.requireNonNull(adapt, "adapt"));
+	}
+
+	/**
+	 * Indexes an object as a parser reads it, converting as the JSON-B call in
+	 * progress converts.
+	 *
+	 * @param parser parser, at the object's {@code START_OBJECT}
+	 * @return {@link IuJsonProperties}
+	 * @throws IllegalArgumentException if the parser isn't at an object
+	 * @see #read(JsonParser, Function)
+	 */
+	public static IuJsonProperties read(JsonParser parser) {
+		return index(parser, null);
 	}
 
 	/**
@@ -215,6 +286,10 @@ public final class IuJsonProperties {
 	 * @throws IllegalArgumentException if the parser isn't at an object
 	 */
 	public static IuJsonProperties read(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
+		return index(parser, Objects.requireNonNull(adapt, "adapt"));
+	}
+
+	private static IuJsonProperties index(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
 		final var event = parser.currentEvent();
 		if (event != Event.START_OBJECT)
 			throw JsonAdapters.expected("an object", event);
@@ -222,7 +297,7 @@ public final class IuJsonProperties {
 		if (parser instanceof ScopedParser) {
 			final var scoped = (ScopedParser) parser;
 			if (scoped.isTree())
-				return of(parser.getObject(), adapt);
+				return new IuJsonProperties(parser.getObject(), null, adapt);
 
 			final var properties = new IuJsonProperties(null, parser, adapt);
 			scoped.beforeRelease(properties::detach);
@@ -249,16 +324,28 @@ public final class IuJsonProperties {
 	}
 
 	/**
+	 * Starts building an index from Java values, converting as the JSON-B call in
+	 * progress converts.
+	 *
+	 * @return {@link Builder}
+	 * @see IuJsonProperties
+	 */
+	public static Builder builder() {
+		return new Builder(null, ConversionScope.current());
+	}
+
+	/**
 	 * Starts building an index from Java values.
 	 *
 	 * @param adapt gets the conversion for a type
 	 * @return {@link Builder}
 	 */
 	public static Builder builder(Function<Type, IuJsonAdapter<?>> adapt) {
-		return new Builder(adapt);
+		return new Builder(Objects.requireNonNull(adapt, "adapt"), null);
 	}
 
 	private final Function<Type, IuJsonAdapter<?>> adapt;
+	private final Function<Type, IuJsonAdapter<?>> captured;
 	private final JsonObject source;
 	private final Map<String, Object> resolved = new ConcurrentHashMap<>();
 	private final Map<String, Type> types = new ConcurrentHashMap<>();
@@ -269,8 +356,16 @@ public final class IuJsonProperties {
 	private String pending;
 	private volatile JsonObject json;
 
+	/**
+	 * Constructor.
+	 *
+	 * @param source object indexed; null if reading from a parser
+	 * @param parser parser reading the object; null if indexing an object
+	 * @param adapt  conversions; null for the call's in progress
+	 */
 	private IuJsonProperties(JsonObject source, JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
-		this.adapt = Objects.requireNonNull(adapt, "adapt");
+		this.adapt = adapt;
+		captured = adapt == null ? ConversionScope.current() : null;
 		this.source = source;
 		this.parser = parser;
 		this.names = source == null ? new LinkedHashSet<>() : null;
@@ -278,6 +373,7 @@ public final class IuJsonProperties {
 
 	private IuJsonProperties(Builder builder) {
 		adapt = builder.adapt;
+		captured = builder.captured;
 		source = null;
 		names = new LinkedHashSet<>(builder.names);
 		resolved.putAll(builder.values);
@@ -305,9 +401,20 @@ public final class IuJsonProperties {
 			return value.getClass();
 	}
 
+	/**
+	 * Gets the conversion for a type: by the conversions the index is bound to;
+	 * else those of the JSON-B call in progress; else those of the call in
+	 * progress when the index was created; else the IU defaults.
+	 */
 	@SuppressWarnings("unchecked")
 	private IuJsonAdapter<Object> adapter(Type type) {
-		return (IuJsonAdapter<Object>) adapt.apply(type);
+		var conversions = adapt;
+		if (conversions == null) {
+			conversions = ConversionScope.current();
+			if (conversions == null)
+				conversions = captured == null ? DEFAULTS : captured;
+		}
+		return (IuJsonAdapter<Object>) conversions.apply(type);
 	}
 
 	private JsonValue raw(String name) {
@@ -407,8 +514,9 @@ public final class IuJsonProperties {
 	 * @param <T>  Java type
 	 * @param name JSON property name
 	 * @param type type to convert the property to
-	 * @return converted value; for a property not in the object, the conversion
-	 *         of an undefined value, such as null or a primitive's default
+	 * @return converted value; for a property not in the object, with no
+	 *         conversion looked up whatever the type, a primitive's default, an
+	 *         empty optional, or null
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T get(String name, Type type) {
@@ -431,10 +539,38 @@ public final class IuJsonProperties {
 			json = raw(name);
 		}
 
+		// not in the object: nothing to convert, so no conversion is looked up
+		if (json == null)
+			return box(undefined(type));
+
 		final var value = box(adapter(type).fromJson(json));
 		resolved.put(name, value);
 		types.put(name, type);
 		return value;
+	}
+
+	/**
+	 * Gets the value of a property not in the object, without converting.
+	 *
+	 * @param type type asked for
+	 * @return a primitive's default; an empty {@link Optional},
+	 *         {@link OptionalInt}, {@link OptionalLong}, or
+	 *         {@link OptionalDouble}; otherwise null
+	 */
+	private static Object undefined(Type type) {
+		final var c = JsonAdapters.erase(type);
+		if (c.isPrimitive())
+			return Array.get(Array.newInstance(c, 1), 0);
+		else if (c == Optional.class)
+			return Optional.empty();
+		else if (c == OptionalInt.class)
+			return OptionalInt.empty();
+		else if (c == OptionalLong.class)
+			return OptionalLong.empty();
+		else if (c == OptionalDouble.class)
+			return OptionalDouble.empty();
+		else
+			return null;
 	}
 
 	/**
@@ -491,7 +627,7 @@ public final class IuJsonProperties {
 	 * @return new index
 	 */
 	public IuJsonProperties with(String name, Object value) {
-		return builder(adapt).putAll(this).put(name, value).build();
+		return new Builder(adapt, captured).putAll(this).put(name, value).build();
 	}
 
 	/**
@@ -581,6 +717,50 @@ public final class IuJsonProperties {
 				generator.write(value);
 			else
 				adapter(types.get(name)).write(unbox(resolved.get(name)), generator);
+		}
+		generator.writeEnd();
+	}
+
+	/**
+	 * Writes the object from a JSON-B serializer, converting each Java value
+	 * through the serialization context, as its runtime type, so the call's
+	 * configuration applies with any JSON-B provider.
+	 *
+	 * <p>
+	 * A property read as JSON writes back unchanged, and one set to null writes
+	 * JSON null whether or not the call writes null properties. The index is read
+	 * through first.
+	 * </p>
+	 *
+	 * @param generator generator the serializer was given, where a value is
+	 *                  expected
+	 * @param context   serialization context
+	 */
+	@SuppressWarnings("exports")
+	public void write(JsonGenerator generator, jakarta.json.bind.serializer.SerializationContext context) {
+		if (source != null) {
+			generator.write(source);
+			return;
+		}
+
+		final List<String> names;
+		synchronized (this) {
+			pull(null, null);
+			names = new ArrayList<>(this.names);
+		}
+
+		generator.writeStartObject();
+		for (final var name : names) {
+			final var json = raw.get(name);
+			if (json != null)
+				generator.write(name, json);
+			else {
+				final var value = unbox(resolved.get(name));
+				if (value == null)
+					generator.writeNull(name);
+				else
+					context.serialize(name, value, generator);
+			}
 		}
 		generator.writeEnd();
 	}

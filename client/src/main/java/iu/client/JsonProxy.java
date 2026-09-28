@@ -42,12 +42,14 @@ import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonProperties;
 import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
@@ -104,13 +106,50 @@ public final class JsonProxy implements InvocationHandler {
 	 */
 	public static <T> T wrap(IuJsonProperties properties, Class<T> targetInterface,
 			IuJsonPropertyNameFormat propertyNameFormat) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		final var metadata = BindingMetadata.get();
 		return wrap(properties, targetInterface, name -> JsonSerializer.formatPropertyName(name, propertyNameFormat),
-				false);
+				false, metadata, declared(metadata, () -> options));
+	}
+
+	/**
+	 * Gets the conversion a getter declares.
+	 */
+	@FunctionalInterface
+	public interface Declared {
+		/**
+		 * Gets the conversion a getter declares.
+		 *
+		 * @param type    return type
+		 * @param date    date format the getter, its interface, or its package
+		 *                declares; null if none
+		 * @param number  number format the getter, its interface, or its package
+		 *                declares; null if none
+		 * @param members the getter
+		 * @return conversion; null if the getter declares none
+		 */
+		IuJsonAdapter<?> adapt(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
+				AnnotatedElement[] members);
+	}
+
+	/**
+	 * Gets the conversions getters declare for the IU conversions: by the JSON-B
+	 * components a getter declares, else by a date or number format.
+	 *
+	 * @param metadata binding annotations
+	 * @param options  supplies the options in effect for each conversion
+	 * @return {@link Declared}
+	 */
+	static Declared declared(BindingMetadata metadata, Supplier<IuJsonSerializationOptions> options) {
+		return (type, date, number, members) -> {
+			final var components = metadata.components(type, date, number, members, options);
+			return components == null ? FormatAdapters.declared(type, date, number, null, null, false) : components;
+		};
 	}
 
 	/**
 	 * Wraps indexed properties in a java interface, naming properties by a
-	 * function.
+	 * function, converting a getter that declares a conversion by it.
 	 *
 	 * @param <T>             target interface type
 	 * @param properties      properties
@@ -118,11 +157,12 @@ public final class JsonProxy implements InvocationHandler {
 	 * @param naming          gets the JSON name of a Java property name
 	 * @param ignoreCase      true to match a JSON name that differs only in case
 	 *                        when none matches exactly
+	 * @param declared        gets the conversion a getter declares
 	 * @return {@link JsonProxy}
 	 */
 	public static <T> T wrap(IuJsonProperties properties, Class<T> targetInterface, Function<String, String> naming,
-			boolean ignoreCase) {
-		return wrap(properties, targetInterface, naming, ignoreCase, BindingMetadata.get());
+			boolean ignoreCase, Declared declared) {
+		return wrap(properties, targetInterface, naming, ignoreCase, BindingMetadata.get(), declared);
 	}
 
 	/**
@@ -138,14 +178,15 @@ public final class JsonProxy implements InvocationHandler {
 	 * @param metadata        binding annotations: a getter that declares its JSON
 	 *                        name reads that name, and a transient getter reads
 	 *                        as absent
+	 * @param declared        gets the conversion a getter declares
 	 * @return {@link JsonProxy}
 	 */
 	static <T> T wrap(IuJsonProperties properties, Class<T> targetInterface, Function<String, String> naming,
-			boolean ignoreCase, BindingMetadata metadata) {
+			boolean ignoreCase, BindingMetadata metadata, Declared declared) {
 		JsonProxy.class.getModule().addReads(targetInterface.getModule());
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),
-				new Class<?>[] { targetInterface }, new JsonProxy(properties, naming, ignoreCase, metadata)));
+				new Class<?>[] { targetInterface }, new JsonProxy(properties, naming, ignoreCase, metadata, declared)));
 	}
 
 	/**
@@ -172,14 +213,16 @@ public final class JsonProxy implements InvocationHandler {
 	private final Function<String, String> naming;
 	private final boolean ignoreCase;
 	private final BindingMetadata metadata;
+	private final Declared declared;
 	private final Map<String, Object> resolved = new ConcurrentHashMap<>();
 
 	private JsonProxy(IuJsonProperties properties, Function<String, String> naming, boolean ignoreCase,
-			BindingMetadata metadata) {
+			BindingMetadata metadata, Declared declared) {
 		this.properties = properties;
 		this.naming = naming;
 		this.ignoreCase = ignoreCase;
 		this.metadata = metadata;
+		this.declared = declared;
 	}
 
 	@Override
@@ -245,19 +288,19 @@ public final class JsonProxy implements InvocationHandler {
 			return checkResolvedValue(methodName, null);
 
 		final var genericReturnType = method.getGenericReturnType();
-		// a declared date or number format reads the raw value
-		final var formatted = FormatAdapters.declared(genericReturnType, //
-				declared(metadata::dateFormat, method), declared(metadata::numberFormat, method), null, null, false);
+		// a declared conversion reads the raw value
+		final var declaredAdapter = declared.adapt(genericReturnType, //
+				format(metadata::dateFormat, method), format(metadata::numberFormat, method),
+				new AnnotatedElement[] { method });
 		try {
-			if (formatted != null)
+			if (declaredAdapter != null)
 				return checkResolvedValue(methodName,
-						formatted.fromJson(properties.get(jsonName, JsonValue.class)));
+						declaredAdapter.fromJson(properties.get(jsonName, JsonValue.class)));
 			return checkResolvedValue(methodName, properties.get(jsonName, genericReturnType));
 		} catch (UnsupportedOperationException e) {
-			if (!present)
-				return checkResolvedValue(methodName, null);
-			else
-				throw e;
+			// a type with no conversion, whatever the value; an absent property
+			// converts nothing, so reads as null or the type's empty value
+			throw e;
 		} catch (Throwable e) {
 			throw new IllegalArgumentException(
 					"Invalid JSON value for return type " + genericReturnType + " in property " + propertyName, e);
@@ -267,7 +310,7 @@ public final class JsonProxy implements InvocationHandler {
 	/**
 	 * Gets the format a getter declares, or its interface or package does.
 	 */
-	private static BindingMetadata.Format declared(Function<AnnotatedElement, BindingMetadata.Format> declared,
+	private static BindingMetadata.Format format(Function<AnnotatedElement, BindingMetadata.Format> declared,
 			Method getter) {
 		final var format = declared.apply(getter);
 		return format == null ? declared.apply(getter.getDeclaringClass()) : format;

@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import iu.client.ConversionScope;
 import iu.client.jsonb.IuJsonb.AdapterReference;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.serializer.DeserializationContext;
@@ -205,11 +206,11 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 		final var local = jsonb.deserialization;
 		final var previous = local.get();
 		if (previous == this)
-			return conversion.apply(this);
+			return ConversionScope.within(jsonb.conversions(), () -> conversion.apply(this));
 
 		local.set(this);
 		try {
-			return conversion.apply(this);
+			return ConversionScope.within(jsonb.conversions(), () -> conversion.apply(this));
 		} finally {
 			if (previous == null)
 				local.remove();

@@ -355,4 +355,27 @@ public class IuJsonPropertiesTest {
 		}
 	}
 
+	@Test
+	public void testAbsentConvertsNothing() {
+		// conversions that fail if looked up at all
+		final Function<Type, IuJsonAdapter<?>> none = t -> {
+			throw new AssertionError(t.getTypeName());
+		};
+		final var indexed = IuJsonProperties.of(IuJson.object().build(), none);
+		assertNull(indexed.get("cert", java.security.cert.X509Certificate.class));
+		assertEquals(0, (int) indexed.get("n", int.class));
+		assertFalse((boolean) indexed.get("flag", boolean.class));
+		assertEquals(java.util.Optional.empty(), indexed.get("o", java.util.Optional.class));
+		assertEquals(java.util.OptionalInt.empty(), indexed.get("i", java.util.OptionalInt.class));
+		assertEquals(java.util.OptionalLong.empty(), indexed.get("l", java.util.OptionalLong.class));
+		assertEquals(java.util.OptionalDouble.empty(), indexed.get("d", java.util.OptionalDouble.class));
+
+		try (final var parser = IuJson.PROVIDER.createParser(new StringReader("{\"a\":1}"))) {
+			parser.next();
+			final var read = IuJsonProperties.read(parser, none);
+			assertNull(read.get("cert", java.security.cert.X509Certificate.class));
+			assertEquals(Set.of("a"), read.names());
+		}
+	}
+
 }

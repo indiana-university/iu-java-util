@@ -95,10 +95,12 @@ public final class JsonDeserializer {
 		final var format = JsonSerializer.propertyNameFormat(snapshot);
 
 		final var erased = JsonAdapters.erase(type);
-		if (erased.isInterface())
+		if (erased.isInterface()) {
+			final var metadata = snapshot.isLegacyProperties() ? BindingMetadata.NONE : BindingMetadata.get();
 			return JsonProxy.wrap(IuJsonProperties.of(value, adapt), erased,
-					name -> JsonSerializer.formatPropertyName(name, format), false,
-					snapshot.isLegacyProperties() ? BindingMetadata.NONE : BindingMetadata.get());
+					name -> JsonSerializer.formatPropertyName(name, format), false, metadata,
+					JsonProxy.declared(metadata, () -> snapshot));
+		}
 
 		final var model = JsonSerializer.model(type, snapshot);
 		final var naming = PropertyNaming.of(format);
@@ -106,7 +108,7 @@ public final class JsonDeserializer {
 		for (final var entry : value.entrySet()) {
 			final var property = model.writable(naming, entry.getKey());
 			if (property != null)
-				property.set(bean, JsonSerializer.writeAdapter(property, adapt).fromJson(entry.getValue()));
+				property.set(bean, JsonSerializer.writeAdapter(property, adapt, snapshot).fromJson(entry.getValue()));
 		}
 		return bean;
 	}

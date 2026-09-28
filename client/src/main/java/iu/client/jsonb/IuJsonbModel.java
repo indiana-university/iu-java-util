@@ -79,7 +79,7 @@ final class IuJsonbModel {
 			var adapter = readAdapter;
 			if (adapter == null)
 				readAdapter = adapter = jsonb.adapt(property.readType(), property.readDateFormat(),
-						property.readNumberFormat());
+						property.readNumberFormat(), property.readMembers());
 			return adapter;
 		}
 
@@ -87,7 +87,7 @@ final class IuJsonbModel {
 			var adapter = writeAdapter;
 			if (adapter == null)
 				writeAdapter = adapter = jsonb.adapt(property.writeType(), property.writeDateFormat(),
-						property.writeNumberFormat());
+						property.writeNumberFormat(), property.writeMembers());
 			return adapter;
 		}
 

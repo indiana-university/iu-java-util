@@ -32,20 +32,26 @@
 package iu.client.jsonb;
 
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -57,6 +63,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -68,12 +75,15 @@ import iu.client.FormatAdapters;
 import iu.client.GenericTypes;
 import iu.client.ItemScope;
 import iu.client.JsonAdapters;
-import jakarta.json.bind.Jsonb;
-import jakarta.json.bind.JsonbConfig;
 import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.annotation.JsonbTypeAdapter;
+import jakarta.json.bind.annotation.JsonbTypeDeserializer;
+import jakarta.json.bind.annotation.JsonbTypeSerializer;
 import jakarta.json.bind.config.BinaryDataStrategy;
 import jakarta.json.bind.config.PropertyOrderStrategy;
 import jakarta.json.bind.config.PropertyVisibilityStrategy;
@@ -135,6 +145,17 @@ import jakarta.json.stream.JsonParserFactory;
  * configured for a type, each applies to its type and every subtype, and they
  * run from the most specific to the least, then in configured order. See
  * {@link IuJsonbValueAdapter} for how control passes along a chain.
+ * </p>
+ *
+ * <p>
+ * A component a type declares by {@code @JsonbTypeAdapter},
+ * {@code @JsonbTypeSerializer}, or {@code @JsonbTypeDeserializer} joins the
+ * chains as if registered for the declaring type, so also applies to its
+ * subtypes, ahead of configured components that are no more specific. One a
+ * property declares, on its accessor or field, heads that property's chain;
+ * passed a value back, the context continues with the type's chain. Each
+ * declared component class is instantiated once per provider by its no-arg
+ * constructor.
  * </p>
  *
  * <p>
@@ -290,10 +311,9 @@ public class IuJsonb implements Jsonb {
 	 * @throws IllegalArgumentException if the context isn't from this provider
 	 */
 	public static Function<Type, IuJsonAdapter<?>> adapters(DeserializationContext context) {
-		if (context instanceof IuDeserializationContext) {
-			final var jsonb = ((IuDeserializationContext) context).jsonb;
-			return jsonb::adapt;
-		} else
+		if (context instanceof IuDeserializationContext)
+			return ((IuDeserializationContext) context).jsonb.conversions();
+		else
 			throw new IllegalArgumentException("not a deserialization by " + IuJsonb.class.getName());
 	}
 
@@ -371,6 +391,10 @@ public class IuJsonb implements Jsonb {
 	private final List<Registration<AdapterReference>> adapters;
 	private final Map<Type, IuJsonbValueAdapter<?>> valueAdapters = new ConcurrentHashMap<>();
 	private final Map<Type, IuJsonbModel> models = new ConcurrentHashMap<>();
+	private final Function<Type, IuJsonAdapter<?>> conversions = this::adapt;
+	private final Map<Class<?>, DeclaredComponents> declaredComponents = new ConcurrentHashMap<>();
+	private final Map<Class<?>, Object> components = new ConcurrentHashMap<>();
+	private final Map<Class<?>, AdapterReference> declaredAdapters = new ConcurrentHashMap<>();
 
 	/**
 	 * Serialization call in progress on each thread.
@@ -552,7 +576,6 @@ public class IuJsonb implements Jsonb {
 	 * @param type key type
 	 * @return key adapter
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	IuJsonAdapter<?> keyAdapter(Type type) {
 		final var erased = JsonAdapters.erase(type);
 		if (erased.isEnum())
@@ -699,17 +722,8 @@ public class IuJsonb implements Jsonb {
 	}
 
 	/**
-	 * Determines if any adapter or serializer is configured, so writing a value
-	 * might select a component by its runtime type.
-	 *
-	 * @return true if adapters or serializers are configured
-	 */
-	boolean hasWriteComponents() {
-		return !adapters.isEmpty() || !serializers.isEmpty();
-	}
-
-	/**
-	 * Gets the adapters that apply to a type, most specific first.
+	 * Gets the adapters that apply to a type, most specific first; between
+	 * adapters neither more specific than the other, one a type declares first.
 	 *
 	 * @param type   type
 	 * @param scalar true for a scalar value, to leave out adapters registered for
@@ -717,13 +731,13 @@ public class IuJsonb implements Jsonb {
 	 * @return adapters
 	 */
 	List<AdapterReference> adapters(Type type, boolean scalar) {
-		return chain(type, scalar, adapters);
+		return chain(type, scalar, declared(type).adapters, adapters);
 	}
 
 	/**
 	 * Gets the serializers and adapters that apply to a type, most specific
-	 * first; between a serializer and an adapter neither more specific than the
-	 * other, the serializer first.
+	 * first; between components neither more specific than the other, those a
+	 * type declares first, then a serializer before an adapter.
 	 *
 	 * @param type   type
 	 * @param scalar true for a scalar value, to leave out components registered
@@ -731,13 +745,14 @@ public class IuJsonb implements Jsonb {
 	 * @return {@link JsonbSerializer} and {@link AdapterReference} components
 	 */
 	List<Object> writeChain(Type type, boolean scalar) {
-		return chain(type, scalar, serializers, adapters);
+		final var declared = declared(type);
+		return chain(type, scalar, declared.serializers, declared.adapters, serializers, adapters);
 	}
 
 	/**
 	 * Gets the deserializers and adapters that apply to a type, most specific
-	 * first; between a deserializer and an adapter neither more specific than the
-	 * other, the deserializer first.
+	 * first; between components neither more specific than the other, those a
+	 * type declares first, then a deserializer before an adapter.
 	 *
 	 * @param type   type
 	 * @param scalar true for a scalar value, to leave out components registered
@@ -745,7 +760,141 @@ public class IuJsonb implements Jsonb {
 	 * @return {@link JsonbDeserializer} and {@link AdapterReference} components
 	 */
 	List<Object> readChain(Type type, boolean scalar) {
-		return chain(type, scalar, deserializers, adapters);
+		final var declared = declared(type);
+		return chain(type, scalar, declared.deserializers, declared.adapters, deserializers, adapters);
+	}
+
+	/**
+	 * Components a type and its supertypes declare by annotation, each registered
+	 * for the type that declares it.
+	 */
+	private static final class DeclaredComponents {
+		private final List<Registration<JsonbSerializer>> serializers = new ArrayList<>();
+		private final List<Registration<JsonbDeserializer>> deserializers = new ArrayList<>();
+		private final List<Registration<AdapterReference>> adapters = new ArrayList<>();
+	}
+
+	private DeclaredComponents declared(Type type) {
+		return declaredComponents.computeIfAbsent(JsonAdapters.erase(type), this::declare);
+	}
+
+	private DeclaredComponents declare(Class<?> type) {
+		final var declared = new DeclaredComponents();
+		final Deque<Class<?>> todo = new ArrayDeque<>();
+		final Set<Class<?>> done = new HashSet<>();
+		todo.add(type);
+		while (!todo.isEmpty()) {
+			final var next = todo.poll();
+			if (IuObject.isPlatformName(next.getName()) //
+					|| !done.add(next))
+				continue;
+
+			final var serializer = next.getAnnotation(JsonbTypeSerializer.class);
+			if (serializer != null)
+				declared.serializers.add(new Registration<>(next, (JsonbSerializer) component(serializer.value())));
+			final var deserializer = next.getAnnotation(JsonbTypeDeserializer.class);
+			if (deserializer != null)
+				declared.deserializers
+						.add(new Registration<>(next, (JsonbDeserializer) component(deserializer.value())));
+			final var adapter = next.getAnnotation(JsonbTypeAdapter.class);
+			if (adapter != null)
+				declared.adapters.add(new Registration<>(next, adapterReference(adapter.value())));
+
+			final var parent = next.getSuperclass();
+			if (parent != null)
+				todo.add(parent);
+			todo.addAll(Arrays.asList(next.getInterfaces()));
+		}
+		return declared;
+	}
+
+	/**
+	 * Gets the one instance of a component class an annotation names, created by
+	 * its no-arg constructor.
+	 */
+	private Object component(Class<?> componentClass) {
+		return components.computeIfAbsent(componentClass, c -> {
+			final var constructor = IuException.unchecked(() -> c.getDeclaredConstructor());
+			constructor.trySetAccessible();
+			return IuException.uncheckedInvocation(() -> constructor.newInstance());
+		});
+	}
+
+	/**
+	 * Gets the one reference to an adapter class an annotation names, so it
+	 * applies at most once to a value, as a configured adapter does.
+	 */
+	private AdapterReference adapterReference(Class<?> adapterClass) {
+		return declaredAdapters.computeIfAbsent(adapterClass, c -> {
+			final var adapter = (JsonbAdapter) component(c);
+			final var types = componentTypes(adapter, JsonbAdapter.class);
+			return new AdapterReference(types[0], types[1], adapter);
+		});
+	}
+
+	/**
+	 * Gets a value adapter for a property: the type's, or, when the property
+	 * declares components, a date or number format that applies to its type, or
+	 * both, one with the components ahead of the type's and the format in place
+	 * of the built-in conversion.
+	 *
+	 * @param type    property type
+	 * @param date    date format declared; null if none
+	 * @param number  number format declared; null if none
+	 * @param members accessor, then field, that declare components for the
+	 *                direction converted
+	 * @return {@link IuJsonbValueAdapter}
+	 */
+	IuJsonbValueAdapter<Object> adapt(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
+			AnnotatedElement[] members) {
+		final var declared = declared(type, date, number, members);
+		return declared == null ? adapt(type) : declared;
+	}
+
+	/**
+	 * Gets a value adapter for what a property declares.
+	 *
+	 * @param type    property type
+	 * @param date    date format declared; null if none
+	 * @param number  number format declared; null if none
+	 * @param members accessor, then field, that declare components for the
+	 *                direction converted
+	 * @return {@link IuJsonbValueAdapter}; null if the property declares nothing
+	 *         that applies
+	 * @see #adapt(Type, BindingMetadata.Format, BindingMetadata.Format,
+	 *      AnnotatedElement[])
+	 */
+	IuJsonbValueAdapter<Object> declared(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
+			AnnotatedElement[] members) {
+		final List<Object> write = new ArrayList<>(2);
+		final List<Object> read = new ArrayList<>(2);
+		final var serializer = first(members, JsonbTypeSerializer.class);
+		if (serializer != null)
+			write.add(component(serializer.value()));
+		final var deserializer = first(members, JsonbTypeDeserializer.class);
+		if (deserializer != null)
+			read.add(component(deserializer.value()));
+		final var adapter = first(members, JsonbTypeAdapter.class);
+		if (adapter != null) {
+			final var reference = adapterReference(adapter.value());
+			write.add(reference);
+			read.add(reference);
+		}
+
+		final var formatted = FormatAdapters.declared(type, date, number, configuredDateFormat, locale, strictIJson);
+		if (write.isEmpty() && read.isEmpty() && formatted == null)
+			return null;
+		else
+			return new IuJsonbValueAdapter<>(type, this, formatted, write, read);
+	}
+
+	private static <A extends Annotation> A first(AnnotatedElement[] members, Class<A> annotationType) {
+		for (final var member : members) {
+			final var annotation = member.getAnnotation(annotationType);
+			if (annotation != null)
+				return annotation;
+		}
+		return null;
 	}
 
 	/**
@@ -838,21 +987,12 @@ public class IuJsonb implements Jsonb {
 	}
 
 	/**
-	 * Gets a value adapter for a property: the type's, or, when the property
-	 * declares a date or number format that applies to its type, one with the
-	 * same components and that format in place of the built-in conversion.
+	 * Gets this provider's conversions, as a function.
 	 *
-	 * @param type   property type
-	 * @param date   date format declared; null if none
-	 * @param number number format declared; null if none
-	 * @return {@link IuJsonbValueAdapter}
+	 * @return {@link #adapt(Type)}, the same function on every call
 	 */
-	IuJsonbValueAdapter<Object> adapt(Type type, BindingMetadata.Format date, BindingMetadata.Format number) {
-		final var formatted = FormatAdapters.declared(type, date, number, configuredDateFormat, locale, strictIJson);
-		if (formatted == null)
-			return adapt(type);
-		else
-			return new IuJsonbValueAdapter<>(type, this, formatted);
+	Function<Type, IuJsonAdapter<?>> conversions() {
+		return conversions;
 	}
 
 	/**

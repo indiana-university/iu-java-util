@@ -61,8 +61,6 @@ import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonNumber;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
-import jakarta.json.stream.JsonParser;
 
 /**
  * Date and number conversions by format, shared by the JSON-B provider and the
@@ -196,35 +194,9 @@ public final class FormatAdapters {
 	 * @param options supplies the options in effect for each conversion
 	 * @return conversion
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static IuJsonAdapter<?> legacyDates(Class<?> type, Supplier<IuJsonSerializationOptions> options) {
-		final IuJsonAdapter standard = JsonAdapters.adapt(type, null);
-		final IuJsonAdapter legacy = legacy(type);
-		return new IuJsonAdapter<Object>() {
-			private IuJsonAdapter<Object> adapter() {
-				return JsonSerializer.snapshot(options).isLegacyDates() ? legacy : standard;
-			}
-
-			@Override
-			public Object fromJson(JsonValue jsonValue) {
-				return adapter().fromJson(jsonValue);
-			}
-
-			@Override
-			public JsonValue toJson(Object javaValue) {
-				return adapter().toJson(javaValue);
-			}
-
-			@Override
-			public Object read(JsonParser parser) {
-				return adapter().read(parser);
-			}
-
-			@Override
-			public void write(Object value, JsonGenerator generator) {
-				adapter().write(value, generator);
-			}
-		};
+		return OptionsSwitch.of(options, IuJsonSerializationOptions::isLegacyDates, legacy(type),
+				JsonAdapters.adapt(type, null));
 	}
 
 	private static IuJsonAdapter<?> legacy(Class<?> type) {

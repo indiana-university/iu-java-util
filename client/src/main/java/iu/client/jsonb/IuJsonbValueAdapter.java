@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import iu.client.FormatAdapters;
 import iu.client.GenericTypes;
 import iu.client.JsonAdapters;
@@ -130,6 +131,8 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	private final IuJsonb jsonb;
 	private final List<AdapterReference> adapters;
 	private final List<AdapterReference> scalarAdapters;
+	private final List<AdapterReference> writeAdapters;
+	private final List<Object> writePrefix;
 	private final List<Object> writeChain;
 	private final List<Object> readChain;
 	private final List<Object> scalarReadChain;
@@ -159,6 +162,27 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 *                the type's own on first use
 	 */
 	IuJsonbValueAdapter(Type type, IuJsonb jsonb, IuJsonAdapter<?> builtIn) {
+		this(type, jsonb, builtIn, List.of(), List.of());
+	}
+
+	/**
+	 * Resolves the components that apply to {@code type} as a property declares
+	 * them: components of its own ahead of the type's, and a built-in
+	 * conversion of its own.
+	 *
+	 * @param type        Java type
+	 * @param jsonb       provider
+	 * @param builtIn     built-in conversion, after the components; null to
+	 *                    resolve the type's own on first use
+	 * @param writePrefix {@link JsonbSerializer} and {@link AdapterReference}
+	 *                    components the property declares for writing, ahead of
+	 *                    the value's own
+	 * @param readPrefix  {@link JsonbDeserializer} and {@link AdapterReference}
+	 *                    components the property declares for reading, ahead of
+	 *                    the type's
+	 */
+	IuJsonbValueAdapter(Type type, IuJsonb jsonb, IuJsonAdapter<?> builtIn, List<Object> writePrefix,
+			List<Object> readPrefix) {
 		this.builtIn = builtIn;
 		this.type = type;
 		this.jsonb = jsonb;
@@ -167,17 +191,46 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		// broad components leave a scalar type alone, null included; a value of
 		// any other type may still read from a JSON scalar, which they leave alone
 		final var scalar = IuJsonb.isScalar(erased);
-		adapters = jsonb.adapters(type, scalar);
-		scalarAdapters = scalar ? adapters : jsonb.adapters(type, true);
+		final var readAdapters = adapters(readPrefix);
+		adapters = concat(readAdapters, jsonb.adapters(type, scalar));
+		scalarAdapters = scalar ? adapters : concat(readAdapters, jsonb.adapters(type, true));
+		writeAdapters = concat(adapters(writePrefix), jsonb.adapters(type, scalar));
+		this.writePrefix = writePrefix;
 		writeChain = jsonb.writeChain(type, scalar);
-		readChain = jsonb.readChain(type, scalar);
-		scalarReadChain = scalar ? readChain : jsonb.readChain(type, true);
+		readChain = concat(readPrefix, jsonb.readChain(type, scalar));
+		scalarReadChain = scalar ? readChain : concat(readPrefix, jsonb.readChain(type, true));
 		deserializes = readChain.size() > adapters.size();
 		scalarDeserializes = scalarReadChain.size() > scalarAdapters.size();
 
-		// a value of a final type is always of that type
-		runtimeDispatch = jsonb.hasWriteComponents() && !Modifier.isFinal(erased.getModifiers());
+		// a value of a final type is always of that type; any other may be of a
+		// type that declares components of its own
+		runtimeDispatch = !Modifier.isFinal(erased.getModifiers());
 		broad = IuJsonb.isBroad(erased);
+	}
+
+	private static List<AdapterReference> adapters(List<Object> components) {
+		final List<AdapterReference> adapters = new ArrayList<>();
+		for (final var component : components)
+			if (component instanceof AdapterReference)
+				adapters.add((AdapterReference) component);
+		return adapters;
+	}
+
+	private static <E> List<E> concat(List<? extends E> first, List<? extends E> second) {
+		if (first.isEmpty())
+			return (List<E>) second;
+		final List<E> both = new ArrayList<>(first.size() + second.size());
+		both.addAll(first);
+		both.addAll(second);
+		return both;
+	}
+
+	/**
+	 * Gets the components that write a value, in order: those the property
+	 * declares, then those of the value's type.
+	 */
+	private List<Object> writeChain(Object value) {
+		return concat(writePrefix, components(value).writeChain);
 	}
 
 	/**
@@ -307,6 +360,11 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		// Iterable is the one broad type with a conversion of its own
 		if (broad && erased != Iterable.class)
 			return new IuJsonbObjectAdapter(jsonb);
+
+		// an index of properties is built in, not a business object; an index read
+		// converts as the call it converts in does
+		if (erased == IuJsonProperties.class)
+			return JsonAdapters.adapt(type, null);
 
 		if (!IuObject.isPlatformName(erased.getName()) //
 				&& !erased.isPrimitive() //
@@ -540,7 +598,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	JsonValue toJson(Object value, IuSerializationContext context, List<AdapterReference> applied) {
 		// the first component that runs: an adapter not already applied, or a
 		// serializer not already in progress for the value
-		for (final var component : components(value).writeChain)
+		for (final var component : writeChain(value))
 			if (component instanceof AdapterReference) {
 				final var adapter = (AdapterReference) component;
 				if (!applied.contains(adapter))
@@ -585,7 +643,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	void write(Object value, JsonGenerator generator, IuSerializationContext context,
 			List<AdapterReference> applied) {
 		// the same order as toJson
-		for (final var component : components(value).writeChain)
+		for (final var component : writeChain(value))
 			if (component instanceof AdapterReference) {
 				final var adapter = (AdapterReference) component;
 				if (!applied.contains(adapter)) {
@@ -621,7 +679,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 * @return JSON value to include; null to omit the property
 	 */
 	JsonValue nullProperty(IuSerializationContext context, List<AdapterReference> applied) {
-		final var adapter = writeAdapter(adapters, applied);
+		final var adapter = writeAdapter(writeAdapters, applied);
 		if (adapter == null)
 			return null;
 
@@ -645,7 +703,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 */
 	boolean writeNullProperty(String name, JsonGenerator generator, IuSerializationContext context,
 			List<AdapterReference> applied) {
-		final var adapter = writeAdapter(adapters, applied);
+		final var adapter = writeAdapter(writeAdapters, applied);
 		if (adapter == null)
 			return false;
 

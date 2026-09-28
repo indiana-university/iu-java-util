@@ -98,7 +98,7 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		final var object = value.asJsonObject();
 		if (type.isInterface())
 			return JsonProxy.wrap(IuJsonProperties.of(object, jsonb::adapt), type, naming::name,
-					naming.ignoresCase());
+					naming.ignoresCase(), jsonb::declared);
 
 		final var model = model();
 		final var bean = (T) model.newInstance();
@@ -129,7 +129,7 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 			final var view = new IuJsonbBoundedParser(parser, context);
 			final var properties = IuJsonProperties.read(view, jsonb::adapt);
 			view.release();
-			return JsonProxy.wrap(properties, type, naming::name, naming.ignoresCase());
+			return JsonProxy.wrap(properties, type, naming::name, naming.ignoresCase(), jsonb::declared);
 		}
 
 		final var model = model();

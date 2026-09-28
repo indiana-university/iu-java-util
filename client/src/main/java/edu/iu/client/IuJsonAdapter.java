@@ -82,12 +82,14 @@ import java.util.stream.Stream;
 
 import edu.iu.IuObject;
 import iu.client.BinaryJsonAdapter;
+import iu.client.BindingMetadata;
 import iu.client.EnumJsonAdapter;
 import iu.client.FormatAdapters;
 import iu.client.ItemScope;
 import iu.client.JsonAdapters;
 import iu.client.JsonDeserializer;
 import iu.client.JsonSerializer;
+import iu.client.OptionsSwitch;
 import iu.client.ParsingJsonAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
@@ -386,7 +388,11 @@ public interface IuJsonAdapter<T> {
 	 * custom value adapter function and dynamically supplied options.
 	 * 
 	 * <p>
-	 * This is the common implementation behind every {@code adapt} method:
+	 * This is the common implementation behind every {@code adapt} method: a type
+	 * that declares a JSON-B {@code @JsonbTypeAdapter},
+	 * {@code @JsonbTypeSerializer}, or {@code @JsonbTypeDeserializer}, on itself
+	 * or a supertype, converts through it when the JSON-B API is present, unless
+	 * {@link IuJsonSerializationOptions#isLegacyProperties()};
 	 * {@code byte[]} converts as
 	 * {@link IuJsonSerializationOptions#getBinaryDataStrategy()} says; a date
 	 * type whose format changed in 7.1 converts as
@@ -419,12 +425,27 @@ public interface IuJsonAdapter<T> {
 	 */
 	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		// JSON-B components the type declares, unless discovering as before 7.1
+		final var components = BindingMetadata.get().components(type, options);
+		if (components != null)
+			return OptionsSwitch.of(options, IuJsonSerializationOptions::isLegacyProperties,
+					builtIn(type, options, valueAdapter), components);
+		else
+			return builtIn(type, options, valueAdapter);
+	}
+
+	private static IuJsonAdapter<?> builtIn(Type type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		final var c = JsonAdapters.erase(type);
 		if (c == byte[].class)
 			return BinaryJsonAdapter.of(options);
 
 		if (c.isEnum())
 			return EnumJsonAdapter.of(c, options, valueAdapter);
+
+		// an index of properties is built in, not a business object
+		if (c == IuJsonProperties.class)
+			return JsonAdapters.adapt(type, valueAdapter);
 
 		if (!IuObject.isPlatformName(c.getName()) //
 				&& !c.isPrimitive() //

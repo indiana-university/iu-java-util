@@ -35,10 +35,20 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonSerializationOptions;
 import iu.client.BeanModel;
 import iu.client.BindingMetadata;
+import iu.client.JsonAdapters;
+import jakarta.json.JsonValue;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.annotation.JsonbAnnotation;
 import jakarta.json.bind.annotation.JsonbDateFormat;
 import jakarta.json.bind.annotation.JsonbNillable;
@@ -46,12 +56,25 @@ import jakarta.json.bind.annotation.JsonbNumberFormat;
 import jakarta.json.bind.annotation.JsonbProperty;
 import jakarta.json.bind.annotation.JsonbPropertyOrder;
 import jakarta.json.bind.annotation.JsonbTransient;
+import jakarta.json.bind.annotation.JsonbTypeAdapter;
+import jakarta.json.bind.annotation.JsonbTypeDeserializer;
+import jakarta.json.bind.annotation.JsonbTypeSerializer;
 import jakarta.json.bind.annotation.JsonbVisibility;
 import jakarta.json.bind.config.PropertyVisibilityStrategy;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Reads JSON-B annotations; the only class the IU binding paths reach that
  * refers to the JSON-B API, loaded only when the API is present.
+ *
+ * <p>
+ * A type or property the IU binding paths convert that declares a JSON-B
+ * component, by {@code @JsonbTypeAdapter}, {@code @JsonbTypeSerializer}, or
+ * {@code @JsonbTypeDeserializer}, converts through a provider created on first
+ * use, with no configuration but the IU conversion's options, so the component
+ * sees a JSON-B context.
+ * </p>
  */
 public final class JsonbMetadata implements BindingMetadata {
 
@@ -128,6 +151,104 @@ public final class JsonbMetadata implements BindingMetadata {
 				return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Options of the IU conversion running a JSON-B component on each thread.
+	 */
+	private static final ThreadLocal<IuJsonSerializationOptions> OPTIONS = new ThreadLocal<>();
+
+	/**
+	 * Holds the provider that runs JSON-B components for the IU conversions,
+	 * created on first use.
+	 */
+	private static final class Components {
+		private static final IuJsonb JSONB = new IuJsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS,
+				(Supplier<IuJsonSerializationOptions>) OPTIONS::get), IuJson.PROVIDER);
+	}
+
+	/**
+	 * Whether a type or one of its supertypes declares a component.
+	 */
+	private static final ClassValue<Boolean> DECLARES = new ClassValue<>() {
+		@Override
+		protected Boolean computeValue(Class<?> type) {
+			if (IuObject.isPlatformName(type.getName()))
+				return false;
+			if (declaresComponent(type))
+				return true;
+			for (final var i : type.getInterfaces())
+				if (get(i))
+					return true;
+			final var parent = type.getSuperclass();
+			return parent != null && get(parent);
+		}
+	};
+
+	private static boolean declaresComponent(AnnotatedElement element) {
+		return element.isAnnotationPresent(JsonbTypeAdapter.class) //
+				|| element.isAnnotationPresent(JsonbTypeSerializer.class) //
+				|| element.isAnnotationPresent(JsonbTypeDeserializer.class);
+	}
+
+	/**
+	 * Runs a provider's conversion with the IU conversion's options in effect.
+	 */
+	private static IuJsonAdapter<?> scoped(IuJsonAdapter<Object> adapter, Supplier<IuJsonSerializationOptions> options) {
+		return new IuJsonAdapter<Object>() {
+			private <R> R within(Supplier<R> conversion) {
+				final var previous = OPTIONS.get();
+				OPTIONS.set(Objects.requireNonNullElse(options.get(), IuJsonSerializationOptions.DEFAULT));
+				try {
+					return conversion.get();
+				} finally {
+					if (previous == null)
+						OPTIONS.remove();
+					else
+						OPTIONS.set(previous);
+				}
+			}
+
+			@Override
+			public Object fromJson(JsonValue jsonValue) {
+				return within(() -> adapter.fromJson(jsonValue));
+			}
+
+			@Override
+			public JsonValue toJson(Object javaValue) {
+				return within(() -> adapter.toJson(javaValue));
+			}
+
+			@Override
+			public Object read(JsonParser parser) {
+				return within(() -> adapter.read(parser));
+			}
+
+			@Override
+			public void write(Object value, JsonGenerator generator) {
+				within(() -> {
+					adapter.write(value, generator);
+					return null;
+				});
+			}
+		};
+	}
+
+	@Override
+	public IuJsonAdapter<?> components(Type type, Supplier<IuJsonSerializationOptions> options) {
+		if (DECLARES.get(JsonAdapters.erase(type)))
+			return scoped(Components.JSONB.adapt(type), options);
+		else
+			return null;
+	}
+
+	@Override
+	public IuJsonAdapter<?> components(Type type, Format date, Format number, AnnotatedElement[] members,
+			Supplier<IuJsonSerializationOptions> options) {
+		for (final var member : members)
+			if (declaresComponent(member))
+				return scoped(Components.JSONB.adapt(type, date, number, members), options);
+		return null;
 	}
 
 	@Override
