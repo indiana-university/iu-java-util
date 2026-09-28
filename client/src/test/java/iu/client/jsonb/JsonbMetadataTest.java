@@ -44,6 +44,7 @@ import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonSerializationOptions;
 import iu.client.BindingMetadata;
@@ -174,7 +175,7 @@ public class JsonbMetadataTest {
 	@Test
 	public void testLegacyOptions() {
 		final Supplier<IuJsonSerializationOptions> legacy = () -> IuJsonSerializationOptions.LEGACY;
-		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, legacy));
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, legacy));
 		assertEquals("{\"value\":null}", jsonb.toJson(new OptionalBean()));
 		assertEquals("{\"letter\":\"a\",\"map\":{\"b\":\"b\"}}", jsonb.toJson(new Letters()));
 		assertEquals("{\"letter\":\"a\",\"map\":{\"b\":\"b\"}}", jsonb.adapt(Letters.class).toJson(new Letters()).toString());
@@ -188,7 +189,7 @@ public class JsonbMetadataTest {
 	@SuppressWarnings("unchecked")
 	public void testKeyAdapterOutsideCall() {
 		final Supplier<IuJsonSerializationOptions> legacy = () -> IuJsonSerializationOptions.LEGACY;
-		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, legacy));
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, legacy));
 		final var keys = (edu.iu.client.IuJsonAdapter<Letter>) jsonb.keyAdapter(Letter.class);
 		assertEquals(IuJson.string("b"), keys.toJson(Letter.B));
 		assertSame(Letter.B, keys.fromJson(IuJson.string("B")));
@@ -198,15 +199,15 @@ public class JsonbMetadataTest {
 	public void testBinaryConflict() {
 		final Supplier<IuJsonSerializationOptions> legacy = () -> IuJsonSerializationOptions.LEGACY;
 		final var base64 = IuJsonbTest.jsonb(new JsonbConfig().withBinaryDataStrategy(BinaryDataStrategy.BASE_64)
-				.setProperty(IuJsonb.SERIALIZATION_OPTIONS, legacy));
+				.setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, legacy));
 		assertEquals("\"+/8B\"", base64.toJson(new byte[] { (byte) 0xfb, (byte) 0xff, 1 }));
 
 		final Supplier<IuJsonSerializationOptions> standard = () -> IuJsonSerializationOptions.DEFAULT;
 		final var conflict = IuJsonbTest.jsonb(new JsonbConfig().withBinaryDataStrategy(BinaryDataStrategy.BASE_64)
-				.setProperty(IuJsonb.SERIALIZATION_OPTIONS, standard));
+				.setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, standard));
 		final var error = assertThrows(JsonbException.class, () -> conflict.toJson(new byte[0]));
 		assertEquals(jakarta.json.bind.JsonbConfig.BINARY_DATA_STRATEGY + " BASE_64 conflicts with "
-				+ IuJsonb.SERIALIZATION_OPTIONS + " binary data strategy BYTE", error.getMessage());
+				+ IuJsonAdapter.SERIALIZATION_OPTIONS + " binary data strategy BYTE", error.getMessage());
 	}
 
 }

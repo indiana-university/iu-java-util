@@ -42,6 +42,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
@@ -135,7 +136,7 @@ public class IuJsonbAdapterTest {
 
 	@Test
 	public void testInterfaceProxyReadsTheCallsPropertyNameFormat() {
-		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS,
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS,
 				(java.util.function.Supplier<IuJsonSerializationOptions>) () -> IuJsonSerializationOptions
 						.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES)));
 		assertEquals("n", jsonb.fromJson("{\"NAMED\":{\"NAME\":\"n\"}}", Bean.class).named.getName());

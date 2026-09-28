@@ -64,6 +64,16 @@
 				<configuration>
 					<release>11</release>
 				</configuration>
+				<executions>
+					<!-- tests declare records and creators with unannotated parameters -->
+					<execution>
+						<id>default-testCompile</id>
+						<configuration>
+							<release>17</release>
+							<parameters>true</parameters>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>

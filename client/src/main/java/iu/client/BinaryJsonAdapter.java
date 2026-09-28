@@ -142,7 +142,11 @@ public final class BinaryJsonAdapter implements IuJsonAdapter<byte[]> {
 			break;
 
 		default:
-			throw new UnsupportedOperationException(strategy);
+			throw new UnsupportedOperationException("unsupported binary data strategy " + strategy
+					+ "; expected BYTE, BASE_64, or BASE_64_URL"
+					+ (IuJsonAdapter.BASE64_URL_UNPADDED.equals(strategy) //
+							? "; " + strategy + " is a property to set true, with BASE_64_URL, to write it unpadded"
+							: ""));
 		}
 	}
 

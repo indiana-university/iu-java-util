@@ -113,8 +113,9 @@ import jakarta.json.stream.JsonParserFactory;
  * {@link JsonbConfig#PROPERTY_VISIBILITY_STRATEGY},
  * {@link JsonbConfig#SERIALIZERS}, {@link JsonbConfig#DESERIALIZERS}, and
  * {@link JsonbConfig#ADAPTERS}, {@link JsonbConfig#DATE_FORMAT} and
- * {@link JsonbConfig#LOCALE}, and {@link JsonbConfig#STRICT_IJSON}, as well as
- * {@link #SERIALIZATION_OPTIONS} and {@link #BASE64_URL_UNPADDED}. An enum
+ * {@link JsonbConfig#LOCALE}, {@link JsonbConfig#STRICT_IJSON}, and
+ * {@link JsonbConfig#CREATOR_PARAMETERS_REQUIRED}, as well as
+ * {@link edu.iu.client.IuJsonAdapter#SERIALIZATION_OPTIONS} and {@link edu.iu.client.IuJsonAdapter#BASE64_URL_UNPADDED}. An enum
  * converts as text by {@link Enum#name()}.
  * </p>
  *
@@ -128,6 +129,31 @@ import jakarta.json.stream.JsonParserFactory;
  * {@link java.text.DecimalFormat} pattern, and reads that text or a number. A
  * format replaces the built-in conversion, so configured components still run
  * first.
+ * </p>
+ *
+ * <p>
+ * A business object is created by the one constructor or static factory method
+ * declared {@code @JsonbCreator}, or a record by its canonical constructor, and
+ * otherwise by its no-arg constructor. A creator parameter reads the JSON name
+ * {@code @JsonbProperty} declares, or its Java name, compiled with
+ * {@code -parameters}, named as properties are; its annotations declare formats
+ * and components as a property's do. Reading holds the values until the object
+ * is read through, then creates the instance and sets the other properties. A
+ * parameter not read is null, a primitive's default, or an empty optional,
+ * unless {@link JsonbConfig#CREATOR_PARAMETERS_REQUIRED}. A record's components
+ * write by their accessors.
+ * </p>
+ *
+ * <p>
+ * {@code @JsonbTypeInfo} and {@code @JsonbSubtype} convert polymorphic types.
+ * An instance writes, before its properties, a key and alias for each type in
+ * its type information chain, outermost first, and a value declared as a type
+ * with type information writes its runtime type's properties. Reading picks the
+ * subtype by the key of the type's own type information, else its nearest
+ * supertype's: directly from the parser when the key comes first, as written,
+ * else from the object read through. An object without the key reads as the
+ * declared type. Type information from unrelated types can't be merged, a key
+ * may appear only once in a chain, and no property may share its name.
  * </p>
  *
  * <p>
@@ -181,20 +207,6 @@ import jakarta.json.stream.JsonParserFactory;
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class IuJsonb implements Jsonb {
 
-	/**
-	 * {@link JsonbConfig} property holding a
-	 * {@code Supplier<IuJsonSerializationOptions>}, read once per call; must agree
-	 * with {@link JsonbConfig#PROPERTY_NAMING_STRATEGY} and
-	 * {@link JsonbConfig#NULL_VALUES} when those are also set.
-	 */
-	public static final String SERIALIZATION_OPTIONS = "iu.jsonb.serializationOptions";
-
-	/**
-	 * {@link JsonbConfig} property holding a {@link Boolean}: true to write
-	 * {@link BinaryDataStrategy#BASE_64_URL} without padding, as JOSE requires.
-	 * Reading accepts either form regardless.
-	 */
-	public static final String BASE64_URL_UNPADDED = "iu.jsonb.base64UrlUnpadded";
 
 	/**
 	 * A serializer registered for an explicit type.
@@ -381,6 +393,7 @@ public class IuJsonb implements Jsonb {
 	private final Boolean configuredNullValues;
 	private final String configuredBinary;
 	private final boolean strictIJson;
+	private final boolean creatorParametersRequired;
 	private final String configuredDateFormat;
 	private final Locale locale;
 	private final boolean checkConflicts;
@@ -497,6 +510,7 @@ public class IuJsonb implements Jsonb {
 		configuredNullValues = (Boolean) config.getProperty(JsonbConfig.NULL_VALUES).orElse(null);
 
 		strictIJson = (Boolean) config.getProperty(JsonbConfig.STRICT_IJSON).orElse(false);
+		creatorParametersRequired = (Boolean) config.getProperty(JsonbConfig.CREATOR_PARAMETERS_REQUIRED).orElse(false);
 		configuredDateFormat = (String) config.getProperty(JsonbConfig.DATE_FORMAT).orElse(null);
 		final var configuredLocale = config.getProperty(JsonbConfig.LOCALE).orElse(null);
 		locale = configuredLocale instanceof String //
@@ -504,7 +518,7 @@ public class IuJsonb implements Jsonb {
 				: (Locale) configuredLocale;
 
 		final var configuredStrategy = (String) config.getProperty(JsonbConfig.BINARY_DATA_STRATEGY).orElse(null);
-		final var base64UrlUnpadded = (Boolean) config.getProperty(BASE64_URL_UNPADDED).orElse(false);
+		final var base64UrlUnpadded = (Boolean) config.getProperty(IuJsonAdapter.BASE64_URL_UNPADDED).orElse(false);
 		// an unknown strategy fails now rather than on first use
 		BinaryJsonAdapter.of(configuredStrategy, base64UrlUnpadded);
 		// strict I-JSON writes base64url whatever else is configured
@@ -515,12 +529,12 @@ public class IuJsonb implements Jsonb {
 		// IU options, when supplied, must agree with the equivalent JSON-B settings;
 		// the supplier is dynamic, so each call's snapshot is checked
 		final var serializationOptions = (Supplier<IuJsonSerializationOptions>) config
-				.getProperty(SERIALIZATION_OPTIONS).orElse(null);
+				.getProperty(IuJsonAdapter.SERIALIZATION_OPTIONS).orElse(null);
 		if (serializationOptions != null) {
 			if (naming != null)
 				throw new JsonbException(JsonbConfig.PROPERTY_NAMING_STRATEGY + " "
 						+ config.getProperty(JsonbConfig.PROPERTY_NAMING_STRATEGY).get() + " conflicts with "
-						+ SERIALIZATION_OPTIONS + ", which names properties by an IU property name format");
+						+ IuJsonAdapter.SERIALIZATION_OPTIONS + ", which names properties by an IU property name format");
 			options = serializationOptions;
 			checkConflicts = configuredFormat != null || configuredNullValues != null || configuredBinary != null;
 		} else {
@@ -608,7 +622,7 @@ public class IuJsonb implements Jsonb {
 				throw new JsonbException("can't determine the type " + component.getClass().getName()
 						+ " converts; declare the type argument of " + componentInterface.getSimpleName()
 						+ " on the class or one of its supertypes, since a lambda or raw implementation has none, "
-						+ "or register it with IuJsonb.typed" + componentInterface.getSimpleName().substring(5)
+						+ "or register it with IuJsonAdapter.typed" + componentInterface.getSimpleName().substring(5)
 						+ "(Type, ...)");
 		return types;
 	}
@@ -629,7 +643,7 @@ public class IuJsonb implements Jsonb {
 			throw new JsonbException(kind + " " + component.getClass().getName() + " converts the type variable "
 					+ type.getTypeName() + ", so would apply to every type; declare a concrete type argument, "
 					+ "or a parameterized type such as List<" + type.getTypeName() + ">, "
-					+ "or register it for an explicit type with IuJsonb.typed" + Character.toUpperCase(kind.charAt(0))
+					+ "or register it for an explicit type with IuJsonAdapter.typed" + Character.toUpperCase(kind.charAt(0))
 					+ kind.substring(1) + "(Type, ...)");
 		registry.add(new Registration<>(type, component));
 	}
@@ -936,15 +950,15 @@ public class IuJsonb implements Jsonb {
 			final var format = format(snapshot);
 			if (configuredFormat != null && format != configuredFormat)
 				throw new JsonbException(JsonbConfig.PROPERTY_NAMING_STRATEGY + " " + configuredFormat
-						+ " conflicts with " + SERIALIZATION_OPTIONS + " property name format " + format);
+						+ " conflicts with " + IuJsonAdapter.SERIALIZATION_OPTIONS + " property name format " + format);
 			if (configuredNullValues != null && snapshot.isIncludeNullProperties() != configuredNullValues)
 				throw new JsonbException(JsonbConfig.NULL_VALUES + " " + configuredNullValues + " conflicts with "
-						+ SERIALIZATION_OPTIONS + " include null properties " + snapshot.isIncludeNullProperties());
+						+ IuJsonAdapter.SERIALIZATION_OPTIONS + " include null properties " + snapshot.isIncludeNullProperties());
 			final var binaryStrategy = Objects.requireNonNullElse(snapshot.getBinaryDataStrategy(),
 					IuJsonSerializationOptions.BINARY_DATA_STRATEGY);
 			if (configuredBinary != null && !configuredBinary.equals(binaryStrategy))
 				throw new JsonbException(JsonbConfig.BINARY_DATA_STRATEGY + " " + configuredBinary + " conflicts with "
-						+ SERIALIZATION_OPTIONS + " binary data strategy " + binaryStrategy);
+						+ IuJsonAdapter.SERIALIZATION_OPTIONS + " binary data strategy " + binaryStrategy);
 		}
 		return snapshot;
 	}
@@ -1005,6 +1019,15 @@ public class IuJsonb implements Jsonb {
 	 */
 	IuJsonAdapter<?> dateFormat(Class<?> type) {
 		return FormatAdapters.date(type, null, configuredDateFormat, locale, strictIJson);
+	}
+
+	/**
+	 * Determines if {@link JsonbConfig#CREATOR_PARAMETERS_REQUIRED} is enabled.
+	 *
+	 * @return true if every creator parameter must be read
+	 */
+	boolean isCreatorParametersRequired() {
+		return creatorParametersRequired;
 	}
 
 	/**

@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
@@ -242,8 +243,8 @@ public class IuJsonbTest {
 		final Supplier<IuJsonSerializationOptions> options = () -> IuJsonSerializationOptions.DEFAULT;
 		final var error = assertThrows(JsonbException.class,
 				() -> jsonb(new JsonbConfig().withPropertyNamingStrategy(PropertyNamingStrategy.UPPER_CAMEL_CASE)
-						.setProperty(IuJsonb.SERIALIZATION_OPTIONS, options)));
-		assertTrue(error.getMessage().contains("conflicts with " + IuJsonb.SERIALIZATION_OPTIONS),
+						.setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, options)));
+		assertTrue(error.getMessage().contains("conflicts with " + IuJsonAdapter.SERIALIZATION_OPTIONS),
 				error::getMessage);
 	}
 
@@ -276,11 +277,11 @@ public class IuJsonbTest {
 		final Supplier<IuJsonSerializationOptions> snake = () -> IuJsonSerializationOptions
 				.of(IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, true);
 		assertEquals("{\"COUNT\":null,\"FIRST_NAME\":\"first\"}",
-				jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, snake)).toJson(new Bean()));
+				jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, snake)).toJson(new Bean()));
 
 		final Supplier<IuJsonSerializationOptions> none = () -> null;
 		assertEquals("{\"firstName\":\"first\"}",
-				jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, none)).toJson(new Bean()));
+				jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, none)).toJson(new Bean()));
 
 		final Supplier<IuJsonSerializationOptions> nullFormat = () -> new IuJsonSerializationOptions() {
 			@Override
@@ -289,31 +290,31 @@ public class IuJsonbTest {
 			}
 		};
 		assertEquals("{\"firstName\":\"first\"}",
-				jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, nullFormat)).toJson(new Bean()));
+				jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, nullFormat)).toJson(new Bean()));
 	}
 
 	@Test
 	public void testSerializationOptionsMustAgree() {
 		final Supplier<IuJsonSerializationOptions> identity = () -> IuJsonSerializationOptions.DEFAULT;
-		final var agree = jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, identity)
+		final var agree = jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, identity)
 				.withPropertyNamingStrategy(PropertyNamingStrategy.IDENTITY).withNullValues(false));
 		assertEquals("{\"firstName\":\"first\"}", agree.toJson(new Bean()));
 
 		final var nullsOnly = jsonb(
-				new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, identity).withNullValues(false));
+				new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, identity).withNullValues(false));
 		assertEquals("{\"firstName\":\"first\"}", nullsOnly.toJson(new Bean()));
 
-		final var formatOnly = jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, identity)
+		final var formatOnly = jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, identity)
 				.withPropertyNamingStrategy(PropertyNamingStrategy.IDENTITY));
 		assertEquals("{\"firstName\":\"first\"}", formatOnly.toJson(new Bean()));
 
-		final var formatConflict = jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, identity)
+		final var formatConflict = jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, identity)
 				.withPropertyNamingStrategy(PropertyNamingStrategy.LOWER_CASE_WITH_UNDERSCORES));
 		assertTrue(assertThrows(JsonbException.class, () -> formatConflict.toJson(new Bean())).getMessage()
 				.contains("property name format"));
 
 		final var nullConflict = jsonb(
-				new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, identity).withNullValues(true));
+				new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, identity).withNullValues(true));
 		assertTrue(assertThrows(JsonbException.class, () -> nullConflict.toJson(new Bean())).getMessage()
 				.contains("include null properties"));
 	}

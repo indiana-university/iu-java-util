@@ -91,6 +91,7 @@ import iu.client.JsonDeserializer;
 import iu.client.JsonSerializer;
 import iu.client.OptionsSwitch;
 import iu.client.ParsingJsonAdapter;
+import iu.client.jsonb.IuJsonb;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonNumber;
@@ -108,6 +109,76 @@ import jakarta.json.stream.JsonParser;
  * @param <T> target type, <em>may</em> be unchecked
  */
 public interface IuJsonAdapter<T> {
+
+	/**
+	 * {@link jakarta.json.bind.JsonbConfig} property for the IU JSON-B provider,
+	 * holding a {@code Supplier<IuJsonSerializationOptions>}, read once per call,
+	 * so a JSON-B instance converts with the same options as the IU conversions;
+	 * must agree with {@link jakarta.json.bind.JsonbConfig#PROPERTY_NAMING_STRATEGY},
+	 * {@link jakarta.json.bind.JsonbConfig#NULL_VALUES}, and
+	 * {@link jakarta.json.bind.JsonbConfig#BINARY_DATA_STRATEGY} when those are
+	 * also set.
+	 */
+	String SERIALIZATION_OPTIONS = "iu.jsonb.serializationOptions";
+
+	/**
+	 * {@link jakarta.json.bind.JsonbConfig} property for the IU JSON-B provider,
+	 * holding a {@link Boolean}: true to write
+	 * {@link jakarta.json.bind.config.BinaryDataStrategy#BASE_64_URL} without
+	 * padding, as JOSE requires. Reading accepts either form regardless.
+	 */
+	String BASE64_URL_UNPADDED = "iu.jsonb.base64UrlUnpadded";
+
+	/**
+	 * Registers a JSON-B serializer with the IU JSON-B provider for an explicit
+	 * type, such as a lambda, which has no type argument to name it, when passed
+	 * to {@link jakarta.json.bind.JsonbConfig#withSerializers}.
+	 *
+	 * @param <T>        serialized type
+	 * @param type       type the serializer applies to, and to its subtypes
+	 * @param serializer serializer
+	 * @return serializer to configure
+	 */
+	@SuppressWarnings("exports")
+	static <T> jakarta.json.bind.serializer.JsonbSerializer<T> typedSerializer(Type type,
+			jakarta.json.bind.serializer.JsonbSerializer<T> serializer) {
+		return IuJsonb.typedSerializer(type, serializer);
+	}
+
+	/**
+	 * Registers a JSON-B deserializer with the IU JSON-B provider for an explicit
+	 * type, such as a lambda, which has no type argument to name it, when passed
+	 * to {@link jakarta.json.bind.JsonbConfig#withDeserializers}.
+	 *
+	 * @param <T>          deserialized type
+	 * @param type         type the deserializer applies to, and to its subtypes
+	 * @param deserializer deserializer
+	 * @return deserializer to configure
+	 */
+	@SuppressWarnings("exports")
+	static <T> jakarta.json.bind.serializer.JsonbDeserializer<T> typedDeserializer(Type type,
+			jakarta.json.bind.serializer.JsonbDeserializer<T> deserializer) {
+		return IuJsonb.typedDeserializer(type, deserializer);
+	}
+
+	/**
+	 * Registers a JSON-B adapter with the IU JSON-B provider for explicit types,
+	 * such as a lambda-backed adapter, which has no type arguments to name them,
+	 * when passed to {@link jakarta.json.bind.JsonbConfig#withAdapters}.
+	 *
+	 * @param <O>      original type
+	 * @param <A>      adapted type
+	 * @param original type the adapter converts from when writing, and applies to
+	 *                 with its subtypes
+	 * @param adapted  type the adapter converts to when writing
+	 * @param adapter  adapter
+	 * @return adapter to configure
+	 */
+	@SuppressWarnings("exports")
+	static <O, A> jakarta.json.bind.adapter.JsonbAdapter<O, A> typedAdapter(Type original, Type adapted,
+			jakarta.json.bind.adapter.JsonbAdapter<O, A> adapter) {
+		return IuJsonb.typedAdapter(original, adapted, adapter);
+	}
 
 	/**
 	 * Creates a functional JSON type adapter.

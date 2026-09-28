@@ -42,7 +42,7 @@ import jakarta.json.stream.JsonParser;
  * Converts {@code byte[]} by the binary data strategy of the call in progress:
  * {@link jakarta.json.bind.JsonbConfig#BINARY_DATA_STRATEGY}, or the
  * {@link edu.iu.client.IuJsonSerializationOptions#getBinaryDataStrategy()}
- * of a {@link IuJsonb#SERIALIZATION_OPTIONS} snapshot; always
+ * of a {@link edu.iu.client.IuJsonAdapter#SERIALIZATION_OPTIONS} snapshot; always
  * {@link BinaryDataStrategy#BASE_64_URL} with
  * {@link jakarta.json.bind.JsonbConfig#STRICT_IJSON}.
  */

@@ -32,7 +32,9 @@
 package iu.client;
 
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Type;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import edu.iu.client.IuJsonAdapter;
@@ -88,6 +90,85 @@ public interface BindingMetadata {
 		 */
 		public String locale() {
 			return locale;
+		}
+	}
+
+	/**
+	 * The type information a type declares for polymorphic conversion: the key a
+	 * JSON object names its subtype by, and each subtype's alias.
+	 */
+	final class TypeInfo {
+		private final Class<?> type;
+		private final String key;
+		private final Map<String, Class<?>> subtypes;
+
+		/**
+		 * Constructor.
+		 *
+		 * @param type     type declaring the information
+		 * @param key      JSON property name holding the alias
+		 * @param subtypes subtype by alias, in declared order
+		 * @throws IllegalStateException if a subtype isn't a subtype of
+		 *                               {@code type}
+		 */
+		public TypeInfo(Class<?> type, String key, Map<String, Class<?>> subtypes) {
+			for (final var subtype : subtypes.entrySet())
+				if (!type.isAssignableFrom(subtype.getValue()))
+					throw new IllegalStateException("subtype " + subtype.getValue().getName() + " of alias "
+							+ subtype.getKey() + " isn't a " + type.getName());
+			this.type = type;
+			this.key = key;
+			this.subtypes = subtypes;
+		}
+
+		/**
+		 * Gets the type declaring the information.
+		 *
+		 * @return type
+		 */
+		public Class<?> type() {
+			return type;
+		}
+
+		/**
+		 * Gets the JSON property name holding the alias.
+		 *
+		 * @return key
+		 */
+		public String key() {
+			return key;
+		}
+
+		/**
+		 * Gets the subtype an alias names.
+		 *
+		 * @param alias alias
+		 * @return subtype
+		 * @throws IllegalArgumentException if no subtype has the alias
+		 */
+		public Class<?> subtype(String alias) {
+			final var subtype = subtypes.get(alias);
+			if (subtype == null)
+				throw new IllegalArgumentException(
+						"unknown alias " + alias + " for " + key + " of " + type.getName());
+			return subtype;
+		}
+
+		/**
+		 * Gets the alias of the subtype a class is, or is a subtype of.
+		 *
+		 * @param runtimeType class
+		 * @return alias of the class, else of the first subtype it extends; null
+		 *         if none
+		 */
+		public String alias(Class<?> runtimeType) {
+			String alias = null;
+			for (final var subtype : subtypes.entrySet())
+				if (subtype.getValue() == runtimeType)
+					return subtype.getKey();
+				else if (alias == null && subtype.getValue().isAssignableFrom(runtimeType))
+					alias = subtype.getKey();
+			return alias;
 		}
 	}
 
@@ -189,6 +270,29 @@ public interface BindingMetadata {
 	 * @return number format; null if not declared
 	 */
 	default Format numberFormat(AnnotatedElement element) {
+		return null;
+	}
+
+	/**
+	 * Determines if a constructor or method is declared to create its type from
+	 * JSON.
+	 *
+	 * @param executable constructor or method
+	 * @return true if declared a creator
+	 */
+	default boolean isCreator(Executable executable) {
+		return false;
+	}
+
+	/**
+	 * Gets the type information a type declares itself.
+	 *
+	 * @param type type
+	 * @return type information; null if not declared
+	 * @throws IllegalStateException if a subtype isn't a subtype of the type, or
+	 *                               an alias is declared twice
+	 */
+	default TypeInfo typeInfo(Class<?> type) {
 		return null;
 	}
 

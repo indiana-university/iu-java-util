@@ -39,8 +39,11 @@ import java.util.stream.Stream;
 
 import edu.iu.client.IuJsonPropertyNameFormat;
 import iu.client.BeanModel;
+import iu.client.BindingMetadata;
+import iu.client.JsonAdapters;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonValue;
+import jakarta.json.bind.JsonbException;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
 
@@ -191,9 +194,59 @@ final class IuJsonbModel {
 		 * @param context call in progress
 		 */
 		void fromJson(Object bean, String key, JsonValue value, IuDeserializationContext context) {
+			set(bean, key, fromJson(key, value, context), context);
+		}
+
+		/**
+		 * Converts a JSON value for this property, without setting it.
+		 *
+		 * @param key     JSON property name, for the path
+		 * @param value   JSON value
+		 * @param context call in progress
+		 * @return value
+		 */
+		Object fromJson(String key, JsonValue value, IuDeserializationContext context) {
 			context.push(key);
 			try {
-				property.set(bean, writeAdapter().fromJson(value));
+				return writeAdapter().fromJson(value);
+			} catch (RuntimeException e) {
+				throw context.fail(e);
+			} finally {
+				context.pop();
+			}
+		}
+
+		/**
+		 * Reads a value for this property from a parser, without setting it.
+		 *
+		 * @param key     JSON property name, for the path
+		 * @param parser  parser, positioned at the value's first event
+		 * @param context call in progress
+		 * @return value
+		 */
+		Object read(String key, JsonParser parser, IuDeserializationContext context) {
+			context.push(key);
+			try {
+				return writeAdapter().read(parser);
+			} catch (RuntimeException e) {
+				throw context.fail(e);
+			} finally {
+				context.pop();
+			}
+		}
+
+		/**
+		 * Sets this property of a bean to a value already converted.
+		 *
+		 * @param bean    bean
+		 * @param key     JSON property name, for the path
+		 * @param value   value
+		 * @param context call in progress
+		 */
+		void set(Object bean, String key, Object value, IuDeserializationContext context) {
+			context.push(key);
+			try {
+				property.set(bean, value);
 			} catch (RuntimeException e) {
 				throw context.fail(e);
 			} finally {
@@ -210,19 +263,123 @@ final class IuJsonbModel {
 		 * @param context call in progress
 		 */
 		void read(Object bean, String key, JsonParser parser, IuDeserializationContext context) {
+			set(bean, key, read(key, parser, context), context);
+		}
+	}
+
+	/**
+	 * Creates a business object from values read from JSON, with its parameters'
+	 * configured conversions.
+	 */
+	static final class Creator {
+		private final BeanModel.Creator creator;
+		private final BeanModel.CreatorParameter[] parameters;
+		private final IuJsonb jsonb;
+		private final IuJsonbValueAdapter<?>[] adapters;
+
+		private Creator(BeanModel.Creator creator, IuJsonb jsonb) {
+			this.creator = creator;
+			this.jsonb = jsonb;
+			parameters = creator.parameters();
+			adapters = new IuJsonbValueAdapter<?>[parameters.length];
+		}
+
+		/**
+		 * Gets the number of parameters.
+		 *
+		 * @return parameter count
+		 */
+		int size() {
+			return parameters.length;
+		}
+
+		/**
+		 * Gets the parameter a JSON property names.
+		 *
+		 * @param naming how the call names properties
+		 * @param key    JSON property name
+		 * @return parameter index; -1 if none
+		 */
+		int index(IuJsonbNaming naming, String key) {
+			return creator.index(naming, key);
+		}
+
+		private IuJsonbValueAdapter<?> adapter(int index) {
+			var adapter = adapters[index];
+			if (adapter == null) {
+				final var parameter = parameters[index];
+				adapters[index] = adapter = jsonb.adapt(parameter.type(), parameter.dateFormat(),
+						parameter.numberFormat(), parameter.members());
+			}
+			return adapter;
+		}
+
+		/**
+		 * Reads a parameter's value from a parser.
+		 *
+		 * @param index   parameter index
+		 * @param key     JSON property name, for the path
+		 * @param parser  parser, positioned at the value's first event
+		 * @param context call in progress
+		 * @return value
+		 */
+		Object read(int index, String key, JsonParser parser, IuDeserializationContext context) {
 			context.push(key);
 			try {
-				property.set(bean, writeAdapter().read(parser));
+				return adapter(index).read(parser);
 			} catch (RuntimeException e) {
 				throw context.fail(e);
 			} finally {
 				context.pop();
 			}
 		}
+
+		/**
+		 * Converts a parameter's value from JSON.
+		 *
+		 * @param index   parameter index
+		 * @param key     JSON property name, for the path
+		 * @param value   JSON value
+		 * @param context call in progress
+		 * @return value
+		 */
+		Object fromJson(int index, String key, JsonValue value, IuDeserializationContext context) {
+			context.push(key);
+			try {
+				return adapter(index).fromJson(value);
+			} catch (RuntimeException e) {
+				throw context.fail(e);
+			} finally {
+				context.pop();
+			}
+		}
+
+		/**
+		 * Creates an instance: a parameter not read is null, a primitive's
+		 * default, or an empty optional, unless
+		 * {@link jakarta.json.bind.JsonbConfig#CREATOR_PARAMETERS_REQUIRED}.
+		 *
+		 * @param arguments one per parameter
+		 * @param read      which parameters were read
+		 * @return new instance
+		 * @throws JsonbException if a parameter wasn't read, and parameters are
+		 *                        required
+		 */
+		Object create(Object[] arguments, boolean[] read) {
+			for (var i = 0; i < arguments.length; i++)
+				if (!read[i])
+					if (jsonb.isCreatorParametersRequired())
+						throw new JsonbException("missing creator parameter " + parameters[i].name() + " of "
+								+ creator);
+					else
+						arguments[i] = JsonAdapters.undefined(parameters[i].type());
+			return creator.create(arguments);
+		}
 	}
 
 	private final IuJsonb jsonb;
 	private final BeanModel model;
+	private final Creator creator;
 	private final Map<BeanModel.Property, Property> properties = new ConcurrentHashMap<>();
 	private final Map<IuJsonbNaming, Property[]> readable = new ConcurrentHashMap<>();
 
@@ -240,6 +397,8 @@ final class IuJsonbModel {
 		model = new BeanModel(type, BeanModel.Discovery.of( //
 				configured == null ? null : JsonbMetadata.visibility(configured), //
 				jsonb.propertyOrderStrategy()));
+		final var creator = model.creator();
+		this.creator = creator == null ? null : new Creator(creator, jsonb);
 	}
 
 	private Property property(BeanModel.Property property) {
@@ -297,6 +456,46 @@ final class IuJsonbModel {
 	 */
 	Object newInstance() {
 		return model.newInstance();
+	}
+
+	/**
+	 * Gets the creator.
+	 *
+	 * @return creator; null if created by the no-arg constructor
+	 */
+	Creator creator() {
+		return creator;
+	}
+
+	/**
+	 * Gets the type information properties an instance writes first.
+	 *
+	 * @return alias by key
+	 * @see BeanModel#typeKeys()
+	 */
+	Map<String, String> typeKeys() {
+		return model.typeKeys();
+	}
+
+	/**
+	 * Gets the type information that picks the subtype to read an object as.
+	 *
+	 * @return type information; null if none applies
+	 * @see BeanModel#dispatch()
+	 */
+	BindingMetadata.TypeInfo dispatch() {
+		return model.dispatch();
+	}
+
+	/**
+	 * Gets the subtype an alias names for reading this type.
+	 *
+	 * @param alias alias
+	 * @return subtype
+	 * @see BeanModel#subtype(String)
+	 */
+	Class<?> subtype(String alias) {
+		return model.subtype(alias);
 	}
 
 }

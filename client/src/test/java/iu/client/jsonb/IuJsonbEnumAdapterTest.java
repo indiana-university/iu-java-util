@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
@@ -106,7 +107,7 @@ public class IuJsonbEnumAdapterTest {
 
 	static IuJsonb jsonb(IuJsonSerializationOptions options) {
 		final Supplier<IuJsonSerializationOptions> supplier = () -> options;
-		return IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, supplier));
+		return IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, supplier));
 	}
 
 	static final IuJsonSerializationOptions ENUM_AS_OBJECT = IuJsonSerializationOptions.ENUM_AS_OBJECT;

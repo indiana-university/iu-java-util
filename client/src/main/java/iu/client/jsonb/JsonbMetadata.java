@@ -33,9 +33,12 @@ package iu.client.jsonb;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -50,6 +53,7 @@ import iu.client.JsonAdapters;
 import jakarta.json.JsonValue;
 import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.annotation.JsonbAnnotation;
+import jakarta.json.bind.annotation.JsonbCreator;
 import jakarta.json.bind.annotation.JsonbDateFormat;
 import jakarta.json.bind.annotation.JsonbNillable;
 import jakarta.json.bind.annotation.JsonbNumberFormat;
@@ -58,6 +62,7 @@ import jakarta.json.bind.annotation.JsonbPropertyOrder;
 import jakarta.json.bind.annotation.JsonbTransient;
 import jakarta.json.bind.annotation.JsonbTypeAdapter;
 import jakarta.json.bind.annotation.JsonbTypeDeserializer;
+import jakarta.json.bind.annotation.JsonbTypeInfo;
 import jakarta.json.bind.annotation.JsonbTypeSerializer;
 import jakarta.json.bind.annotation.JsonbVisibility;
 import jakarta.json.bind.config.PropertyVisibilityStrategy;
@@ -163,7 +168,7 @@ public final class JsonbMetadata implements BindingMetadata {
 	 * created on first use.
 	 */
 	private static final class Components {
-		private static final IuJsonb JSONB = new IuJsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS,
+		private static final IuJsonb JSONB = new IuJsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS,
 				(Supplier<IuJsonSerializationOptions>) OPTIONS::get), IuJson.PROVIDER);
 	}
 
@@ -249,6 +254,25 @@ public final class JsonbMetadata implements BindingMetadata {
 			if (declaresComponent(member))
 				return scoped(Components.JSONB.adapt(type, date, number, members), options);
 		return null;
+	}
+
+	@Override
+	public TypeInfo typeInfo(Class<?> type) {
+		final var typeInfo = type.getAnnotation(JsonbTypeInfo.class);
+		if (typeInfo == null)
+			return null;
+
+		final Map<String, Class<?>> subtypes = new LinkedHashMap<>();
+		for (final var subtype : typeInfo.value())
+			if (subtypes.put(subtype.alias(), subtype.type()) != null)
+				throw new IllegalStateException(
+						"alias " + subtype.alias() + " declared twice by " + type.getName());
+		return new TypeInfo(type, typeInfo.key(), subtypes);
+	}
+
+	@Override
+	public boolean isCreator(Executable executable) {
+		return executable.isAnnotationPresent(JsonbCreator.class);
 	}
 
 	@Override

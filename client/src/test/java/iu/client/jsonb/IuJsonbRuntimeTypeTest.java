@@ -258,4 +258,48 @@ public class IuJsonbRuntimeTypeTest {
 		assertInstanceOf(Class.class, jsonb.conversionType(String.class));
 	}
 
+	public interface Key {
+		String getKid();
+	}
+
+	public interface Keys {
+		Iterable<? extends Key> getKeys();
+	}
+
+	public static class KeyImpl implements Key {
+		@Override
+		public String getKid() {
+			return "a";
+		}
+	}
+
+	/**
+	 * An iterable of a class of the application's own.
+	 */
+	public static class CustomIterable implements Iterable<Key> {
+		@Override
+		public java.util.Iterator<Key> iterator() {
+			return List.<Key>of(new KeyImpl()).iterator();
+		}
+	}
+
+	@Test
+	public void testIterableOfAnyClassWritesAsArray() {
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig());
+		final var json = "{\"keys\":[{\"kid\":\"a\"}]}";
+		final Keys list = () -> List.of(new KeyImpl());
+		final Keys lambda = () -> () -> List.<Key>of(new KeyImpl()).iterator();
+		final Keys custom = CustomIterable::new;
+		for (final var keys : List.of(list, lambda, custom)) {
+			assertEquals(json, jsonb.toJson(keys, Keys.class));
+			assertEquals(json, jsonb.adapt(Keys.class).toJson(keys).toString());
+			assertEquals(IuJson.parse(json), edu.iu.client.IuJsonAdapter
+					.adapt(Keys.class, () -> edu.iu.client.IuJsonSerializationOptions.DEFAULT).toJson(keys));
+		}
+
+		// and reads back
+		final var read = jsonb.fromJson(jsonb.toJson(lambda, Keys.class), Keys.class);
+		assertEquals("a", read.getKeys().iterator().next().getKid());
+	}
+
 }

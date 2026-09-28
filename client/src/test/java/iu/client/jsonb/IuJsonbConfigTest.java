@@ -46,6 +46,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJson;
 import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.JsonbException;
@@ -128,13 +129,22 @@ public class IuJsonbConfigTest {
 		assertArrayEquals(new byte[] { 1 }, jsonb.fromJson("{\"bytes\":\"AQ==\"}", Data.class).bytes);
 
 		final var unpadded = jsonb(new JsonbConfig().withBinaryDataStrategy(BinaryDataStrategy.BASE_64_URL)
-				.setProperty(IuJsonb.BASE64_URL_UNPADDED, true));
+				.setProperty(IuJsonAdapter.BASE64_URL_UNPADDED, true));
 		assertEquals("{\"bytes\":\"AQ\"}", unpadded.toJson(data((byte) 1)));
 		assertEquals("{\"bytes\":\"AQ\"}", unpadded.adapt(Data.class).toJson(data((byte) 1)).toString());
 		assertArrayEquals(new byte[] { 1 }, unpadded.fromJson("{\"bytes\":\"AQ==\"}", Data.class).bytes);
 
-		assertThrows(UnsupportedOperationException.class,
-				() -> jsonb(new JsonbConfig().withBinaryDataStrategy("HEX")));
+		assertEquals("unsupported binary data strategy HEX; expected BYTE, BASE_64, or BASE_64_URL",
+				assertThrows(UnsupportedOperationException.class,
+						() -> jsonb(new JsonbConfig().withBinaryDataStrategy("HEX"))).getMessage());
+
+		// the unpadded option is a property of its own, not a strategy
+		assertEquals("unsupported binary data strategy " + IuJsonAdapter.BASE64_URL_UNPADDED
+				+ "; expected BYTE, BASE_64, or BASE_64_URL; " + IuJsonAdapter.BASE64_URL_UNPADDED
+				+ " is a property to set true, with BASE_64_URL, to write it unpadded",
+				assertThrows(UnsupportedOperationException.class,
+						() -> jsonb(new JsonbConfig().withBinaryDataStrategy(IuJsonAdapter.BASE64_URL_UNPADDED)))
+						.getMessage());
 	}
 
 	public static class Big {
@@ -159,7 +169,7 @@ public class IuJsonbConfigTest {
 	@Test
 	public void testAdapterOutputUsesTheBinaryStrategy() {
 		final var jsonb = jsonb(new JsonbConfig().withAdapters(new BigIntegerBytes())
-				.withBinaryDataStrategy(BinaryDataStrategy.BASE_64_URL).setProperty(IuJsonb.BASE64_URL_UNPADDED, true));
+				.withBinaryDataStrategy(BinaryDataStrategy.BASE_64_URL).setProperty(IuJsonAdapter.BASE64_URL_UNPADDED, true));
 		final var big = new Big();
 		big.value = BigInteger.valueOf(65537);
 		assertEquals("{\"value\":\"AQAB\"}", jsonb.toJson(big));

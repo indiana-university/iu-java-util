@@ -43,7 +43,7 @@ import jakarta.json.bind.config.PropertyNamingStrategy;
 
 /**
  * How a call names properties in JSON: by an IU property name format, which a
- * {@link IuJsonb#SERIALIZATION_OPTIONS} supplier may change from call to call,
+ * {@link edu.iu.client.IuJsonAdapter#SERIALIZATION_OPTIONS} supplier may change from call to call,
  * or by a JSON-B {@link PropertyNamingStrategy} fixed for the provider.
  */
 final class IuJsonbNaming implements PropertyNaming {

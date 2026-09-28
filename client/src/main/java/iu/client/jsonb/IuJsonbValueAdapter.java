@@ -141,6 +141,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	private final boolean runtimeDispatch;
 	private final boolean broad;
 	private volatile IuJsonAdapter builtIn;
+	private volatile Boolean polymorphic;
 
 	/**
 	 * Resolves the components that apply to {@code type}.
@@ -388,13 +389,54 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	/**
 	 * Gets the built-in conversion for a value being written: this type's, or,
 	 * for a non-null value of a {@link IuJsonb#isBroad(Type) broad} type such as
-	 * {@link Object}, its runtime type's.
+	 * {@link Object}, or of a type with type information, its runtime type's, so
+	 * a subtype writes its own properties.
 	 */
 	private IuJsonAdapter builtIn(Object value) {
-		if (value == null || !broad)
+		if (value == null)
+			return builtIn();
+
+		// Iterable is the one broad type with a conversion of its own, whatever
+		// class implements it
+		final var runtimeType = IuSerializationContext.runtimeType(value);
+		if (runtimeType == erased //
+				|| erased == Iterable.class //
+				|| !(broad || isPolymorphic()))
 			return builtIn();
 		else
-			return jsonb.adapt(IuSerializationContext.runtimeType(value)).builtIn();
+			return jsonb.adapt(runtimeType).builtIn();
+	}
+
+	/**
+	 * Determines if reading this type from an object runs only its built-in
+	 * conversion, with no components.
+	 *
+	 * @return true if no deserializer or adapter applies
+	 */
+	boolean isBuiltInRead() {
+		return readChain.isEmpty();
+	}
+
+	/**
+	 * Gets the built-in conversion.
+	 *
+	 * @return built-in conversion, after the components
+	 */
+	IuJsonAdapter<?> builtInAdapter() {
+		return builtIn();
+	}
+
+	/**
+	 * Determines if this is a business object type type information applies to.
+	 */
+	private boolean isPolymorphic() {
+		var polymorphic = this.polymorphic;
+		if (polymorphic == null)
+			this.polymorphic = polymorphic = !IuObject.isPlatformName(erased.getName()) //
+					&& !erased.isPrimitive() //
+					&& !erased.isArray() //
+					&& jsonb.model(type).dispatch() != null;
+		return polymorphic;
 	}
 
 	/**

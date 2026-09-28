@@ -390,9 +390,9 @@ public class IuJsonbConformanceTest {
 		};
 
 		final var jsonb = jsonb(new JsonbConfig() //
-				.withSerializers(IuJsonb.typedSerializer(Foo.class, serializer)) //
-				.withDeserializers(IuJsonb.typedDeserializer(Foo.class, deserializer)) //
-				.withAdapters(IuJsonb.typedAdapter(Instant.class, Long.class, instant)));
+				.withSerializers(IuJsonAdapter.typedSerializer(Foo.class, serializer)) //
+				.withDeserializers(IuJsonAdapter.typedDeserializer(Foo.class, deserializer)) //
+				.withAdapters(IuJsonAdapter.typedAdapter(Instant.class, Long.class, instant)));
 		assertEquals("\"lambda foo\"", jsonb.toJson(new Foo()));
 		assertEquals("read x", jsonb.fromJson("\"x\"", Foo.class).name);
 		assertEquals("1000", jsonb.toJson(Instant.ofEpochMilli(1000)));
@@ -402,17 +402,17 @@ public class IuJsonbConformanceTest {
 	@Test
 	public void testTypedWrappersDelegate() throws Exception {
 		final List<String> calls = new ArrayList<>();
-		final JsonbSerializer<Foo> serializer = IuJsonb.typedSerializer(Foo.class,
+		final JsonbSerializer<Foo> serializer = IuJsonAdapter.typedSerializer(Foo.class,
 				(obj, generator, ctx) -> calls.add("serialize"));
 		serializer.serialize(new Foo(), null, null);
 
-		final JsonbDeserializer<Foo> deserializer = IuJsonb.typedDeserializer(Foo.class, (parser, ctx, type) -> {
+		final JsonbDeserializer<Foo> deserializer = IuJsonAdapter.typedDeserializer(Foo.class, (parser, ctx, type) -> {
 			calls.add("deserialize");
 			return null;
 		});
 		deserializer.deserialize(null, null, Foo.class);
 
-		final JsonbAdapter<String, String> adapter = IuJsonb.typedAdapter(String.class, String.class,
+		final JsonbAdapter<String, String> adapter = IuJsonAdapter.typedAdapter(String.class, String.class,
 				new JsonbAdapter<String, String>() {
 					@Override
 					public String adaptToJson(String obj) {
@@ -428,16 +428,16 @@ public class IuJsonbConformanceTest {
 		assertEquals("from x", adapter.adaptFromJson("x"));
 		assertEquals(List.of("serialize", "deserialize"), calls);
 
-		assertThrows(NullPointerException.class, () -> IuJsonb.typedSerializer(null, serializer));
-		assertThrows(NullPointerException.class, () -> IuJsonb.typedDeserializer(Foo.class, null));
-		assertThrows(NullPointerException.class, () -> IuJsonb.typedAdapter(String.class, null, adapter));
+		assertThrows(NullPointerException.class, () -> IuJsonAdapter.typedSerializer(null, serializer));
+		assertThrows(NullPointerException.class, () -> IuJsonAdapter.typedDeserializer(Foo.class, null));
+		assertThrows(NullPointerException.class, () -> IuJsonAdapter.typedAdapter(String.class, null, adapter));
 	}
 
 	@Test
 	public void testTypedComponentsKeepConfiguredOrder() {
 		final List<String> calls = new ArrayList<>();
 		final var jsonb = jsonb(new JsonbConfig().withSerializers( //
-				IuJsonb.typedSerializer(Foo.class, (obj, generator, ctx) -> {
+				IuJsonAdapter.typedSerializer(Foo.class, (obj, generator, ctx) -> {
 					calls.add("typed");
 					ctx.serialize(obj, generator);
 				}), //
@@ -458,15 +458,15 @@ public class IuJsonbConformanceTest {
 		};
 		final var untyped = assertThrows(JsonbException.class,
 				() -> jsonb(new JsonbConfig().withSerializers(lambda)));
-		assertTrue(untyped.getMessage().endsWith("or register it with IuJsonb.typedSerializer(Type, ...)"),
+		assertTrue(untyped.getMessage().endsWith("or register it with IuJsonAdapter.typedSerializer(Type, ...)"),
 				untyped::getMessage);
 
 		final var variable = assertThrows(JsonbException.class, () -> jsonb(
-				new JsonbConfig().withDeserializers(IuJsonb.typedDeserializer(Foo.class.getTypeParameters().length == 0
+				new JsonbConfig().withDeserializers(IuJsonAdapter.typedDeserializer(Foo.class.getTypeParameters().length == 0
 						? IuJsonbConformanceTest.class.getDeclaredMethod("variable").getGenericReturnType()
 						: null, (parser, ctx, type) -> null))));
 		assertTrue(variable.getMessage().endsWith("or register it for an explicit type with "
-				+ "IuJsonb.typedDeserializer(Type, ...)"), variable::getMessage);
+				+ "IuJsonAdapter.typedDeserializer(Type, ...)"), variable::getMessage);
 		assertInstanceOf(JsonbException.class, variable);
 	}
 

@@ -378,4 +378,26 @@ public class IuJsonPropertiesTest {
 		}
 	}
 
+	@Test
+	public void testBuilderState() {
+		final var builder = IuJsonProperties.builder(IuJsonAdapter::of);
+		assertTrue(builder.isEmpty());
+		assertNull(builder.get("a"));
+
+		builder.put("a", 1);
+		assertFalse(builder.isEmpty());
+		assertEquals(1, builder.get("a"));
+
+		final var raw = IuJsonProperties.builder(IuJsonAdapter::of).putJson("b", IuJson.string("x"));
+		assertFalse(raw.isEmpty());
+		assertEquals(IuJson.string("x"), raw.get("b"));
+
+		// a copy changes independently
+		final var copy = builder.copy().put("c", 2);
+		assertNull(builder.get("c"));
+		assertEquals(1, copy.get("a"));
+		assertEquals("{\"a\":1}", builder.build().toString());
+		assertEquals("{\"a\":1,\"c\":2}", copy.build().toString());
+	}
+
 }

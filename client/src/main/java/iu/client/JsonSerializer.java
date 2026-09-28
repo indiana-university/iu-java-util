@@ -176,8 +176,15 @@ public final class JsonSerializer {
 		// recreating the adapters that captured the supplier
 		final var snapshot = snapshot(options);
 
+		// a type with type information writes its subtype's properties, after the
+		// type information
+		var model = model(type, snapshot);
+		if (model.dispatch() != null && valueClass != model.type())
+			model = model(valueClass, snapshot);
 		final var builder = IuJson.object();
-		addProperties(type, value, snapshot, adapt, builder);
+		for (final var typeKey : model.typeKeys().entrySet())
+			builder.add(typeKey.getKey(), typeKey.getValue());
+		addProperties(model, value, snapshot, adapt, builder);
 		return builder.build();
 	}
 
@@ -271,7 +278,7 @@ public final class JsonSerializer {
 		final var nameProperty = formatPropertyName(NAME, propertyNameFormat);
 
 		final var properties = IuJson.object();
-		addProperties(type, value, snapshot, adapt, properties);
+		addProperties(model(type, snapshot), value, snapshot, adapt, properties);
 		final var declared = properties.build();
 
 		// the name property comes first whether or not the enum declares one of its
@@ -344,7 +351,20 @@ public final class JsonSerializer {
 				property.writeMembers(), adapt, snapshot);
 	}
 
-	private static IuJsonAdapter<?> declared(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
+	/**
+	 * Gets the conversion for a property or creator parameter: by the JSON-B
+	 * components it declares, else by the date or number format it declares, if
+	 * one applies to its type, else by its type.
+	 *
+	 * @param type     property or parameter type
+	 * @param date     date format declared; null if none
+	 * @param number   number format declared; null if none
+	 * @param members  members that declare how it converts
+	 * @param adapt    adapter function
+	 * @param snapshot options
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> declared(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
 			AnnotatedElement[] members, Function<Type, IuJsonAdapter<?>> adapt, IuJsonSerializationOptions snapshot) {
 		final var metadata = snapshot.isLegacyProperties() ? BindingMetadata.NONE : BindingMetadata.get();
 		final var components = metadata.components(type, date, number, members, () -> snapshot);
@@ -358,17 +378,17 @@ public final class JsonSerializer {
 	/**
 	 * Adds an entry for each readable property of a type.
 	 *
-	 * @param type     value type for introspection
+	 * @param model    property model
 	 * @param value    value to read properties from
 	 * @param snapshot options
 	 * @param adapt    adapter function
 	 * @param builder  receives one entry per property
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private static void addProperties(Type type, Object value, IuJsonSerializationOptions snapshot,
+	private static void addProperties(BeanModel model, Object value, IuJsonSerializationOptions snapshot,
 			Function<Type, IuJsonAdapter<?>> adapt, JsonObjectBuilder builder) {
 		final var naming = PropertyNaming.of(propertyNameFormat(snapshot));
-		for (final var property : model(type, snapshot).readable(naming)) {
+		for (final var property : model.readable(naming)) {
 			final var name = property.readName(naming);
 			final var propertyValue = property.get(value);
 			if (propertyValue != null //

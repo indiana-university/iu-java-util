@@ -33,6 +33,7 @@ package iu.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -44,6 +45,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,8 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
 import iu.client.jsonb.IuJsonbComponentAnnotationsTest;
+import iu.client.jsonb.IuJsonbCreatorTest;
+import iu.client.jsonb.IuJsonbPolymorphismTest;
 import iu.client.jsonb.JsonbMetadata;
 import jakarta.json.JsonValue;
 import jakarta.json.bind.annotation.JsonbDateFormat;
@@ -534,6 +538,191 @@ public class BindingAnnotationsTest {
 	@Test
 	public void testNestedComponents() {
 		assertEquals("{\"amount\":\"$7\"}", adapt(Reentrant.class, DEFAULT).toJson(new Reentrant()).toString());
+	}
+
+	@Test
+	public void testCreators() {
+		final var point = adapt(IuJsonbCreatorTest.Point.class, DEFAULT);
+		assertEquals("{\"x\":1,\"y\":2}", point.toJson(new IuJsonbCreatorTest.Point(1, 2)).toString());
+		assertEquals(new IuJsonbCreatorTest.Point(1, 0), point.fromJson(IuJson.parse("{\"x\":1}")));
+
+		// a record converts the same before 7.1: its accessors are public
+		assertEquals(new IuJsonbCreatorTest.Point(1, 2),
+				adapt(IuJsonbCreatorTest.Point.class, LEGACY).fromJson(IuJson.parse("{\"x\":1,\"y\":2}")));
+
+		final var constructed = adapt(IuJsonbCreatorTest.Constructed.class, DEFAULT)
+				.fromJson(IuJson.parse("{\"extra\":\"e\",\"a\":\"x\",\"b\":2,\"skip\":1}"));
+		assertEquals("x", constructed.getA());
+		assertEquals(2, constructed.getB());
+		assertEquals("e", constructed.extra);
+
+		// parameters convert as declared: named, formatted, and by component
+		final var named = adapt(IuJsonbCreatorTest.Named.class, DEFAULT)
+				.fromJson(IuJson.parse("{\"n\":\"a\",\"date\":\"27.09.2026\"}"));
+		assertEquals(new IuJsonbCreatorTest.Named("a", Optional.empty(), java.time.LocalDate.of(2026, 9, 27)),
+				named);
+		assertEquals("abc", adapt(IuJsonbCreatorTest.Factory.class, DEFAULT)
+				.fromJson(IuJson.parse("{\"value\":\"cba\"}")).getValue());
+
+		// a creator parameter that a setter also writes: the creator wins
+		final var both = adapt(IuJsonbCreatorTest.Both.class, DEFAULT).fromJson(IuJson.parse("{\"a\":\"x\"}"));
+		assertEquals("x", both.a);
+		assertFalse(both.set);
+
+		// named by the options' format
+		final var snake = IuJsonSerializationOptions
+				.of(edu.iu.client.IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
+		assertEquals(new IuJsonbCreatorTest.SnakeRecord("x"),
+				adapt(IuJsonbCreatorTest.SnakeRecord.class, () -> snake).fromJson(IuJson.parse("{\"first_name\":\"x\"}")));
+	}
+
+	@Test
+	public void testCreatorParameterNeedsName() throws Exception {
+		// the JDK is compiled without parameter names
+		final var constructor = java.util.ArrayList.class.getConstructor(int.class);
+		assertFalse(constructor.getParameters()[0].isNamePresent());
+		final var metadata = new BindingMetadata() {
+			@Override
+			public boolean isCreator(java.lang.reflect.Executable executable) {
+				return executable.equals(constructor);
+			}
+		};
+		final var error = assertThrows(IllegalStateException.class, () -> new BeanModel(java.util.ArrayList.class,
+				new BeanModel.Discovery(null, "LEXICOGRAPHICAL", metadata, false)));
+		assertEquals("parameter 0 of creator " + constructor
+				+ " has no name; declare it with @JsonbProperty, or compile with -parameters", error.getMessage());
+	}
+
+	@Test
+	public void testRecordsNeedTheRuntimeToSupportThem() {
+		assertNull(BeanModel.handle(() -> {
+			throw new NoSuchMethodException();
+		}));
+		assertFalse(BeanModel.isRecord(null, IuJsonbCreatorTest.Point.class));
+		assertNull(BeanModel.of(Annotated.class).creator());
+		assertEquals("public iu.client.jsonb.IuJsonbCreatorTest$Point(int,int)",
+				BeanModel.of(IuJsonbCreatorTest.Point.class).creator().toString());
+	}
+
+	@Test
+	public void testPolymorphism() {
+		final var animal = adapt(IuJsonbPolymorphismTest.Animal.class, DEFAULT);
+		assertEquals(IuJsonbPolymorphismTest.LABRADOR,
+				animal.toJson(IuJsonbPolymorphismTest.labrador()).toString());
+		final var read = assertInstanceOf(IuJsonbPolymorphismTest.Labrador.class,
+				animal.fromJson(IuJson.parse(IuJsonbPolymorphismTest.LABRADOR)));
+		assertEquals("yellow", read.color);
+		assertEquals("rex", read.getName());
+
+		// no key reads as the declared type, an interface
+		assertEquals("any", animal.fromJson(IuJson.parse("{\"name\":\"any\"}")).getName());
+
+		// declared as its own type, with type information of its own
+		final var dog = new IuJsonbPolymorphismTest.Dog();
+		dog.setName("fido");
+		assertEquals("{\"@animal\":\"dog\",\"barks\":false,\"name\":\"fido\"}",
+				adapt(IuJsonbPolymorphismTest.Dog.class, DEFAULT).toJson(dog).toString());
+
+		assertEquals("unknown alias cow for @animal of " + IuJsonbPolymorphismTest.Animal.class.getName(),
+				assertThrows(IllegalArgumentException.class,
+						() -> animal.fromJson(IuJson.parse("{\"@animal\":\"cow\"}"))).getMessage());
+
+		// before 7.1, no type information
+		assertEquals("{\"name\":\"rex\"}",
+				adapt(IuJsonbPolymorphismTest.Animal.class, LEGACY).toJson(IuJsonbPolymorphismTest.labrador())
+						.toString());
+	}
+
+	@Test
+	public void testProxyPolymorphism() {
+		final var json = IuJson.parse("{\"@shape\":\"round\",\"radius\":2}").asJsonObject();
+		assertEquals(2, ((IuJsonbPolymorphismTest.Round) IuJson.wrap(json, IuJsonbPolymorphismTest.Shape.class))
+				.getRadius());
+		assertEquals(2, ((IuJsonbPolymorphismTest.Round) adapt(IuJsonbPolymorphismTest.Shape.class, DEFAULT)
+				.fromJson(json)).getRadius());
+
+		// a proxy wraps only an interface
+		final var dog = IuJson.parse("{\"@animal\":\"dog\"}").asJsonObject();
+		assertEquals("alias dog names " + IuJsonbPolymorphismTest.Dog.class.getName()
+				+ ", which isn't an interface to wrap",
+				assertThrows(IllegalArgumentException.class,
+						() -> IuJson.wrap(dog, IuJsonbPolymorphismTest.Animal.class)).getMessage());
+	}
+
+	private static class NotPublic {
+		@SuppressWarnings("unused")
+		public int getValue() {
+			return 1;
+		}
+
+		@SuppressWarnings("unused")
+		private int getHidden() {
+			return 2;
+		}
+	}
+
+	private static class Writes extends java.io.FilterWriter {
+		@SuppressWarnings("unused")
+		Writes() {
+			super(new StringWriter());
+		}
+
+		@Override
+		public void write(String str) throws java.io.IOException {
+			super.write(str);
+		}
+	}
+
+	@Test
+	public void testAccessorEdges() throws Exception {
+		// a method that isn't public is made accessible
+		final var hidden = NotPublic.class.getDeclaredMethod("getHidden");
+		assertSame(hidden, BeanModel.accessor(hidden));
+		assertEquals(2, hidden.invoke(new NotPublic()));
+
+		// matched by parameters, not name alone
+		final var list = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(List.of("a")));
+		final var toArray = list.getClass().getMethod("toArray", Object[].class);
+		final var accessor = BeanModel.accessor(toArray);
+		assertTrue(BeanModel.isAccessible(accessor.getDeclaringClass()));
+		assertEquals(List.of("a"), List.of((Object[]) accessor.invoke(list, (Object) new Object[0])));
+
+		// FilterWriter declares write overloads, but not write(String); Writer does
+		final var write = Writes.class.getMethod("write", String.class);
+		assertEquals(java.io.Writer.class, BeanModel.accessor(write).getDeclaringClass());
+
+		assertTrue(BeanModel.isAccessible(String.class));
+		assertFalse(BeanModel.isAccessible(NotPublic.class));
+		// public, in a package not exported
+		assertFalse(BeanModel.isAccessible(Class.forName("sun.nio.cs.UTF_8")));
+	}
+
+	@Test
+	public void testAccessorThroughPublicSupertype() throws Exception {
+		// a JDK class that isn't public, in a package not open to this module:
+		// invoked through the public interface declaring it
+		final var list = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(List.of("a")));
+		final var size = list.getClass().getMethod("size");
+		assertFalse(BeanModel.isPublic(size.getDeclaringClass()));
+		final var accessor = BeanModel.accessor(size);
+		assertTrue(BeanModel.isPublic(accessor.getDeclaringClass()));
+		assertEquals(1, accessor.invoke(list));
+
+		// a public class's method is itself
+		final var publicMethod = Annotated.class.getMethod("getViaGetter");
+		assertSame(publicMethod, BeanModel.accessor(publicMethod));
+
+		// with no public supertype declaring it, or none exported to this module,
+		// made accessible within the module instead
+		final var notPublic = NotPublic.class.getMethod("getValue");
+		assertSame(notPublic, BeanModel.accessor(notPublic));
+		assertEquals(1, notPublic.invoke(new NotPublic()));
+		final IuJsonbCreatorTest.Point point = new IuJsonbCreatorTest.Point(1, 2);
+		assertEquals(1, BeanModel.of(IuJsonbCreatorTest.Point.class).readable(PropertyNaming.of(
+				edu.iu.client.IuJsonPropertyNameFormat.IDENTITY))[0].get(point));
+		final Supplier<String> lambda = () -> "x";
+		final var get = lambda.getClass().getMethod("get");
+		assertEquals("x", BeanModel.accessor(get).invoke(lambda));
 	}
 
 	@Test

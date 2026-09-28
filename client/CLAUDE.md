@@ -2,38 +2,42 @@
 
 `iu-java-client` / module `iu.util.client` / package `edu.iu.client`
 
-Read the repository root `CLAUDE.md` first for build commands and shared conventions.
+Read the repository root `CLAUDE.md` first for build commands and shared conventions. `README.md` in this directory is the developer guide: what every option, annotation, and built-in type does. This file covers what matters when changing the module.
 
 ## Role
 
-Functional-programming adapters over Jakarta JSON Processing and the JDK HTTP client, plus the HashiCorp Vault integration that backs `config`. Compiled with `--release 11`.
+JSON conversion over Jakarta JSON Processing — the IU conversions and a JSON-B provider sharing one set of built-ins and one property model — plus the JDK HTTP client wrapper, the HashiCorp Vault integration that backs `config`, and remote invocation. Main code compiles with `--release 11`.
 
-`jakarta.json` and `java.net.http` are `requires transitive`, so anything depending on this module also gets them. Adding a new transitive requirement here propagates widely — do it deliberately.
+`jakarta.json` and `java.net.http` are `requires transitive`, so anything depending on this module also reads them; `jakarta.json` is a `provided` dependency, so the application supplies the API and an implementation. `jakarta.json.bind` is `requires static` and `provided`: optional at runtime. The module `provides jakarta.json.bind.spi.JsonbProvider with iu.client.jsonb.IuJsonbProvider`; there is no `META-INF/services` entry, since the module's components assert they run as a named module that isn't open. Adding a new transitive requirement here propagates widely — do it deliberately.
 
-## What lives here
+Only `edu.iu.client` is exported. Anything an application must name — config property keys, factories — belongs there, typically on `IuJsonAdapter`, even when its implementation lives in `iu.client.jsonb`; a public member of an internal package is invisible outside the module.
 
-### JSON
+## Layout
 
-`IuJson` is the entry point: parsing, serialization, and the `IuJsonBuilder` fluent construction helper. `IuJsonAdapter<T>` is the bidirectional `JsonValue` ↔ Java binding used throughout the repository — `config`, `crypt`, `el`, `session`, and `oidc` all register or consume adapters. `IuJsonPropertyNameFormat` controls naming strategy (for example camelCase vs. snake_case) when binding an interface.
+| Package | Holds |
+|---|---|
+| `edu.iu.client` | the public API: `IuJsonAdapter`, `IuJson`, `IuJsonProperties`, `IuJsonSerializationOptions`, `IuHttp`, `IuVault`, `RemoteInvocationHandler` |
+| `iu.client` | the built-in conversions (`JsonAdapters` and its adapters), the IU business-object paths (`JsonSerializer`, `JsonDeserializer`, `JsonProxy`), the shared property model (`BeanModel`), `BindingMetadata`, `FormatAdapters`, Vault |
+| `iu.client.jsonb` | the JSON-B provider: `IuJsonb`, `IuJsonbValueAdapter` (component chains), `IuJsonbAdapter` (business objects), `IuJsonbModel`, the call contexts, and `JsonbMetadata` |
 
-`IuJsonSerializationOptions` carries the Java → JSON options — the property name format, whether a readable property with a null value is included as `JsonValue.NULL` rather than omitted, and whether an enum value is written as an object rather than as text — and is taken as a `Supplier`, so an adapter reads a fresh snapshot per conversion and observes a reconfiguration without being rebuilt. The same supplier propagates into nested value types, so one change reaches a whole captured adapter tree. Nulls are omitted by default, because Java draws no distinction between null and undefined; opt in only for a consumer that does, notably JavaScript UI code. Two things this deliberately does not touch: `IuJson.add` always omits nulls, which is what the JOSE writers in `crypt/impl`, `logging/impl`, and Vault merge patch (where a JSON null *deletes* a key) rely on; and a value wrapped by `IuJson.wrap` still serializes as its source `JsonObject` verbatim, which is what lets hierarchical data handled through a stub interface keep properties the stub doesn't declare.
+## Invariants to keep
 
-`isEnumAsObject` exists for a consumer with no decoded metadata for the enum type — a REST client or a UI, which receives `"ACTIVE"` and has nowhere to get a display label or anything else the constant carries. It writes a `name` property holding `Enum.name()`, then the constant's JavaBeans properties, converted the same way a business object's are; properties inherited from `Object` and `Enum` are skipped, so `declaringClass` never appears. Introspection uses the enum type rather than the value's class, so a constant with a class body keeps the shape of its enum while still answering its own overrides. Reading is the asymmetric half and does not consult the options at all: `EnumJsonAdapter` accepts either form always, taking `name` from an object and ignoring every other property, which is what lets a value written as an object be read by a consumer that leaves the option off. Note the text form is still `Enum.toString()` while `name` is `Enum.name()`, so only the object form is guaranteed to convert back — and an enum that declares its own `name` property supplies that value instead, which is only sound when it answers the constant name.
+- **JSON-B API isolation.** Only classes in `iu.client.jsonb` refer to JSON-B types. The IU paths reach annotations through `BindingMetadata`; `JsonbPresence` decides once, by whether this module reads `jakarta.json.bind`, whether `BindingMetadata.get()` is `JsonbMetadata` or `NONE`. Public API methods whose signatures name JSON-B types (`IuJsonProperties.deserialize`, `IuJsonAdapter.typedSerializer`) carry `@SuppressWarnings("exports")` and only link when called. A test covers the absent path through `JsonbPresence.metadata`.
+- **One property model.** `BeanModel` discovers properties for both paths: JSON-B's rules by default, `BeanModel.legacy` (public accessors, no annotations) when `isLegacyProperties()`. Discovery, names, formats, creators, and type information belong there, not in either path.
+- **Strict built-ins.** No coercion between JSON types; exact number reads. Downstream code that relied on leniency is fixed downstream.
+- **Options are read per conversion.** Anything an option affects dispatches at conversion time (`OptionsSwitch`, `BinaryJsonAdapter.of(Supplier)`), never at adapter creation, so a captured adapter observes a reconfiguration.
+- **Pre-7.1 behavior stays restorable.** A change to an IU default gets an `IuJsonSerializationOptions` setting that restores it, included in `LEGACY`.
+- **`IuJson.add` always omits nulls**, whatever the options: the JOSE writers and Vault merge patch, where JSON null deletes a key, rely on it. A value wrapped by `IuJson.wrap` writes back as its source object verbatim.
 
-When a module needs its configuration or wire format expressed as JSON, it defines an `IuJsonAdapter` rather than hand-writing serialization.
+## JSON-B provider internals
 
-### HTTP
-
-`IuHttp` wraps a cached `HttpClient` with allowlisting, logging, and exception handling. Proxy behavior is driven by `iu.http.proxy`, `iu.https.proxy`, and `iu.http.no.proxy`. `HttpResponseHandler` and `HttpResponseValidator` compose response handling; `HttpException` carries the failed response for diagnostics.
-
-### Vault
-
-`IuVault` reads a HashiCorp Vault K/V v2 secrets engine. Configuration comes from `iu.vault.endpoint`, `iu.vault.secrets`, and either `iu.vault.token` (development) or the AppRole triple `iu.vault.loginEndpoint` / `iu.vault.roleId` / `iu.vault.secretId` (CI/CD). `IuVault.RUNTIME` is the ambient instance. `IuVaultSecret`, `IuVaultKeyedValue`, and `IuVaultMetadata` model the responses.
-
-### Remote invocation
-
-`RemoteInvocationHandler` and the surrounding `RemoteInvocation*` types implement dynamic-proxy RPC over HTTP, including transport of remote stack traces (`RemoteInvocationStackTraceElementDetail`, `ThrowableRemoteInvocationFailure`) so a server-side failure surfaces with usable diagnostics on the client.
+- Components form one chain per direction per type (`IuJsonb.readChain`/`writeChain`), most specific first; see the README for precedence. A property's own components head a per-property `IuJsonbValueAdapter`.
+- Every call runs inside `IuSerializationContext` or `IuDeserializationContext`, which also sets `iu.client.ConversionScope` so an `IuJsonProperties` without conversions of its own follows the call.
+- A deserializer gets an `IuJsonbBoundedParser` view; when the call holds the source text, `IuJsonProperties` can detach by continuing from the text rather than capturing the rest.
+- The JSON-B specification text and Yasson's source are the references for behavior; where this provider deviates, the README's "Deviations from standard behavior" says so, and a new deviation is added there.
 
 ## Testing notes
 
-Tests here mock the HTTP layer rather than opening sockets. Remember that `iu-java-test` fails a test on any unexpected log record, and `IuHttp` logs every request — expect or allow those records explicitly.
+Tests compile with `--release 17` and `-parameters` (the `default-testCompile` execution in `pom.xml`), so they can declare records and creators without `@JsonbProperty` on every parameter; main code stays at 11. Tests here mock the HTTP layer rather than opening sockets. `iu-java-test` fails a test on any unexpected log record, and `IuHttp` logs every request — expect or allow those records explicitly.
+
+Coverage is 100% instruction and branch. A coverage report showing most classes missed while every test passed means the class files changed under JaCoCo — look for "does not match" in the build log, typically an IDE rebuilding `target/` — and re-run with `clean` rather than chasing gaps.

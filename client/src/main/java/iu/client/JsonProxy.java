@@ -183,6 +183,21 @@ public final class JsonProxy implements InvocationHandler {
 	 */
 	static <T> T wrap(IuJsonProperties properties, Class<T> targetInterface, Function<String, String> naming,
 			boolean ignoreCase, BindingMetadata metadata, Declared declared) {
+		// type information picks the subtype interface
+		final var model = metadata == BindingMetadata.NONE ? BeanModel.legacy(targetInterface)
+				: BeanModel.of(targetInterface);
+		final var dispatch = model.dispatch();
+		if (dispatch != null && properties.containsKey(dispatch.key())) {
+			final var subtype = model.subtype(properties.get(dispatch.key(), String.class));
+			if (subtype != targetInterface) {
+				if (!subtype.isInterface())
+					throw new IllegalArgumentException("alias " + properties.get(dispatch.key(), String.class)
+							+ " names " + subtype.getName() + ", which isn't an interface to wrap");
+				return targetInterface
+						.cast(wrap(properties, subtype, naming, ignoreCase, metadata, declared));
+			}
+		}
+
 		JsonProxy.class.getModule().addReads(targetInterface.getModule());
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),

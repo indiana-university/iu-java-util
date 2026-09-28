@@ -32,12 +32,16 @@
 package iu.client.jsonb;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.List;
 
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonProperties;
+import iu.client.BindingMetadata;
 import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.stream.JsonGenerator;
@@ -96,11 +100,46 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		final var context = IuDeserializationContext.require(jsonb);
 		final var naming = context.naming();
 		final var object = value.asJsonObject();
+
+		// type information picks the subtype
+		final var dispatch = model().dispatch();
+		if (dispatch != null) {
+			final var alias = object.get(dispatch.key());
+			if (alias != null) {
+				if (!(alias instanceof JsonString))
+					throw new JsonbException(
+							"expected an alias for " + dispatch.key() + ", found " + alias.getValueType());
+				final var subtype = model().subtype(((JsonString) alias).getString());
+				if (subtype != type)
+					return (T) jsonb.adapt(subtype).fromJson(object);
+			}
+		}
+
 		if (type.isInterface())
 			return JsonProxy.wrap(IuJsonProperties.of(object, jsonb::adapt), type, naming::name,
 					naming.ignoresCase(), jsonb::declared);
 
 		final var model = model();
+		final var creator = model.creator();
+		if (creator != null) {
+			final var arguments = new Object[creator.size()];
+			final var read = new boolean[arguments.length];
+			final List<Assignment> assignments = new ArrayList<>();
+			for (final var entry : object.entrySet()) {
+				final var key = entry.getKey();
+				final var index = creator.index(naming, key);
+				if (index >= 0) {
+					arguments[index] = creator.fromJson(index, key, entry.getValue(), context);
+					read[index] = true;
+				} else {
+					final var property = model.writable(naming, key);
+					if (property != null)
+						assignments.add(new Assignment(property, key, property.fromJson(key, entry.getValue(), context)));
+				}
+			}
+			return create(creator, arguments, read, assignments, context);
+		}
+
 		final var bean = (T) model.newInstance();
 		for (final var entry : object.entrySet()) {
 			final var key = entry.getKey();
@@ -121,6 +160,86 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 			throw new JsonbException("expected START_OBJECT for " + type.getName() + ", found " + event);
 
 		final var context = IuDeserializationContext.require(jsonb);
+		final var dispatch = model().dispatch();
+		if (dispatch != null)
+			return readPolymorphic(parser, context, dispatch);
+		else
+			return readObject(parser, context);
+	}
+
+	/**
+	 * Reads an object whose type information picks the subtype to read it as.
+	 *
+	 * <p>
+	 * The key comes first, as written, so the subtype usually reads the rest of
+	 * the object straight from the parser. Where the key doesn't come first, or
+	 * the subtype has components of its own or is an interface, the object is
+	 * read through and converted from the tree.
+	 * </p>
+	 *
+	 * @param parser   parser, between the object's properties
+	 * @param context  call in progress
+	 * @param dispatch type information
+	 * @return value
+	 */
+	@SuppressWarnings("unchecked")
+	private T readPolymorphic(JsonParser parser, IuDeserializationContext context, BindingMetadata.TypeInfo dispatch) {
+		var event = parser.next();
+		final var object = jsonb.provider().createObjectBuilder();
+		if (event == Event.KEY_NAME && dispatch.key().equals(parser.getString())) {
+			event = parser.next();
+			if (event != Event.VALUE_STRING)
+				throw new JsonbException("expected an alias for " + dispatch.key() + ", found " + event);
+			final var alias = parser.getString();
+			final var subtype = model().subtype(alias);
+			if (subtype == type)
+				return readObject(parser, context);
+
+			final var subtypeAdapter = jsonb.adapt(subtype);
+			if (!subtype.isInterface() && subtypeAdapter.isBuiltInRead())
+				return (T) ((IuJsonbAdapter<?>) subtypeAdapter.builtInAdapter()).continueRead(parser, context);
+
+			object.add(dispatch.key(), alias);
+			event = parser.next();
+		}
+
+		// read through, then convert from the tree
+		while (event != Event.END_OBJECT) {
+			final var key = parser.getString();
+			parser.next();
+			object.add(key, parser.getValue());
+			event = parser.next();
+		}
+		return fromJson(object.build());
+	}
+
+	/**
+	 * Reads the rest of an object, whose type information another type read.
+	 *
+	 * @param parser  parser, between the object's properties
+	 * @param context call in progress
+	 * @return value
+	 */
+	private T continueRead(JsonParser parser, IuDeserializationContext context) {
+		// a subtype always has type information; its own may pick a further one
+		final var dispatch = model().dispatch();
+		if (dispatch.type() == type)
+			return readPolymorphic(parser, context, dispatch);
+		else
+			return readObject(parser, context);
+	}
+
+	/**
+	 * Reads an object as this type.
+	 *
+	 * @param parser  parser, at the object's {@code START_OBJECT}, or between its
+	 *                properties unless this type is an interface
+	 * @param context call in progress
+	 * @return value
+	 */
+	@SuppressWarnings("unchecked")
+	private T readObject(JsonParser parser, IuDeserializationContext context) {
+		Event event;
 		final var naming = context.naming();
 		if (type.isInterface()) {
 			// the proxy converts each property when its getter is first called: from
@@ -133,6 +252,31 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		}
 
 		final var model = model();
+		final var creator = model.creator();
+		if (creator != null) {
+			// values are held until the object is read through, then the creator
+			// runs and the other properties are set
+			final var arguments = new Object[creator.size()];
+			final var read = new boolean[arguments.length];
+			final List<Assignment> assignments = new ArrayList<>();
+			while (parser.next() != Event.END_OBJECT) {
+				final var key = parser.getString();
+				event = parser.next();
+				final var index = creator.index(naming, key);
+				if (index >= 0) {
+					arguments[index] = creator.read(index, key, parser, context);
+					read[index] = true;
+				} else {
+					final var property = model.writable(naming, key);
+					if (property != null)
+						assignments.add(new Assignment(property, key, property.read(key, parser, context)));
+					else
+						skip(parser, event);
+				}
+			}
+			return create(creator, arguments, read, assignments, context);
+		}
+
 		final var bean = (T) model.newInstance();
 		while (parser.next() != Event.END_OBJECT) {
 			final var key = parser.getString();
@@ -140,11 +284,46 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 			event = parser.next();
 			if (property != null)
 				property.read(bean, key, parser, context);
-			else if (event == Event.START_OBJECT)
-				parser.skipObject();
-			else if (event == Event.START_ARRAY)
-				parser.skipArray();
+			else
+				skip(parser, event);
 		}
+		return bean;
+	}
+
+	/**
+	 * Skips a value no property reads.
+	 */
+	private static void skip(JsonParser parser, Event event) {
+		if (event == Event.START_OBJECT)
+			parser.skipObject();
+		else if (event == Event.START_ARRAY)
+			parser.skipArray();
+	}
+
+	/**
+	 * A property value read before its bean exists.
+	 */
+	private static final class Assignment {
+		private final IuJsonbModel.Property property;
+		private final String key;
+		private final Object value;
+
+		private Assignment(IuJsonbModel.Property property, String key, Object value) {
+			this.property = property;
+			this.key = key;
+			this.value = value;
+		}
+	}
+
+	/**
+	 * Creates a bean, then sets the properties read before it existed.
+	 */
+	@SuppressWarnings("unchecked")
+	private T create(IuJsonbModel.Creator creator, Object[] arguments, boolean[] read,
+			List<Assignment> assignments, IuDeserializationContext context) {
+		final var bean = (T) creator.create(arguments, read);
+		for (final var assignment : assignments)
+			assignment.property.set(bean, assignment.key, assignment.value, context);
 		return bean;
 	}
 
@@ -158,8 +337,13 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		final var context = IuSerializationContext.require(jsonb);
 		context.enterBean(value);
 		try {
+			final var model = model();
+			final var properties = model.readable(context.naming());
 			final var builder = jsonb.provider().createObjectBuilder();
-			for (final var property : model().readable(context.naming()))
+			// type information first, outermost first
+			for (final var typeKey : model.typeKeys().entrySet())
+				builder.add(typeKey.getKey(), typeKey.getValue());
+			for (final var property : properties)
 				property.add(value, builder, context);
 			return builder.build();
 		} finally {
@@ -181,8 +365,12 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 		final var context = IuSerializationContext.require(jsonb);
 		context.enterBean(value);
 		try {
+			final var model = model();
+			final var properties = model.readable(context.naming());
 			generator.writeStartObject();
-			for (final var property : model().readable(context.naming()))
+			for (final var typeKey : model.typeKeys().entrySet())
+				generator.write(typeKey.getKey(), typeKey.getValue());
+			for (final var property : properties)
 				property.write(value, generator, context);
 			generator.writeEnd();
 		} finally {

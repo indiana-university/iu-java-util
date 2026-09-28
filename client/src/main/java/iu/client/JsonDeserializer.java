@@ -95,6 +95,19 @@ public final class JsonDeserializer {
 		final var format = JsonSerializer.propertyNameFormat(snapshot);
 
 		final var erased = JsonAdapters.erase(type);
+		final var model = JsonSerializer.model(type, snapshot);
+
+		// type information picks the subtype
+		final var dispatch = model.dispatch();
+		if (dispatch != null) {
+			final var alias = value.get(dispatch.key());
+			if (alias != null) {
+				final var subtype = model.subtype(TextJsonAdapter.INSTANCE.fromJson(alias));
+				if (subtype != erased)
+					return deserialize(subtype, value, options, adapt);
+			}
+		}
+
 		if (erased.isInterface()) {
 			final var metadata = snapshot.isLegacyProperties() ? BindingMetadata.NONE : BindingMetadata.get();
 			return JsonProxy.wrap(IuJsonProperties.of(value, adapt), erased,
@@ -102,12 +115,37 @@ public final class JsonDeserializer {
 					JsonProxy.declared(metadata, () -> snapshot));
 		}
 
-		final var model = JsonSerializer.model(type, snapshot);
 		final var naming = PropertyNaming.of(format);
-		final var bean = model.newInstance();
+		final var creator = model.creator();
+		if (creator == null) {
+			final var bean = model.newInstance();
+			for (final var entry : value.entrySet()) {
+				final var property = model.writable(naming, entry.getKey());
+				if (property != null)
+					property.set(bean,
+							JsonSerializer.writeAdapter(property, adapt, snapshot).fromJson(entry.getValue()));
+			}
+			return bean;
+		}
+
+		// the creator's parameters first, then the other properties set; a
+		// parameter not in the object is null, a primitive's default, or empty
+		final var parameters = creator.parameters();
+		final var arguments = new Object[parameters.length];
+		for (var i = 0; i < parameters.length; i++) {
+			final var parameter = parameters[i];
+			final var json = value.get(parameter.jsonName(naming));
+			arguments[i] = json == null //
+					? JsonAdapters.undefined(parameter.type())
+					: JsonSerializer.declared(parameter.type(), parameter.dateFormat(), parameter.numberFormat(),
+							parameter.members(), adapt, snapshot).fromJson(json);
+		}
+
+		final var bean = creator.create(arguments);
 		for (final var entry : value.entrySet()) {
-			final var property = model.writable(naming, entry.getKey());
-			if (property != null)
+			final var key = entry.getKey();
+			final var property = model.writable(naming, key);
+			if (property != null && creator.index(naming, key) < 0)
 				property.set(bean, JsonSerializer.writeAdapter(property, adapt, snapshot).fromJson(entry.getValue()));
 		}
 		return bean;

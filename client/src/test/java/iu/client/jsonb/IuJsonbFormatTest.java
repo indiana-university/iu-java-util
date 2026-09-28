@@ -47,6 +47,7 @@ import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonSerializationOptions;
 import iu.client.jsonb.formats.ClassFormatted;
@@ -214,7 +215,7 @@ public class IuJsonbFormatTest {
 	public void testStrictIJson() {
 		final Supplier<IuJsonSerializationOptions> legacy = () -> IuJsonSerializationOptions.LEGACY;
 		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().withStrictIJSON(true)
-				.withBinaryDataStrategy(BinaryDataStrategy.BYTE).setProperty(IuJsonb.SERIALIZATION_OPTIONS, legacy));
+				.withBinaryDataStrategy(BinaryDataStrategy.BYTE).setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, legacy));
 		assertTrue(jsonb.isStrictIJson());
 
 		// base64url whatever else is configured; dates with an offset and seconds
@@ -244,7 +245,7 @@ public class IuJsonbFormatTest {
 	@Test
 	public void testLegacyDates() {
 		final Supplier<IuJsonSerializationOptions> legacy = () -> IuJsonSerializationOptions.LEGACY;
-		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonb.SERIALIZATION_OPTIONS, legacy));
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().setProperty(IuJsonAdapter.SERIALIZATION_OPTIONS, legacy));
 		assertEquals("{\"time\":\"12:34\"}", jsonb.toJson(new Times()));
 		assertEquals(LocalTime.of(12, 34), jsonb.fromJson("{\"time\":\"12:34:00\"}", Times.class).time);
 		assertSame(IuJsonSerializationOptions.LEGACY, jsonb.callOptions());

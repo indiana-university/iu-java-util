@@ -31,7 +31,6 @@
  */
 package edu.iu.client;
 
-import java.lang.reflect.Array;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -40,10 +39,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalDouble;
-import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -77,18 +72,18 @@ import jakarta.json.stream.JsonParser.Event;
  *
  * <p>
  * An index reading from a parser must {@link #detach()} before whatever
- * controls the parser moves on; within a JSON-B deserialization by
- * the IU JSON-B provider, the provider detaches it. Detaching from a
- * parser over text the provider holds keeps reading the rest of the object
- * from that text, in place, and releases the text once the object is read
- * through; otherwise the rest is captured raw. Until detached, an index reading
- * from a parser belongs to the parser's thread; otherwise it is thread-safe.
+ * controls the parser moves on; within a JSON-B deserialization by the IU
+ * JSON-B provider, the provider detaches it. Detaching from a parser over text
+ * the provider holds keeps reading the rest of the object from that text, in
+ * place, and releases the text once the object is read through; otherwise the
+ * rest is captured raw. Until detached, an index reading from a parser belongs
+ * to the parser's thread; otherwise it is thread-safe.
  * </p>
  *
  * <p>
- * A property the reader never asks for is kept raw and written back
- * unchanged; {@link #requireOnly(Set)} checks for unexpected ones. The index
- * is immutable: {@link #builder()} creates one from Java values, and
+ * A property the reader never asks for is kept raw and written back unchanged;
+ * {@link #requireOnly(Set)} checks for unexpected ones. The index is immutable:
+ * {@link #builder()} creates one from Java values, and
  * {@link #with(String, Object)} copies one with a value replaced.
  * </p>
  *
@@ -98,19 +93,20 @@ import jakarta.json.stream.JsonParser.Event;
  * </p>
  * <ol>
  * <li>the IU JSON-B provider's call in progress when it converts, so values an
- * application indexes and passes to {@link jakarta.json.bind.Jsonb#toJson},
- * or writes from a serializer, convert by that call's configuration;</li>
+ * application indexes and passes to {@link jakarta.json.bind.Jsonb#toJson}, or
+ * writes from a serializer, convert by that call's configuration;</li>
  * <li>the provider's call in progress when the index was created, so an index a
  * deserializer creates converts that way after the call returns;</li>
- * <li>the IU conversions, as {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)}
- * converts with {@link IuJsonSerializationOptions#DEFAULT}.</li>
+ * <li>the IU conversions, as
+ * {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)} converts with
+ * {@link IuJsonSerializationOptions#DEFAULT}.</li>
  * </ol>
  *
  * <p>
  * An index is itself a value both the IU conversions and the IU JSON-B provider
  * convert, with nothing to register: written as the object it indexes, and read
- * as an index of the object, as a top-level value, a property, or an item.
- * Read by {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)}, it
+ * as an index of the object, as a top-level value, a property, or an item. Read
+ * by {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)}, it
  * converts as that adapter's value types do; read by JSON-B, as described
  * above.
  * </p>
@@ -118,7 +114,8 @@ import jakarta.json.stream.JsonParser.Event;
  * <p>
  * The same index may so convert differently in different calls. A serializer
  * running under any JSON-B provider can write an index through the call's
- * context with {@link #write(JsonGenerator, jakarta.json.bind.serializer.SerializationContext)}.
+ * context with
+ * {@link #write(JsonGenerator, jakarta.json.bind.serializer.SerializationContext)}.
  * </p>
  */
 public final class IuJsonProperties {
@@ -139,8 +136,8 @@ public final class IuJsonProperties {
 	 * The IU conversions with default options, for an index converting with no
 	 * JSON-B call to take conversions from.
 	 */
-	private static final Function<Type, IuJsonAdapter<?>> DEFAULTS = type -> DEFAULT_ADAPTERS
-			.computeIfAbsent(type, t -> IuJsonAdapter.adapt(t, () -> IuJsonSerializationOptions.DEFAULT));
+	private static final Function<Type, IuJsonAdapter<?>> DEFAULTS = type -> DEFAULT_ADAPTERS.computeIfAbsent(type,
+			t -> IuJsonAdapter.adapt(t, () -> IuJsonSerializationOptions.DEFAULT));
 
 	/**
 	 * Builds an index from Java values.
@@ -164,6 +161,19 @@ public final class IuJsonProperties {
 			values.remove(name);
 			types.remove(name);
 			raw.remove(name);
+		}
+
+		/**
+		 * Gets previously provided property.
+		 *
+		 * @param name JSON property name
+		 * @return value provided via put, putJson, or putAll
+		 */
+		public Object get(String name) {
+			if (values.containsKey(name))
+				return values.get(name);
+			else
+				return raw.get(name);
 		}
 
 		/**
@@ -224,6 +234,30 @@ public final class IuJsonProperties {
 		}
 
 		/**
+		 * Determines if values have been provided.
+		 * 
+		 * @return true if no values have been provided, either java or raw JSON; false
+		 *         if values have been provided
+		 */
+		public boolean isEmpty() {
+			return values.isEmpty() && raw.isEmpty();
+		}
+
+		/**
+		 * Copy this builder from its current state.
+		 * 
+		 * @return a copy of this builder that can change independently
+		 */
+		public Builder copy() {
+			final var copy = new Builder(adapt, captured);
+			copy.names.addAll(names);
+			copy.raw.putAll(raw);
+			copy.values.putAll(values);
+			copy.types.putAll(types);
+			return copy;
+		}
+
+		/**
 		 * Builds the index.
 		 *
 		 * @return {@link IuJsonProperties}
@@ -274,10 +308,10 @@ public final class IuJsonProperties {
 	 *
 	 * <p>
 	 * An object already in memory, as in a JSON-B tree conversion, is referenced
-	 * rather than read. Otherwise the index reads from the parser, which it
-	 * leaves between properties; call {@link #detach()} before advancing the
-	 * parser past the object, unless the parser is one the IU JSON-B provider
-	 * gave a deserializer, which detaches the index itself.
+	 * rather than read. Otherwise the index reads from the parser, which it leaves
+	 * between properties; call {@link #detach()} before advancing the parser past
+	 * the object, unless the parser is one the IU JSON-B provider gave a
+	 * deserializer, which detaches the index itself.
 	 * </p>
 	 *
 	 * @param parser parser, at the object's {@code START_OBJECT}
@@ -403,8 +437,8 @@ public final class IuJsonProperties {
 
 	/**
 	 * Gets the conversion for a type: by the conversions the index is bound to;
-	 * else those of the JSON-B call in progress; else those of the call in
-	 * progress when the index was created; else the IU defaults.
+	 * else those of the JSON-B call in progress; else those of the call in progress
+	 * when the index was created; else the IU defaults.
 	 */
 	@SuppressWarnings("unchecked")
 	private IuJsonAdapter<Object> adapter(Type type) {
@@ -481,8 +515,8 @@ public final class IuJsonProperties {
 	}
 
 	/**
-	 * Releases the parser at the end of the object, and with an owned
-	 * continuation the text it reads.
+	 * Releases the parser at the end of the object, and with an owned continuation
+	 * the text it reads.
 	 */
 	private void finish() {
 		if (owned)
@@ -514,9 +548,23 @@ public final class IuJsonProperties {
 	 * @param <T>  Java type
 	 * @param name JSON property name
 	 * @param type type to convert the property to
-	 * @return converted value; for a property not in the object, with no
-	 *         conversion looked up whatever the type, a primitive's default, an
-	 *         empty optional, or null
+	 * @return converted value; for a property not in the object, with no conversion
+	 *         looked up whatever the type, a primitive's default, an empty
+	 *         optional, or null
+	 */
+	public <T> T get(String name, Class<T> type) {
+		return get(name, (Type) type);
+	}
+
+	/**
+	 * Reads a property.
+	 *
+	 * @param <T>  Java type
+	 * @param name JSON property name
+	 * @param type type to convert the property to
+	 * @return converted value; for a property not in the object, with no conversion
+	 *         looked up whatever the type, a primitive's default, an empty
+	 *         optional, or null
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T get(String name, Type type) {
@@ -541,36 +589,12 @@ public final class IuJsonProperties {
 
 		// not in the object: nothing to convert, so no conversion is looked up
 		if (json == null)
-			return box(undefined(type));
+			return box(JsonAdapters.undefined(type));
 
 		final var value = box(adapter(type).fromJson(json));
 		resolved.put(name, value);
 		types.put(name, type);
 		return value;
-	}
-
-	/**
-	 * Gets the value of a property not in the object, without converting.
-	 *
-	 * @param type type asked for
-	 * @return a primitive's default; an empty {@link Optional},
-	 *         {@link OptionalInt}, {@link OptionalLong}, or
-	 *         {@link OptionalDouble}; otherwise null
-	 */
-	private static Object undefined(Type type) {
-		final var c = JsonAdapters.erase(type);
-		if (c.isPrimitive())
-			return Array.get(Array.newInstance(c, 1), 0);
-		else if (c == Optional.class)
-			return Optional.empty();
-		else if (c == OptionalInt.class)
-			return OptionalInt.empty();
-		else if (c == OptionalLong.class)
-			return OptionalLong.empty();
-		else if (c == OptionalDouble.class)
-			return OptionalDouble.empty();
-		else
-			return null;
 	}
 
 	/**
@@ -635,12 +659,11 @@ public final class IuJsonProperties {
 	 * on.
 	 *
 	 * <p>
-	 * From a parser over text the IU JSON-B provider holds, the index keeps
-	 * reading the rest of the object from that text, in place, releasing it
-	 * once the object is read through. From any other parser it captures the
-	 * rest raw now. Either way the parser is left at the object's
-	 * {@code END_OBJECT}, or where a provider can skip to it. Does nothing if
-	 * already detached.
+	 * From a parser over text the IU JSON-B provider holds, the index keeps reading
+	 * the rest of the object from that text, in place, releasing it once the object
+	 * is read through. From any other parser it captures the rest raw now. Either
+	 * way the parser is left at the object's {@code END_OBJECT}, or where a
+	 * provider can skip to it. Does nothing if already detached.
 	 * </p>
 	 */
 	public synchronized void detach() {

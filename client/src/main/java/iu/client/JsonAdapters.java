@@ -535,6 +535,31 @@ public final class JsonAdapters {
 	}
 
 	/**
+	 * Gets the value of something undefined in JSON, without converting: a
+	 * property not in an object, or a creator parameter not read.
+	 *
+	 * @param type type asked for
+	 * @return a primitive's default; an empty {@link Optional},
+	 *         {@link OptionalInt}, {@link OptionalLong}, or
+	 *         {@link OptionalDouble}; otherwise null
+	 */
+	public static Object undefined(Type type) {
+		final var c = erase(type);
+		if (c.isPrimitive())
+			return Array.get(Array.newInstance(c, 1), 0);
+		else if (c == Optional.class)
+			return Optional.empty();
+		else if (c == OptionalInt.class)
+			return OptionalInt.empty();
+		else if (c == OptionalLong.class)
+			return OptionalLong.empty();
+		else if (c == OptionalDouble.class)
+			return OptionalDouble.empty();
+		else
+			return null;
+	}
+
+	/**
 	 * Gets a conversion for a value of a {@link #isBroad(Type) broad} declared
 	 * type, by its runtime type.
 	 *
