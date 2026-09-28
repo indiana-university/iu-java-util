@@ -597,6 +597,75 @@ public final class JsonAdapters {
 		return CONVERSION_TYPES.computeIfAbsent(type, JsonAdapters::resolveConversionType);
 	}
 
+	/**
+	 * Gets the type a class of the application's own converts as, when it
+	 * extends or implements a type with a conversion, such as a list or an
+	 * iterable: that type, parameterized as the class sees it.
+	 *
+	 * @param type class of the application's own
+	 * @return container type; null if the class extends and implements none
+	 * @see #conversionType(Class)
+	 */
+	public static Type containerType(Class<?> type) {
+		final var conversionType = conversionType(type);
+		if (conversionType == Object.class)
+			return null;
+		else
+			return GenericTypes.supertype(type, (Class<?>) conversionType);
+	}
+
+	/**
+	 * Converts a class of the application's own as the container it extends or
+	 * implements: written by the container's conversion, and read by it into a
+	 * new instance, created by the class's no-arg constructor, that the values
+	 * read are added or put into.
+	 *
+	 * @param type       class of the application's own
+	 * @param conversion the container type's conversion
+	 * @return conversion
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public static IuJsonAdapter<Object> subclass(Class<?> type, IuJsonAdapter<?> conversion) {
+		final var container = (IuJsonAdapter<Object>) conversion;
+		final Function<Object, Object> create = value -> {
+			if (value == null)
+				return value;
+			if (!Collection.class.isAssignableFrom(type) && !Map.class.isAssignableFrom(type))
+				throw new IllegalArgumentException("can't read " + type.getName() + " from JSON; only a "
+						+ Collection.class.getName() + " or " + Map.class.getName() + " is created to read");
+
+			final var constructor = IuException.unchecked(() -> type.getDeclaredConstructor());
+			constructor.trySetAccessible();
+			final var instance = IuException.uncheckedInvocation(() -> constructor.newInstance());
+			if (instance instanceof Collection)
+				((Collection) instance).addAll((Collection) value);
+			else
+				((Map) instance).putAll((Map) value);
+			return instance;
+		};
+		return new IuJsonAdapter<Object>() {
+			@Override
+			public Object fromJson(JsonValue json) {
+				return create.apply(container.fromJson(json));
+			}
+
+			@Override
+			public JsonValue toJson(Object value) {
+				return container.toJson(value);
+			}
+
+			@Override
+			public Object read(jakarta.json.stream.JsonParser parser) {
+				return create.apply(container.read(parser));
+			}
+
+			@Override
+			public void write(Object value, jakarta.json.stream.JsonGenerator generator) {
+				container.write(value, generator);
+			}
+		};
+	}
+
 	private static Type resolveConversionType(Class<?> type) {
 		for (Class<?> next = type; next != null && next != Object.class; next = next.getSuperclass())
 			if (hasConversion(next))

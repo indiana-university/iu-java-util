@@ -98,6 +98,24 @@ public final class GenericTypes {
 	}
 
 	/**
+	 * Gets a supertype as a type sees it: parameterized by the arguments the type
+	 * supplies for it.
+	 *
+	 * @param type      class
+	 * @param supertype class or interface {@code type} extends or implements
+	 * @return {@code supertype} itself if it isn't generic; otherwise
+	 *         parameterized as {@link #typeArguments(Type, Class)} finds, with
+	 *         an argument {@code type} doesn't bind left as its variable
+	 */
+	public static Type supertype(Class<?> type, Class<?> supertype) {
+		if (supertype.getTypeParameters().length == 0)
+			return supertype;
+		else
+			return new ParameterizedTypeImpl(supertype, supertype.getDeclaringClass(),
+					typeArguments(type, supertype));
+	}
+
+	/**
 	 * Resolves a type declared by a member of a generic class, as a subtype sees
 	 * it.
 	 *

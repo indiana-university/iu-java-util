@@ -32,6 +32,7 @@
 package iu.client;
 
 import java.lang.reflect.Type;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -44,7 +45,21 @@ import edu.iu.client.IuJsonAdapter;
  */
 public final class ConversionScope {
 
-	private static final ThreadLocal<Function<Type, IuJsonAdapter<?>>> CURRENT = new ThreadLocal<>();
+	/**
+	 * A call in progress: its conversions, and whether it writes null
+	 * properties.
+	 */
+	private static final class Scope {
+		private final Function<Type, IuJsonAdapter<?>> conversions;
+		private final BooleanSupplier includeNullProperties;
+
+		private Scope(Function<Type, IuJsonAdapter<?>> conversions, BooleanSupplier includeNullProperties) {
+			this.conversions = conversions;
+			this.includeNullProperties = includeNullProperties;
+		}
+	}
+
+	private static final ThreadLocal<Scope> CURRENT = new ThreadLocal<>();
 
 	private ConversionScope() {
 	}
@@ -55,21 +70,50 @@ public final class ConversionScope {
 	 * @return gets the conversion for a type; null if no call is in progress
 	 */
 	public static Function<Type, IuJsonAdapter<?>> current() {
-		return CURRENT.get();
+		final var scope = CURRENT.get();
+		return scope == null ? null : scope.conversions;
+	}
+
+	/**
+	 * Determines if the call in progress on the current thread writes a property
+	 * whose value is null.
+	 *
+	 * @return true if it writes null properties; false if it omits them, or no
+	 *         call is in progress
+	 */
+	public static boolean isIncludeNullProperties() {
+		final var scope = CURRENT.get();
+		return scope != null && scope.includeNullProperties.getAsBoolean();
+	}
+
+	/**
+	 * Runs a conversion with a call's conversions in progress on the current
+	 * thread, omitting null properties.
+	 *
+	 * @param <R>         result type
+	 * @param conversions gets the conversion for a type
+	 * @param conversion  conversion
+	 * @return result
+	 * @see #within(Function, BooleanSupplier, Supplier)
+	 */
+	public static <R> R within(Function<Type, IuJsonAdapter<?>> conversions, Supplier<R> conversion) {
+		return within(conversions, () -> false, conversion);
 	}
 
 	/**
 	 * Runs a conversion with a call's conversions in progress on the current
 	 * thread, then restores those of the call it's nested in, if any.
 	 *
-	 * @param <R>         result type
-	 * @param conversions gets the conversion for a type
-	 * @param conversion  conversion
+	 * @param <R>                   result type
+	 * @param conversions           gets the conversion for a type
+	 * @param includeNullProperties whether the call writes null properties
+	 * @param conversion            conversion
 	 * @return result
 	 */
-	public static <R> R within(Function<Type, IuJsonAdapter<?>> conversions, Supplier<R> conversion) {
+	public static <R> R within(Function<Type, IuJsonAdapter<?>> conversions, BooleanSupplier includeNullProperties,
+			Supplier<R> conversion) {
 		final var previous = CURRENT.get();
-		CURRENT.set(conversions);
+		CURRENT.set(new Scope(conversions, includeNullProperties));
 		try {
 			return conversion.get();
 		} finally {

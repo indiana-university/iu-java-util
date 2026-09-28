@@ -315,6 +315,22 @@ public class IuJsonb implements Jsonb {
 	}
 
 	/**
+	 * Gets the conversions of a JSON-B instance.
+	 *
+	 * @param jsonb JSON-B instance
+	 * @return this provider's conversions, for one of its instances; otherwise
+	 *         conversions through the instance's JSON text
+	 */
+	public static Function<Type, IuJsonAdapter<?>> adapters(Jsonb jsonb) {
+		if (jsonb instanceof IuJsonb)
+			return ((IuJsonb) jsonb).conversions();
+
+		Objects.requireNonNull(jsonb, "jsonb");
+		return type -> IuJsonAdapter.from(value -> jsonb.fromJson(value.toString(), type),
+				value -> IuJson.parse(jsonb.toJson(value, type)));
+	}
+
+	/**
 	 * Gets the conversions of the provider running a deserialization, which stay
 	 * valid after the call ends.
 	 *

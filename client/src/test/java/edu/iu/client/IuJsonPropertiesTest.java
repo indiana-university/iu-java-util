@@ -228,8 +228,9 @@ public class IuJsonPropertiesTest {
 				.build();
 
 		assertEquals(List.of("count", "level", "named", "none", "when", "raw"), new ArrayList<>(properties.names()));
-		// the enum constant by name(), though its toString() is low
-		final var json = "{\"count\":3,\"level\":\"LOW\",\"named\":{\"name\":\"n\"},\"none\":null,\"when\":2,"
+		// the enum constant by name(), though its toString() is low; the null
+		// property omitted, with no call in progress that writes null properties
+		final var json = "{\"count\":3,\"level\":\"LOW\",\"named\":{\"name\":\"n\"},\"when\":2,"
 				+ "\"raw\":[true]}";
 		assertEquals(json, properties.toString());
 		assertEquals(json, written(properties));
@@ -242,7 +243,7 @@ public class IuJsonPropertiesTest {
 		assertEquals(3, (Integer) properties.get("count", Integer.class));
 		assertEquals(json.replace("3", "4"), changed.toString());
 
-		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder(null));
+		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder((Function<Type, IuJsonAdapter<?>>) null));
 		assertThrows(NullPointerException.class,
 				() -> IuJsonProperties.builder(IuJsonAdapter::of).put("x", 1, null));
 		assertThrows(NullPointerException.class,

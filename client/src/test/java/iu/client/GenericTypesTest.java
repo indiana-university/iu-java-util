@@ -397,4 +397,11 @@ public class GenericTypesTest {
 		assertSame(value, GenericTypes.resolve(value, Plain.class, Holder.class));
 	}
 
+	@Test
+	public void testSupertype() {
+		assertEquals(CharSequence.class, GenericTypes.supertype(String.class, CharSequence.class));
+		assertEquals("java.lang.Comparable<java.lang.String>",
+				GenericTypes.supertype(String.class, Comparable.class).getTypeName());
+	}
+
 }

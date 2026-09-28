@@ -54,7 +54,7 @@ An `IuJsonAdapter<T>` converts one Java type both ways, as a tree (`toJson`, `fr
 
 ### Business objects
 
-A type that isn't a built-in, primitive, or array type converts as a business object. Its properties are discovered as JSON-B discovers them:
+A type that isn't a built-in, primitive, or array type converts as a business object. A class of the application's own that extends a class with a built-in conversion, such as `ArrayList`, or implements `Map`, `Collection`, `Iterable`, `Iterator`, `Enumeration`, `Stream`, or `CharSequence`, converts as that type instead, parameterized as the class declares; a `Collection` or `Map` class reads into a new instance, created by its no-arg constructor. Its properties are discovered as JSON-B discovers them:
 
 - public fields and public accessors, including those inherited from non-platform superclasses and interfaces; `isX()` reads a `boolean`;
 - a getter or setter that isn't public closes that direction, so its field isn't used in its place;
@@ -94,13 +94,13 @@ Built-in conversions are strict: a number doesn't read from a string, text doesn
 
 An `IuJsonProperties` indexes the properties of one JSON object and converts each only when it is read. It resolves a property from values already read, then raw JSON captured from an object or parser, then a parser still inside the object: a read pulls forward, converting the property asked for straight from the parser, and captures the properties it passes over raw.
 
-- `IuJsonProperties.of(object)`, `read(parser)`, and `builder()` create an index; `with(name, value)` copies one with a value replaced.
+- `IuJsonProperties.of(object)`, `read(parser)`, `builder()`, and `builder(jsonb)` create an index; `with(name, value)` and `Builder.copy()` copy one, keeping how it converts.
 - `get(name, type)` converts a property. One not in the object converts nothing: it is null, a primitive's default, or an empty optional.
 - `requireOnly(names)` rejects a property not expected; otherwise unknown properties are kept and written back unchanged.
-- `toJsonObject()` and `write(generator)` write the object; `write(generator, context)` writes it from a JSON-B serializer, through the call's context, under any provider.
+- `toJsonObject()` and `write(generator)` write the object; `write(generator, context)` writes it from a JSON-B serializer, through the call's context, under any provider. A property set to a Java null is written only where the call in progress writes null properties; JSON null, as read or set by `putJson`, is written back as-is.
 - `detach()` releases a parser before whatever controls it moves on. Within a deserialization by the IU JSON-B provider, the provider detaches it.
 
-An index created without conversions of its own converts as the IU JSON-B call in progress when it converts; else the call in progress when it was created; else by the IU defaults. An index is a built-in value type in both the IU conversions and the JSON-B provider, with nothing to register.
+An index created without conversions of its own converts as the IU JSON-B call in progress when it converts; else the call in progress when it was created; else as the `Jsonb` given to `builder(jsonb)`, if any, its adapters included; else by the IU defaults. So a value put as one type and read as another, such as a `BigInteger` read as `byte[]`, converts by the application's JSON-B configuration outside any call. An index is a built-in value type in both the IU conversions and the JSON-B provider, with nothing to register.
 
 The JSON-B provider
 ===================

@@ -369,8 +369,14 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 
 		if (!IuObject.isPlatformName(erased.getName()) //
 				&& !erased.isPrimitive() //
-				&& !erased.isArray())
+				&& !erased.isArray()) {
+			// a class of the application's own that extends or implements a type
+			// with a conversion, such as a list or an iterable, converts as that type
+			final var containerType = JsonAdapters.containerType(erased);
+			if (containerType != null)
+				return JsonAdapters.subclass(erased, jsonb.adapt(containerType).builtIn());
 			return new IuJsonbAdapter<>(type, jsonb);
+		}
 
 		// a platform class with no conversion of its own, such as a JDK-internal
 		// collection, converts as the nearest type that has one

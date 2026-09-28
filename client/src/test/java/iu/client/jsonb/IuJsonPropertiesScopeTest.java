@@ -109,7 +109,7 @@ public class IuJsonPropertiesScopeTest {
 	public void testRequiresConversionsWhenGiven() {
 		final var object = IuJson.object().build();
 		assertThrows(NullPointerException.class, () -> IuJsonProperties.of(object, null));
-		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder(null));
+		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder((Function<Type, IuJsonAdapter<?>>) null));
 		try (final var parser = IuJson.PROVIDER.createParser(new StringReader("{}"))) {
 			parser.next();
 			assertThrows(NullPointerException.class, () -> IuJsonProperties.read(parser, null));
@@ -286,6 +286,81 @@ public class IuJsonPropertiesScopeTest {
 		assertEquals("{\"date\":\"27.09.2026\"}", jsonb.toJson((Object) built));
 	}
 
+	public static class BigBytes implements jakarta.json.bind.adapter.JsonbAdapter<java.math.BigInteger, byte[]> {
+		@Override
+		public byte[] adaptToJson(java.math.BigInteger obj) {
+			return obj.toByteArray();
+		}
+
+		@Override
+		public java.math.BigInteger adaptFromJson(byte[] obj) {
+			return new java.math.BigInteger(obj);
+		}
+	}
+
+	@Test
+	public void testBuilderWithJsonb() {
+		final var d = new java.math.BigInteger("123456789");
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().withAdapters(new BigBytes())
+				.withBinaryDataStrategy(jakarta.json.bind.config.BinaryDataStrategy.BASE_64_URL));
+
+		// put as one type, read as another, with no call in progress: as the
+		// instance converts, its adapters included
+		final var properties = IuJsonProperties.builder(jsonb).put("d", d).build();
+		org.junit.jupiter.api.Assertions.assertArrayEquals(d.toByteArray(), properties.get("d", byte[].class));
+		assertEquals("{\"d\":\"B1vNFQ==\"}", properties.toString());
+
+		// copies keep it
+		org.junit.jupiter.api.Assertions.assertArrayEquals(d.toByteArray(),
+				properties.with("n", 1).get("d", byte[].class));
+		org.junit.jupiter.api.Assertions.assertArrayEquals(d.toByteArray(),
+				IuJsonProperties.builder(jsonb).put("d", d).copy().build().get("d", byte[].class));
+
+		// by the IU defaults, a number isn't bytes
+		assertEquals("expected an array of bytes, found NUMBER", assertThrows(IllegalArgumentException.class,
+				() -> IuJsonProperties.builder().put("d", d).build().get("d", byte[].class)).getMessage());
+
+		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder((jakarta.json.bind.Jsonb) null));
+	}
+
+	@Test
+	public void testBuilderWithOtherProvider() {
+		// another provider's instance converts through its JSON text
+		final var other = org.mockito.Mockito.mock(jakarta.json.bind.Jsonb.class);
+		org.mockito.Mockito.when(other.toJson(1, Integer.class)).thenReturn("\"one\"");
+		org.mockito.Mockito.when(other.fromJson("\"one\"", (Type) String.class)).thenReturn("uno");
+		final var properties = IuJsonProperties.builder(other).put("n", 1).build();
+		assertEquals("uno", properties.get("n", String.class));
+		assertEquals("{\"n\":\"one\"}", properties.toString());
+	}
+
+	@Test
+	public void testNullPropertiesFollowTheCall() {
+		// a Java null follows the call; JSON null as read, or put, is kept
+		final var properties = IuJsonProperties.builder() //
+				.put("none", null) //
+				.putJson("json", jakarta.json.JsonValue.NULL) //
+				.put("n", 1) //
+				.build();
+		final var omitted = "{\"json\":null,\"n\":1}";
+		final var included = "{\"none\":null,\"json\":null,\"n\":1}";
+
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig());
+		final var nulls = IuJsonbTest.jsonb(new JsonbConfig().withNullValues(true));
+		assertEquals(omitted, jsonb.toJson(properties));
+		assertEquals(included, nulls.toJson(properties));
+
+		// tree mode, each generated anew
+		assertEquals(omitted, IuJsonProperties.builder().put("none", null).putJson("json", jakarta.json.JsonValue.NULL)
+				.put("n", 1).build().toJsonObject().toString());
+		assertEquals(included,
+				ConversionScope.within(nulls.conversions(), () -> true,
+						() -> IuJsonProperties.builder().put("none", null)
+								.putJson("json", jakarta.json.JsonValue.NULL).put("n", 1).build().toJsonObject())
+						.toString());
+		assertEquals(false, ConversionScope.isIncludeNullProperties());
+	}
+
 	@Test
 	public void testWriteThroughContext() {
 		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().withDateFormat("dd.MM.yyyy", Locale.ROOT)
@@ -297,8 +372,12 @@ public class IuJsonPropertiesScopeTest {
 				.put("date", MIDNIGHT) //
 				.put("none", null) //
 				.build();
+		// the null property as the call writes one: omitted, else JSON null
+		assertEquals("{\"raw\":\"as read\",\"date\":\"27.09.2026\"}", jsonb.toJson(new Wrapper(properties)));
+		final var nulls = IuJsonbTest.jsonb(new JsonbConfig().withDateFormat("dd.MM.yyyy", Locale.ROOT)
+				.withNullValues(true).withSerializers(new WritesThroughContext()));
 		assertEquals("{\"raw\":\"as read\",\"date\":\"27.09.2026\",\"none\":null}",
-				jsonb.toJson(new Wrapper(properties)));
+				nulls.toJson(new Wrapper(properties)));
 
 		final var source = IuJson.parse("{\"a\":1}").asJsonObject();
 		assertEquals("{\"a\":1}", jsonb.toJson(new Wrapper(IuJsonProperties.of(source))));

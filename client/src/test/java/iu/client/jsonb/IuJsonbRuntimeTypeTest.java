@@ -302,4 +302,58 @@ public class IuJsonbRuntimeTypeTest {
 		assertEquals("a", read.getKeys().iterator().next().getKid());
 	}
 
+	public static class KeyList extends ArrayList<Key> {
+		private static final long serialVersionUID = 1L;
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testOwnContainerClassesConvertAsTheirContainer() {
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig());
+		final var array = "[{\"kid\":\"a\"}]";
+		final var list = new KeyList();
+		list.add(new KeyImpl());
+		final Iterable<Key> lambda = () -> List.<Key>of(new KeyImpl()).iterator();
+		for (final Object value : List.of(new CustomIterable(), list, lambda)) {
+			assertEquals(array, jsonb.toJson(value), value::toString);
+			assertEquals(IuJson.parse(array), ((edu.iu.client.IuJsonAdapter<Object>) edu.iu.client.IuJsonAdapter
+					.adapt((Type) value.getClass(), () -> edu.iu.client.IuJsonSerializationOptions.DEFAULT)).toJson(value));
+
+			// put with no type, as its runtime class
+			assertEquals("{\"keys\":" + array + "}",
+					jsonb.toJson(edu.iu.client.IuJsonProperties.builder(jsonb).put("keys", value).build()));
+		}
+
+		// read into a new instance, items as the element type
+		final var iu = edu.iu.client.IuJsonAdapter.adapt(KeyList.class,
+				() -> edu.iu.client.IuJsonSerializationOptions.DEFAULT);
+		for (final KeyList read : List.of(jsonb.fromJson(array, KeyList.class),
+				(KeyList) jsonb.adapt(KeyList.class).fromJson(IuJson.parse(array)), iu.fromJson(IuJson.parse(array)),
+				iterate(iu, array))) {
+			assertEquals(1, read.size());
+			assertEquals("a", read.get(0).getKid());
+		}
+		assertNull(jsonb.fromJson("null", KeyList.class));
+		assertNull(iu.fromJson(jakarta.json.JsonValue.NULL));
+
+		final var bag = jsonb.fromJson("{\"a\":1}", Bag.class);
+		assertEquals(1, bag.get("a"));
+		assertEquals("{\"a\":1}", jsonb.toJson(bag));
+
+		// only a collection or map is created to read
+		assertTrue(assertThrows(jakarta.json.bind.JsonbException.class, () -> jsonb.fromJson(array, CustomIterable.class))
+				.getMessage().contains("can't read " + CustomIterable.class.getName() + " from JSON"));
+	}
+
+	public static class Bag extends HashMap<String, Integer> {
+		private static final long serialVersionUID = 1L;
+	}
+
+	private static KeyList iterate(edu.iu.client.IuJsonAdapter<KeyList> adapter, String json) {
+		try (final var parser = IuJson.PROVIDER.createParser(new java.io.StringReader(json))) {
+			parser.next();
+			return adapter.read(parser);
+		}
+	}
+
 }

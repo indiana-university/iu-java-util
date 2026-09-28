@@ -520,8 +520,14 @@ public interface IuJsonAdapter<T> {
 
 		if (!IuObject.isPlatformName(c.getName()) //
 				&& !c.isPrimitive() //
-				&& !c.isArray())
+				&& !c.isArray()) {
+			// a class of the application's own that extends or implements a type
+			// with a conversion, such as a list or an iterable, converts as that type
+			final var containerType = JsonAdapters.containerType(c);
+			if (containerType != null)
+				return JsonAdapters.subclass(c, builtIn(containerType, options, valueAdapter));
 			return bean(type, options, valueAdapter);
+		}
 
 		// a date type that converted differently before 7.1 follows the options
 		if (FormatAdapters.hasLegacyDates(c))

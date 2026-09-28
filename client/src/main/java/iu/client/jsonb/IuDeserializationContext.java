@@ -206,11 +206,11 @@ final class IuDeserializationContext extends IuJsonbContext implements Deseriali
 		final var local = jsonb.deserialization;
 		final var previous = local.get();
 		if (previous == this)
-			return ConversionScope.within(jsonb.conversions(), () -> conversion.apply(this));
+			return ConversionScope.within(jsonb.conversions(), this::isIncludeNullProperties, () -> conversion.apply(this));
 
 		local.set(this);
 		try {
-			return ConversionScope.within(jsonb.conversions(), () -> conversion.apply(this));
+			return ConversionScope.within(jsonb.conversions(), this::isIncludeNullProperties, () -> conversion.apply(this));
 		} finally {
 			if (previous == null)
 				local.remove();
