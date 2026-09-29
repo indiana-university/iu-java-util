@@ -31,11 +31,10 @@
  */
 package edu.iu.config;
 
-import java.lang.reflect.Type;
-import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -43,20 +42,24 @@ import java.util.function.Function;
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.IuText;
-import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVault;
-import edu.iu.crypt.PemEncoded;
-import edu.iu.crypt.WebKey;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import iu.crypt.CryptJsonAdapters;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Secure configuration utility.
+ *
+ * <p>
+ * Configuration binds from JSON through {@link #jsonb()}: the web crypto
+ * configuration, {@link CryptJsonAdapters#config()}, with property names in
+ * snake_case and dates in ISO-8601, plus the components registered here.
+ * </p>
  */
 public class IuConfig {
 	static {
@@ -95,10 +98,7 @@ public class IuConfig {
 				Throwable error;
 
 				void check(IuVault vault) {
-					final var keyedValue = vault.get(prefix + key).getValue();
-					final var config = IuJson.parse(keyedValue).asJsonObject();
-
-					final var value = adaptJson(configType).fromJson(config);
+					final var value = jsonb().fromJson(vault.get(prefix + key).getValue(), configType);
 					cache.put(key, value);
 					this.value = value;
 				}
@@ -136,70 +136,61 @@ public class IuConfig {
 		}
 	}
 
-	private static final Map<Class<?>, IuJsonAdapter<?>> JSON = new HashMap<>();
+	private static final List<JsonbAdapter<?, ?>> ADAPTERS = new ArrayList<>();
+	private static final List<JsonbSerializer<?>> SERIALIZERS = new ArrayList<>();
+	private static final List<JsonbDeserializer<?>> DESERIALIZERS = new ArrayList<>();
 	private static final Map<Class<?>, BaseConfig<?>> CONFIG = new HashMap<>();
 	private static boolean sealed;
+	private static Jsonb jsonb;
 
-	static {
-		registerDefaults();
-	}
-
-	private static void registerDefaults() {
-		registerAdapter(JsonValue.class, IuJsonAdapter.from( //
-				a -> a, //
-				a -> a));
-		registerAdapter(JsonArray.class, IuJsonAdapter.from( //
-				a -> a == null //
-						? null //
-						: a.asJsonArray(), //
-				a -> a));
-		registerAdapter(JsonObject.class, IuJsonAdapter.from( //
-				a -> a == null //
-						? null //
-						: a.asJsonObject(), //
-				a -> a));
-		registerAdapter(WebKey.class, IuJsonAdapter.from( //
-				v -> v == null //
-						? null //
-						: WebKey.parse(v.toString()), //
-				v -> v == null //
-						? null //
-						: IuJson.parse(v.toString()) //
-		));
-		registerAdapter(X509Certificate.class, IuJsonAdapter.from( //
-				v -> v == null //
-						? null //
-						: PemEncoded.asCertificate(IuText.base64(((JsonString) v).getString())), //
-				v -> v == null //
-						? null //
-						: IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
-		));
-		registerAdapter(X509CRL.class, IuJsonAdapter.from( //
-				v -> v == null //
-						? null //
-						: PemEncoded.asCRL(IuText.base64(((JsonString) v).getString())), //
-				v -> v == null //
-						? null //
-						: IuJson.string(IuText.base64(IuException.unchecked(v::getEncoded))) //
-		));
+	/**
+	 * Registers a JSON-B adapter for configuration binding, for example for a
+	 * custom value type.
+	 *
+	 * <p>
+	 * A lambda has no type arguments to name the types it adapts; wrap it with
+	 * {@link IuJsonAdapter#typedAdapter(java.lang.reflect.Type, java.lang.reflect.Type, JsonbAdapter)}.
+	 * </p>
+	 *
+	 * @param adapter {@link JsonbAdapter}
+	 * @throws IllegalStateException if sealed
+	 */
+	public static synchronized void registerAdapter(JsonbAdapter<?, ?> adapter) {
+		requireNotSealed();
+		ADAPTERS.add(Objects.requireNonNull(adapter, "Missing adapter"));
 	}
 
 	/**
-	 * Registers a JSON type adapter for a non-interface configuration class, for
-	 * example a custom enum.
-	 * 
-	 * @param <T>     type
-	 * @param type    class
-	 * @param adapter {@link IuJsonAdapter}
+	 * Registers a JSON-B serializer for configuration binding.
+	 *
+	 * <p>
+	 * A lambda has no type argument to name the type it serializes; wrap it with
+	 * {@link IuJsonAdapter#typedSerializer(java.lang.reflect.Type, JsonbSerializer)}.
+	 * </p>
+	 *
+	 * @param serializer {@link JsonbSerializer}
+	 * @throws IllegalStateException if sealed
 	 */
-	public static synchronized <T> void registerAdapter(Class<T> type, IuJsonAdapter<T> adapter) {
-		if (sealed)
-			throw new IllegalStateException("sealed");
+	public static synchronized void registerSerializer(JsonbSerializer<?> serializer) {
+		requireNotSealed();
+		SERIALIZERS.add(Objects.requireNonNull(serializer, "Missing serializer"));
+	}
 
-		if (JSON.containsKey(type))
-			throw new IllegalArgumentException("already configured");
-
-		JSON.put(type, adapter);
+	/**
+	 * Registers a JSON-B deserializer for configuration binding.
+	 *
+	 * <p>
+	 * A lambda has no type argument to name the type it deserializes; wrap it
+	 * with
+	 * {@link IuJsonAdapter#typedDeserializer(java.lang.reflect.Type, JsonbDeserializer)}.
+	 * </p>
+	 *
+	 * @param deserializer {@link JsonbDeserializer}
+	 * @throws IllegalStateException if sealed
+	 */
+	public static synchronized void registerDeserializer(JsonbDeserializer<?> deserializer) {
+		requireNotSealed();
+		DESERIALIZERS.add(Objects.requireNonNull(deserializer, "Missing deserializer"));
 	}
 
 	/**
@@ -229,8 +220,7 @@ public class IuConfig {
 	 */
 	public static synchronized <T> void registerFactory(Class<T> configType, Function<String, T> load,
 			Duration cacheTtl) {
-		if (sealed)
-			throw new IllegalStateException("sealed");
+		requireNotSealed();
 
 		if (CONFIG.containsKey(configType))
 			throw new IllegalArgumentException("already configured");
@@ -241,7 +231,7 @@ public class IuConfig {
 	/**
 	 * Registers a vault for loading authorization configuration using the default
 	 * cache TTL of 15 seconds.
-	 * 
+	 *
 	 * @param <T>             configuration type
 	 * @param prefix          prefix to append to vault key to classify the resource
 	 *                        names used by {@link #load(Class, String)}
@@ -254,7 +244,14 @@ public class IuConfig {
 
 	/**
 	 * Registers a vault for loading authorization configuration.
-	 * 
+	 *
+	 * <p>
+	 * Wherever the configuration type is bound, a JSON string refers to a stored
+	 * value by key, loaded by {@link #load(Class, String)}; any other value binds
+	 * by the type's own conversion, which for a configuration interface reads a
+	 * JSON object with snake_case property names.
+	 * </p>
+	 *
 	 * @param <T>        configuration type
 	 * @param prefix     prefix to append to vault key to classify the resource
 	 *                   names used by {@link #load(Class, String)}
@@ -262,11 +259,9 @@ public class IuConfig {
 	 * @param cacheTtl   time period for caching config objects
 	 * @param vault      vault to use for loading configuration
 	 */
-	@SuppressWarnings("unchecked")
 	public static synchronized <T> void registerInterface(String prefix, Class<T> configType, Duration cacheTtl,
 			IuVault... vault) {
-		if (sealed)
-			throw new IllegalStateException("sealed");
+		requireNotSealed();
 
 		IuObject.require(Objects.requireNonNull(prefix, "Missing prefix"), a -> a.matches("\\p{Lower}+"),
 				"invalid prefix " + prefix);
@@ -274,29 +269,20 @@ public class IuConfig {
 		if (CONFIG.containsKey(configType))
 			throw new IllegalArgumentException("already configured");
 
-		// upgrades existing property adapter to support references to stored values
-		// without changing previously configured format; common case -> allow storage
-		// for registered defaults; creates automatic snake_case adapter if not already
-		// registered
-		final var propertyAdapter = Objects.requireNonNullElseGet((IuJsonAdapter<T>) JSON.get(configType),
-				() -> IuJsonAdapter.from(configType, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
-						IuConfig::adaptJson));
-
-		final var adapter = IuJsonAdapter.from(v -> {
-			if (v instanceof JsonString)
-				return load(configType, ((JsonString) v).getString());
+		// a string refers to a stored value; anything else passes down the chain, to
+		// the type's own conversion
+		DESERIALIZERS.add(IuJsonAdapter.<T>typedDeserializer(configType, (parser, context, type) -> {
+			if (Event.VALUE_STRING.equals(parser.currentEvent()))
+				return load(configType, parser.getString());
 			else
-				return IuObject.convert(v, propertyAdapter::fromJson);
-		}, //
-				propertyAdapter::toJson);
-
-		JSON.put(configType, adapter);
-		CONFIG.put(configType, Objects.requireNonNull(new StorageConfig<>(prefix + '/', configType, cacheTtl, vault)));
+				return context.deserialize(configType, parser);
+		}));
+		CONFIG.put(configType, new StorageConfig<>(prefix + '/', configType, cacheTtl, vault));
 	}
 
 	/**
 	 * Loads a configuration object from vault.
-	 * 
+	 *
 	 * @param <T>        configuration type
 	 * @param configType configuration interface
 	 * @param key        vault key
@@ -308,11 +294,11 @@ public class IuConfig {
 
 	/**
 	 * Seals the authentication and authorization configuration.
-	 * 
+	 *
 	 * <p>
 	 * Until sealed, no per-realm configurations can be used. Once sealed, no new
-	 * configurations can be registered. Configuration state is controlled by the
-	 * auth module.
+	 * configurations or components can be registered. Configuration state is
+	 * controlled by the auth module.
 	 * </p>
 	 */
 	public static synchronized void seal() {
@@ -320,54 +306,29 @@ public class IuConfig {
 	}
 
 	/**
-	 * Provides additional JSON adapters for configuring the authorization module.
-	 * 
-	 * @param <T>  target type
-	 * @param type type
-	 * @return {@link IuJsonAdapter}
-	 */
-	@SuppressWarnings("unchecked")
-	public static <T> IuJsonAdapter<T> adaptJson(Class<T> type) {
-		return (IuJsonAdapter<T>) adaptJson((Type) type);
-	}
-
-	/**
-	 * Provides JSON adapters for components that used
-	 * {@link #registerInterface(String, Class, Duration, IuVault...)} to register
-	 * configuration interfaces for authentication and authorization. Registered
-	 * types without a dedicated adapter, such as types registered with
-	 * {@link #registerFactory(Class, Function)}, use the standard adapter for the
-	 * requested type.
+	 * Gets the {@link Jsonb} instance that binds configuration.
 	 *
 	 * <p>
-	 * Mirrors {@link IuJsonAdapter#adapt(Type, IuJsonPropertyNameFormat)},
-	 * resolving nested property values through this method so registered adapters
-	 * apply at every level. A {@link IuObject#isPlatformName(String) non-platform}
-	 * interface or class converts as a JavaBeans type; {@link Class#isPrimitive()
-	 * primitive}, {@link Class#isArray() array}, and {@link Class#isEnum() enum}
-	 * types are handled by {@link IuJsonAdapter#of(Type, Function)} even when
-	 * non-platform.
+	 * Created on first use from {@link CryptJsonAdapters#config()} and the
+	 * components registered, which seals registration.
 	 * </p>
 	 *
-	 * @param type type
-	 * @return {@link IuJsonAdapter}
+	 * @return {@link Jsonb}
 	 */
-	public static IuJsonAdapter<?> adaptJson(Type type) {
-		final var adapter = JSON.get(type);
-		if (adapter != null)
-			return adapter;
-
-		if (type instanceof Class) {
-			final var c = (Class<?>) type;
-			if (!IuObject.isPlatformName(c.getName()) //
-					&& !c.isPrimitive() //
-					&& !c.isArray() //
-					&& !c.isEnum())
-				return IuJsonAdapter.from((Class<?>) type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES,
-						IuConfig::adaptJson);
+	public static synchronized Jsonb jsonb() {
+		if (jsonb == null) {
+			seal();
+			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(CryptJsonAdapters.config() //
+					.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
+					.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
+					.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new))).build();
 		}
+		return jsonb;
+	}
 
-		return IuJsonAdapter.of(type, IuConfig::adaptJson);
+	private static void requireNotSealed() {
+		if (sealed)
+			throw new IllegalStateException("sealed");
 	}
 
 	private IuConfig() {

@@ -371,8 +371,12 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 				&& !erased.isPrimitive() //
 				&& !erased.isArray()) {
 			// a class of the application's own that extends or implements a type
-			// with a conversion, such as a list or an iterable, converts as that type
+			// with a conversion, such as a list or an iterable, converts as that type;
+			// one with a conversion of its own, such as a JSON-P implementation of
+			// JsonValue, converts by it
 			final var containerType = JsonAdapters.containerType(erased);
+			if (containerType == erased)
+				return JsonAdapters.adapt(type, jsonb::adapt, jsonb::keyAdapter, jsonb.itemScope);
 			if (containerType != null)
 				return JsonAdapters.subclass(erased, jsonb.adapt(containerType).builtIn());
 			return new IuJsonbAdapter<>(type, jsonb);

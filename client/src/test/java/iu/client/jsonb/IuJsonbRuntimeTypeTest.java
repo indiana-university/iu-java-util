@@ -349,6 +349,17 @@ public class IuJsonbRuntimeTypeTest {
 		private static final long serialVersionUID = 1L;
 	}
 
+	@Test
+	public void testJsonValueImplementationConvertsAsItself() {
+		// JSON-P's implementation classes aren't platform classes, and have a
+		// conversion of their own, as JsonValue
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig());
+		final var object = IuJson.object().add("a", IuJson.array().add("b")).build();
+		assertEquals("{\"a\":[\"b\"]}", jsonb.toJson(object));
+		assertEquals(object, jsonb.fromJson(jsonb.toJson(object), object.getClass()));
+		assertEquals("\"c\"", jsonb.toJson(IuJson.string("c")));
+	}
+
 	private static KeyList iterate(edu.iu.client.IuJsonAdapter<KeyList> adapter, String json) {
 		try (final var parser = IuJson.PROVIDER.createParser(new java.io.StringReader(json))) {
 			parser.next();
