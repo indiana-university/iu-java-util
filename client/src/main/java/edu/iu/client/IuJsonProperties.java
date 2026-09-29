@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import iu.client.ConversionScope;
 import iu.client.GenericTypes;
@@ -385,9 +386,9 @@ public final class IuJsonProperties {
 	 * <p>
 	 * Where no call is in progress, as when a value put as one type is read as
 	 * another, as {@code BigInteger} put and {@code byte[]} read, the instance's
-	 * configuration applies, its adapters included, in place of the IU defaults.
-	 * An instance of the IU JSON-B provider converts directly; one of another
-	 * provider converts through JSON text.
+	 * configuration applies, its adapters included, in place of the IU defaults. An
+	 * instance of the IU JSON-B provider converts directly; one of another provider
+	 * converts through JSON text.
 	 * </p>
 	 *
 	 * @param jsonb JSON-B instance to convert as when no call is in progress
@@ -657,6 +658,15 @@ public final class IuJsonProperties {
 			pull(null, null);
 			return Collections.unmodifiableSet(new LinkedHashSet<>(names));
 		}
+	}
+
+	/**
+	 * Reads the object through, then gets its property names.
+	 *
+	 * @return property names, in the order the object has them
+	 */
+	public Set<String> nonNullNames() {
+		return names().stream().filter(name -> !NULL.equals(resolved.get(name))).collect(Collectors.toSet());
 	}
 
 	/**

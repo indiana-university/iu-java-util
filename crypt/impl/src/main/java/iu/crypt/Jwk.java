@@ -60,17 +60,13 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import edu.iu.IuException;
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebKey;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
+import iu.crypt.model.Jwks;
 
 /**
  * JSON Web Key (JWK) implementation.
@@ -83,26 +79,22 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	private static final Logger LOG = Logger.getLogger(Jwk.class.getName());
 
 	private static class CachedJwks {
-		private volatile Jwk[] jwks;
+		private volatile Jwks jwks;
 		private volatile Instant lastUpdate;
 	}
 
 	private static Map<URI, CachedJwks> JWKS_CACHE = new HashMap<>();
 
-	private static JsonObject writeAsJwks(Iterable<? extends WebKey> webKeys) {
-		return IuJson.object().add("keys", IuJsonAdapter.of(Iterable.class, CryptJsonAdapters.WEBKEY).toJson(webKeys))
-				.build();
-	}
-
 	/**
-	 * Gets key set by URI. Successfully retrieved key sets are cached for fifteen minutes. If a refresh fails after
-	 * a successful retrieval, the last cached key set is returned; an initial retrieval failure is propagated.
+	 * Gets key set by URI. Successfully retrieved key sets are cached for fifteen
+	 * minutes. If a refresh fails after a successful retrieval, the last cached key
+	 * set is returned; an initial retrieval failure is propagated.
 	 * 
 	 * @param uri Key set URI
 	 * @return key set
 	 * @throws IOException if an error occurs reading the URI
 	 */
-	public static Iterable<Jwk> readJwks(URI uri) throws IOException {
+	public static Iterable<? extends WebKey> readJwks(URI uri) throws IOException {
 		final CachedJwks cached;
 		synchronized (JWKS_CACHE) {
 			final var c = JWKS_CACHE.get(uri);
@@ -115,18 +107,16 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		if (cached.lastUpdate == null //
 				|| Duration.between(cached.lastUpdate, Instant.now()).toSeconds() > 900L)
 			try {
-				cached.jwks = IuJsonAdapter.<Stream<Jwk>>of(Stream.class, CryptJsonAdapters.WEBKEY)
-						.fromJson(IuHttp.get(uri, IuHttp.READ_JSON_OBJECT).getJsonArray("keys")).toArray(Jwk[]::new);
+				cached.jwks = CryptJsonAdapters.JSONB.fromJson((InputStream) IuHttp.get(uri).body(), Jwks.class);
 				cached.lastUpdate = Instant.now();
 			} catch (Throwable e) {
 				if (cached.jwks == null)
 					throw e;
 				else
-					LOG.log(Level.INFO, e, () -> "JWKS lookup failure " + uri
-							+ "; using last good version");
+					LOG.log(Level.INFO, e, () -> "JWKS lookup failure " + uri + "; using last good version");
 			}
 
-		return IuIterable.iter(cached.jwks);
+		return cached.jwks.getKeys();
 	}
 
 	/**
@@ -136,9 +126,8 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * @return {@link WebKey}
 	 * @throws IOException if an error occurs reading the stream
 	 */
-	public static Iterable<Jwk> readJwks(InputStream in) throws IOException {
-		return IuJsonAdapter.<Iterable<Jwk>>of(Iterable.class, CryptJsonAdapters.WEBKEY)
-				.fromJson(IuJson.parse(in).asJsonObject().getJsonArray("keys"));
+	public static Iterable<? extends WebKey> readJwks(InputStream in) throws IOException {
+		return CryptJsonAdapters.JSONB.fromJson(in, Jwks.class).getKeys();
 	}
 
 	/**
@@ -147,19 +136,8 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * @param jwks serialized JWKS
 	 * @return parsed key set
 	 */
-	public static Iterable<Jwk> parseJwks(JsonObject jwks) {
-		return IuJsonAdapter.<Iterable<Jwk>>of(Iterable.class, CryptJsonAdapters.WEBKEY)
-				.fromJson(jwks.getJsonArray("keys"));
-	}
-
-	/**
-	 * Serializes {@link WebKey}s as a JSON Web Key Set.
-	 * 
-	 * @param webKeys {@link WebKey}s
-	 * @return serialized JWKS
-	 */
-	public static JsonObject asJwks(Iterable<? extends WebKey> webKeys) {
-		return writeAsJwks(webKeys);
+	public static Iterable<? extends WebKey> parseJwks(String jwks) {
+		return CryptJsonAdapters.JSONB.fromJson(jwks, Jwks.class).getKeys();
 	}
 
 	/**
@@ -169,15 +147,15 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * @param out     {@link OutputStream}
 	 */
 	public static void writeJwks(Iterable<? extends WebKey> webKeys, OutputStream out) {
-		IuJson.serialize(writeAsJwks(webKeys), out);
+		CryptJsonAdapters.JSONB.toJson((Jwks) () -> webKeys, out);
 	}
 
-	private static KeyPair readRSA(Type type, JsonObject parsedJwk) {
+	private static KeyPair readRSA(Type type, IuJsonProperties parsedJwk) {
 		return IuException.unchecked(() -> {
 			final var keyFactory = KeyFactory.getInstance(type.kty);
 
-			final var modulus = IuJson.get(parsedJwk, "n", CryptJsonAdapters.BIGINT);
-			final var exponent = IuJson.get(parsedJwk, "e", CryptJsonAdapters.BIGINT);
+			final var modulus = parsedJwk.get("n", BigInteger.class);
+			final var exponent = parsedJwk.get("e", BigInteger.class);
 
 			final PublicKey pub;
 			if (exponent != null)
@@ -186,29 +164,19 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 				pub = null;
 
 			final PrivateKey priv;
-			if (parsedJwk.containsKey("d")) {
+			final var privateExponent = parsedJwk.get("d", BigInteger.class);
+			if (privateExponent != null) {
 				Objects.requireNonNull(modulus, "n");
 
 				final KeySpec keySpec;
-				final var privateExponent = Objects.requireNonNull(IuJson.get(parsedJwk, "d", CryptJsonAdapters.BIGINT),
-						"d");
-				if (parsedJwk.containsKey("p")) {
-					final var primeP = Objects.requireNonNull(IuJson.get(parsedJwk, "p", CryptJsonAdapters.BIGINT),
-							"p");
-					final var primeQ = Objects.requireNonNull(IuJson.get(parsedJwk, "q", CryptJsonAdapters.BIGINT),
-							"q");
-					final var primeExponentP = Objects
-							.requireNonNull(IuJson.get(parsedJwk, "dp", CryptJsonAdapters.BIGINT), "dp");
-					final var primeExponentQ = Objects
-							.requireNonNull(IuJson.get(parsedJwk, "dq", CryptJsonAdapters.BIGINT), "dq");
-					final var crtCoefficient = Objects
-							.requireNonNull(IuJson.get(parsedJwk, "qi", CryptJsonAdapters.BIGINT), "qi");
+				final var primeP = parsedJwk.get("p", BigInteger.class);
+				if (primeP != null) {
+					final var primeQ = Objects.requireNonNull(parsedJwk.get("q", BigInteger.class));
+					final var primeExponentP = Objects.requireNonNull(parsedJwk.get("dp", BigInteger.class));
+					final var primeExponentQ = Objects.requireNonNull(parsedJwk.get("dq", BigInteger.class));
+					final var crtCoefficient = Objects.requireNonNull(parsedJwk.get("qi", BigInteger.class));
 
-					if (parsedJwk.containsKey("oth"))
-						// TODO: identify a multi-prime test case
-						// * JCE doesn't generate multi-prime RSA keys
-						// * JCE can't read multi-prime key exported from OpenSSL as PKCS8
-						// * OpenSSL doesn't export as JWK
+					if (parsedJwk.get("oth", Object.class) != null)
 						throw new UnsupportedOperationException();
 
 					keySpec = new RSAPrivateCrtKeySpec(modulus, exponent, privateExponent, primeP, primeQ,
@@ -259,10 +227,10 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 						.getConstructor(NamedParameterSpec.class, byte[].class).newInstance(namedSpec, s)))));
 	}
 
-	private static KeyPair readEC(Type type, JsonObject parsedJwk) {
+	private static KeyPair readEC(Type type, IuJsonProperties jwk) {
 		return IuException.unchecked(() -> {
-			final var x = IuJson.get(parsedJwk, "x", CryptJsonAdapters.B64URL);
-			final var d = IuJson.get(parsedJwk, "d", CryptJsonAdapters.B64URL);
+			final var x = jwk.get("x", byte[].class);
+			final var d = jwk.get("d", byte[].class);
 
 			final var spec = WebKey.algorithmParams(type.algorithmParams);
 			if (spec instanceof NamedParameterSpec)
@@ -276,11 +244,13 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 						IuObject.convert(x,
 								a -> IuException
 										.unchecked(
-												() -> keyFactory.generatePublic(new ECPublicKeySpec(
-														new ECPoint(UnsignedBigInteger.bigInt(a),
-																Objects.requireNonNull(IuJson.get(parsedJwk, "y",
-																		CryptJsonAdapters.BIGINT), "y")),
-														(ECParameterSpec) spec)))),
+												() -> keyFactory
+														.generatePublic(
+																new ECPublicKeySpec(
+																		new ECPoint(UnsignedBigInteger.bigInt(a),
+																				Objects.requireNonNull(jwk.get("y",
+																						BigInteger.class))),
+																		(ECParameterSpec) spec)))),
 						IuObject.convert(d, a -> IuException.unchecked(() -> keyFactory.generatePrivate(
 								new ECPrivateKeySpec(UnsignedBigInteger.bigInt(a), (ECParameterSpec) spec)))));
 			}
@@ -300,14 +270,14 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * 
 	 * @param jwk parsed JWK parameters
 	 */
-	public Jwk(JsonObject jwk) {
+	public Jwk(IuJsonProperties jwk) {
 		super(jwk);
-		this.type = Objects.requireNonNull(Type.from(IuJson.get(jwk, "kty"), IuJson.get(jwk, "crv")),
+		this.type = Objects.requireNonNull(Type.from(jwk.get("kty", String.class), jwk.get("crv", String.class)),
 				"Key type is required");
 
-		this.use = IuJson.get(jwk, "use", CryptJsonAdapters.USE);
-		this.ops = IuJson.get(jwk, "key_ops", IuJsonAdapter.<Set<Operation>>of(Set.class, CryptJsonAdapters.OP));
-		this.key = IuJson.get(jwk, "k", CryptJsonAdapters.B64URL);
+		this.use = jwk.get("use", Use.class);
+		this.ops = IuObject.convert(jwk.get("key_ops", Operation[].class), Set::of);
+		this.key = jwk.get("k", byte[].class);
 
 		switch (type) {
 		case EC_P256:
@@ -348,7 +318,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * @param internalKey internal representation of the key, including
 	 *                    private/secret key data
 	 */
-	private Jwk(JsonObject certParams, Jwk internalKey) {
+	private Jwk(IuJsonProperties certParams, Jwk internalKey) {
 		super(certParams);
 		this.type = internalKey.type;
 		this.use = internalKey.use;
@@ -404,9 +374,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		IuObject.convert(getCertificateSha256Thumbprint(), jwkBuilder::x5t256);
 		IuObject.convert(getAlgorithm(), jwkBuilder::algorithm);
 		IuObject.convert(getKeyId(), jwkBuilder::keyId);
-		final var initBuilder = IuJson.object();
-		jwkBuilder.build(initBuilder);
-		return new Jwk(initBuilder.build(), this);
+		return new Jwk(jwkBuilder.values(), this);
 	}
 
 	@Override
@@ -429,29 +397,22 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 
 	@Override
 	public String toString() {
-		final var jwkBuilder = IuJson.object();
-		serializeTo(jwkBuilder);
-		return jwkBuilder.build().toString();
+		return CryptJsonAdapters.JSONB.toJson(this);
 	}
 
-	/**
-	 * Adds serialized JWK attributes to a JSON object builder.
-	 * 
-	 * @param jwkBuilder {@link JsonObjectBuilder}
-	 * @return jwkBuilder
-	 */
-	public JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
-		super.serializeTo(jwkBuilder);
-		IuJson.add(jwkBuilder, "use", () -> use, CryptJsonAdapters.USE);
-		IuJson.add(jwkBuilder, "key_ops", () -> ops, IuJsonAdapter.of(Set.class, CryptJsonAdapters.OP));
+	@Override
+	void append(IuJsonProperties.Builder builder) {
+		builder.put("kty", type.kty);
+		builder.put("crv", type.crv);
+		builder.put("use", use);
 
-		final var builder = (JwkBuilder) WebKey.builder(type);
-		IuObject.convert(key, builder::key);
-		IuObject.convert(publicKey, builder::key);
-		IuObject.convert(privateKey, builder::key);
-		builder.build(jwkBuilder);
+		super.append(builder);
 
-		return jwkBuilder;
+		final var jwkBuilder = JwkBuilder.of(type);
+		IuObject.convert(key, jwkBuilder::key);
+		IuObject.convert(publicKey, jwkBuilder::key);
+		IuObject.convert(privateKey, jwkBuilder::key);
+		builder.putAll(jwkBuilder.values());
 	}
 
 	/**

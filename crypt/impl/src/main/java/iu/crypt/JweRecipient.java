@@ -47,14 +47,12 @@ import javax.crypto.spec.SecretKeySpec;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebEncryptionRecipient;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
+import edu.iu.crypt.WebKey.Type;
 
 /**
  * Represents a recipient of a {@link Jwe} encrypted message.
@@ -85,10 +83,9 @@ public class JweRecipient implements WebEncryptionRecipient {
 	 * @param sharedHeader    shared header parameters
 	 * @param recipient       recipient parameters
 	 */
-	JweRecipient(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject recipient) {
-		this(Jose.from(protectedHeader, sharedHeader,
-				IuJson.get(recipient, "header", IuJsonAdapter.from(JsonValue::asJsonObject))),
-				IuJson.get(recipient, "encrypted_key", CryptJsonAdapters.B64URL));
+	JweRecipient(IuJsonProperties protectedHeader, IuJsonProperties sharedHeader, IuJsonProperties header,
+			byte[] encryptedKey) {
+		this(Jose.from(protectedHeader, sharedHeader, header), encryptedKey);
 	}
 
 	@Override
@@ -237,6 +234,10 @@ public class JweRecipient implements WebEncryptionRecipient {
 		else if (EnumSet.of(Algorithm.A128GCMKW, Algorithm.A192GCMKW, Algorithm.A256GCMKW).contains(algorithm))
 			// key wrapping
 			cek = IuException.unchecked(() -> {
+				if (!privateKey.getType().equals(Type.RAW))
+					throw new IllegalArgumentException(
+							"Invalid key type " + privateKey.getType() + " for " + algorithm);
+
 				final var key = new SecretKeySpec(privateKey.getKey(), "AES");
 
 				final byte[] iv = Objects.requireNonNull(header.getExtendedParameter("iv"),

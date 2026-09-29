@@ -31,6 +31,7 @@
  */
 package iu.crypt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -47,16 +48,11 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.crypt.PemEncoded;
-import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class CertificateReferenceBuilderTest {
 
 	private static class Builder extends CertificateReferenceBuilder<Builder> {
-		@Override
-		protected JsonObject toJson() {
-			return super.toJson();
-		}
 	}
 
 	@Test
@@ -64,17 +60,15 @@ public class CertificateReferenceBuilderTest {
 		final var builder = new Builder();
 		final var uri = URI.create(IdGenerator.generateId());
 		builder.cert(uri);
-		assertEquals(uri.toString(), builder.toJson().getString("x5u"));
+		assertEquals(uri, builder.values().get("x5u", URI.class));
 	}
 
 	@Test
 	public void testCertChain() {
 		final var builder = new Builder();
 		final var cert = mock(X509Certificate.class);
-		final var encoded = IdGenerator.generateId();
-		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(IuText.utf8(encoded)));
 		builder.cert(cert);
-		assertEquals(IuText.base64(IuText.utf8(encoded)), builder.toJson().getJsonArray("x5c").getString(0));
+		assertEquals(cert, builder.values().get("x5c", X509Certificate[].class)[0]);
 	}
 
 	@Test
@@ -82,7 +76,7 @@ public class CertificateReferenceBuilderTest {
 		final var builder = new Builder();
 		final var thumbprint = IuText.utf8(IdGenerator.generateId());
 		builder.x5t(thumbprint);
-		assertEquals(IuText.base64Url(thumbprint), builder.toJson().getString("x5t"));
+		assertArrayEquals(thumbprint, builder.values().get("x5t", byte[].class));
 	}
 
 	@Test
@@ -90,7 +84,7 @@ public class CertificateReferenceBuilderTest {
 		final var builder = new Builder();
 		final var thumbprint = IuText.utf8(IdGenerator.generateId());
 		builder.x5t256(thumbprint);
-		assertEquals(IuText.base64Url(thumbprint), builder.toJson().getString("x5t#S256"));
+		assertArrayEquals(thumbprint, builder.values().get("x5t#S256", byte[].class));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -107,7 +101,7 @@ public class CertificateReferenceBuilderTest {
 			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(pemIter))
 					.thenReturn(new X509Certificate[] { cert });
 			builder.pem(in);
-			assertEquals(IuText.base64(IuText.utf8(encoded)), builder.toJson().getJsonArray("x5c").getString(0));
+			assertEquals(cert, builder.values().get("x5c", X509Certificate[].class)[0]);
 		}
 	}
 
@@ -125,7 +119,7 @@ public class CertificateReferenceBuilderTest {
 			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(pemIter))
 					.thenReturn(new X509Certificate[] { cert });
 			builder.pem(pem);
-			assertEquals(IuText.base64(IuText.utf8(encoded)), builder.toJson().getJsonArray("x5c").getString(0));
+			assertEquals(cert, builder.values().get("x5c", X509Certificate[].class)[0]);
 		}
 	}
 

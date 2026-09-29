@@ -40,7 +40,6 @@ import java.security.spec.PSSParameterSpec;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Queue;
@@ -54,17 +53,13 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature.Builder;
 import edu.iu.crypt.WebSignedPayload;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
 
 /**
  * Collects inputs for {@link Jws} encrypted messages.
@@ -74,25 +69,6 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 		IuObject.assertNotOpen(JwsBuilder.class);
 	}
 
-	/** {@link IuJsonAdapter} */
-	public static final IuJsonAdapter<WebSignedPayload> JSON = IuJsonAdapter.from(v -> {
-		if (v instanceof JsonString)
-			return parse(((JsonString) v).getString());
-		else
-			return IuObject.convert(v, a -> parse(a.asJsonObject().toString()));
-	}, h -> {
-		if (h == null)
-			return null;
-
-		final var jws = (JwsSignedPayload) h;
-		final Iterator<Jws> signatureIterator = jws.getSignatures().iterator();
-		signatureIterator.next();
-		if (signatureIterator.hasNext())
-			return IuJson.parse(jws.toString());
-		else
-			return IuJson.string(jws.compact());
-	});
-
 	/**
 	 * Parses JWS signed payload from serialized form
 	 * 
@@ -100,22 +76,12 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	 * @return JWS signed payload
 	 */
 	public static JwsSignedPayload parse(String jws) {
-		if (jws.startsWith("{")) {
-			final var json = IuJson.parse(jws).asJsonObject();
-			final var payload = IuJson.get(json, "payload", CryptJsonAdapters.B64URL);
-
-			var signatures = IuJson.get(json, "signatures",
-					IuJsonAdapter.<Iterable<Jws>>of(Iterable.class, IuJsonAdapter.from(Jws::parse)));
-			if (signatures == null)
-				signatures = Collections.singleton(Jws.parse(json));
-
-			return new JwsSignedPayload(payload, signatures);
-		} else {
+		if (jws.startsWith("{"))
+			return (JwsSignedPayload) CryptJsonAdapters.JSONB.fromJson(jws, WebSignedPayload.class);
+		else {
 			final var compact = CompactEncoded.compact(jws);
-			final var protectedHeader = Objects
-					.requireNonNull(IuJson.parse(IuText.utf8(IuText.base64Url(compact.next()))),
-							"protected header required")
-					.asJsonObject();
+			final var protectedHeader = CryptJsonAdapters.JSONB.fromJson(IuText.utf8(IuText.base64(compact.next())),
+					IuJsonProperties.class);
 			final var payload = IuText.base64Url(compact.next());
 			final var signature = IuText.base64Url(compact.next());
 			if (compact.hasNext())
@@ -133,27 +99,22 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 				throw new IllegalArgumentException("Not a signature algorithm " + algorithm);
 		}
 
-		@Override
-		protected JsonValue param(String name) {
-			return super.param(name);
-		}
-
 		private Jose header() {
-			return new Jose(toJson());
+			return new Jose(values());
 		}
 
-		private JsonObject protectedHeader() {
-			final var protectedHeaderBuilder = IuJson.object();
+		private IuJsonProperties protectedHeader() {
+			final var builder = CryptJsonAdapters.builder();
 			if (compact)
-				for (final var paramName : paramNames())
-					protectedHeaderBuilder.add(paramName, param(paramName));
+				for (final var paramName : values().names())
+					builder.put(paramName, param(paramName));
 			else if (protectedParameters.isEmpty())
 				return null;
 			else
 				for (final var paramName : protectedParameters)
-					protectedHeaderBuilder.add(paramName, Objects.requireNonNull(param(paramName), paramName));
+					builder.put(paramName, Objects.requireNonNull(param(paramName), paramName));
 
-			return protectedHeaderBuilder.build();
+			return builder.build();
 		}
 
 	}
@@ -289,7 +250,7 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 
 	@Override
 	public <T> JwsBuilder param(String name, T value) {
-		pendingSignatures.peekLast().param(name, value);
+		pendingSignatures.peekLast().withParam(name, value);
 		return this;
 	}
 

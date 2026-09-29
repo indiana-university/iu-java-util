@@ -48,6 +48,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
@@ -113,7 +114,7 @@ public class WebKeyTest extends CryptImplTestCase {
 	public void testUse() {
 		IuIterable.iter(Use.values()).forEach(use -> {
 			assertSame(use, Use.from(use.use));
-			assertEquals(use, CryptJsonAdapters.USE.fromJson(CryptJsonAdapters.USE.toJson(use)));
+			assertEquals(use, CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(use), Use.class));
 		});
 		assertThrows(NoSuchElementException.class, () -> Use.from("foobar"));
 	}
@@ -122,7 +123,7 @@ public class WebKeyTest extends CryptImplTestCase {
 	public void testOp() {
 		IuIterable.iter(Operation.values()).forEach(op -> {
 			assertSame(op, Operation.from(op.keyOp));
-			assertEquals(op, CryptJsonAdapters.OP.fromJson(CryptJsonAdapters.OP.toJson(op)));
+			assertEquals(op, CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(op), Operation.class));
 		});
 		assertThrows(NoSuchElementException.class, () -> Operation.from("foobar"));
 	}
@@ -274,7 +275,9 @@ public class WebKeyTest extends CryptImplTestCase {
 		}));
 		final var uri = mock(URI.class);
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.parse(jwks));
+			final var resp = mock(HttpResponse.class);
+			when(resp.body()).thenReturn(new ByteArrayInputStream(jwks.getBytes()));
+			mockIuHttp.when(() -> IuHttp.get(uri)).thenReturn(resp);
 			assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(uri)));
 		}
 		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(new ByteArrayInputStream(jwks.getBytes()))));

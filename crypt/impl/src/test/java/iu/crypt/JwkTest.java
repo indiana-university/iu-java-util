@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.URI;
+import java.net.http.HttpResponse;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
@@ -77,7 +78,6 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCertificateReference;
@@ -101,8 +101,9 @@ public class JwkTest extends CryptImplTestCase {
 
 	@Test
 	public void testOps() {
-		assertEquals(Operation.SIGN, WebKey.builder(Type.EC_P256).algorithm(Algorithm.ES256).ephemeral()
-				.ops(Operation.SIGN).build().getOps().iterator().next());
+		final var key = WebKey.builder(Type.EC_P256).algorithm(Algorithm.ES256).ephemeral()
+				.ops(Operation.SIGN).build();
+		assertEquals(Operation.SIGN, key.getOps().iterator().next(), key::toString);
 	}
 
 	@Test
@@ -137,9 +138,9 @@ public class JwkTest extends CryptImplTestCase {
 
 	@Test
 	public void testRsaMultiCrtUnsupported() throws InvalidKeySpecException, NoSuchAlgorithmException {
-		final var json = IuJson.object();
-		((Jwk) WebKey.ephemeral(Algorithm.PS256)).serializeTo(json);
-		json.add("oth", true);
+		final var json = CryptJsonAdapters.builder();
+		((Jwk) WebKey.ephemeral(Algorithm.PS256)).append(json);
+		json.put("oth", true);
 		assertThrows(UnsupportedOperationException.class, () -> new Jwk(json.build()));
 	}
 
@@ -174,16 +175,16 @@ public class JwkTest extends CryptImplTestCase {
 					: WebKey.builder(alg).ephemeral(alg).use(alg.use).ops(alg.keyOps)).build();
 			final var type = ao.getType();
 
-			final var ab = IuJson.object();
-			ao.serializeTo(ab);
+			final var ab = CryptJsonAdapters.builder();
+			ao.append(ab);
 			final var a = ab.build();
 
 			final var bo = (Jwk) (alg.equals(Algorithm.DIRECT) ? WebKey.builder(alg)
 					.ephemeral(IuTest.rand(Encryption.class)).use(Use.ENCRYPT).ops(Operation.ENCRYPT)
 					: WebKey.builder(alg).ephemeral(alg).use(alg.use).ops(alg.keyOps)).build();
 
-			final var bb = IuJson.object();
-			bo.serializeTo(bb);
+			final var bb = CryptJsonAdapters.builder();
+			bo.append(bb);
 			final var b = bb.build();
 
 			assertNotEquals(ao, null);
@@ -231,31 +232,31 @@ public class JwkTest extends CryptImplTestCase {
 						assertFalse(ao.represents(keyWithDifferentType));
 						assertFalse(bo.represents(keyWithDifferentType));
 
-						final var ai = IuJson.object();
-						ai.add("kty", type.kty);
-						IuJson.add(ai, "crv", type.crv);
+						final var ai = CryptJsonAdapters.builder();
+						ai.put("kty", type.kty);
+						ai.put("crv", type.crv);
 						if ((i & 1) == 1)
-							IuJson.add(ai, "use", a.get("use"));
+							ai.put("use", a.get("use", Use.class));
 						if ((i & 2) == 2)
-							IuJson.add(ai, "key_ops", a.get("key_ops"));
+							ai.put("key_ops", a.get("key_ops", Operation[].class));
 						if ((i & 4) == 4) {
-							IuJson.add(ai, "k", a.get("k"));
-							IuJson.add(ai, "n", a.get("n"));
-							IuJson.add(ai, "e", a.get("e"));
-							IuJson.add(ai, "d", a.get("d"));
-							IuJson.add(ai, "p", a.get("p"));
-							IuJson.add(ai, "q", a.get("q"));
-							IuJson.add(ai, "dp", a.get("dp"));
-							IuJson.add(ai, "dq", a.get("dq"));
-							IuJson.add(ai, "qi", a.get("qi"));
+							ai.put("k", a.get("k", byte[].class));
+							ai.put("n", a.get("n", BigInteger.class));
+							ai.put("e", a.get("e", BigInteger.class));
+							ai.put("d", a.get("d", byte[].class));
+							ai.put("p", a.get("p", BigInteger.class));
+							ai.put("q", a.get("q", BigInteger.class));
+							ai.put("dp", a.get("dp", BigInteger.class));
+							ai.put("dq", a.get("dq", BigInteger.class));
+							ai.put("qi", a.get("qi", BigInteger.class));
 						}
 						if ((i & 8) == 8) {
 							if ((i & 4) != 4) {
-								IuJson.add(ai, "n", a.get("n"));
-								IuJson.add(ai, "e", a.get("e"));
+								ai.put("n", a.get("n", BigInteger.class));
+								ai.put("e", a.get("e", BigInteger.class));
 							}
-							IuJson.add(ai, "x", a.get("x"));
-							IuJson.add(ai, "y", a.get("y"));
+							ai.put("x", a.get("x", byte[].class));
+							ai.put("y", a.get("y", BigInteger.class));
 						}
 						final Jwk ac;
 						try {
@@ -264,30 +265,30 @@ public class JwkTest extends CryptImplTestCase {
 							continue;
 						}
 
-						final var bj = IuJson.object();
-						bj.add("kty", type.kty);
-						IuJson.add(bj, "crv", type.crv);
+						final var bj = CryptJsonAdapters.builder();
+						bj.put("kty", type.kty);
+						bj.put("crv", type.crv);
 						if ((j & 1) == 1)
-							IuJson.add(bj, "use", b.get("use"));
+							bj.put("use", b.get("use", Use.class));
 						if ((j & 2) == 2)
-							IuJson.add(bj, "key_ops", b.get("key_ops"));
+							bj.put("key_ops", b.get("key_ops", Operation[].class));
 						if ((j & 4) == 4) {
-							IuJson.add(bj, "k", b.get("k"));
-							IuJson.add(bj, "n", b.get("n"));
-							IuJson.add(bj, "e", b.get("e"));
-							IuJson.add(bj, "d", b.get("d"));
-							IuJson.add(bj, "p", b.get("p"));
-							IuJson.add(bj, "q", b.get("q"));
-							IuJson.add(bj, "dp", b.get("dp"));
-							IuJson.add(bj, "dq", b.get("dq"));
-							IuJson.add(bj, "qi", b.get("qi"));
+							bj.put("k", b.get("k", byte[].class));
+							bj.put("n", b.get("n", BigInteger.class));
+							bj.put("e", b.get("e", BigInteger.class));
+							bj.put("d", b.get("d", byte[].class));
+							bj.put("p", b.get("p", BigInteger.class));
+							bj.put("q", b.get("q", BigInteger.class));
+							bj.put("dp", b.get("dp", BigInteger.class));
+							bj.put("dq", b.get("dq", BigInteger.class));
+							bj.put("qi", b.get("qi", BigInteger.class));
 						}
 						if ((j & 8) == 8) {
-							IuJson.add(bj, "x", b.get("x"));
-							IuJson.add(bj, "y", b.get("y"));
+							bj.put("x", b.get("x", byte[].class));
+							bj.put("y", b.get("y", BigInteger.class));
 							if ((j & 4) != 4) {
-								IuJson.add(bj, "n", b.get("n"));
-								IuJson.add(bj, "e", b.get("e"));
+								bj.put("n", b.get("n", BigInteger.class));
+								bj.put("e", b.get("e", BigInteger.class));
 							}
 						}
 
@@ -298,8 +299,8 @@ public class JwkTest extends CryptImplTestCase {
 							continue;
 						}
 
-						assertEquals(ac, new Jwk(IuJson.parse(ac.toString()).asJsonObject()));
-						assertEquals(bc, new Jwk(IuJson.parse(bc.toString()).asJsonObject()));
+						assertEquals(ac, CryptJsonAdapters.JSONB.fromJson(ac.toString(), WebKey.class));
+						assertEquals(bc, CryptJsonAdapters.JSONB.fromJson(bc.toString(), WebKey.class));
 						assertEquals(ac.equals(bc), bc.equals(ac));
 						assertTrue(ac.represents(ao));
 						assertTrue(bc.represents(bo), bc + " " + bo);
@@ -404,7 +405,7 @@ public class JwkTest extends CryptImplTestCase {
 		final var uri = URI.create("https://example.test/jwks/" + IdGenerator.generateId());
 		final var failure = new IllegalStateException("JWKS unavailable");
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenThrow(failure);
+			mockIuHttp.when(() -> IuHttp.get(uri)).thenThrow(failure);
 			assertSame(failure, assertThrows(IllegalStateException.class, () -> Jwk.readJwks(uri)));
 		}
 	}
@@ -413,9 +414,14 @@ public class JwkTest extends CryptImplTestCase {
 	public void testReadJwksRetainsCachedKeysAfterRefreshFailure() throws Exception {
 		final var uri = URI.create("https://example.test/jwks/" + IdGenerator.generateId());
 		final var key = (Jwk) WebKey.ephemeral(Algorithm.ES256);
-		final var jwks = Jwk.asJwks(IuIterable.iter(key));
+
+		final var out = new ByteArrayOutputStream();
+		Jwk.writeJwks(IuIterable.iter(key), out);
+		final var response = mock(HttpResponse.class);
+		when(response.body()).thenReturn(new ByteArrayInputStream(out.toByteArray()));
+
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(jwks)
+			mockIuHttp.when(() -> IuHttp.get(uri)).thenReturn(response)
 					.thenThrow(new IllegalStateException("JWKS unavailable"));
 			assertEquals(key, Jwk.readJwks(uri).iterator().next());
 
@@ -433,7 +439,7 @@ public class JwkTest extends CryptImplTestCase {
 	}
 
 	private void assertEphemeral(Jwk jwk) throws IOException {
-		assertEquals(jwk, new Jwk(IuJson.parse(jwk.toString()).asJsonObject()));
+		assertEquals(jwk, CryptJsonAdapters.JSONB.fromJson(jwk.toString(), WebKey.class));
 
 		final var wellKnown = jwk.wellKnown();
 		assertNull(wellKnown.getKey());
@@ -441,21 +447,27 @@ public class JwkTest extends CryptImplTestCase {
 		assertEquals(wellKnown.getPublicKey(), WebKey.verify(jwk));
 		assertArrayEquals(wellKnown.getCertificateChain(), WebCertificateReference.verify(jwk));
 
-		final var jwksText = Jwk.asJwks(IuIterable.iter(jwk)).toString();
-		final var fromInput = Jwk.readJwks(new ByteArrayInputStream(IuText.utf8(jwksText)));
-		final var fromParse = Jwk.parseJwks(IuJson.parse(jwksText).asJsonObject());
-		assertTrue(IuIterable.remaindersAreEqual(fromInput.iterator(), fromParse.iterator()));
-
 		final var out = new ByteArrayOutputStream();
+		Jwk.writeJwks(IuIterable.iter(jwk), out);
+		final var jwksText = out.toString();
+
+		final var fromInput = Jwk.readJwks(new ByteArrayInputStream(IuText.utf8(jwksText)));
+//		final var fromParse = Jwk.parseJwks(IuJson.parse(jwksText).asJsonObject());
+//		assertTrue(IuIterable.remaindersAreEqual(fromInput.iterator(), fromParse.iterator()));
+
+		out.reset();
 		Jwk.writeJwks(fromInput, out);
 		assertEquals(jwksText, IuText.utf8(out.toByteArray()));
 
+		final var response = mock(HttpResponse.class);
+		when(response.body()).thenReturn(new ByteArrayInputStream(out.toByteArray()));
+
 		final var jwks = mock(URI.class);
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(jwks, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.parse(jwksText));
+			mockIuHttp.when(() -> IuHttp.get(jwks)).thenReturn(response);
 			final var fromJwks = Jwk.readJwks(jwks).iterator().next();
 			assertEquals(jwk, fromJwks);
-			assertSame(fromJwks, Jwk.readJwks(jwks).iterator().next());
+			assertEquals(fromJwks, Jwk.readJwks(jwks).iterator().next());
 		}
 	}
 

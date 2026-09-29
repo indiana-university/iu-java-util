@@ -31,12 +31,22 @@
  */
 package iu.crypt;
 
+import java.lang.reflect.Type;
+import java.util.ArrayDeque;
 import java.util.Iterator;
+import java.util.Queue;
 
 import edu.iu.IuObject;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
+import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import jakarta.json.bind.JsonbException;
+import jakarta.json.bind.serializer.DeserializationContext;
+import jakarta.json.bind.serializer.JsonbSerializer;
+import jakarta.json.bind.serializer.SerializationContext;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * JSON Web Signature (JWS) implementation class.
@@ -44,6 +54,51 @@ import edu.iu.crypt.WebSignedPayload;
 public class JwsSignedPayload implements WebSignedPayload {
 	static {
 		IuObject.assertNotOpen(JwsSignedPayload.class);
+	}
+
+	static JwsSignedPayload deserialize(JsonParser parser, DeserializationContext context, Type type) {	
+		if (Event.VALUE_NULL.equals(parser.currentEvent()))
+			return null;
+		
+		byte[] payload = null;
+		Queue<Jws> signatures = new ArrayDeque<>();
+
+		var event = parser.next();
+		while (!event.equals(Event.END_OBJECT)) {
+			if (!event.equals(Event.KEY_NAME))
+				throw new JsonbException("expected KEY_NAME");
+
+			final var name = parser.getString();
+			event = parser.next();
+
+			switch (name) {
+			case "payload":
+				payload = context.deserialize(byte[].class, parser);
+				break;
+
+			case "signatures":
+				if (event.equals(Event.START_OBJECT))
+					signatures.add((Jws) context.deserialize(WebSignature.class, parser));
+				else if (event.equals(Event.START_ARRAY))
+					for (final var signature : context.deserialize(WebSignature[].class, parser))
+						signatures.add((Jws) signature);
+				else
+					throw new JsonbException("unexpected " + event);
+				break;
+
+			default:
+				throw new JsonbException("unexpected property " + name);
+			}
+
+			event = parser.next();
+		}
+
+		if (payload == null)
+			throw new JsonbException("missing payload");
+		if (signatures.isEmpty())
+			throw new JsonbException("at least one signature is required");
+
+		return new JwsSignedPayload(payload, signatures);
 	}
 
 	private final byte[] payload;
@@ -80,31 +135,28 @@ public class JwsSignedPayload implements WebSignedPayload {
 		return signature.getSignatureInput(payload) + '.' + IuText.base64Url(signature.getSignature());
 	}
 
-	@Override
-	public String toString() {
-		final var json = IuJson.object();
-		IuJson.add(json, "payload", () -> payload, CryptJsonAdapters.B64URL);
+	/**
+	 * {@link JsonbSerializer} handle method.
+	 * 
+	 * @param generator {@link JsonGenerator}
+	 * @param context   {@link SerializationContext}
+	 */
+	void serialize(JsonGenerator generator, SerializationContext context) {
+		generator.writeStartObject();
+		context.serialize("payload", payload, generator);
 
 		final var signatureIterator = signatures.iterator();
 		var signature = signatureIterator.next();
-		if (signatureIterator.hasNext()) {
-			final var signatures = IuJson.array();
-			var first = true;
-			do {
-				if (first)
-					first = false;
-				else
-					signature = signatureIterator.next();
+		if (signatureIterator.hasNext())
+			context.serialize("signatures", signatures, generator);
+		else
+			context.serialize("signatures", signature, generator);
+		generator.writeEnd();
+	}
 
-				final var s = IuJson.object();
-				signature.serializeTo(s);
-				signatures.add(s);
-			} while (signatureIterator.hasNext());
-			json.add("signatures", signatures);
-		} else
-			signature.serializeTo(json);
-
-		return json.build().toString();
+	@Override
+	public String toString() {
+		return CryptJsonAdapters.JSONB.toJson(this);
 	}
 
 }

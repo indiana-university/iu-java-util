@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -62,8 +62,8 @@ public class JoseTest extends CryptImplTestCase {
 			super(algorithm);
 		}
 
-		private Jose build() {
-			return new Jose(toJson());
+		Jose build() {
+			return new Jose(values());
 		}
 	}
 
@@ -74,13 +74,15 @@ public class JoseTest extends CryptImplTestCase {
 	@Test
 	public void testJson() {
 		final var o = jose(Algorithm.HS256).build();
-		assertEquals(o, CryptJsonAdapters.JOSE.fromJson(CryptJsonAdapters.JOSE.toJson(o)));
+		assertEquals(o, CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(o), WebCryptoHeader.class));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testRegister() {
 		final var ext = mock(Extension.class);
+		when(ext.type()).thenReturn(String.class);
+		
 		assertThrows(IllegalArgumentException.class, () -> Jose.register("enc", ext));
 		final var id = IdGenerator.generateId();
 		assertThrows(NullPointerException.class, () -> Jose.getExtension(id));
@@ -120,12 +122,13 @@ public class JoseTest extends CryptImplTestCase {
 
 	@Test
 	public void testFromHeaders() {
-		final var prot = IuJson.object().add("enc", Encryption.A128GCM.enc).build();
-		final var shared = IuJson.object().add("zip", "DEF").build();
-		final var perRecip = IuJson.object().add("alg", Algorithm.HS256.alg).build();
+		final var prot = CryptJsonAdapters.builder().put("enc", Encryption.A128GCM).build();
+		final var shared = CryptJsonAdapters.builder().put("zip", "DEF").build();
+		final var perRecip = CryptJsonAdapters.builder().put("alg", Algorithm.HS256).build();
 		try (final var mockJose = mockConstruction(Jose.class, (mock, context) -> {
-			assertEquals(IuJson.object().add("enc", Encryption.A128GCM.enc).add("zip", "DEF")
-					.add("alg", Algorithm.HS256.alg).build(), context.arguments().get(0));
+			assertEquals(CryptJsonAdapters.builder().put("enc", Encryption.A128GCM).put("zip", "DEF")
+					.put("alg", Algorithm.HS256).build().toJsonObject(),
+					((IuJsonProperties) context.arguments().get(0)).toJsonObject());
 		})) {
 			final var fromHeaders = Jose.from(prot, shared, perRecip);
 			assertSame(mockJose.constructed().get(0), fromHeaders);
@@ -134,11 +137,12 @@ public class JoseTest extends CryptImplTestCase {
 
 	@Test
 	public void testFromPerRecipNoShared() {
-		final var prot = IuJson.object().add("enc", Encryption.A128GCM.enc).build();
-		final var perRecip = IuJson.object().add("zip", "DEF").add("alg", Algorithm.HS256.alg).build();
+		final var prot = CryptJsonAdapters.builder().put("enc", Encryption.A128GCM).build();
+		final var perRecip = CryptJsonAdapters.builder().put("zip", "DEF").put("alg", Algorithm.HS256).build();
 		try (final var mockJose = mockConstruction(Jose.class, (mock, context) -> {
-			assertEquals(IuJson.object().add("enc", Encryption.A128GCM.enc).add("zip", "DEF")
-					.add("alg", Algorithm.HS256.alg).build(), context.arguments().get(0));
+			assertEquals(CryptJsonAdapters.builder().put("enc", Encryption.A128GCM).put("zip", "DEF")
+					.put("alg", Algorithm.HS256).build().toJsonObject(),
+					((IuJsonProperties) context.arguments().get(0)).toJsonObject());
 		})) {
 			final var fromHeaders = Jose.from(prot, null, perRecip);
 			assertSame(mockJose.constructed().get(0), fromHeaders);
@@ -153,11 +157,10 @@ public class JoseTest extends CryptImplTestCase {
 		assertThrows(NullPointerException.class, () -> jose(Algorithm.HS256).crit(name));
 
 		final var ext = mock(Extension.class);
-		when(ext.toJson(value)).thenReturn(IuJson.string(value));
-		when(ext.fromJson(IuJson.string(value))).thenReturn(value);
+		when(ext.type()).thenReturn(String.class);
 		Jose.register(name, ext);
 		assertThrows(NullPointerException.class, () -> jose(Algorithm.HS256).crit(name).build());
-		assertEquals(value, jose(Algorithm.HS256).crit(name).param(name, value).build().getExtendedParameter(name));
+		assertEquals(value, jose(Algorithm.HS256).crit(name).withParam(name, value).build().getExtendedParameter(name));
 	}
 
 	@Test
@@ -178,7 +181,7 @@ public class JoseTest extends CryptImplTestCase {
 		final var jose = jose(Algorithm.HS512).wellKnown(WebKey.ephemeral(Algorithm.HS512)).build();
 		final var fromJose = jose.toString();
 		assertNull(jose.getKey().getKey());
-		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
+		assertNull(new Jose(CryptJsonAdapters.JSONB.fromJson(fromJose, IuJsonProperties.class)).getKey().getKey());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -187,22 +190,21 @@ public class JoseTest extends CryptImplTestCase {
 		final var extName = IdGenerator.generateId();
 		final var value = IdGenerator.generateId();
 		final var ext = mock(Extension.class);
-		when(ext.toJson(value)).thenReturn(IuJson.string(value));
-		when(ext.fromJson(IuJson.string(value))).thenReturn(value);
+		when(ext.type()).thenReturn(String.class);
 		Jose.register(extName, ext);
 
 		final var key = WebKey.ephemeral(Algorithm.ES512);
-		final var jose = jose(Algorithm.ES512).wellKnown(key).param(extName, value).build();
+		final var jose = jose(Algorithm.ES512).wellKnown(key).withParam(extName, value).build();
 		final var fromJose = jose.toString();
 		assertNull(jose.getKey().getPrivateKey()); // JOSE never holds secret/private keys
-		assertNull(new Jose(IuJson.parse(fromJose).asJsonObject()).getKey().getKey());
+		assertNull(new Jose(CryptJsonAdapters.JSONB.fromJson(fromJose, IuJsonProperties.class)).getKey().getKey());
 	}
 
 	@Test
 	public void testJustProtected() {
-		final var j = IuJson.object().add("alg", Algorithm.ES384.alg).build();
+		final var j = CryptJsonAdapters.builder().put("alg", Algorithm.ES384).build();
 		assertEquals(new Jose(j), Jose.from(j, null, null));
-		assertNull(new Jose(j).toJson(a -> false));
+		assertNull(new Jose(j).values(a -> false));
 	}
 
 	@Test
@@ -212,13 +214,12 @@ public class JoseTest extends CryptImplTestCase {
 		assertEquals(key.wellKnown(), jose.wellKnown());
 	}
 
-
 	@Test
 	public void testECDHParams() {
 		final var epk = WebKey.ephemeral(Algorithm.ECDH_ES).wellKnown();
 		final var jose = jose(Algorithm.ECDH_ES).param(Param.ENCRYPTION, Encryption.A128GCM)
 				.param(Param.EPHEMERAL_PUBLIC_KEY, epk).build();
-		assertEquals(Encryption.A128GCM.enc, jose.extendedParameters().getString("enc"));
-		assertEquals(epk, new Jwk(jose.extendedParameters().getJsonObject("epk")));
+		assertEquals(Encryption.A128GCM, jose.extendedParameters().get("enc"));
+		assertEquals(epk, jose.extendedParameters().get("epk"));
 	}
 }

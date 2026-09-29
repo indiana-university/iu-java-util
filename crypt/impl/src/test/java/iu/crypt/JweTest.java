@@ -59,6 +59,7 @@ import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTestLogger;
+import jakarta.json.bind.JsonbException;
 
 @SuppressWarnings("javadoc")
 public class JweTest {
@@ -70,7 +71,7 @@ public class JweTest {
 		}
 
 		private Jose build() {
-			return new Jose(toJson());
+			return new Jose(values());
 		}
 	}
 
@@ -85,7 +86,7 @@ public class JweTest {
 
 		final var alg = Algorithm.RSA_OAEP;
 		final var enc = Encryption.A256GCM;
-		final var jose = new Builder(alg, enc).algorithm(alg).build().toJson(a -> true);
+		final var jose = new Builder(alg, enc).algorithm(alg).build().values(a -> true).toJsonObject();
 		final var protectedHeader = IuText.base64Url(IuText.utf8(jose.toString()));
 		assertEquals("eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkEyNTZHQ00ifQ", protectedHeader, jose::toString);
 
@@ -223,7 +224,7 @@ public class JweTest {
 
 		final var alg = Algorithm.A128KW;
 		final var enc = Encryption.AES_128_CBC_HMAC_SHA_256;
-		final var jose = new Builder(alg, enc).build().toJson(a -> true);
+		final var jose = new Builder(alg, enc).build().values(a -> true).toJsonObject();
 		final var protectedHeader = IuText.base64Url(IuText.utf8(jose.toString()));
 		assertEquals("eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0", protectedHeader, jose::toString);
 
@@ -302,14 +303,16 @@ public class JweTest {
 
 	@Test
 	public void testFlattenedAndNotFlattened() {
-		assertThrows(IllegalArgumentException.class, () -> new Jwe(
-				IuJson.object().add("header", IuJson.object()).add("recipients", IuJson.array()).build().toString()));
+		assertThrows(JsonbException.class, () -> Jwe.parse(IuJson.object()
+				.add("protected", IuJson.object().add("alg", Algorithm.DIRECT.alg).add("enc", Encryption.A256GCM.enc))
+				.add("recipients", IuJson.array().add(IuJson.object())).add("header", IuJson.object()).build()
+				.toString()));
 	}
 
 	@Test
 	public void testExcessCompact() {
 		assertThrows(IllegalArgumentException.class,
-				() -> new Jwe(WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT)
+				() -> Jwe.parse(WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT)
 						.key(WebKey.ephemeral(Encryption.A128GCM)).encrypt("foo").compact() + ".foo"));
 	}
 
@@ -337,7 +340,8 @@ public class JweTest {
 				.addRecipient(Algorithm.DIRECT).key(key).encrypt("foo");
 		assertEquals(IuJson.array().add(IuJson.object()).add(IuJson.object()).build(),
 				IuJson.parse(jwe.toString()).asJsonObject().getJsonArray("recipients"));
-		assertEquals(IuJson.parse(jwe.toString()), IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(jwe)).toString()));
+		assertEquals(IuJson.parse(jwe.toString()), IuJson.parse(
+				CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(jwe), WebEncryption.class).toString()));
 
 		final var jwe2 = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT).key(key)
 				.encrypt("foo");
@@ -348,14 +352,16 @@ public class JweTest {
 		assertNull(jwe.getAdditionalData());
 		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonArray("recipients"));
 		assertNull(IuJson.parse(jwe2.toString()).asJsonObject().getJsonObject("header"));
-		assertEquals(IuJson.parse(jwe2.toString()), IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(jwe2)).toString()));
+		assertEquals(IuJson.parse(jwe2.toString()), IuJson.parse(CryptJsonAdapters.JSONB
+				.fromJson(CryptJsonAdapters.JSONB.toJson(jwe2), WebEncryption.class).toString()));
 
 		final var jwe3 = WebEncryption.builder(Encryption.A128GCM).protect(Param.ENCRYPTION, Param.ZIP, Param.ALGORITHM)
 				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).then()
 				.addRecipient(Algorithm.DIRECT).keyId(IdGenerator.generateId()).key(key).encrypt("foo");
 		assertNotNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonArray("recipients"));
 		assertNull(IuJson.parse(jwe3.toString()).asJsonObject().getJsonObject("unprotected"));
-		assertEquals(IuJson.parse(jwe3.toString()), IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(jwe3)).toString()));
+		assertEquals(IuJson.parse(jwe3.toString()), IuJson.parse(CryptJsonAdapters.JSONB
+				.fromJson(CryptJsonAdapters.JSONB.toJson(jwe3), WebEncryption.class).toString()));
 
 	}
 
@@ -374,8 +380,9 @@ public class JweTest {
 				.addRecipient(Algorithm.DIRECT).key(jwk).encrypt(id);
 		final var serialized = IuJson.parse(jwe.toString()).asJsonObject();
 
-		final var iv = Arrays.copyOf(CryptJsonAdapters.B64URL.fromJson(serialized.get("iv")), 12);
-		final var cipherText = CryptJsonAdapters.B64URL.fromJson(serialized.get("cipher_text"));
+		final var iv = Arrays.copyOf(CryptJsonAdapters.JSONB.fromJson(serialized.get("iv").toString(), byte[].class),
+				12);
+		final var cipherText = CryptJsonAdapters.JSONB.fromJson(serialized.get("cipher_text").toString(), byte[].class);
 		final var macInput = ByteBuffer.wrap(new byte[iv.length + cipherText.length + 8]);
 		macInput.put(iv);
 		macInput.put(cipherText);
@@ -400,7 +407,8 @@ public class JweTest {
 				.addRecipient(Algorithm.DIRECT).key(jwk).encrypt(id);
 		final var serialized = IuJson.parse(jwe.toString()).asJsonObject();
 
-		final var iv = Arrays.copyOf(CryptJsonAdapters.B64URL.fromJson(serialized.get("iv")), 11);
+		final var iv = Arrays.copyOf(CryptJsonAdapters.JSONB.fromJson(serialized.get("iv").toString(), byte[].class),
+				11);
 
 		final var b = IuJson.object(serialized);
 		b.add("iv", IuText.base64Url(iv));

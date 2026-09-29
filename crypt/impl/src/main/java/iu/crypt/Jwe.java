@@ -34,13 +34,17 @@ package iu.crypt;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
@@ -60,14 +64,16 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import jakarta.json.bind.JsonbException;
+import jakarta.json.bind.serializer.DeserializationContext;
+import jakarta.json.bind.serializer.SerializationContext;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * JSON Web Encryption (JWE) implementation class.
@@ -79,22 +85,22 @@ public class Jwe implements WebEncryption {
 
 	private static final Logger LOG = Logger.getLogger(Jwe.class.getName());
 
-	/** {@link IuJsonAdapter} */
-	public static final IuJsonAdapter<WebEncryption> JSON = IuJsonAdapter.from(v -> {
-		if (v instanceof JsonString)
-			return new Jwe(((JsonString) v).getString());
-		else
-			return IuObject.convert(v, a -> new Jwe(a.asJsonObject().toString()));
-	}, h -> {
-		if (h == null)
-			return null;
-		final var jwe = (Jwe) h;
-		if (jwe.recipients.length != 1 //
-				|| jwe.additionalData != null)
-			return IuJson.parse(jwe.toString());
-		else
-			return IuJson.string(jwe.compact());
-	});
+//	/** {@link IuJsonAdapter} */
+//	public static final IuJsonAdapter<WebEncryption> JSON = IuJsonAdapter.from(v -> {
+//		if (v instanceof JsonString)
+//			return new Jwe(((JsonString) v).getString());
+//		else
+//			return IuObject.convert(v, a -> new Jwe(a.asJsonObject().toString()));
+//	}, h -> {
+//		if (h == null)
+//			return null;
+//		final var jwe = (Jwe) h;
+//		if (jwe.recipients.length != 1 //
+//				|| jwe.additionalData != null)
+//			return IuJson.parse(jwe.toString());
+//		else
+//			return IuJson.string(jwe.compact());
+//	});
 
 	private static class AesCbcHmac {
 		private static byte[] macKey(byte[] cek) {
@@ -179,24 +185,32 @@ public class Jwe implements WebEncryption {
 		}
 	}
 
-	private static Map<String, JsonValue> createSharedHeader(Iterable<JweRecipient> recipients) {
-		Map<String, JsonValue> sharedHeader = null;
+	private static Map<String, Object> createSharedHeader(Iterable<JweRecipient> recipients) {
+		final Map<String, Object> values = new LinkedHashMap<>();
+
+		var first = true;
 		for (final var recipient : recipients) {
-			final var serializedHeader = recipient.getHeader().toJson(a -> true);
-			if (sharedHeader == null)
-				sharedHeader = new LinkedHashMap<>(serializedHeader);
-			else
-				for (final var paramEntry : serializedHeader.entrySet())
-					sharedHeader.computeIfPresent(paramEntry.getKey(),
-							(a, value) -> IuObject.equals(value, paramEntry.getValue()) ? value : null);
+
+			final var serializedHeader = recipient.getHeader().values(a -> true);
+			for (final var key : serializedHeader.nonNullNames()) {
+				final var param = Param.from(key);
+				final var type = param == null ? Jose.getExtension(key).type() : param.type;
+				final var value = serializedHeader.get(key, type);
+				if (first)
+					values.put(key, value);
+				else if (!IuObject.equals(value, values.get(key)))
+					values.remove(key);
+			}
+
+			first = false;
 		}
-		return sharedHeader;
+		return values;
 	}
 
 	private final Encryption encryption;
 	private final boolean deflate;
-	private final JsonObject protectedHeader;
-	private final JsonObject unprotected;
+	private final IuJsonProperties protectedHeader;
+	private final IuJsonProperties unprotected;
 	private final JweRecipient[] recipients;
 	private final byte[] initializationVector;
 	private final byte[] cipherText;
@@ -237,27 +251,33 @@ public class Jwe implements WebEncryption {
 			if (!sharedHeader.keySet().containsAll(protectedParameters))
 				throw new IllegalArgumentException("protected parameters " + protectedParameters + " are required");
 
-			final var protectedHeaderBuilder = IuJson.object();
-			sharedHeader.forEach(protectedHeaderBuilder::add);
-			protectedHeader = protectedHeaderBuilder.build();
+			final var builder = CryptJsonAdapters.builder();
+			sharedHeader.forEach(builder::put);
+			protectedHeader = builder.build();
+
 			unprotected = null;
 
 		} else {
 			if (!protectedParameters.isEmpty()) {
-				final var protectedHeaderBuilder = IuJson.object();
-				for (final var paramName : protectedParameters)
-					protectedHeaderBuilder.add(paramName,
-							Objects.requireNonNull(sharedHeader.remove(paramName), paramName));
-				protectedHeader = protectedHeaderBuilder.build();
+
+				final var protectedHeader = CryptJsonAdapters.builder();
+				for (final var paramName : protectedParameters) {
+					final var value = sharedHeader.remove(paramName);
+					if (value == null)
+						throw new IllegalArgumentException("header missing protected parameter " + paramName);
+					protectedHeader.put(paramName, value);
+				}
+
+				this.protectedHeader = protectedHeader.build();
 			} else
 				protectedHeader = null;
 
 			if (sharedHeader.isEmpty())
 				unprotected = null;
 			else {
-				final var unprotectedBuilder = IuJson.object();
-				sharedHeader.forEach(unprotectedBuilder::add);
-				unprotected = unprotectedBuilder.build();
+				final var builder = CryptJsonAdapters.builder();
+				sharedHeader.forEach(builder::put);
+				unprotected = builder.build();
 			}
 		}
 
@@ -316,51 +336,193 @@ public class Jwe implements WebEncryption {
 		verifyExtensions();
 	}
 
-	/**
-	 * Verifies and prepares decryption of an inbound encrypted message.
-	 * 
-	 * @param jwe inbound encrypted message
-	 */
-	public Jwe(String jwe) {
-		if (jwe.charAt(0) == '{') {
-			final var parsed = IuJson.parse(jwe).asJsonObject();
-			protectedHeader = IuJson.get(parsed, "protected", IuJsonAdapter
-					.from(v -> IuJson.parse(IuText.utf8(CryptJsonAdapters.B64URL.fromJson(v))).asJsonObject()));
-			unprotected = IuJson.get(parsed, "unprotected", IuJsonAdapter.from(JsonValue::asJsonObject));
-
-			if (parsed.containsKey("recipients")) {
-				if (parsed.containsKey("header"))
-					throw new IllegalArgumentException("Must not contain both header and recipients");
-				recipients = IuJson.get(parsed, "recipients", IuJsonAdapter.of(JweRecipient[].class, IuJsonAdapter
-						.from(recipient -> new JweRecipient(protectedHeader, unprotected, recipient.asJsonObject()))));
-			} else
-				recipients = new JweRecipient[] { new JweRecipient(protectedHeader, unprotected, parsed) };
-
-			initializationVector = IuJson.get(parsed, "iv", CryptJsonAdapters.B64URL);
-			cipherText = IuJson.nonNull(parsed, "cipher_text", CryptJsonAdapters.B64URL);
-			authenticationTag = IuJson.get(parsed, "tag", CryptJsonAdapters.B64URL);
-			additionalData = IuJson.get(parsed, "aad", CryptJsonAdapters.B64URL);
-
-		} else {
-			final var i = CompactEncoded.compact(jwe);
-			protectedHeader = (JsonObject) IuJson.parse(IuText.utf8(IuText.base64(i.next())));
-			unprotected = null;
-			recipients = new JweRecipient[] {
-					new JweRecipient(IuObject.convert(protectedHeader, Jose::new), IuText.base64Url(i.next())) };
-			initializationVector = IuText.base64Url(i.next());
-			cipherText = IuText.base64Url(i.next());
-			authenticationTag = IuText.base64Url(i.next());
-
-			if (i.hasNext())
-				throw new IllegalArgumentException("Invalid compact format, found more than 5 segments");
-			additionalData = null;
-		}
+	private Jwe(IuJsonProperties protectedHeader, IuJsonProperties unprotected, JweRecipient[] recipients,
+			byte[] initializationVector, byte[] cipherText, byte[] authenticationTag, byte[] additionalData) {
+		this.protectedHeader = protectedHeader;
+		this.unprotected = unprotected;
+		this.recipients = recipients;
+		this.initializationVector = initializationVector;
+		this.cipherText = cipherText;
+		this.authenticationTag = authenticationTag;
+		this.additionalData = additionalData;
 
 		final var header = recipients[0].getHeader();
 		encryption = Objects.requireNonNull(header.getExtendedParameter("enc"), "Missing enc header parameter");
 		deflate = "DEF".equals(header.getExtendedParameter("zip"));
 
 		verifyExtensions();
+	}
+
+	static Jwe deserialize(JsonParser parser, DeserializationContext context, Type type) {
+		var event = parser.currentEvent();
+		if (event.equals(Event.VALUE_NULL))
+			return null;
+		else if (!event.equals(Event.START_OBJECT))
+			throw new JsonbException("expected START_OBJECT");
+
+		IuJsonProperties protectedHeader = null;
+		IuJsonProperties unprotected = null;
+		byte[] initializationVector = null;
+		byte[] cipherText = null;
+		byte[] authenticationTag = null;
+		byte[] additionalData = null;
+
+		class RecipientProperties {
+			IuJsonProperties header;
+			byte[] encryptedKey;
+		}
+
+		Queue<RecipientProperties> recipients = new ArrayDeque<>();
+		boolean flattened = false;
+
+		event = parser.next();
+		while (!event.equals(Event.END_OBJECT)) {
+			if (!event.equals(Event.KEY_NAME))
+				throw new JsonbException("expected KEY_NAME");
+
+			final var key = parser.getString();
+			event = parser.next();
+			switch (key) {
+			case "protected":
+				protectedHeader = context.deserialize(IuJsonProperties.class, parser);
+				break;
+
+			case "unprotected":
+				unprotected = context.deserialize(IuJsonProperties.class, parser);
+				break;
+
+			case "recipients":
+				if (flattened)
+					throw new IllegalArgumentException("Must not contain both inline recipient and nested recipients");
+
+				switch (event) {
+				case START_ARRAY:
+					event = parser.next();
+					while (!Event.END_ARRAY.equals(event)) {
+						if (Event.START_OBJECT.equals(event)) {
+							final var recipient = new RecipientProperties();
+							event = parser.next();
+							while (!Event.END_OBJECT.equals(event)) {
+								if (!Event.KEY_NAME.equals(event))
+									throw new JsonbException("expected KEY_NAME");
+
+								final var name = parser.getString();
+								event = parser.next();
+								switch (name) {
+								case "header":
+									recipient.header = context.deserialize(IuJsonProperties.class, parser);
+									break;
+
+								case "encrypted_key":
+									recipient.encryptedKey = context.deserialize(byte[].class, parser);
+									break;
+
+								default:
+									throw new JsonbException("unexpected property " + name);
+								}
+
+								event = parser.next();
+							}
+							recipients.offer(recipient);
+						}
+						event = parser.next();
+					}
+					break;
+
+				case VALUE_NULL:
+					break;
+
+				default:
+					throw new JsonbException("unexpected " + event);
+				}
+				break;
+
+			case "header":
+				if (!flattened)
+					if (!recipients.isEmpty())
+						throw new IllegalArgumentException("Must not contain both header and recipients");
+					else
+						recipients.add(new RecipientProperties());
+
+				flattened = true;
+				recipients.peek().header = context.deserialize(IuJsonProperties.class, parser);
+				break;
+
+			case "encrypted_key":
+				if (!flattened)
+					if (!recipients.isEmpty())
+						throw new IllegalArgumentException("Must not contain both header and recipients");
+					else
+						recipients.add(new RecipientProperties());
+
+				flattened = true;
+				recipients.peek().encryptedKey = context.deserialize(byte[].class, parser);
+				break;
+
+			case "iv":
+				initializationVector = context.deserialize(byte[].class, parser);
+				break;
+
+			case "cipher_text":
+				cipherText = context.deserialize(byte[].class, parser);
+				break;
+
+			case "tag":
+				authenticationTag = context.deserialize(byte[].class, parser);
+				break;
+
+			case "aad":
+				additionalData = context.deserialize(byte[].class, parser);
+				break;
+
+			default:
+				throw new JsonbException("unexpected property " + key);
+			}
+
+			event = parser.next();
+		}
+
+		final JweRecipient[] jweRecipients;
+		if (recipients.isEmpty())
+			jweRecipients = new JweRecipient[] { new JweRecipient(protectedHeader, unprotected, null, null) };
+		else {
+			jweRecipients = new JweRecipient[recipients.size()];
+			var i = 0;
+			for (final var recipient : recipients)
+				jweRecipients[i++] = new JweRecipient(protectedHeader, unprotected, recipient.header,
+						recipient.encryptedKey);
+		}
+
+		return new Jwe(protectedHeader, unprotected, jweRecipients, initializationVector, cipherText, authenticationTag,
+				additionalData);
+	}
+
+	/**
+	 * Verifies and prepares decryption of an inbound encrypted message.
+	 * 
+	 * @param jwe inbound encrypted message
+	 */
+	public static Jwe parse(String jwe) {
+		if (jwe.charAt(0) == '{') {
+			return (Jwe) CryptJsonAdapters.JSONB.fromJson(jwe, WebEncryption.class);
+
+		} else {
+			final var i = CompactEncoded.compact(jwe);
+			final var protectedHeader = CryptJsonAdapters.JSONB.fromJson(IuText.utf8(IuText.base64(i.next())),
+					IuJsonProperties.class);
+			final var recipients = new JweRecipient[] {
+					new JweRecipient(new Jose(protectedHeader), IuText.base64Url(i.next())) };
+			final var initializationVector = IuText.base64Url(i.next());
+			final var cipherText = IuText.base64Url(i.next());
+			final var authenticationTag = IuText.base64Url(i.next());
+
+			if (i.hasNext())
+				throw new IllegalArgumentException("Invalid compact format, found more than 5 segments");
+
+			return new Jwe(protectedHeader, null, recipients, initializationVector, cipherText, authenticationTag,
+					null);
+		}
+
 	}
 
 	private void verifyExtensions() {
@@ -494,51 +656,59 @@ public class Jwe implements WebEncryption {
 
 	@Override
 	public String toString() {
-		final var serializedHeaderBuilder = IuJson.object();
+		return CryptJsonAdapters.JSONB.toJson(this);
+	}
 
-		// 5.1#13 encode protected header
-		IuJson.add(serializedHeaderBuilder, "protected", () -> protectedHeader,
-				IuJsonAdapter.to(v -> IuJson.string(IuText.base64Url(IuText.utf8(v.toString())))));
+	void serialize(JsonGenerator generator, SerializationContext context) {
+		BiConsumer<String, Object> write = (key, value) -> {
+			if (value != null) {
+				generator.writeKey(key);
+				context.serialize(value, generator);
+			}
+		};
+
+		generator.writeStartObject();
+
+		write.accept("protected", protectedHeader);
 
 		if (recipients.length > 1) {
-			IuJson.add(serializedHeaderBuilder, "unprotected", unprotected);
+			write.accept("unprotected", unprotected);
 
-			final var serializedRecipients = IuJson.array();
+			generator.writeKey("recipients");
+			generator.writeStartArray();
 			for (final var additionalRecipient : this.recipients) {
-				final var recipientBuilder = IuJson.object();
-				final var perRecipientHeader = additionalRecipient.getHeader().toJson(a -> isPerRecipient(a));
-				if (perRecipientHeader != null)
-					recipientBuilder.add("header", perRecipientHeader);
-				IuJson.add(recipientBuilder, "encrypted_key", additionalRecipient::getEncryptedKey,
-						CryptJsonAdapters.B64URL);
-				serializedRecipients.add(recipientBuilder);
-			}
+				generator.writeStartObject();
+				final var header = additionalRecipient.getHeader().values(a -> isPerRecipient(a));
+				if (!header.nonNullNames().isEmpty())
+					context.serialize("header", header, generator);
 
-			IuJson.add(serializedHeaderBuilder, "recipients", serializedRecipients);
+				write.accept("encrypted_key", additionalRecipient.getEncryptedKey());
+				generator.writeEnd();
+			}
+			generator.writeEnd();
+
 		} else {
-			if (unprotected != null)
-				serializedHeaderBuilder.add("header", unprotected);
-			IuJson.add(serializedHeaderBuilder, "encrypted_key", recipients[0]::getEncryptedKey,
-					CryptJsonAdapters.B64URL);
+			write.accept("header", unprotected);
+			write.accept("encrypted_key", recipients[0].getEncryptedKey());
 		}
 
-		IuJson.add(serializedHeaderBuilder, "iv", () -> initializationVector, CryptJsonAdapters.B64URL);
-		IuJson.add(serializedHeaderBuilder, "cipher_text", () -> cipherText, CryptJsonAdapters.B64URL);
-		IuJson.add(serializedHeaderBuilder, "tag", () -> authenticationTag, CryptJsonAdapters.B64URL);
-		IuJson.add(serializedHeaderBuilder, "aad", () -> additionalData, CryptJsonAdapters.B64URL);
+		write.accept("iv", initializationVector);
+		write.accept("cipher_text", cipherText);
+		write.accept("tag", authenticationTag);
+		write.accept("aad", additionalData);
 
-		return serializedHeaderBuilder.build().toString();
+		generator.writeEnd();
 	}
 
 	private boolean isUnprotected(String paramName) {
 		return protectedHeader == null //
-				|| !protectedHeader.containsKey(paramName);
+				|| !protectedHeader.nonNullNames().contains(paramName);
 	}
 
 	private boolean isPerRecipient(String paramName) {
 		return isUnprotected(paramName) //
 				&& (unprotected == null //
-						|| !unprotected.containsKey(paramName));
+						|| !unprotected.nonNullNames().contains(paramName));
 	}
 
 }

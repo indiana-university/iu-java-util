@@ -31,6 +31,8 @@
  */
 package edu.iu.crypt;
 
+import java.util.Set;
+
 import edu.iu.IuException;
 
 /**
@@ -77,16 +79,23 @@ public interface WebSignedPayload {
 	default void verify(WebKey key) {
 		Throwable error = null;
 		final var payload = getPayload();
+
 		for (final var signature : getSignatures())
 			try {
-				signature.verify(payload, key);
-				return;
+				if (Set.of(signature.getHeader().getAlgorithm().type).contains(key.getType())) {
+					signature.verify(payload, key);
+					return;
+				}
 			} catch (Throwable e) {
 				if (error == null)
 					error = e;
 				else
 					error.addSuppressed(e);
 			}
+
+		if (error == null)
+			error = new IllegalArgumentException("No signature algorithm supports key type " + key.getType());
+
 		throw IuException.unchecked(error);
 	}
 

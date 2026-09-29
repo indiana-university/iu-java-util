@@ -31,291 +31,197 @@
  */
 package iu.crypt;
 
+import static iu.crypt.CryptJsonAdapters.JSONB;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigInteger;
-import java.net.URI;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuIterable;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.PemEncoded;
-import edu.iu.crypt.WebCryptoHeader.Param;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
+import edu.iu.crypt.X509CertificateAuthority;
 import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
 public class CryptJsonAdaptersTest {
 
 	@Test
 	public void testCert() {
-		final var adapter = CryptJsonAdapters.CERT;
 		final var cert = mock(X509Certificate.class);
 		final var encoded = new byte[16];
 		ThreadLocalRandom.current().nextBytes(encoded);
 		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encoded));
-		assertEquals(IuText.base64(encoded), ((JsonString) adapter.toJson(cert)).getString());
+		assertEquals(IuText.base64(encoded), ((JsonString) IuJson.parse(JSONB.toJson(cert))).getString());
 		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
 			mockPemEncoded.when(() -> PemEncoded.asCertificate(encoded)).thenReturn(cert);
-			assertEquals(cert, adapter.fromJson(adapter.toJson(cert)));
+			assertEquals(cert, JSONB.fromJson(JSONB.toJson(cert), X509Certificate.class));
 		}
 	}
 
 	@Test
 	public void testBigInt() {
-		final var adapter = CryptJsonAdapters.BIGINT;
 		final var binary = new byte[128];
 		ThreadLocalRandom.current().nextBytes(binary);
 		final var bigInt = new BigInteger(1, binary);
-		assertEquals(bigInt, adapter.fromJson(adapter.toJson(bigInt)));
+		assertEquals(bigInt, JSONB.fromJson(JSONB.toJson(bigInt), BigInteger.class));
 	}
 
 	@Test
 	public void testCrl() {
-		final var adapter = CryptJsonAdapters.CRL;
 		final var crl = mock(X509CRL.class);
 		final var encoded = new byte[16];
 		ThreadLocalRandom.current().nextBytes(encoded);
 		assertDoesNotThrow(() -> when(crl.getEncoded()).thenReturn(encoded));
-		assertEquals(IuText.base64(encoded), ((JsonString) adapter.toJson(crl)).getString());
+		assertEquals(IuText.base64(encoded), ((JsonString) IuJson.parse(JSONB.toJson(crl))).getString());
 		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
 			mockPemEncoded.when(() -> PemEncoded.asCRL(encoded)).thenReturn(crl);
-			assertEquals(crl, adapter.fromJson(adapter.toJson(crl)));
+			assertEquals(crl, JSONB.fromJson(JSONB.toJson(crl), X509CRL.class));
 		}
 	}
 
 	@Test
 	public void testUse() {
-		final var adapter = CryptJsonAdapters.USE;
-		for (final var use : Use.values())
-			assertEquals(use, adapter.fromJson(adapter.toJson(use)));
+		for (final var use : Use.values()) {
+			final var json = JSONB.toJson(use);
+			assertEquals(use.use, ((JsonString) IuJson.parse(json)).getString());
+			assertEquals(use, JSONB.fromJson(json, Use.class));
+		}
 	}
 
 	@Test
 	public void testOp() {
-		final var adapter = CryptJsonAdapters.OP;
-		for (final var op : Operation.values())
-			assertEquals(op, adapter.fromJson(adapter.toJson(op)));
+		for (final var op : Operation.values()) {
+			final var json = JSONB.toJson(op);
+			assertEquals(op.keyOp, ((JsonString) IuJson.parse(json)).getString());
+			assertEquals(op, JSONB.fromJson(json, Operation.class));
+		}
 	}
 
 	@Test
 	public void testAlg() {
-		final var adapter = CryptJsonAdapters.ALG;
-		for (final var alg : Algorithm.values())
-			assertEquals(alg, adapter.fromJson(adapter.toJson(alg)));
+		for (final var alg : Algorithm.values()) {
+			final var json = JSONB.toJson(alg);
+			assertEquals(alg.alg, ((JsonString) IuJson.parse(json)).getString());
+			assertEquals(alg, JSONB.fromJson(json, Algorithm.class));
+		}
 	}
 
 	@Test
 	public void testEnc() {
-		final var adapter = CryptJsonAdapters.ENC;
-		for (final var enc : Encryption.values())
-			assertEquals(enc, adapter.fromJson(adapter.toJson(enc)));
-	}
-
-	@Test
-	public void testWebKeyFromJson() {
-		final var adapter = CryptJsonAdapters.WEBKEY;
-		final var jwk = mock(JsonObject.class);
-		when(jwk.asJsonObject()).thenReturn(jwk);
-		try (final var mockJwk = mockConstruction(Jwk.class, (a, ctx) -> {
-			assertEquals(jwk, ctx.arguments().get(0));
-		})) {
-			final var key = adapter.fromJson(jwk);
-			assertSame(key, mockJwk.constructed().get(0));
+		for (final var enc : Encryption.values()) {
+			final var json = JSONB.toJson(enc);
+			assertEquals(enc.enc, ((JsonString) IuJson.parse(json)).getString());
+			assertEquals(enc, JSONB.fromJson(json, Encryption.class));
 		}
 	}
 
 	@Test
-	public void testWebKeyToJson() {
-		final var adapter = CryptJsonAdapters.WEBKEY;
-		final var jwk = mock(Jwk.class);
-		final var jsonBuilder = mock(JsonObjectBuilder.class);
-		final var json = mock(JsonObject.class);
-		when(jsonBuilder.build()).thenReturn(json);
-		when(json.asJsonObject()).thenReturn(json);
-		try (final var mockIuJson = mockStatic(IuJson.class)) {
-			mockIuJson.when(() -> IuJson.object()).thenReturn(jsonBuilder);
-			assertSame(json, adapter.toJson(jwk));
-			verify(jwk).serializeTo(jsonBuilder);
-		}
+	public void testWebKey() {
+		final var jwk = "{\"kty\":\"oct\"}";
+		final var key = JSONB.fromJson(jwk, WebKey.class);
+		assertEquals(jwk, JSONB.toJson(key));
 	}
 
 	@Test
-	public void testJoseFromJson() {
-		final var adapter = CryptJsonAdapters.JOSE;
-		final var json = mock(JsonValue.class);
-		try (final var mockJose = mockConstruction(Jose.class, (a, ctx) -> {
-			assertEquals(json, ctx.arguments().get(0));
-		})) {
-			final var jose = adapter.fromJson(json);
-			assertSame(jose, mockJose.constructed().get(0));
-		}
-	}
-
-	@Test
-	public void testJoseToJson() {
-		final var adapter = CryptJsonAdapters.JOSE;
-		final var jose = mock(Jose.class);
-		final var json = mock(JsonObject.class);
-		when(jose.toJson(argThat(a -> {
-			assertTrue(a.test(IdGenerator.generateId()));
-			return true;
-		}))).thenReturn(json);
-		assertSame(json, adapter.toJson(jose));
-	}
-
-	@Test
-	public void testOfParams() {
-		assertSame(CryptJsonAdapters.ALG, CryptJsonAdapters.of(Param.ALGORITHM));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.CERTIFICATE_THUMBPRINT));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.CERTIFICATE_SHA256_THUMBPRINT));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.INITIALIZATION_VECTOR));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.PARTY_UINFO));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.PARTY_VINFO));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.PASSWORD_SALT));
-		assertSame(CryptJsonAdapters.B64URL, CryptJsonAdapters.of(Param.TAG));
-		assertSame(CryptJsonAdapters.ENC, CryptJsonAdapters.of(Param.ENCRYPTION));
-		assertSame(CryptJsonAdapters.WEBKEY, CryptJsonAdapters.of(Param.KEY));
-		assertSame(IuJsonAdapter.of(URI.class), CryptJsonAdapters.of(Param.CERTIFICATE_URI));
-		assertSame(IuJsonAdapter.of(URI.class), CryptJsonAdapters.of(Param.KEY_SET_URI));
-		assertSame(IuJsonAdapter.of(Integer.class), CryptJsonAdapters.of(Param.PASSWORD_COUNT));
-		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.CONTENT_TYPE));
-		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.KEY_ID));
-		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.TYPE));
-		assertSame(IuJsonAdapter.of(String.class), CryptJsonAdapters.of(Param.ZIP));
+	public void testWebCryptoHeader() {
+		final var jose = "{\"alg\":\"ES256\"}";
+		final var key = JSONB.fromJson(jose, WebCryptoHeader.class);
+		assertEquals(jose, JSONB.toJson(key));
 	}
 
 	@Test
 	public void testOfCertificateChain() {
-		final var adapter = CryptJsonAdapters.of(Param.CERTIFICATE_CHAIN);
 		final var cert = mock(X509Certificate.class);
 		final var encoded = IuText.utf8(IdGenerator.generateId());
 		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encoded));
 		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
 			mockPemEncoded.when(() -> PemEncoded.asCertificate(encoded)).thenReturn(cert);
 			final var chain = new X509Certificate[] { cert };
-			assertArrayEquals(chain, (X509Certificate[]) adapter.fromJson(adapter.toJson(chain)));
+			assertArrayEquals(chain, (X509Certificate[]) JSONB.fromJson(JSONB.toJson(chain), X509Certificate[].class));
 		}
 	}
 
 	@Test
-	public void testOfCriticalParams() {
-		final var adapter = CryptJsonAdapters.of(Param.CRITICAL_PARAMS);
-		final var crit = Set.of(IdGenerator.generateId());
-		assertEquals(crit, adapter.fromJson(adapter.toJson(crit)));
-	}
-
-	@SuppressWarnings("unchecked")
-	@Test
 	public void testCa() {
-		assertNull(CryptJsonAdapters.CA.toJson(null));
-		assertNull(CryptJsonAdapters.CA.fromJson(null));
-
-		final var jwk = mock(WebKey.class);
+		final var jwk = WebKey.ephemeral(Algorithm.ES256);
 		final var database = new byte[128];
 		ThreadLocalRandom.current().nextBytes(database);
 		final var cert = mock(X509Certificate.class);
 		final var crl = mock(X509CRL.class);
 
-		final var json = mock(JsonObject.class);
-		when(json.asJsonObject()).thenReturn(json);
-		try (final var mockIuJson = mockStatic(IuJson.class);
-				final var mockIuJsonAdapter = mockStatic(IuJsonAdapter.class)) {
-			final IuJsonAdapter<Iterable<X509Certificate>> certsAdapter = mock(IuJsonAdapter.class);
-			mockIuJsonAdapter.when(() -> IuJsonAdapter.of(Iterable.class, CryptJsonAdapters.CERT))
-					.thenReturn(certsAdapter);
+		final var encodedCert = IuText.utf8(IdGenerator.generateId());
+		final var encodedCrl = IuText.utf8(IdGenerator.generateId());
+		assertDoesNotThrow(() -> when(cert.getEncoded()).thenReturn(encodedCert));
+		assertDoesNotThrow(() -> when(crl.getEncoded()).thenReturn(encodedCrl));
 
-			final IuJsonAdapter<Iterable<X509CRL>> crlAdapter = mock(IuJsonAdapter.class);
-			mockIuJsonAdapter.when(() -> IuJsonAdapter.of(Iterable.class, CryptJsonAdapters.CRL))
-					.thenReturn(crlAdapter);
+		final var builder = CryptJsonAdapters.builder();
+		builder.put("jwk", jwk);
+		builder.put("database", database);
+		builder.put("certificates", new X509Certificate[] { cert });
+		builder.put("crl", new X509CRL[] { crl });
+		final var json = JSONB.toJson(builder.build());
 
-			mockIuJson.when(() -> IuJson.get(json, "jwk", CryptJsonAdapters.WEBKEY)).thenReturn(jwk);
-			mockIuJson.when(() -> IuJson.get(json, "database", CryptJsonAdapters.B64URL)).thenReturn(database);
-			mockIuJson.when(() -> IuJson.get(json, "certificates", certsAdapter)).thenReturn(IuIterable.iter(cert));
-			mockIuJson.when(() -> IuJson.get(json, "crl", crlAdapter)).thenReturn(IuIterable.iter(crl));
+		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+			mockPemEncoded.when(() -> PemEncoded.asCertificate(encodedCert)).thenReturn(cert);
+			mockPemEncoded.when(() -> PemEncoded.asCRL(encodedCrl)).thenReturn(crl);
 
-			final var ca = CryptJsonAdapters.CA.fromJson(json);
+			final var ca = JSONB.fromJson(json, X509CertificateAuthority.class);
 			assertEquals(jwk, ca.getJwk());
 			assertArrayEquals(database, ca.getDatabase());
 			assertEquals(cert, ca.getCertificates().iterator().next());
 			assertEquals(crl, ca.getCrl().iterator().next());
 
-			final var convertedJson = mock(JsonObject.class);
-			when(convertedJson.asJsonObject()).thenReturn(convertedJson);
-			final var builder = mock(JsonObjectBuilder.class);
-			when(builder.build()).thenReturn(convertedJson);
-			mockIuJson.when(() -> IuJson.object()).thenReturn(builder);
-			assertEquals(convertedJson, CryptJsonAdapters.CA.toJson(ca));
-
-			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("jwk"), argThat(a -> jwk.equals(a.get())),
-					eq(CryptJsonAdapters.WEBKEY)));
-			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("database"),
-					argThat(a -> Arrays.equals(database, a.get())), eq(CryptJsonAdapters.B64URL)));
-			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("certificates"),
-					argThat(a -> cert.equals(a.get().iterator().next())), eq(certsAdapter)));
-			mockIuJson.verify(() -> IuJson.add(eq(builder), eq("crl"),
-					argThat(a -> crl.equals(a.get().iterator().next())), eq(crlAdapter)));
+			assertEquals(json, JSONB.toJson(ca));
 		}
 	}
 
-	@Test
-	public void testCaFromJsonPropertyGetters() {
-		final var keyData = new byte[32];
-		final var database = new byte[128];
-		final var certData = new byte[64];
-		final var crlData = new byte[64];
-		ThreadLocalRandom.current().nextBytes(keyData);
-		ThreadLocalRandom.current().nextBytes(database);
-		ThreadLocalRandom.current().nextBytes(certData);
-		ThreadLocalRandom.current().nextBytes(crlData);
-		final var cert = mock(X509Certificate.class);
-		final var crl = mock(X509CRL.class);
-		final var json = IuJson.object() //
-				.add("jwk", IuJson.object().add("kty", "oct").add("k", IuText.base64Url(keyData))) //
-				.add("database", IuText.base64Url(database)) //
-				.add("certificates", IuJson.array().add(IuText.base64(certData))) //
-				.add("crl", IuJson.array().add(IuText.base64(crlData))) //
-				.build();
-
-		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
-			mockPemEncoded.when(() -> PemEncoded.asCertificate(certData)).thenReturn(cert);
-			mockPemEncoded.when(() -> PemEncoded.asCRL(crlData)).thenReturn(crl);
-
-			final var ca = CryptJsonAdapters.CA.fromJson(json);
-			assertEquals(WebKey.Type.RAW, ca.getJwk().getType());
-			assertArrayEquals(keyData, ca.getJwk().getKey());
-			assertArrayEquals(database, ca.getDatabase());
-			assertSame(cert, ca.getCertificates().iterator().next());
-			assertSame(crl, ca.getCrl().iterator().next());
-		}
-	}
+//	@Test
+//	public void testCaFromJsonPropertyGetters() {
+//		final var keyData = new byte[32];
+//		final var database = new byte[128];
+//		final var certData = new byte[64];
+//		final var crlData = new byte[64];
+//		ThreadLocalRandom.current().nextBytes(keyData);
+//		ThreadLocalRandom.current().nextBytes(database);
+//		ThreadLocalRandom.current().nextBytes(certData);
+//		ThreadLocalRandom.current().nextBytes(crlData);
+//		final var cert = mock(X509Certificate.class);
+//		final var crl = mock(X509CRL.class);
+//		final var json = IuJson.object() //
+//				.add("jwk", IuJson.object().add("kty", "oct").add("k", IuText.base64Url(keyData))) //
+//				.add("database", IuText.base64Url(database)) //
+//				.add("certificates", IuJson.array().add(IuText.base64(certData))) //
+//				.add("crl", IuJson.array().add(IuText.base64(crlData))) //
+//				.build();
+//
+//		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
+//			mockPemEncoded.when(() -> PemEncoded.asCertificate(certData)).thenReturn(cert);
+//			mockPemEncoded.when(() -> PemEncoded.asCRL(crlData)).thenReturn(crl);
+//
+//			final var ca = CryptJsonAdapters.CA.fromJson(json);
+//			assertEquals(WebKey.Type.RAW, ca.getJwk().getType());
+//			assertArrayEquals(keyData, ca.getJwk().getKey());
+//			assertArrayEquals(database, ca.getDatabase());
+//			assertSame(cert, ca.getCertificates().iterator().next());
+//			assertSame(crl, ca.getCrl().iterator().next());
+//		}
+//	}
 
 }

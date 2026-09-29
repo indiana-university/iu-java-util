@@ -32,27 +32,21 @@
 package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.net.URI;
-import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTest;
 import iu.crypt.Jose.Extension;
-import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class JoseBuilderTest {
@@ -60,11 +54,6 @@ public class JoseBuilderTest {
 	private static class Builder extends JoseBuilder<Builder> {
 		private Builder(Algorithm algorithm) {
 			super(algorithm);
-		}
-
-		@Override
-		protected JsonObject toJson() {
-			return super.toJson();
 		}
 	}
 
@@ -74,19 +63,20 @@ public class JoseBuilderTest {
 
 	@Test
 	public void testEmpty() {
-		assertEquals(IuJson.object().add("alg", Algorithm.RSA_OAEP.alg).build(), jose().toJson());
+		final var values = jose().values();
+		assertEquals(Algorithm.RSA_OAEP, values.get("alg", Algorithm.class));
 	}
 
 	@Test
 	public void testWellKnown() {
 		final var uri = mock(URI.class);
-		assertEquals(uri.toString(), jose().wellKnown(uri).toJson().getString("jku"));
+		assertEquals(uri, jose().wellKnown(uri).values().get("jku", URI.class));
 	}
 
 	@Test
 	public void testKey() {
 		final var key = WebKey.ephemeral(Algorithm.RSA_OAEP);
-		assertEquals(key.wellKnown().toString(), jose().wellKnown(key).toJson().getJsonObject("jwk").toString());
+		assertEquals(key.wellKnown().toString(), jose().wellKnown(key).values().get("jwk", WebKey.class).toString());
 	}
 
 	@Test
@@ -94,54 +84,36 @@ public class JoseBuilderTest {
 		final var key = WebKey.ephemeral(Algorithm.RSA_OAEP);
 		final var builder = jose().key(key);
 		assertSame(key, builder.key());
-		assertFalse(jose().toJson().containsKey("jwk"));
-		assertSame(key, jose().copy(builder).key());
+		assertNull(builder.values().get("jwk", WebKey.class));
+		assertSame(key, new JoseBuilder<>(builder).key());
 	}
 
 	@Test
 	public void testType() {
 		final var type = IdGenerator.generateId();
-		assertEquals(type, jose().type(type).toJson().getString("typ"));
+		assertEquals(type, jose().type(type).values().get("typ", String.class));
 	}
 
 	@Test
 	public void testContentType() {
 		final var contentType = IdGenerator.generateId();
-		assertEquals(contentType, jose().contentType(contentType).toJson().getString("cty"));
+		assertEquals(contentType, jose().contentType(contentType).values().get("cty", String.class));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testCrit() {
-		final var crit = Set.of(IuTest.rand(Param.class).name);
-		assertEquals(IuJson.array().add(crit.iterator().next()).build(),
-				jose().crit(crit.toArray(String[]::new)).toJson().getJsonArray("crit"));
+		final var crit = IuTest.rand(Param.class).name;
+		assertEquals(crit, jose().crit(crit).values().get("crit", String[].class)[0]);
 		final var id = IdGenerator.generateId();
 
-		assertThrows(NullPointerException.class, () -> jose().crit(id).toJson().getJsonArray("crit"));
+		assertEquals("must understand extension " + id,
+				assertThrows(NullPointerException.class, () -> jose().crit(id).values().get("crit", String[].class))
+						.getMessage());
 
 		final var ext = mock(Extension.class);
 		Jose.register(id, ext);
-		assertEquals(IuJson.array().add(id).build(), jose().crit(id).toJson().getJsonArray("crit"));
-	}
-
-	@SuppressWarnings("unchecked")
-	@Test
-	public void testParams() {
-		final var id = IdGenerator.generateId();
-		assertThrows(NullPointerException.class, () -> jose().param(id, ""));
-
-		final var ext = mock(Extension.class);
-		final var val = IdGenerator.generateId();
-		when(ext.toJson(val)).thenReturn(IuJson.string(val));
-		Jose.register(id, ext);
-
-		final var jose = jose();
-		assertEquals(val, jose.param(id, val).toJson().getString(id));
-		verify(ext).validate(val, jose);
-
-		assertThrows(UnsupportedOperationException.class,
-				() -> jose().param("foo", "bar", IuJsonAdapter.of(String.class)));
+		assertEquals(id, jose().crit(id).values().get("crit", String[].class)[0]);
 	}
 
 }

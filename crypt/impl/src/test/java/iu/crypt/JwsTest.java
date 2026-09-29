@@ -37,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -72,7 +71,6 @@ import edu.iu.crypt.WebSignedPayload;
 import edu.iu.crypt.X500Utils;
 import edu.iu.test.IuTestLogger;
 import iu.crypt.Jose.Extension;
-import jakarta.json.JsonString;
 
 @SuppressWarnings("javadoc")
 public class JwsTest {
@@ -101,7 +99,7 @@ public class JwsTest {
 
 	@Test
 	public void testMultipleSignatures() {
-		assertNull(JwsBuilder.JSON.fromJson(JwsBuilder.JSON.toJson(null)));
+		assertNull(CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(null), WebSignedPayload.class));
 
 		final Queue<Jwk> keys = new ArrayDeque<>();
 		final var key = (Jwk) WebKey.ephemeral(Algorithm.ES256);
@@ -117,7 +115,8 @@ public class JwsTest {
 
 		final var id = IdGenerator.generateId();
 		final var jws = jwsBuilder.sign(id);
-		final var serialJws = JwsBuilder.JSON.fromJson(JwsBuilder.JSON.toJson(jws));
+		final var serialJws = CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(jws),
+				WebSignedPayload.class);
 		assertDoesNotThrow(() -> serialJws.verify(key));
 		assertDoesNotThrow(() -> serialJws.verify(key2));
 	}
@@ -135,8 +134,7 @@ public class JwsTest {
 	public void testAllTheSignatures() {
 		final var extName = IdGenerator.generateId();
 		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
-		when(ext.toJson(any())).thenAnswer(a -> IuJson.string((String) a.getArgument(0)));
-		when(ext.fromJson(any())).thenAnswer(a -> ((JsonString) a.getArgument(0)).getString());
+		when(ext.type()).thenReturn(String.class);
 		Jose.register(extName, ext);
 
 		final Queue<Jwk> keys = new ArrayDeque<>();
@@ -159,11 +157,12 @@ public class JwsTest {
 
 			final var id = IdGenerator.generateId();
 			final var compactJws = WebSignature.builder(algorithm).key(key).compact().sign(id);
-			final var fromCompact = JwsBuilder.JSON.fromJson(JwsBuilder.JSON.toJson(compactJws));
+			final var fromCompact = CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(compactJws),
+					WebSignedPayload.class);
 			assertEquals(id, IuText.utf8(fromCompact.getPayload()));
 			fromCompact.verify(key);
 
-			final var fromSerial = JwsBuilder.JSON.fromJson(IuJson.string(compactJws.toString()));
+			final var fromSerial = CryptJsonAdapters.JSONB.fromJson(compactJws.toString(), WebSignedPayload.class);
 			assertEquals(id, IuText.utf8(fromSerial.getPayload()));
 			fromSerial.verify(key);
 		} while (algorithmIterator.hasNext());
@@ -180,14 +179,15 @@ public class JwsTest {
 
 	@Test
 	public void testHeaderVerification() {
-		final var p = IuJson.object().add("alg", "HS256").build();
-		final var jose = new Jose(IuJson.object().add("alg", "HS384").build());
+		final var p = CryptJsonAdapters.builder().put("alg", "HS256").build();
+		final var jose = new Jose(CryptJsonAdapters.builder().put("alg", "HS384").build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p, jose, null));
 
 		final var extName = IdGenerator.generateId();
 		Jose.register(extName, new StringExtension());
-		final var p2 = IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build();
-		final var jose2 = new Jose(IuJson.object().add("alg", "HS256").add(extName, IdGenerator.generateId()).build());
+		final var p2 = CryptJsonAdapters.builder().put("alg", "HS256").put(extName, IdGenerator.generateId()).build();
+		final var jose2 = new Jose(
+				CryptJsonAdapters.builder().put("alg", "HS256").put(extName, IdGenerator.generateId()).build());
 		assertThrows(IllegalArgumentException.class, () -> new Jws(p2, jose2, null));
 		assertDoesNotThrow(() -> new Jws(p2, new Jose(p2), null));
 	}
@@ -216,7 +216,7 @@ public class JwsTest {
 	public void testProtected() {
 		final var key = WebKey.ephemeral(Algorithm.HS256);
 		final var jws = WebSignature.builder(Algorithm.HS256).key(key).protect(Param.ALGORITHM).sign("foo");
-		assertNotNull(IuJson.parse(jws.toString()).asJsonObject().get("protected"));
+		assertNotNull(IuJson.parse(jws.toString()).asJsonObject().getJsonObject("signatures").get("protected"));
 		assertDoesNotThrow(() -> WebSignedPayload.parse(jws.compact()));
 	}
 
