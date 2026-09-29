@@ -68,10 +68,14 @@ public class VaultSecretTest {
 		assertEquals("VaultSecret [" + uri + "]", secret.toString());
 		try (final var mockJsonProxy = mockStatic(JsonProxy.class)) {
 			secret.getMetadata();
-			// Vault's metadata keys are snake case
-			mockJsonProxy.verify(() -> JsonProxy.wrap(metadata, IuVaultMetadata.class,
-					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, valueAdapter));
+			// Vault's metadata keys are snake case, and convert by Vault's own format,
+			// not the values'
+			mockJsonProxy.verify(() -> JsonProxy.wrap(org.mockito.ArgumentMatchers.eq(metadata),
+					org.mockito.ArgumentMatchers.eq(IuVaultMetadata.class),
+					org.mockito.ArgumentMatchers.eq(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+					org.mockito.ArgumentMatchers.any()));
 		}
+		org.mockito.Mockito.verifyNoInteractions(valueAdapter);
 	}
 
 	@SuppressWarnings("unchecked")

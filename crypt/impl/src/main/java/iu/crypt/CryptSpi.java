@@ -39,9 +39,11 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.PemEncoded;
@@ -81,9 +83,16 @@ public class CryptSpi implements IuCryptSpi {
 
 	@Override
 	public WebCryptoHeader getProtectedHeader(String serialized) {
-		if (serialized.charAt(0) == '{')
-			return CryptJsonAdapters.JSONB.fromJson(serialized, IuJsonProperties.class).get("protected", WebCryptoHeader.class);
-		else
+		if (serialized.charAt(0) == '{') {
+			// JWE and flattened JWS at the top level; general JWS by first signature
+			final var json = CryptJsonAdapters.JSONB.fromJson(serialized, IuJsonProperties.class);
+			var encodedProtectedHeader = json.get("protected", String.class);
+			if (encodedProtectedHeader == null)
+				encodedProtectedHeader = IuObject.convert(json.get("signatures", IuJsonProperties[].class),
+						signatures -> signatures[0].get("protected", String.class));
+			return new Jose(Objects.requireNonNull(CompactEncoded.decodeHeader(encodedProtectedHeader),
+					"protected header required"));
+		} else
 			return new Jose(CompactEncoded.getProtectedHeader(serialized));
 	}
 

@@ -335,7 +335,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 	}
 
 	private Algorithm alg() {
-		return param("alg");
+		return Objects.requireNonNull(param("alg"), "algorithm is required");
 	}
 
 	private void pem(Iterator<PemEncoded> pem) {

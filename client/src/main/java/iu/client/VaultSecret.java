@@ -92,8 +92,9 @@ final class VaultSecret implements IuVaultSecret {
 
 	@Override
 	public IuVaultMetadata getMetadata() {
+		// Vault's own format, whatever the values convert by
 		return IuObject.convert(metadataSupplier.get(), a -> IuJson.wrap(a, IuVaultMetadata.class,
-				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, valueAdapter));
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuJsonAdapter::of));
 	}
 
 	@SuppressWarnings("unchecked")

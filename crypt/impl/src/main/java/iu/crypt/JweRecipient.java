@@ -81,7 +81,8 @@ public class JweRecipient implements WebEncryptionRecipient {
 	 * 
 	 * @param protectedHeader protected header parameters
 	 * @param sharedHeader    shared header parameters
-	 * @param recipient       recipient parameters
+	 * @param header          per-recipient header parameters
+	 * @param encryptedKey    encrypted key
 	 */
 	JweRecipient(IuJsonProperties protectedHeader, IuJsonProperties sharedHeader, IuJsonProperties header,
 			byte[] encryptedKey) {

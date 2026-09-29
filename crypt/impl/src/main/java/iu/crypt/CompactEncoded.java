@@ -90,10 +90,40 @@ public final class CompactEncoded {
 		final var dot = Objects.requireNonNull(compactSerialized, "Missing token").indexOf('.');
 		if (dot == -1)
 			throw new IllegalArgumentException("Invalid compact serialized data");
-		
-		final var decoded = IuText.utf8(IuText.base64(compactSerialized.substring(0, dot)));
 
-		return CryptJsonAdapters.JSONB.fromJson(decoded, IuJsonProperties.class);
+		return decodeHeader(compactSerialized.substring(0, dot));
+	}
+
+	/**
+	 * Decodes a protected header from its serialized form.
+	 *
+	 * @param encoded base64url encoded UTF-8 JSON object text
+	 * @return protected header; null if encoded is null
+	 */
+	static IuJsonProperties decodeHeader(String encoded) {
+		if (encoded == null)
+			return null;
+		else
+			return CryptJsonAdapters.JSONB.fromJson(IuText.utf8(IuText.base64Url(encoded)), IuJsonProperties.class);
+	}
+
+	/**
+	 * Encodes a protected header in its serialized form.
+	 *
+	 * <p>
+	 * The encoded form is the one integrity protection covers: a message computes
+	 * its signature input or additional authenticated data from it, never from a
+	 * re-serialization of the parsed header.
+	 * </p>
+	 *
+	 * @param header protected header
+	 * @return base64url encoded UTF-8 JSON object text; null if header is null
+	 */
+	static String encodeHeader(IuJsonProperties header) {
+		if (header == null)
+			return null;
+		else
+			return IuText.base64Url(IuText.utf8(CryptJsonAdapters.JSONB.toJson(header)));
 	}
 
 }

@@ -107,7 +107,9 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		if (cached.lastUpdate == null //
 				|| Duration.between(cached.lastUpdate, Instant.now()).toSeconds() > 900L)
 			try {
-				cached.jwks = CryptJsonAdapters.JSONB.fromJson((InputStream) IuHttp.get(uri).body(), Jwks.class);
+				try (final var in = (InputStream) IuHttp.get(uri).body()) {
+					cached.jwks = CryptJsonAdapters.JSONB.fromJson(in, Jwks.class);
+				}
 				cached.lastUpdate = Instant.now();
 			} catch (Throwable e) {
 				if (cached.jwks == null)
@@ -147,7 +149,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 	 * @param out     {@link OutputStream}
 	 */
 	public static void writeJwks(Iterable<? extends WebKey> webKeys, OutputStream out) {
-		CryptJsonAdapters.JSONB.toJson((Jwks) () -> webKeys, out);
+		CryptJsonAdapters.JSONB.toJson((Jwks) () -> webKeys, Jwks.class, out);
 	}
 
 	private static KeyPair readRSA(Type type, IuJsonProperties parsedJwk) {
@@ -405,6 +407,7 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		builder.put("kty", type.kty);
 		builder.put("crv", type.crv);
 		builder.put("use", use);
+		builder.put("key_ops", IuObject.convert(ops, a -> a.toArray(Operation[]::new)));
 
 		super.append(builder);
 

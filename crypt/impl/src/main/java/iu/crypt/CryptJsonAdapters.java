@@ -70,7 +70,7 @@ import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
 
 /**
- * Configures {@link Jsonb} for web crypto serialization..
+ * Configures {@link Jsonb} for web crypto serialization.
  */
 public class CryptJsonAdapters {
 
@@ -310,9 +310,14 @@ public class CryptJsonAdapters {
 
 
 	/**
-	 * {@link Jsonb} instance for internal use by this module
+	 * {@link Jsonb} instance for internal use by this module.
+	 *
+	 * <p>
+	 * The IU provider is named rather than discovered: the conversions here read
+	 * JSON through {@link IuJsonProperties}, which only it provides.
+	 * </p>
 	 */
-	static final Jsonb JSONB = JsonbBuilder.create(config());
+	static final Jsonb JSONB = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(config()).build();
 
 	/**
 	 * Gets a {@link IuJsonProperties.Builder} instance configured with

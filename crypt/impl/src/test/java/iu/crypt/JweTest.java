@@ -53,6 +53,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
+import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -302,11 +303,93 @@ public class JweTest {
 	}
 
 	@Test
+	public void testRFC7516_A_3_Serialized() {
+		final var key = WebKey.parse("{\"kty\":\"oct\",\"k\":\"GawgguFyGrWKav7AX4VKUg\"}");
+		final var compact = "eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0." //
+				+ "6KB707dM9YTIgHtLvtgWQ8mKwboJW3of9locizkDTHzBC2IlrT1oOQ." //
+				+ "AxY8DCtDaGlsbGljb3RoZQ." //
+				+ "KDlTtXchhZTGufMYmOYGS4HffxPSUrfmqCHXaI9wOGY." //
+				+ "U0m_YmjN04DJvceFICbCVQ";
+
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		final var fromCompact = WebEncryption.parse(compact);
+		assertEquals("Live long and prosper.", fromCompact.decryptText(key));
+		assertEquals(compact, fromCompact.compact());
+
+		// RFC-7516 7.2.2 flattened: "protected" is the encoded header, as received
+		final var flattened = IuJson.object() //
+				.add("protected", "eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0") //
+				.add("encrypted_key", "6KB707dM9YTIgHtLvtgWQ8mKwboJW3of9locizkDTHzBC2IlrT1oOQ") //
+				.add("iv", "AxY8DCtDaGlsbGljb3RoZQ") //
+				.add("ciphertext", "KDlTtXchhZTGufMYmOYGS4HffxPSUrfmqCHXaI9wOGY") //
+				.add("tag", "U0m_YmjN04DJvceFICbCVQ") //
+				.build();
+		assertEquals(flattened, IuJson.parse(fromCompact.toString()));
+
+		final var fromJson = WebEncryption.parse(flattened.toString());
+		assertEquals("Live long and prosper.", fromJson.decryptText(key));
+		assertEquals(Algorithm.A128KW, WebCryptoHeader.getProtectedHeader(flattened.toString()).getAlgorithm());
+	}
+
+	@Test
+	public void testCompactHeaderIsBase64Url() {
+		// in ASCII JSON text, only a third byte of '>', '?', or '~' encodes as '-'
+		// or '_'; three in a row guarantee one
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		final var compact = WebEncryption.builder(Encryption.A128GCM).compact().addRecipient(Algorithm.DIRECT)
+				.keyId("???").key(key).encrypt("foo").compact();
+		assertTrue(compact.substring(0, compact.indexOf('.')).matches(".*[-_].*"), compact);
+
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+		assertEquals("foo", WebEncryption.parse(compact).decryptText(key));
+		assertEquals(Algorithm.DIRECT, WebCryptoHeader.getProtectedHeader(compact).getAlgorithm());
+	}
+
+	@Test
+	public void testProtectedParameterRequired() {
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		assertEquals("Protected parameters [kid] are required [alg, enc, zip]",
+				assertThrows(IllegalArgumentException.class,
+						() -> WebEncryption.builder(Encryption.A128GCM).compact().protect(Param.KEY_ID)
+								.addRecipient(Algorithm.DIRECT).key(key).encrypt("foo"))
+						.getMessage());
+		// each recipient has one, but they differ, so it isn't shared
+		assertEquals("header missing protected parameter kid",
+				assertThrows(IllegalArgumentException.class,
+						() -> WebEncryption.builder(Encryption.A128GCM).protect(Param.KEY_ID)
+								.addRecipient(Algorithm.DIRECT).keyId("a").key(key).then()
+								.addRecipient(Algorithm.DIRECT).keyId("b").key(key).encrypt("foo"))
+						.getMessage());
+	}
+
+	@Test
+	public void testSerializedRecipients() {
+		final var key = WebKey.ephemeral(Encryption.A128GCM);
+		final var serialized = IuJson.parse(WebEncryption.builder(Encryption.A128GCM).addRecipient(Algorithm.DIRECT)
+				.key(key).then().addRecipient(Algorithm.DIRECT).key(key).encrypt("foo").toString()).asJsonObject();
+
+		assertThrows(JsonbException.class, () -> Jwe
+				.parse(IuJson.object(serialized).add("recipients", IuJson.array()).build().toString()));
+		assertThrows(JsonbException.class, () -> Jwe.parse(IuJson.object(serialized)
+				.add("recipients", IuJson.array().add(IuJson.object().add("foo", "bar"))).build().toString()));
+		assertThrows(JsonbException.class,
+				() -> Jwe.parse(IuJson.object(serialized).addNull("recipients").build().toString()));
+
+		final var flattened = IuJson.object(serialized);
+		flattened.remove("recipients");
+		assertThrows(JsonbException.class, () -> Jwe.parse(flattened.add("foo", "bar").build().toString()));
+		assertThrows(JsonbException.class, () -> CryptJsonAdapters.JSONB.fromJson("[]", WebEncryption.class));
+		assertNull(CryptJsonAdapters.JSONB.fromJson("null", WebEncryption.class));
+	}
+
+	@Test
 	public void testFlattenedAndNotFlattened() {
-		assertThrows(JsonbException.class, () -> Jwe.parse(IuJson.object()
-				.add("protected", IuJson.object().add("alg", Algorithm.DIRECT.alg).add("enc", Encryption.A256GCM.enc))
-				.add("recipients", IuJson.array().add(IuJson.object())).add("header", IuJson.object()).build()
-				.toString()));
+		final var protectedHeader = IuText.base64Url(IuText.utf8(IuJson.object().add("alg", Algorithm.DIRECT.alg)
+				.add("enc", Encryption.A256GCM.enc).build().toString()));
+		assertThrows(JsonbException.class,
+				() -> Jwe.parse(IuJson.object().add("protected", protectedHeader)
+						.add("recipients", IuJson.array().add(IuJson.object())).add("header", IuJson.object())
+						.build().toString()));
 	}
 
 	@Test
@@ -382,7 +465,7 @@ public class JweTest {
 
 		final var iv = Arrays.copyOf(CryptJsonAdapters.JSONB.fromJson(serialized.get("iv").toString(), byte[].class),
 				12);
-		final var cipherText = CryptJsonAdapters.JSONB.fromJson(serialized.get("cipher_text").toString(), byte[].class);
+		final var cipherText = CryptJsonAdapters.JSONB.fromJson(serialized.get("ciphertext").toString(), byte[].class);
 		final var macInput = ByteBuffer.wrap(new byte[iv.length + cipherText.length + 8]);
 		macInput.put(iv);
 		macInput.put(cipherText);

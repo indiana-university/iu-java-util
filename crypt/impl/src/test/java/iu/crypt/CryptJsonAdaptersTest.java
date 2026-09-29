@@ -35,6 +35,9 @@ import static iu.crypt.CryptJsonAdapters.JSONB;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -50,6 +53,7 @@ import edu.iu.IdGenerator;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
+import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -58,6 +62,8 @@ import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.X509CertificateAuthority;
 import jakarta.json.JsonString;
+import jakarta.json.bind.JsonbConfig;
+import jakarta.json.bind.config.PropertyVisibilityStrategy;
 
 @SuppressWarnings("javadoc")
 public class CryptJsonAdaptersTest {
@@ -223,5 +229,38 @@ public class CryptJsonAdaptersTest {
 //			assertSame(crl, ca.getCrl().iterator().next());
 //		}
 //	}
+
+	@Test
+	public void testVisibility() throws Exception {
+		final var visibility = (PropertyVisibilityStrategy) CryptJsonAdapters.config()
+				.getProperty(JsonbConfig.PROPERTY_VISIBILITY_STRATEGY).get();
+
+		class Bean {
+			@SuppressWarnings("unused")
+			public String field;
+
+			@SuppressWarnings("unused")
+			public void setField(String field) {
+			}
+
+			@SuppressWarnings("unused")
+			String hidden() {
+				return null;
+			}
+		}
+
+		assertFalse(visibility.isVisible(Bean.class.getField("field")));
+		assertFalse(visibility.isVisible(Bean.class.getMethod("setField", String.class)));
+		assertFalse(visibility.isVisible(Bean.class.getDeclaredMethod("hidden")));
+		assertTrue(visibility.isVisible(Object.class.getMethod("toString")));
+	}
+
+	@Test
+	public void testCertificateReference() {
+		final var ref = JSONB.fromJson("{}", WebCertificateReference.class);
+		assertNull(ref.getCertificateUri());
+		assertNull(ref.getCertificateChain());
+		assertEquals("{}", JSONB.toJson(ref));
+	}
 
 }

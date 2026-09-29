@@ -179,7 +179,7 @@ public final class IuJsonProperties {
 		 */
 		public Object get(String name) {
 			if (values.containsKey(name))
-				return values.get(name);
+				return unbox(values.get(name));
 			else
 				return raw.get(name);
 		}
@@ -287,7 +287,37 @@ public final class IuJsonProperties {
 	 * @see IuJsonProperties
 	 */
 	public static IuJsonProperties of(JsonObject object) {
-		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null);
+		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null, DEFAULTS);
+	}
+
+	/**
+	 * Indexes a JSON object, converting as the JSON-B call in progress converts,
+	 * and otherwise as a JSON-B instance does.
+	 *
+	 * @param object JSON object, referenced rather than copied
+	 * @param jsonb  JSON-B instance to convert as when no call is in progress
+	 * @return {@link IuJsonProperties}
+	 * @see #builder(Jsonb)
+	 */
+	@SuppressWarnings("exports")
+	public static IuJsonProperties of(JsonObject object, Jsonb jsonb) {
+		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null,
+				iu.client.jsonb.IuJsonb.adapters(jsonb));
+	}
+
+	/**
+	 * Indexes an object as a parser reads it, converting as the JSON-B call in
+	 * progress converts, and otherwise as a JSON-B instance does.
+	 *
+	 * @param parser parser, at the object's {@code START_OBJECT}
+	 * @param jsonb  JSON-B instance to convert as when no call is in progress
+	 * @return {@link IuJsonProperties}
+	 * @throws IllegalArgumentException if the parser isn't at an object
+	 * @see #builder(Jsonb)
+	 */
+	@SuppressWarnings("exports")
+	public static IuJsonProperties read(JsonParser parser, Jsonb jsonb) {
+		return index(parser, null, iu.client.jsonb.IuJsonb.adapters(jsonb));
 	}
 
 	/**
@@ -299,7 +329,7 @@ public final class IuJsonProperties {
 	 */
 	public static IuJsonProperties of(JsonObject object, Function<Type, IuJsonAdapter<?>> adapt) {
 		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null,
-				Objects.requireNonNull(adapt, "adapt"));
+				Objects.requireNonNull(adapt, "adapt"), DEFAULTS);
 	}
 
 	/**
@@ -312,7 +342,7 @@ public final class IuJsonProperties {
 	 * @see #read(JsonParser, Function)
 	 */
 	public static IuJsonProperties read(JsonParser parser) {
-		return index(parser, null);
+		return index(parser, null, DEFAULTS);
 	}
 
 	/**
@@ -332,10 +362,11 @@ public final class IuJsonProperties {
 	 * @throws IllegalArgumentException if the parser isn't at an object
 	 */
 	public static IuJsonProperties read(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
-		return index(parser, Objects.requireNonNull(adapt, "adapt"));
+		return index(parser, Objects.requireNonNull(adapt, "adapt"), DEFAULTS);
 	}
 
-	private static IuJsonProperties index(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
+	private static IuJsonProperties index(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt,
+			Function<Type, IuJsonAdapter<?>> fallback) {
 		final var event = parser.currentEvent();
 		if (event != Event.START_OBJECT)
 			throw JsonAdapters.expected("an object", event);
@@ -343,13 +374,13 @@ public final class IuJsonProperties {
 		if (parser instanceof ScopedParser) {
 			final var scoped = (ScopedParser) parser;
 			if (scoped.isTree())
-				return new IuJsonProperties(parser.getObject(), null, adapt);
+				return new IuJsonProperties(parser.getObject(), null, adapt, fallback);
 
-			final var properties = new IuJsonProperties(null, parser, adapt);
+			final var properties = new IuJsonProperties(null, parser, adapt, fallback);
 			scoped.beforeRelease(properties::detach);
 			return properties;
 		} else
-			return new IuJsonProperties(null, parser, adapt);
+			return new IuJsonProperties(null, parser, adapt, fallback);
 	}
 
 	/**
@@ -428,12 +459,14 @@ public final class IuJsonProperties {
 	 *
 	 * @param source object indexed; null if reading from a parser
 	 * @param parser parser reading the object; null if indexing an object
-	 * @param adapt  conversions; null for the call's in progress
+	 * @param adapt    conversions; null for the call's in progress
+	 * @param fallback conversions when unbound and no call applies
 	 */
-	private IuJsonProperties(JsonObject source, JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
+	private IuJsonProperties(JsonObject source, JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt,
+			Function<Type, IuJsonAdapter<?>> fallback) {
 		this.adapt = adapt;
 		captured = adapt == null ? ConversionScope.current() : null;
-		fallback = DEFAULTS;
+		this.fallback = fallback;
 		this.source = source;
 		this.parser = parser;
 		this.names = source == null ? new LinkedHashSet<>() : null;

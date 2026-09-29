@@ -228,6 +228,7 @@ public class IuJsonPropertiesTest {
 				.build();
 
 		assertEquals(List.of("count", "level", "named", "none", "when", "raw"), new ArrayList<>(properties.names()));
+		assertEquals(Set.of("count", "level", "named", "when", "raw"), properties.nonNullNames());
 		// the enum constant by name(), though its toString() is low; the null
 		// property omitted, with no call in progress that writes null properties
 		final var json = "{\"count\":3,\"level\":\"LOW\",\"named\":{\"name\":\"n\"},\"when\":2,"

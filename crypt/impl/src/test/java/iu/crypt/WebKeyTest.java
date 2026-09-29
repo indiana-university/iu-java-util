@@ -70,6 +70,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -757,7 +758,7 @@ public class WebKeyTest extends CryptImplTestCase {
 				+ "IHsrdZ_CCAiTc0HVkMbyq1M6qEhM-q5P6y1QCIrwg.0HFmhOzsQ98nNWJjIHkR7A");
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE,
-				"CEK decryption successful for {\"alg\":\"PBES2-HS256+A128KW\",\"kty\":\"oct\"}");
+				"CEK decryption successful for " + Pattern.quote("{\"kty\":\"oct\",\"alg\":\"PBES2-HS256+A128KW\"}"));
 		assertEquals(jwk, WebKey.parse(jwe.decryptText(
 				WebKey.builder(Type.RAW).algorithm(Algorithm.PBES2_HS256_A128KW).key(IuText.utf8(pass)).build())));
 	}

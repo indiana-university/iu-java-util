@@ -80,15 +80,15 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			return (JwsSignedPayload) CryptJsonAdapters.JSONB.fromJson(jws, WebSignedPayload.class);
 		else {
 			final var compact = CompactEncoded.compact(jws);
-			final var protectedHeader = CryptJsonAdapters.JSONB.fromJson(IuText.utf8(IuText.base64(compact.next())),
-					IuJsonProperties.class);
+			final var encodedProtectedHeader = Objects.requireNonNull(compact.next(), "protected header required");
+			final var protectedHeader = CompactEncoded.decodeHeader(encodedProtectedHeader);
 			final var payload = IuText.base64Url(compact.next());
 			final var signature = IuText.base64Url(compact.next());
 			if (compact.hasNext())
 				throw new IllegalArgumentException("Unexpected content after JWS signature");
 
 			return new JwsSignedPayload(payload,
-					IuIterable.iter(new Jws(protectedHeader, new Jose(protectedHeader), signature)));
+					IuIterable.iter(new Jws(encodedProtectedHeader, new Jose(protectedHeader), signature)));
 		}
 	}
 
@@ -250,7 +250,7 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 
 	@Override
 	public <T> JwsBuilder param(String name, T value) {
-		pendingSignatures.peekLast().withParam(name, value);
+		pendingSignatures.peekLast().param(name, value);
 		return this;
 	}
 
@@ -264,11 +264,10 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			final var header = pendingSignature.header();
 			final var algorithm = header.getAlgorithm();
 
-			final var protectedHeader = pendingSignature.protectedHeader();
-			final var encodedHeader = IuText
-					.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString()));
+			// signs the encoded header the signature is serialized with
+			final var encodedHeader = CompactEncoded.encodeHeader(pendingSignature.protectedHeader());
 			final var encodedPayload = IuText.base64Url(payload);
-			final var signingInput = encodedHeader + '.' + encodedPayload;
+			final var signingInput = Objects.requireNonNullElse(encodedHeader, "") + '.' + encodedPayload;
 			final var dataToSign = IuText.utf8(signingInput);
 
 			final byte[] signature;
@@ -303,7 +302,7 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 					return Jws.fromJce(key.getType(), algorithm, sig.sign());
 				});
 
-			signatures.add(new Jws(protectedHeader, header, signature));
+			signatures.add(new Jws(encodedHeader, header, signature));
 		}
 
 		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));

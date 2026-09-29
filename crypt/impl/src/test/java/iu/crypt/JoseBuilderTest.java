@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.net.URI;
 
@@ -112,6 +113,7 @@ public class JoseBuilderTest {
 						.getMessage());
 
 		final var ext = mock(Extension.class);
+		when(ext.type()).thenReturn(String.class);
 		Jose.register(id, ext);
 		assertEquals(id, jose().crit(id).values().get("crit", String[].class)[0]);
 	}

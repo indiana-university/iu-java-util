@@ -94,7 +94,7 @@ Built-in conversions are strict: a number doesn't read from a string, text doesn
 
 An `IuJsonProperties` indexes the properties of one JSON object and converts each only when it is read. It resolves a property from values already read, then raw JSON captured from an object or parser, then a parser still inside the object: a read pulls forward, converting the property asked for straight from the parser, and captures the properties it passes over raw.
 
-- `IuJsonProperties.of(object)`, `read(parser)`, `builder()`, and `builder(jsonb)` create an index; `with(name, value)` and `Builder.copy()` copy one, keeping how it converts.
+- `IuJsonProperties.of(object)`, `read(parser)`, and `builder()` create an index; `of(object, jsonb)`, `read(parser, jsonb)`, and `builder(jsonb)` create one that converts as a JSON-B instance does when no call is in progress; `with(name, value)` and `Builder.copy()` copy one, keeping how it converts.
 - `get(name, type)` converts a property. One not in the object converts nothing: it is null, a primitive's default, or an empty optional.
 - `requireOnly(names)` rejects a property not expected; otherwise unknown properties are kept and written back unchanged.
 - `toJsonObject()` and `write(generator)` write the object; `write(generator, context)` writes it from a JSON-B serializer, through the call's context, under any provider. A property set to a Java null is written only where the call in progress writes null properties; JSON null, as read or set by `putJson`, is written back as-is.
@@ -216,6 +216,8 @@ The IU conversions adopt JSON-B's defaults in 7.1. Each change can be restored p
 
 Not restorable: built-in conversions are strict; a `Date` writes with a `Z` offset rather than a `[UTC]` zone, and a date read without an offset is in UTC; a value declared `Object` converts by its runtime type.
 
+Removed in 7.1: `IuVault.of(Properties, Function<Type, IuJsonAdapter<?>>)`; use `IuVault.of(Properties, Jsonb)`.
+
 Deviations from standard behavior
 =================================
 
@@ -245,7 +247,7 @@ HTTP
 Vault
 =====
 
-`IuVault` reads a HashiCorp Vault K/V version 2 secrets engine. `IuVault.RUNTIME` is configured from the runtime environment; `IuVault.of(properties, valueAdapter)` from properties of the caller's.
+`IuVault` reads a HashiCorp Vault K/V version 2 secrets engine. `IuVault.RUNTIME` is configured from the runtime environment, converting values by the IU defaults; `IuVault.of(properties, jsonb)` from properties of the caller's, converting values as a JSON-B instance does. Secret metadata converts by Vault's own format either way.
 
 | Property | Purpose |
 |---|---|

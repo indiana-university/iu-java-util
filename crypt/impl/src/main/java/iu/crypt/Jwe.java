@@ -37,12 +37,10 @@ import java.io.OutputStream;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -70,6 +68,8 @@ import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.serializer.DeserializationContext;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 import jakarta.json.bind.serializer.SerializationContext;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
@@ -84,6 +84,14 @@ public class Jwe implements WebEncryption {
 	}
 
 	private static final Logger LOG = Logger.getLogger(Jwe.class.getName());
+
+	private static final Set<String> GENERAL = Set.of("protected", "unprotected", "recipients", "iv", "ciphertext",
+			"tag", "aad");
+
+	private static final Set<String> FLATTENED = Set.of("protected", "unprotected", "header", "encrypted_key", "iv",
+			"ciphertext", "tag", "aad");
+
+	private static final Set<String> RECIPIENT = Set.of("header", "encrypted_key");
 
 //	/** {@link IuJsonAdapter} */
 //	public static final IuJsonAdapter<WebEncryption> JSON = IuJsonAdapter.from(v -> {
@@ -204,11 +212,16 @@ public class Jwe implements WebEncryption {
 
 			first = false;
 		}
-		return values;
+
+		if (first)
+			return null;
+		else
+			return values;
 	}
 
 	private final Encryption encryption;
 	private final boolean deflate;
+	private final String encodedProtectedHeader;
 	private final IuJsonProperties protectedHeader;
 	private final IuJsonProperties unprotected;
 	private final JweRecipient[] recipients;
@@ -248,8 +261,8 @@ public class Jwe implements WebEncryption {
 				throw new IllegalArgumentException("cannot specifiy compact for more than one recipient");
 			IuObject.require(additionalData, Objects::isNull, () -> "cannot specify compact with additionalData");
 
-			if (!sharedHeader.keySet().containsAll(protectedParameters))
-				throw new IllegalArgumentException("protected parameters " + protectedParameters + " are required");
+			// one recipient, whose header the builder verified has the protected
+			// parameters: all are shared, and protected
 
 			final var builder = CryptJsonAdapters.builder();
 			sharedHeader.forEach(builder::put);
@@ -297,14 +310,10 @@ public class Jwe implements WebEncryption {
 		});
 
 		// 5.1#13 encode protected header
-		final var aadBuilder = new StringBuilder();
-		if (protectedHeader != null)
-			aadBuilder.append(IuText.base64Url(IuText.utf8(protectedHeader.toString())));
+		encodedProtectedHeader = CompactEncoded.encodeHeader(protectedHeader);
 
 		// 5.1#14 calculate additional data for AEAD
-		if (additionalData != null)
-			aadBuilder.append('.').append(IuText.base64Url(additionalData));
-		final var aad = IuText.ascii(aadBuilder.toString());
+		final var aad = aad();
 
 		// 5.1#15 encrypt content
 		if (encryption.mac != null) {
@@ -336,8 +345,10 @@ public class Jwe implements WebEncryption {
 		verifyExtensions();
 	}
 
-	private Jwe(IuJsonProperties protectedHeader, IuJsonProperties unprotected, JweRecipient[] recipients,
-			byte[] initializationVector, byte[] cipherText, byte[] authenticationTag, byte[] additionalData) {
+	private Jwe(String encodedProtectedHeader, IuJsonProperties protectedHeader, IuJsonProperties unprotected,
+			JweRecipient[] recipients, byte[] initializationVector, byte[] cipherText, byte[] authenticationTag,
+			byte[] additionalData) {
+		this.encodedProtectedHeader = encodedProtectedHeader;
 		this.protectedHeader = protectedHeader;
 		this.unprotected = unprotected;
 		this.recipients = recipients;
@@ -353,154 +364,59 @@ public class Jwe implements WebEncryption {
 		verifyExtensions();
 	}
 
+	/**
+	 * {@link JsonbDeserializer} handle method.
+	 *
+	 * <p>
+	 * Reads either JSON serialization: general, with a "recipients" array, or
+	 * flattened, with a single recipient's members at the top level.
+	 * </p>
+	 *
+	 * @param parser  {@link JsonParser}
+	 * @param context {@link DeserializationContext}
+	 * @param type    {@link Type}
+	 * @return parsed JWE
+	 * @see <a href=
+	 *      "https://datatracker.ietf.org/doc/html/rfc7516#section-7.2">RFC-7516
+	 *      JWE Section 7.2</a>
+	 */
 	static Jwe deserialize(JsonParser parser, DeserializationContext context, Type type) {
-		var event = parser.currentEvent();
-		if (event.equals(Event.VALUE_NULL))
+		if (Event.VALUE_NULL.equals(parser.currentEvent()))
 			return null;
-		else if (!event.equals(Event.START_OBJECT))
-			throw new JsonbException("expected START_OBJECT");
 
-		IuJsonProperties protectedHeader = null;
-		IuJsonProperties unprotected = null;
-		byte[] initializationVector = null;
-		byte[] cipherText = null;
-		byte[] authenticationTag = null;
-		byte[] additionalData = null;
+		final var jwe = context.deserialize(IuJsonProperties.class, parser);
+		final var encodedProtectedHeader = jwe.get("protected", String.class);
+		final var protectedHeader = CompactEncoded.decodeHeader(encodedProtectedHeader);
+		final var unprotected = jwe.get("unprotected", IuJsonProperties.class);
 
-		class RecipientProperties {
-			IuJsonProperties header;
-			byte[] encryptedKey;
-		}
+		// the flattened form's recipient members are at the top level
+		final IuJsonProperties[] serializedRecipients;
+		if (jwe.containsKey("recipients")) {
+			serializedRecipients = Objects.requireNonNull(
+					jwe.requireOnly(GENERAL).get("recipients", IuJsonProperties[].class), "recipients");
+			if (serializedRecipients.length == 0)
+				throw new JsonbException("at least one recipient is required");
+			for (final var serializedRecipient : serializedRecipients)
+				serializedRecipient.requireOnly(RECIPIENT);
+		} else
+			serializedRecipients = new IuJsonProperties[] { jwe.requireOnly(FLATTENED) };
 
-		Queue<RecipientProperties> recipients = new ArrayDeque<>();
-		boolean flattened = false;
+		final var recipients = new JweRecipient[serializedRecipients.length];
+		for (var i = 0; i < recipients.length; i++)
+			recipients[i] = new JweRecipient(protectedHeader, unprotected,
+					serializedRecipients[i].get("header", IuJsonProperties.class),
+					serializedRecipients[i].get("encrypted_key", byte[].class));
 
-		event = parser.next();
-		while (!event.equals(Event.END_OBJECT)) {
-			if (!event.equals(Event.KEY_NAME))
-				throw new JsonbException("expected KEY_NAME");
-
-			final var key = parser.getString();
-			event = parser.next();
-			switch (key) {
-			case "protected":
-				protectedHeader = context.deserialize(IuJsonProperties.class, parser);
-				break;
-
-			case "unprotected":
-				unprotected = context.deserialize(IuJsonProperties.class, parser);
-				break;
-
-			case "recipients":
-				if (flattened)
-					throw new IllegalArgumentException("Must not contain both inline recipient and nested recipients");
-
-				switch (event) {
-				case START_ARRAY:
-					event = parser.next();
-					while (!Event.END_ARRAY.equals(event)) {
-						if (Event.START_OBJECT.equals(event)) {
-							final var recipient = new RecipientProperties();
-							event = parser.next();
-							while (!Event.END_OBJECT.equals(event)) {
-								if (!Event.KEY_NAME.equals(event))
-									throw new JsonbException("expected KEY_NAME");
-
-								final var name = parser.getString();
-								event = parser.next();
-								switch (name) {
-								case "header":
-									recipient.header = context.deserialize(IuJsonProperties.class, parser);
-									break;
-
-								case "encrypted_key":
-									recipient.encryptedKey = context.deserialize(byte[].class, parser);
-									break;
-
-								default:
-									throw new JsonbException("unexpected property " + name);
-								}
-
-								event = parser.next();
-							}
-							recipients.offer(recipient);
-						}
-						event = parser.next();
-					}
-					break;
-
-				case VALUE_NULL:
-					break;
-
-				default:
-					throw new JsonbException("unexpected " + event);
-				}
-				break;
-
-			case "header":
-				if (!flattened)
-					if (!recipients.isEmpty())
-						throw new IllegalArgumentException("Must not contain both header and recipients");
-					else
-						recipients.add(new RecipientProperties());
-
-				flattened = true;
-				recipients.peek().header = context.deserialize(IuJsonProperties.class, parser);
-				break;
-
-			case "encrypted_key":
-				if (!flattened)
-					if (!recipients.isEmpty())
-						throw new IllegalArgumentException("Must not contain both header and recipients");
-					else
-						recipients.add(new RecipientProperties());
-
-				flattened = true;
-				recipients.peek().encryptedKey = context.deserialize(byte[].class, parser);
-				break;
-
-			case "iv":
-				initializationVector = context.deserialize(byte[].class, parser);
-				break;
-
-			case "cipher_text":
-				cipherText = context.deserialize(byte[].class, parser);
-				break;
-
-			case "tag":
-				authenticationTag = context.deserialize(byte[].class, parser);
-				break;
-
-			case "aad":
-				additionalData = context.deserialize(byte[].class, parser);
-				break;
-
-			default:
-				throw new JsonbException("unexpected property " + key);
-			}
-
-			event = parser.next();
-		}
-
-		final JweRecipient[] jweRecipients;
-		if (recipients.isEmpty())
-			jweRecipients = new JweRecipient[] { new JweRecipient(protectedHeader, unprotected, null, null) };
-		else {
-			jweRecipients = new JweRecipient[recipients.size()];
-			var i = 0;
-			for (final var recipient : recipients)
-				jweRecipients[i++] = new JweRecipient(protectedHeader, unprotected, recipient.header,
-						recipient.encryptedKey);
-		}
-
-		return new Jwe(protectedHeader, unprotected, jweRecipients, initializationVector, cipherText, authenticationTag,
-				additionalData);
+		return new Jwe(encodedProtectedHeader, protectedHeader, unprotected, recipients,
+				jwe.get("iv", byte[].class), jwe.get("ciphertext", byte[].class), jwe.get("tag", byte[].class),
+				jwe.get("aad", byte[].class));
 	}
 
 	/**
 	 * Verifies and prepares decryption of an inbound encrypted message.
 	 * 
-	 * @param jwe inbound encrypted message
+	 * @param jwe inbound encrypted message, compact or JSON serialized
+	 * @return parsed JWE
 	 */
 	public static Jwe parse(String jwe) {
 		if (jwe.charAt(0) == '{') {
@@ -508,8 +424,8 @@ public class Jwe implements WebEncryption {
 
 		} else {
 			final var i = CompactEncoded.compact(jwe);
-			final var protectedHeader = CryptJsonAdapters.JSONB.fromJson(IuText.utf8(IuText.base64(i.next())),
-					IuJsonProperties.class);
+			final var encodedProtectedHeader = Objects.requireNonNull(i.next(), "protected header required");
+			final var protectedHeader = CompactEncoded.decodeHeader(encodedProtectedHeader);
 			final var recipients = new JweRecipient[] {
 					new JweRecipient(new Jose(protectedHeader), IuText.base64Url(i.next())) };
 			final var initializationVector = IuText.base64Url(i.next());
@@ -519,8 +435,8 @@ public class Jwe implements WebEncryption {
 			if (i.hasNext())
 				throw new IllegalArgumentException("Invalid compact format, found more than 5 segments");
 
-			return new Jwe(protectedHeader, null, recipients, initializationVector, cipherText, authenticationTag,
-					null);
+			return new Jwe(encodedProtectedHeader, protectedHeader, null, recipients, initializationVector, cipherText,
+					authenticationTag, null);
 		}
 
 	}
@@ -589,15 +505,8 @@ public class Jwe implements WebEncryption {
 			// -> proceed with a random key that will not work
 			cek = WebKey.ephemeral(encryption).getKey();
 
-		StringBuilder aadBuilder = new StringBuilder();
-		if (protectedHeader != null)
-			aadBuilder.append(IuText.base64Url(IuText.utf8(protectedHeader.toString())));
-
 		// 5.2#14 calculate additional data for AEAD
-		if (additionalData != null)
-			aadBuilder.append('.').append(IuText.base64Url(additionalData));
-
-		final var aad = IuText.ascii(aadBuilder.toString());
+		final var aad = aad();
 
 		// 5.2#15 decrypt content
 		final byte[] content;
@@ -647,8 +556,8 @@ public class Jwe implements WebEncryption {
 			throw new IllegalStateException(
 					"Must have exactly one recipient with no additional authentication data to use JWE compact serialization");
 		final var recipient = recipients[0];
-		return IuText.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString())) //
-				+ '.' + Objects.requireNonNullElse(IuText.base64Url(recipient.getEncryptedKey()), "") //
+		return Objects.requireNonNullElse(encodedProtectedHeader, "") //
+				+ '.' +Objects.requireNonNullElse(IuText.base64Url(recipient.getEncryptedKey()), "") //
 				+ '.' + IuText.base64Url(initializationVector) //
 				+ '.' + IuText.base64Url(cipherText) //
 				+ '.' + IuText.base64Url(authenticationTag);
@@ -659,6 +568,16 @@ public class Jwe implements WebEncryption {
 		return CryptJsonAdapters.JSONB.toJson(this);
 	}
 
+	/**
+	 * {@link JsonbSerializer} handle method.
+	 *
+	 * <p>
+	 * Writes flattened for a single recipient, general otherwise.
+	 * </p>
+	 *
+	 * @param generator {@link JsonGenerator}
+	 * @param context   {@link SerializationContext}
+	 */
 	void serialize(JsonGenerator generator, SerializationContext context) {
 		BiConsumer<String, Object> write = (key, value) -> {
 			if (value != null) {
@@ -669,7 +588,7 @@ public class Jwe implements WebEncryption {
 
 		generator.writeStartObject();
 
-		write.accept("protected", protectedHeader);
+		write.accept("protected", encodedProtectedHeader);
 
 		if (recipients.length > 1) {
 			write.accept("unprotected", unprotected);
@@ -678,9 +597,7 @@ public class Jwe implements WebEncryption {
 			generator.writeStartArray();
 			for (final var additionalRecipient : this.recipients) {
 				generator.writeStartObject();
-				final var header = additionalRecipient.getHeader().values(a -> isPerRecipient(a));
-				if (!header.nonNullNames().isEmpty())
-					context.serialize("header", header, generator);
+				write.accept("header", additionalRecipient.getHeader().values(this::isPerRecipient));
 
 				write.accept("encrypted_key", additionalRecipient.getEncryptedKey());
 				generator.writeEnd();
@@ -693,11 +610,26 @@ public class Jwe implements WebEncryption {
 		}
 
 		write.accept("iv", initializationVector);
-		write.accept("cipher_text", cipherText);
+		write.accept("ciphertext", cipherText);
 		write.accept("tag", authenticationTag);
 		write.accept("aad", additionalData);
 
 		generator.writeEnd();
+	}
+
+	/**
+	 * Computes the additional authenticated data from the encoded protected
+	 * header, as it was received or will be sent.
+	 *
+	 * @return additional authenticated data
+	 */
+	private byte[] aad() {
+		final var aadBuilder = new StringBuilder();
+		if (encodedProtectedHeader != null)
+			aadBuilder.append(encodedProtectedHeader);
+		if (additionalData != null)
+			aadBuilder.append('.').append(IuText.base64Url(additionalData));
+		return IuText.ascii(aadBuilder.toString());
 	}
 
 	private boolean isUnprotected(String paramName) {

@@ -108,11 +108,11 @@ public class IuJsonPropertiesScopeTest {
 	@Test
 	public void testRequiresConversionsWhenGiven() {
 		final var object = IuJson.object().build();
-		assertThrows(NullPointerException.class, () -> IuJsonProperties.of(object, null));
+		assertThrows(NullPointerException.class, () -> IuJsonProperties.of(object, (Function<Type, IuJsonAdapter<?>>) null));
 		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder((Function<Type, IuJsonAdapter<?>>) null));
 		try (final var parser = IuJson.PROVIDER.createParser(new StringReader("{}"))) {
 			parser.next();
-			assertThrows(NullPointerException.class, () -> IuJsonProperties.read(parser, null));
+			assertThrows(NullPointerException.class, () -> IuJsonProperties.read(parser, (Function<Type, IuJsonAdapter<?>>) null));
 		}
 	}
 
@@ -321,6 +321,36 @@ public class IuJsonPropertiesScopeTest {
 				() -> IuJsonProperties.builder().put("d", d).build().get("d", byte[].class)).getMessage());
 
 		assertThrows(NullPointerException.class, () -> IuJsonProperties.builder((jakarta.json.bind.Jsonb) null));
+	}
+
+	@Test
+	public void testIndexWithJsonb() {
+		final var d = new java.math.BigInteger("123456789");
+		final var jsonb = IuJsonbTest.jsonb(new JsonbConfig().withAdapters(new BigBytes())
+				.withBinaryDataStrategy(jakarta.json.bind.config.BinaryDataStrategy.BASE_64_URL));
+		final var json = "{\"d\":\"B1vNFQ==\"}";
+
+		// read, with no call in progress, as the instance converts
+		assertEquals(d, IuJsonProperties.of(IuJson.parse(json).asJsonObject(), jsonb).get("d",
+				java.math.BigInteger.class));
+		try (final var parser = IuJson.PROVIDER.createParser(new StringReader(json))) {
+			parser.next();
+			assertEquals(d, IuJsonProperties.read(parser, jsonb).get("d", java.math.BigInteger.class));
+		}
+
+		// by the IU defaults, text isn't a number
+		assertThrows(IllegalArgumentException.class,
+				() -> IuJsonProperties.of(IuJson.parse(json).asJsonObject()).get("d", java.math.BigInteger.class));
+
+		assertThrows(NullPointerException.class,
+				() -> IuJsonProperties.of(IuJson.object().build(), (jakarta.json.bind.Jsonb) null));
+	}
+
+	@Test
+	public void testBuilderGetsNull() {
+		final var builder = IuJsonProperties.builder().put("none", null);
+		assertNull(builder.get("none"));
+		assertNull(builder.get("absent"));
 	}
 
 	@Test

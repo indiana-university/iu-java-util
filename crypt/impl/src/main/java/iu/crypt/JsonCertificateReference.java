@@ -123,8 +123,7 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 	/**
 	 * Adds serialized JWK attributes to a JSON properties builder.
 	 * 
-	 * @param jwkBuilder {@link IuJsonProperties.Builder}
-	 * @return jwkBuilder
+	 * @param builder {@link IuJsonProperties.Builder}
 	 */
 	void append(IuJsonProperties.Builder builder) {
 		builder.put("x5u", certificateUri);

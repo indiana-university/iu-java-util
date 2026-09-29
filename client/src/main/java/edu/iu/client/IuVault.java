@@ -31,20 +31,20 @@
  */
 package edu.iu.client;
 
-import java.lang.reflect.Type;
 import java.util.Properties;
-import java.util.function.Function;
 
 import edu.iu.IuRefreshableCache;
 import edu.iu.IuRefreshableCacheConfiguration;
 import iu.client.Vault;
+import iu.client.jsonb.IuJsonb;
 import jakarta.json.JsonObject;
+import jakarta.json.bind.Jsonb;
 
 /**
  * Provides access to a HashiCorp Vault K/V secrets engine.
  * 
  * <p>
- * Properties for use with {@link #RUNTIME} or {@link #of(Properties, Function)}
+ * Properties for use with {@link #RUNTIME} or {@link #of(Properties, Jsonb)}
  * are listed below.
  * </p>
  * 
@@ -147,12 +147,18 @@ public interface IuVault {
 	 * available until the full lifetime elapses if refreshes fail.
 	 * </p>
 	 * 
-	 * @param properties   {@link Properties}
-	 * @param valueAdapter {@link IuJsonAdapter} type mapping function
+	 * <p>
+	 * Secret values read and written by type convert as {@code jsonb} converts
+	 * them; secret metadata converts by Vault's own format either way.
+	 * </p>
+	 *
+	 * @param properties {@link Properties}
+	 * @param jsonb      JSON-B instance values convert by
 	 * @return {@link IuVault}
 	 */
-	public static IuVault of(Properties properties, Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		return Vault.of(properties, valueAdapter);
+	@SuppressWarnings("exports")
+	public static IuVault of(Properties properties, Jsonb jsonb) {
+		return Vault.of(properties, IuJsonb.adapters(jsonb));
 	}
 
 	/**

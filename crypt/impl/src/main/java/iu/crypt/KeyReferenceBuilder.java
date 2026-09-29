@@ -49,7 +49,9 @@ class KeyReferenceBuilder<B extends KeyReferenceBuilder<B>> extends CertificateR
 	}
 
 	/**
-	 * Default constructor.
+	 * Copy constructor.
+	 *
+	 * @param copy builder to copy parameters from
 	 */
 	KeyReferenceBuilder(KeyReferenceBuilder<?> copy) {
 		super(copy);

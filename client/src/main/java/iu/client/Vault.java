@@ -89,7 +89,8 @@ public final class Vault implements IuVault {
 	}
 
 	/**
-	 * Implements {@link IuVault#of(Properties, Function)}.
+	 * Implements {@link IuVault#of(Properties, jakarta.json.bind.Jsonb)}, and
+	 * {@link IuVault#RUNTIME} with the IU default conversions.
 	 * 
 	 * @param properties   optional property overrides
 	 * @param valueAdapter value adapter function

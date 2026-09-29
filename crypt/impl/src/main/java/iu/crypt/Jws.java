@@ -37,6 +37,8 @@ import java.security.Signature;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.util.Arrays;
+import java.util.Objects;
+import java.util.Set;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -54,6 +56,7 @@ import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import jakarta.json.bind.serializer.DeserializationContext;
 import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 import jakarta.json.bind.serializer.SerializationContext;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
@@ -66,18 +69,38 @@ public class Jws implements WebSignature {
 		IuObject.assertNotOpen(Jws.class);
 	}
 
+	private final String encodedProtectedHeader;
 	private final IuJsonProperties protectedHeader;
 	private final Jose header;
 	private final byte[] signature;
 
 	/**
 	 * Creates a new signed message;
-	 * 
+	 *
 	 * @param protectedHeader JWS protected header
-	 * @param header          JWS unprotected header
+	 * @param header          JWS header, protected and unprotected parameters
+	 *                        combined
 	 * @param signature       signature
 	 */
 	Jws(IuJsonProperties protectedHeader, Jose header, byte[] signature) {
+		this(CompactEncoded.encodeHeader(protectedHeader), protectedHeader, header, signature);
+	}
+
+	/**
+	 * Creates a signed message from a protected header in its encoded form, which
+	 * the signature input is computed from.
+	 *
+	 * @param encodedProtectedHeader encoded JWS protected header
+	 * @param header                 JWS header, protected and unprotected
+	 *                               parameters combined
+	 * @param signature              signature
+	 */
+	Jws(String encodedProtectedHeader, Jose header, byte[] signature) {
+		this(encodedProtectedHeader, CompactEncoded.decodeHeader(encodedProtectedHeader), header, signature);
+	}
+
+	private Jws(String encodedProtectedHeader, IuJsonProperties protectedHeader, Jose header, byte[] signature) {
+		this.encodedProtectedHeader = encodedProtectedHeader;
 		this.protectedHeader = protectedHeader;
 		this.header = header;
 		this.signature = signature;
@@ -90,12 +113,19 @@ public class Jws implements WebSignature {
 			for (final var name : protectedHeader.names()) {
 				final var param = Param.from(name);
 				final var type = param == null ? Jose.getExtension(name).type() : param.type;
-				final var value = protectedHeader.get(name, type);
+				Object value = protectedHeader.get(name, type);
 
-				if (param == null) {
-					if (!IuObject.equals(value, header.getExtendedParameter(name)))
-						throw new IllegalArgumentException(name + " must match protected header");
-				} else if (!IuObject.equals(value, param.get(header)))
+				final Object headerValue;
+				if (param == null)
+					headerValue = header.getExtendedParameter(name);
+				else if (param.equals(Param.CRITICAL_PARAMS)) {
+					// an array in JSON, a set in the header: order doesn't matter
+					value = IuObject.convert((String[]) value, Set::of);
+					headerValue = header.getCriticalParameters();
+				} else
+					headerValue = param.get(header);
+
+				if (!IuObject.equals(value, headerValue))
 					throw new IllegalArgumentException(name + " must match protected header");
 			}
 
@@ -294,43 +324,64 @@ public class Jws implements WebSignature {
 	 * @return parsed JWS signature
 	 */
 	static Jws deserialize(JsonParser parser, DeserializationContext context, java.lang.reflect.Type type) {
-		final var jwsSignature = context.deserialize(IuJsonProperties.class, parser);
-		final var protectedHeader = IuObject.convert(jwsSignature.get("protected", byte[].class),
-				a -> CryptJsonAdapters.JSONB.fromJson(IuText.utf8(a), IuJsonProperties.class));
+		return of(context.deserialize(IuJsonProperties.class, parser));
+	}
 
-		return new Jws(protectedHeader,
-				Jose.from(protectedHeader, null,
-						((Jose) jwsSignature.get("header", WebCryptoHeader.class)).values(a -> true)),
+	/**
+	 * Reads a JWS signature from its JSON members: an element of "signatures",
+	 * or the flattened serialization's top level.
+	 *
+	 * @param jwsSignature JSON members
+	 * @return parsed JWS signature
+	 */
+	static Jws of(IuJsonProperties jwsSignature) {
+		final var encodedProtectedHeader = jwsSignature.get("protected", String.class);
+		final var protectedHeader = CompactEncoded.decodeHeader(encodedProtectedHeader);
+		return new Jws(encodedProtectedHeader, protectedHeader,
+				Jose.from(protectedHeader, null, jwsSignature.get("header", IuJsonProperties.class)),
 				jwsSignature.get("signature", byte[].class));
 	}
 
-	IuJsonProperties protectedHeader() {
-		return protectedHeader;
-	}
-	
 	/**
-	 * Exports JSON properties for serialization.
-	 * 
-	 * @return {@link SerializableValues}
+	 * {@link JsonbSerializer} handle method.
+	 *
+	 * @param generator {@link JsonGenerator}
+	 * @param context   {@link SerializationContext}
 	 */
 	void serialize(JsonGenerator generator, SerializationContext context) {
 		generator.writeStartObject();
-		context.serialize("protected", IuText.utf8(CryptJsonAdapters.JSONB.toJson(protectedHeader)), generator);
-		context.serialize("header", header, generator);
-		context.serialize("signature", signature, generator);
+		serializeMembers(generator, context);
 		generator.writeEnd();
 	}
 
 	/**
+	 * Writes this signature's JSON members to an object already started: an
+	 * element of "signatures", or the flattened serialization's top level.
+	 *
+	 * @param generator {@link JsonGenerator}
+	 * @param context   {@link SerializationContext}
+	 */
+	void serializeMembers(JsonGenerator generator, SerializationContext context) {
+		if (encodedProtectedHeader != null)
+			generator.write("protected", encodedProtectedHeader);
+
+		// protected and unprotected parameter names are disjoint
+		final var unprotected = header
+				.values(name -> protectedHeader == null || !protectedHeader.containsKey(name));
+		if (unprotected != null)
+			context.serialize("header", unprotected, generator);
+
+		context.serialize("signature", signature, generator);
+	}
+
+	/**
 	 * Gets the signature input.
-	 * 
+	 *
 	 * @param payload payload
 	 * @return signature input
 	 */
 	String getSignatureInput(byte[] payload) {
-		return (protectedHeader == null ? ""
-				: IuText.base64Url(IuText.utf8(CryptJsonAdapters.JSONB.toJson(protectedHeader)))) //
-				+ '.' + IuText.base64Url(payload);
+		return Objects.requireNonNullElse(encodedProtectedHeader, "") + '.' + IuText.base64Url(payload);
 	}
 
 }

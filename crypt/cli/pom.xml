@@ -35,6 +35,11 @@
 			<version>${jakarta.json-api.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>jakarta.json.bind</groupId>
+			<artifactId>jakarta.json.bind-api</artifactId>
+			<version>${jakarta.json.bind-api.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.eclipse.parsson</groupId>
 			<artifactId>parsson</artifactId>
 			<version>${parsson.version}</version>

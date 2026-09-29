@@ -94,6 +94,29 @@ import edu.iu.test.IuTestLogger;
 public class JwkTest extends CryptImplTestCase {
 
 	@Test
+	public void testOpsRoundTrip() {
+		final var key = WebKey.builder(Type.EC_P256).algorithm(Algorithm.ES256).ephemeral()
+				.ops(Operation.SIGN, Operation.VERIFY).build();
+		assertEquals(Set.of(Operation.SIGN, Operation.VERIFY), WebKey.parse(key.toString()).getOps());
+		assertEquals(Set.of(Operation.VERIFY), WebKey.parse(key.wellKnown().toString()).getOps());
+	}
+
+	@Test
+	public void testEphemeralRequiresAlgorithm() {
+		assertEquals("algorithm is required",
+				assertThrows(NullPointerException.class, () -> WebKey.builder(Type.RAW).ephemeral()).getMessage());
+	}
+
+	@Test
+	public void testNullParamIgnored() {
+		final var id = IdGenerator.generateId();
+		assertEquals(id, WebKey.builder(Type.RAW).keyId(null).keyId(id).keyId(null).key(new byte[16]).build()
+				.getKeyId());
+		assertEquals("duplicate definition for kid", assertThrows(IllegalArgumentException.class,
+				() -> WebKey.builder(Type.RAW).keyId(id).keyId(IdGenerator.generateId())).getMessage());
+	}
+
+	@Test
 	public void testUse() {
 		assertEquals(Use.SIGN,
 				WebKey.builder(Type.EC_P256).algorithm(Algorithm.ES256).ephemeral().use(Use.SIGN).build().getUse());
@@ -452,8 +475,8 @@ public class JwkTest extends CryptImplTestCase {
 		final var jwksText = out.toString();
 
 		final var fromInput = Jwk.readJwks(new ByteArrayInputStream(IuText.utf8(jwksText)));
-//		final var fromParse = Jwk.parseJwks(IuJson.parse(jwksText).asJsonObject());
-//		assertTrue(IuIterable.remaindersAreEqual(fromInput.iterator(), fromParse.iterator()));
+		final var fromParse = Jwk.parseJwks(jwksText);
+		assertTrue(IuIterable.remaindersAreEqual(fromInput.iterator(), fromParse.iterator()));
 
 		out.reset();
 		Jwk.writeJwks(fromInput, out);

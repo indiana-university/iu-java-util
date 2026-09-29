@@ -33,10 +33,12 @@ package iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
@@ -45,6 +47,7 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebCryptoHeader.Param;
@@ -221,5 +224,44 @@ public class JoseTest extends CryptImplTestCase {
 				.param(Param.EPHEMERAL_PUBLIC_KEY, epk).build();
 		assertEquals(Encryption.A128GCM, jose.extendedParameters().get("enc"));
 		assertEquals(epk, jose.extendedParameters().get("epk"));
+	}
+
+	@Test
+	public void testKeyIsWellKnown() {
+		final var key = WebKey.ephemeral(Algorithm.ES256);
+		final var jose = new Jose(CryptJsonAdapters.builder().put("alg", "ES256").put("jwk", key).build());
+		assertNull(jose.getKey().getPrivateKey());
+		assertEquals(key.wellKnown(), jose.getKey());
+		assertNull(IuJson.parse(jose.toString()).asJsonObject().getJsonObject("jwk").get("d"));
+		assertFalse(jose.values(name -> !name.equals("jwk")).containsKey("jwk"));
+	}
+
+	@Test
+	public void testUnknownIgnored() {
+		final var name = IdGenerator.generateId();
+		final var jose = new Jose(CryptJsonAdapters.builder().put("alg", "HS256").put(name, "foo").build());
+		assertNull(jose.getExtendedParameter(name));
+		assertEquals("{\"alg\":\"HS256\"}", jose.toString());
+	}
+
+	@Test
+	public void testUnknownCritical() {
+		final var name = IdGenerator.generateId();
+		assertEquals("Missing critical extended parameter " + name,
+				assertThrows(NullPointerException.class,
+						() -> new Jose(CryptJsonAdapters.builder().put("alg", "HS256")
+								.put("crit", new String[] { name }).put(name, "foo").build()))
+						.getMessage());
+	}
+
+	@Test
+	public void testNullExtensionAbsent() {
+		final var name = IdGenerator.generateId();
+		Jose.register(name, new StringExtension());
+		final var jose = new Jose(CryptJsonAdapters.builder().put("alg", "HS256").put(name, null).build());
+		assertFalse(jose.hasParam(name));
+		assertFalse(jose.extendedParameters().containsKey(name));
+		assertTrue(jose.hasParam("alg"));
+		assertFalse(jose.hasParam("kid"));
 	}
 }

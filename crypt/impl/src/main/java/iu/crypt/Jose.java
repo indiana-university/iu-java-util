@@ -34,11 +34,11 @@ package iu.crypt;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import edu.iu.IuObject;
@@ -59,7 +59,7 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		IuObject.assertNotOpen(Jose.class);
 	}
 
-	private static final Map<String, Extension<?>> EXTENSIONS = new HashMap<>();
+	private static final Map<String, Extension<?>> EXTENSIONS = new ConcurrentHashMap<>();
 
 	private static final Set<Param> NON_EXT_PARAMS = EnumSet.of(Param.ALGORITHM, Param.KEY_ID, Param.KEY_SET_URI,
 			Param.KEY, Param.CERTIFICATE_URI, Param.CERTIFICATE_CHAIN, Param.CERTIFICATE_THUMBPRINT,
@@ -74,8 +74,8 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 
 		/**
 		 * Gets the extension type.
-		 * 
-		 * @return
+		 *
+		 * @return type the parameter value converts as
 		 */
 		Type type();
 
@@ -202,20 +202,32 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		super(joseValue);
 
 		keySetUri = joseValue.get("jku", URI.class);
-		key = (Jwk) joseValue.get("jwk", WebKey.class);
+		// only the public part of a key belongs in a header
+		key = IuObject.convert((Jwk) joseValue.get("jwk", WebKey.class), Jwk::wellKnown);
 		type = joseValue.get("typ", String.class);
 		contentType = joseValue.get("cty", String.class);
 		criticalParameters = IuObject.convert(joseValue.get("crit", String[].class), Set::of);
 
+		// registered parameters beyond the common ones, and the extensions
+		// understood; any other is ignored, unless critical, which verify rejects
 		extendedParameters = new LinkedHashMap<>();
-		for (final var p : Param.values())
-			if (!NON_EXT_PARAMS.contains(p)) {
-				final var value = joseValue.get(p.name, p.type);
-				if (value != null)
-					extendedParameters.put(p.name, value);
-			}
+		for (final var name : joseValue.names()) {
+			final var param = Param.from(name);
+			final Type paramType;
+			if (param == null) {
+				final var extension = EXTENSIONS.get(name);
+				if (extension == null)
+					continue;
+				paramType = extension.type();
+			} else if (NON_EXT_PARAMS.contains(param))
+				continue;
+			else
+				paramType = param.type;
 
-		EXTENSIONS.forEach((key, value) -> extendedParameters.put(key, joseValue.get(key, value.type())));
+			final var value = joseValue.get(name, paramType);
+			if (value != null)
+				extendedParameters.put(name, value);
+		}
 
 		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);
 
@@ -278,6 +290,12 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		return extendedParameters;
 	}
 
+	/**
+	 * Determines whether the header has a parameter.
+	 *
+	 * @param paramName registered or extended parameter name
+	 * @return true if the parameter has a non-null value; else false
+	 */
 	boolean hasParam(String paramName) {
 		final var param = Param.from(paramName);
 		if (param == null)
@@ -300,7 +318,7 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 			if (!param.equals(Param.KEY) //
 					&& param.isUsedFor(Use.SIGN) //
 					&& nameFilter.test(param.name))
-				builder.put(param.name, param.get(this));
+				IuObject.convert(param.get(this), value -> builder.put(param.name, value));
 
 		if (key != null && nameFilter.test("jwk"))
 			builder.put("jwk", key);

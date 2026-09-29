@@ -34,6 +34,7 @@ package iu.crypt;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -120,10 +121,25 @@ public class CryptSpiTest extends CryptImplTestCase {
 
 	@Test
 	public void testGetSerializedProtectedHeader() {
-		final var header = CryptJsonAdapters.builder().put("alg", "ES256").build();
+		final var header = CompactEncoded.encodeHeader(CryptJsonAdapters.builder().put("alg", "ES256").build());
 		final var serialized = CryptJsonAdapters.JSONB
 				.toJson(CryptJsonAdapters.builder().put("protected", header).build());
 		assertEquals(Algorithm.ES256, spi.getProtectedHeader(serialized).getAlgorithm());
+	}
+
+	@Test
+	public void testGetGeneralJwsProtectedHeader() {
+		final var header = CompactEncoded.encodeHeader(CryptJsonAdapters.builder().put("alg", "ES256").build());
+		final var serialized = CryptJsonAdapters.JSONB.toJson(CryptJsonAdapters.builder()
+				.put("signatures", new Object[] { CryptJsonAdapters.builder().put("protected", header).build() })
+				.build());
+		assertEquals(Algorithm.ES256, spi.getProtectedHeader(serialized).getAlgorithm());
+	}
+
+	@Test
+	public void testGetSerializedProtectedHeaderMissing() {
+		assertEquals("protected header required",
+				assertThrows(NullPointerException.class, () -> spi.getProtectedHeader("{}")).getMessage());
 	}
 
 	@Test
@@ -220,11 +236,10 @@ public class CryptSpiTest extends CryptImplTestCase {
 	@Test
 	public void testParseJwe() {
 		final var jwe = IdGenerator.generateId();
-		try (final var mockJwe = mockConstruction(Jwe.class, (a, ctx) -> {
-			assertSame(jwe, ctx.arguments().get(0));
-		})) {
-			final var parsedJwe = spi.parseJwe(jwe);
-			assertSame(mockJwe.constructed().get(0), parsedJwe);
+		final var parsed = mock(Jwe.class);
+		try (final var mockJwe = mockStatic(Jwe.class)) {
+			mockJwe.when(() -> Jwe.parse(jwe)).thenReturn(parsed);
+			assertSame(parsed, spi.parseJwe(jwe));
 		}
 	}
 

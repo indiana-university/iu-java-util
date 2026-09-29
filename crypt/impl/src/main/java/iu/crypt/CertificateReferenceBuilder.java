@@ -60,24 +60,43 @@ class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> // e
 
 	/**
 	 * Copy constructor.
+	 *
+	 * @param copy builder to copy parameters from
 	 */
 	CertificateReferenceBuilder(CertificateReferenceBuilder<?> copy) {
 		this(CryptJsonAdapters.builder().putAll(copy.builder.build()));
 	}
 
 	/**
-	 * Default constructor.
+	 * Constructor.
+	 *
+	 * @param builder holds the parameters
 	 */
 	private CertificateReferenceBuilder(IuJsonProperties.Builder builder) {
 		this.builder = builder;
 	}
 
+	/**
+	 * Sets a parameter value, once.
+	 *
+	 * @param name  parameter name
+	 * @param value parameter value; null leaves the parameter as it is
+	 * @return this
+	 * @throws IllegalArgumentException if already set to a different value
+	 */
 	protected B withParam(String name, Object value) {
-		IuObject.once(builder.get(name), value, "duplicate definition for " + name);
-		builder.put(name, value);
+		if (value != null)
+			builder.put(name, IuObject.once(builder.get(name), value, "duplicate definition for " + name));
 		return (B) this;
 	}
 
+	/**
+	 * Gets a parameter value.
+	 *
+	 * @param <V>  value type
+	 * @param name parameter name
+	 * @return parameter value; null if not set
+	 */
 	protected <V> V param(String name) {
 		return (V) builder.get(name);
 	}
@@ -112,6 +131,11 @@ class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> // e
 		return cert(PemEncoded.getCertificateChain(PemEncoded.parse(pemEncoded)));
 	}
 
+	/**
+	 * Gets the parameters set so far.
+	 *
+	 * @return parameters
+	 */
 	IuJsonProperties values() {
 		return builder.build();
 	}
