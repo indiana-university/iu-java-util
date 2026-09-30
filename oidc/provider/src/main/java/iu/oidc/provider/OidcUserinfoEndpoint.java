@@ -35,7 +35,6 @@ import java.net.URI;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.IuBadRequestException;
@@ -212,15 +211,12 @@ public class OidcUserinfoEndpoint {
 	 * </p>
 	 *
 	 * @param serialized claims, as the caller serialized them
-	 * @param client     registration, or {@code null} for a plain document
+	 * @param client     registration of the client the token names
 	 * @return the response, and what to call it
 	 * @throws NullPointerException if the client registered an encryption but no
 	 *                              key to encrypt to
 	 */
 	private OidcUserinfoResult secure(String serialized, IuOidcClientConfiguration client) {
-		if (client == null)
-			return new OidcUserinfoResult.Json(serialized);
-
 		final var algorithm = client.getUserinfoAlg();
 		final var encryption = client.getUserinfoEnc();
 

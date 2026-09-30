@@ -38,8 +38,9 @@ module iu.util.jwt.impl {
 
 	requires iu.util;
 	requires iu.util.client;
-	requires iu.util.config;
 	requires iu.util.crypt;
-	
+	requires iu.util.crypt.impl;
+	requires jakarta.json.bind;
+
 	provides iu.jwt.spi.IuJwtSpi with iu.jwt.JwtSpi;
 }

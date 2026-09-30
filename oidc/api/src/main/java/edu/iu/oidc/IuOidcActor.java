@@ -31,6 +31,8 @@
  */
 package edu.iu.oidc;
 
+import java.time.Instant;
+
 /**
  * The {@code act} claim: who is really behind a token issued for somebody else.
  *
@@ -116,11 +118,12 @@ public interface IuOidcActor extends IuOidcNameClaims {
 	 * no authentication of their own to measure.
 	 * </p>
 	 *
-	 * @return {@code auth_time} claim, as a NumericDate &mdash; seconds since the
-	 *         epoch, the same as {@code auth_time} is spelled anywhere else; null
-	 *         when the exchanged token recorded none
+	 * @return {@code auth_time} claim, written as a NumericDate &mdash; seconds since
+	 *         the epoch, the same as {@code auth_time} is spelled anywhere else, and
+	 *         as every {@link Instant} in a token is; null when the exchanged token
+	 *         recorded none
 	 */
-	Long getAuthTime();
+	Instant getAuthTime();
 
 	/**
 	 * Gets the authentication context class the actor's authentication satisfied.

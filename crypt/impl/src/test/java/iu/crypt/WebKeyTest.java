@@ -48,7 +48,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
-import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
@@ -276,9 +275,8 @@ public class WebKeyTest extends CryptImplTestCase {
 		}));
 		final var uri = mock(URI.class);
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			final var resp = mock(HttpResponse.class);
-			when(resp.body()).thenReturn(new ByteArrayInputStream(jwks.getBytes()));
-			mockIuHttp.when(() -> IuHttp.get(uri)).thenReturn(resp);
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_STREAM))
+					.thenReturn(new ByteArrayInputStream(jwks.getBytes()));
 			assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(uri)));
 		}
 		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(new ByteArrayInputStream(jwks.getBytes()))));

@@ -53,7 +53,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigInteger;
 import java.net.URI;
-import java.net.http.HttpResponse;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
@@ -428,7 +427,7 @@ public class JwkTest extends CryptImplTestCase {
 		final var uri = URI.create("https://example.test/jwks/" + IdGenerator.generateId());
 		final var failure = new IllegalStateException("JWKS unavailable");
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(uri)).thenThrow(failure);
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_STREAM)).thenThrow(failure);
 			assertSame(failure, assertThrows(IllegalStateException.class, () -> Jwk.readJwks(uri)));
 		}
 	}
@@ -440,11 +439,10 @@ public class JwkTest extends CryptImplTestCase {
 
 		final var out = new ByteArrayOutputStream();
 		Jwk.writeJwks(IuIterable.iter(key), out);
-		final var response = mock(HttpResponse.class);
-		when(response.body()).thenReturn(new ByteArrayInputStream(out.toByteArray()));
+		final var response = new ByteArrayInputStream(out.toByteArray());
 
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(uri)).thenReturn(response)
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_STREAM)).thenReturn(response)
 					.thenThrow(new IllegalStateException("JWKS unavailable"));
 			assertEquals(key, Jwk.readJwks(uri).iterator().next());
 
@@ -482,12 +480,10 @@ public class JwkTest extends CryptImplTestCase {
 		Jwk.writeJwks(fromInput, out);
 		assertEquals(jwksText, IuText.utf8(out.toByteArray()));
 
-		final var response = mock(HttpResponse.class);
-		when(response.body()).thenReturn(new ByteArrayInputStream(out.toByteArray()));
-
 		final var jwks = mock(URI.class);
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(jwks)).thenReturn(response);
+			mockIuHttp.when(() -> IuHttp.get(jwks, IuHttp.READ_STREAM))
+					.thenReturn(new ByteArrayInputStream(out.toByteArray()));
 			final var fromJwks = Jwk.readJwks(jwks).iterator().next();
 			assertEquals(jwk, fromJwks);
 			assertEquals(fromJwks, Jwk.readJwks(jwks).iterator().next());

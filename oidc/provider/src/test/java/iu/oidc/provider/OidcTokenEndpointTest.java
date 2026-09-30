@@ -1288,7 +1288,7 @@ public class OidcTokenEndpointTest {
 		}
 
 		@Override
-		public Long getAuthTime() {
+		public Instant getAuthTime() {
 			return null;
 		}
 
@@ -1516,7 +1516,7 @@ public class OidcTokenEndpointTest {
 		assertEquals(PRINCIPAL, idActor.getSub());
 		assertEquals("Some One", idActor.getName());
 		assertEquals("someone@iu.edu", idActor.getEmail());
-		assertEquals(authTime.getEpochSecond(), idActor.getAuthTime());
+		assertEquals(authTime, idActor.getAuthTime());
 
 		// the subject of an exchanged token never authenticated, so nothing claims
 		// they did; the actor's own authentication time rides inside act instead
@@ -1528,7 +1528,7 @@ public class OidcTokenEndpointTest {
 		assertEquals(PRINCIPAL, accessActor.getSub());
 		assertNull(accessActor.getName());
 		assertNull(accessActor.getEmail());
-		assertEquals(authTime.getEpochSecond(), accessActor.getAuthTime());
+		assertEquals(authTime, accessActor.getAuthTime());
 	}
 
 	@Test

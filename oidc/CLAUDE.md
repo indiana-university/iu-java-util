@@ -125,13 +125,15 @@ Each grant is its own class implementing the shared `AuthorizationGrant` contrac
 
 ### Provider discovery
 
-`OidcProviders.getMetadata(config)` resolves `.well-known` discovery documents over `IuHttp`, binding the JSON to `IuOidcProviderMetadata` through an `IuJsonAdapter`. Results are cached per issuer URI in a static `Map` guarded by synchronization, with a refresh interval. Configuration may supply metadata inline instead of an issuer, which bypasses the fetch — check `IuOidcProvider.getMetadata()` before assuming a network call happens.
+`OidcProviders.getMetadata(config)` resolves `.well-known` discovery documents over `IuHttp`, binding the JSON to `IuOidcProviderMetadata` through `WebToken.jsonb()`. Results are cached per issuer URI in a static `Map` guarded by synchronization, with a refresh interval. Configuration may supply metadata inline instead of an issuer, which bypasses the fetch — check `IuOidcProvider.getMetadata()` before assuming a network call happens.
 
 ### Configuration (`iu.oidc.client.config`)
 
 - `IuOidcClient` — client credentials and policy: `clientId`/`clientSecret`, basic-auth toggle, assertion JWK and TTL (default 2 minutes), decryption JWKs, token TTL (default 15 minutes), max age (default 12 hours), and the claim used as the principal name.
 - `IuOidcProvider` — issuer, metadata URI or inline metadata.
-- `IuOidcClientReference` — links a client to its provider. Its `adaptJson` has not turned out to be a useful pattern and may be deprecated; do not copy it.
+- `IuOidcClientReference` — links a client to its provider. Its `adaptJson` was removed in 7.1.
+
+The relying party converts every OIDC document by `WebToken.jsonb()`, the token Jsonb from `jwt`: discovery metadata, the token response, UserInfo claims, and authorization details, which convert by their runtime type so a detail keeps every property it has. `client` doesn't depend on `iu.util.config` outside its integration tests.
 
 These are bound through `IuConfig.registerInterface`, which is why the package is `opens`. When adding a setting, prefer a `default` method on the interface so existing deployments keep working — the same applies to `edu.iu.oidc.config`.
 
@@ -150,4 +152,4 @@ Two things bite repeatedly in `provider` tests:
 
 `MemoryDataStore` in the `provider` test package is the shared `IuDataStore` fixture; use it rather than mocking the store when a test needs a real `GrantStore` round trip.
 
-**A nested bean claim does not get the JWT `Instant` treatment.** `iu.jwt.Jwt.adapt` answers the RFC 7519 NumericDate adapter only when the type *is* `Instant`, and recurses through itself only for `IuAuthorizationDetails`; anything else, a bean interface like `IuOidcActor` included, falls through to `IuConfig.adaptJson`, whose `Instant` adapter is `Instant::parse` — ISO-8601 text. So an `Instant` property on a nested claim serializes as a string no other implementation will read as a date. That is why `IuOidcActor.getAuthTime()` is a `Long`, matching how top-level `auth_time` is already written. Round-trip tests pass either way, since the same adapter reads it back; only the wire is wrong. Declare a NumericDate as `Long` unless you are writing it at the top level.
+**Every `Instant` in a token is a NumericDate.** Claims convert by `WebToken.jsonb()`, whose NumericDate adapter applies to every `Instant`, nested ones included, so declare a date as `Instant` wherever it sits — `auth_time` at the top level, `IuOidcActor.getAuthTime()` inside `act`, `OidcGrant.getAuthnInstant()` inside a stored grant. Before 7.1, only a top-level `Instant` was a NumericDate and a nested one was ISO-8601 text, which is why `getAuthTime()` was once a `Long`.

@@ -1084,7 +1084,7 @@ public class OidcTokenEndpoint {
 		if (redeemed != null //
 				&& redeemed.impersonated() == null //
 				&& redeemed.authnInstant() != null)
-			accessTokenBuilder.claim("auth_time", redeemed.authnInstant().getEpochSecond(), Long.class);
+			accessTokenBuilder.claim("auth_time", redeemed.authnInstant(), Instant.class);
 
 		// RFC 9068 §2.2.1 admits acr on an access token, and this is the one that
 		// matters most: a resource server reads this token, not the ID token, so it is
@@ -1361,7 +1361,7 @@ public class OidcTokenEndpoint {
 
 		final var actorClaims = held.build();
 		return new Actor(principalName, actorClaims.getClaim("name", String.class),
-				actorClaims.getClaim("email", String.class), authTime == null ? null : authTime.getEpochSecond(), acr);
+				actorClaims.getClaim("email", String.class), authTime, acr);
 	}
 
 	/**
@@ -1437,7 +1437,7 @@ public class OidcTokenEndpoint {
 		final var authnInstant = redeemed.authnInstant();
 		if (authnInstant != null //
 				&& redeemed.impersonated() == null)
-			builder.claim("auth_time", authnInstant.getEpochSecond(), Long.class);
+			builder.claim("auth_time", authnInstant, Instant.class);
 
 		acr(builder, redeemed);
 
@@ -1652,9 +1652,9 @@ public class OidcTokenEndpoint {
 	 * @param sub      actor's principal name
 	 * @param name     actor's display name, or {@code null}
 	 * @param email    actor's email address, or {@code null}
-	 * @param authTime when the actor authenticated as a NumericDate, or {@code null}
+	 * @param authTime when the actor authenticated, or {@code null}
 	 */
-	private record Actor(String sub, String name, String email, Long authTime, String acr) implements IuOidcActor {
+	private record Actor(String sub, String name, String email, Instant authTime, String acr) implements IuOidcActor {
 
 		@Override
 		public String getSub() {
@@ -1672,7 +1672,7 @@ public class OidcTokenEndpoint {
 		}
 
 		@Override
-		public Long getAuthTime() {
+		public Instant getAuthTime() {
 			return authTime;
 		}
 

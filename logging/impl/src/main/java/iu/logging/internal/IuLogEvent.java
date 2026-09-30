@@ -31,8 +31,11 @@
  */
 package iu.logging.internal;
 
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.Writer;
+import java.nio.CharBuffer;
 import java.time.Instant;
 import java.util.logging.Formatter;
 import java.util.logging.Level;
@@ -40,6 +43,7 @@ import java.util.logging.LogRecord;
 
 import edu.iu.client.IuJson;
 import iu.logging.Bootstrap;
+import jakarta.json.stream.JsonGenerator;
 
 /**
  * Fully resolved buffered log event holder.
@@ -134,34 +138,76 @@ class IuLogEvent {
 	}
 
 	/**
-	 * Exports the log message as JSON.
-	 * 
-	 * @return JSON formatted log message
+	 * Writes characters to a {@link PrintStream}, in its charset, without closing
+	 * it when a generator over it closes.
 	 */
-	String export() {
-		final var builder = IuJson.object();
-		IuJson.add(builder, "level", level.getName());
-		IuJson.add(builder, "requestId", requestId);
-		IuJson.add(builder, "endpoint", endpoint);
-		IuJson.add(builder, "application", application);
-		IuJson.add(builder, "environment", environment);
-		IuJson.add(builder, "module", module);
-		IuJson.add(builder, "runtime", runtime);
-		IuJson.add(builder, "component", component);
-		IuJson.add(builder, "nodeId", nodeId);
-		IuJson.add(builder, "thread", thread);
-		IuJson.add(builder, "callerIpAddress", callerIpAddress);
-		IuJson.add(builder, "calledUrl", calledUrl);
-		IuJson.add(builder, "callerPrincipalName", callerPrincipalName);
-		IuJson.add(builder, "impersonatedPrincipalName", impersonatedPrincipalName);
-		IuJson.add(builder, "timestamp", timestamp.toString());
-		IuJson.add(builder, "loggerName", loggerName);
-		IuJson.add(builder, "sourceClassName", sourceClassName);
-		IuJson.add(builder, "sourceMethodName", sourceMethodName);
-		IuJson.add(builder, "message", message);
-		IuJson.add(builder, "processLog", processLog);
-		IuJson.add(builder, "error", error);
-		return builder.build().toString();
+	private static class PrintStreamWriter extends Writer {
+		private final PrintStream out;
+
+		private PrintStreamWriter(PrintStream out) {
+			this.out = out;
+		}
+
+		@Override
+		public void write(char[] cbuf, int off, int len) {
+			out.append(CharBuffer.wrap(cbuf, off, len));
+		}
+
+		@Override
+		public void flush() {
+			out.flush();
+		}
+
+		@Override
+		public void close() {
+			flush();
+		}
+	}
+
+	/**
+	 * Exports the log message as a line of JSON, streamed as it is generated.
+	 *
+	 * <p>
+	 * Null values are omitted. The line is written while holding the stream's lock,
+	 * so it doesn't interleave with anything else written to the stream.
+	 * </p>
+	 *
+	 * @param out stream to write the line to
+	 */
+	void export(PrintStream out) {
+		synchronized (out) {
+			try (final var generator = IuJson.PROVIDER.createGenerator(new PrintStreamWriter(out))) {
+				generator.writeStartObject();
+				write(generator, "level", level.getName());
+				write(generator, "requestId", requestId);
+				write(generator, "endpoint", endpoint);
+				write(generator, "application", application);
+				write(generator, "environment", environment);
+				write(generator, "module", module);
+				write(generator, "runtime", runtime);
+				write(generator, "component", component);
+				write(generator, "nodeId", nodeId);
+				write(generator, "thread", thread);
+				write(generator, "callerIpAddress", callerIpAddress);
+				write(generator, "calledUrl", calledUrl);
+				write(generator, "callerPrincipalName", callerPrincipalName);
+				write(generator, "impersonatedPrincipalName", impersonatedPrincipalName);
+				write(generator, "timestamp", timestamp.toString());
+				write(generator, "loggerName", loggerName);
+				write(generator, "sourceClassName", sourceClassName);
+				write(generator, "sourceMethodName", sourceMethodName);
+				write(generator, "message", message);
+				write(generator, "processLog", processLog);
+				write(generator, "error", error);
+				generator.writeEnd();
+			}
+			out.println();
+		}
+	}
+
+	private static void write(JsonGenerator generator, String name, String value) {
+		if (value != null)
+			generator.write(name, value);
 	}
 
 	/**

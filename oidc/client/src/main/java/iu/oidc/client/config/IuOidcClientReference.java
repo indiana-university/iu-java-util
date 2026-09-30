@@ -32,12 +32,9 @@
 package iu.oidc.client.config;
 
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.net.URI;
 
 import edu.iu.IuRequestAttributes;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.oidc.IuOidcAuthorization;
 import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSessionHandler;
@@ -120,28 +117,6 @@ public interface IuOidcClientReference {
 	 */
 	default IuSessionHandler getSessionHandler() {
 		return null;
-	}
-
-	/**
-	 * Gets an {@link IuJsonAdapter} for a generic type.
-	 * 
-	 * @param type type
-	 * @return {@link IuJsonAdapter}
-	 */
-	default IuJsonAdapter<?> adaptJson(Type type) {
-		return IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
-	}
-
-	/**
-	 * Gets an {@link IuJsonAdapter} for a class.
-	 * 
-	 * @param <T>  type
-	 * @param type type class
-	 * @return {@link IuJsonAdapter}
-	 */
-	@SuppressWarnings("unchecked")
-	default <T> IuJsonAdapter<T> adaptJson(Class<T> type) {
-		return (IuJsonAdapter<T>) adaptJson((Type) type);
 	}
 
 	/**

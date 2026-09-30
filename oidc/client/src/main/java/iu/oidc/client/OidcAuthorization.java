@@ -54,7 +54,6 @@ import edu.iu.IuText;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebKey;
@@ -135,9 +134,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			params.put("resource", IuIterable.map(resource, URI::toString));
 
 		if (authorizationDetails != null)
-			params.put("authorization_details",
-					IuIterable.iter(IuJsonAdapter.of(Iterable.class, config.adaptJson(IuAuthorizationDetails.class))
-							.toJson(authorizationDetails).toString()));
+			// each as its runtime type, so a detail writes every property it has
+			params.put("authorization_details", IuIterable.iter(WebToken.jsonb().toJson(authorizationDetails)));
 
 		final var metadata = OidcProviders.getMetadata(config.getProvider());
 		final var location = URI

@@ -76,8 +76,6 @@ import edu.iu.IuWebUtils;
 import edu.iu.client.HttpException;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -119,8 +117,6 @@ public class OidcTokenGrantTest {
 		when(client.getResourceUri()).thenReturn(null);
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("token_endpoint", tokenEndpoint.toString()) //
@@ -174,8 +170,6 @@ public class OidcTokenGrantTest {
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var accessToken = IdGenerator.generateId();
 		IuHttpAware.mock.when(() -> IuHttp
@@ -294,8 +288,6 @@ public class OidcTokenGrantTest {
 		when(client.getResourceUri()).thenReturn(List.of(firstResource, secondResource));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("token_endpoint", tokenEndpoint.toString()) //
@@ -341,8 +333,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(List.of());
 		when(config.getClient()).thenReturn(mock(IuOidcClient.class));
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("token_endpoint", tokenEndpoint.toString()) //
@@ -422,8 +412,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("token_endpoint", tokenEndpoint.toString()) //
@@ -478,8 +466,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("token_endpoint", tokenEndpoint.toString()) //
@@ -534,8 +520,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getClient()).thenReturn(client);
 		when(config.getProvider()).thenReturn(provider);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("token_endpoint", tokenEndpoint.toString()) //
@@ -588,9 +572,9 @@ public class OidcTokenGrantTest {
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
 		when(provider.getIssuer()).thenReturn(issuer);
@@ -608,8 +592,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("issuer", issuer.toString()) //
@@ -672,9 +654,9 @@ public class OidcTokenGrantTest {
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
 		when(provider.getIssuer()).thenReturn(issuer);
@@ -692,8 +674,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("issuer", issuer.toString()) //
@@ -763,9 +743,9 @@ public class OidcTokenGrantTest {
 
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA)
 				.keyId(IdGenerator.generateId()).ephemeral().build();
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
 		when(provider.getIssuer()).thenReturn(issuer);
@@ -779,8 +759,6 @@ public class OidcTokenGrantTest {
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(provider.getMetadataUri(), IuHttp.READ_JSON_OBJECT))
 				.thenReturn(IuJson.object() //
@@ -864,9 +842,9 @@ public class OidcTokenGrantTest {
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
 		when(provider.getIssuer()).thenReturn(issuer);
@@ -883,8 +861,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("issuer", issuer.toString()) //
@@ -947,9 +923,9 @@ public class OidcTokenGrantTest {
 		final var keyId = IdGenerator.generateId();
 		final var issuerKey = WebKey.builder(WebKey.Type.ED25519).algorithm(Algorithm.EDDSA).keyId(keyId).ephemeral()
 				.build();
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var provider = mock(IuOidcProvider.class, CALLS_REAL_METHODS);
 		when(provider.getIssuer()).thenReturn(issuer);
@@ -969,8 +945,6 @@ public class OidcTokenGrantTest {
 		when(config.getScope()).thenReturn(IuIterable.iter(scope));
 		when(config.getProvider()).thenReturn(provider);
 		when(config.getClient()).thenReturn(client);
-		when(config.adaptJson(IuOidcTokenResponse.class)).thenReturn(
-				IuJsonAdapter.adapt(IuOidcTokenResponse.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		IuHttpAware.mock.when(() -> IuHttp.get(metadataUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
 				.add("issuer", issuer.toString()) //

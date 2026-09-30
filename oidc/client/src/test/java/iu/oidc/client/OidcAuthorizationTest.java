@@ -71,8 +71,6 @@ import edu.iu.IuRequestAttributes;
 import edu.iu.IuWebUtils;
 import edu.iu.client.IuHttp;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -231,8 +229,6 @@ public class OidcAuthorizationTest {
 
 		final var detailType = IdGenerator.generateId();
 		final Iterable<IuAuthorizationDetails> authorizationDetails = List.of(() -> detailType);
-		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
-				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var authorization = new OidcAuthorization(config);
 		final var redirect = authorization.init(authorizationDetails);
@@ -859,8 +855,6 @@ public class OidcAuthorizationTest {
 		final var authorizationDetailType = IdGenerator.generateId();
 		doReturn(List.of((IuAuthorizationDetails) () -> authorizationDetailType)).when(response)
 				.getAuthorizationDetails();
-		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
-				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var notAfter = Instant.now().plusSeconds(1L);
 		when(postAuth.getTokenResponse()).thenReturn(response);
@@ -978,9 +972,9 @@ public class OidcAuthorizationTest {
 		when(metadata.getIssuer()).thenReturn(issuer);
 		when(provider.getMetadata()).thenReturn(metadata);
 
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(issuerKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);
@@ -1098,9 +1092,9 @@ public class OidcAuthorizationTest {
 
 		if (jwksUri != null) {
 			when(metadata.getJwksUri()).thenReturn(jwksUri);
-			IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+			IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 					.add("keys", IuJson.array().add(IuJson.parse(publishedKey.wellKnown().toString()))) //
-					.build());
+					.build()));
 		}
 
 		final var config = mock(IuOidcClientReference.class);
@@ -1338,9 +1332,9 @@ public class OidcAuthorizationTest {
 		when(metadata.getIssuer()).thenReturn(issuer);
 		when(provider.getMetadata()).thenReturn(metadata);
 
-		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+		IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 				.add("keys", IuJson.array().add(IuJson.parse(wrongKey.wellKnown().toString()))) //
-				.build());
+				.build()));
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);
@@ -1546,9 +1540,9 @@ public class OidcAuthorizationTest {
 		when(provider.getMetadata()).thenReturn(metadata);
 
 		if (publishedKey != null)
-			IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.object() //
+			IuHttpAware.mock.when(() -> IuHttp.get(jwksUri, IuHttp.READ_STREAM)).thenAnswer(a -> IuHttpAware.stream(IuJson.object() //
 					.add("keys", IuJson.array().add(IuJson.parse(publishedKey.wellKnown().toString()))) //
-					.build());
+					.build()));
 
 		final var config = mock(IuOidcClientReference.class);
 		when(config.getClient()).thenReturn(client);

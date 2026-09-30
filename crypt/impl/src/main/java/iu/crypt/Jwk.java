@@ -107,7 +107,8 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 		if (cached.lastUpdate == null //
 				|| Duration.between(cached.lastUpdate, Instant.now()).toSeconds() > 900L)
 			try {
-				try (final var in = (InputStream) IuHttp.get(uri).body()) {
+				// validated as 200 OK, then bound from the response stream
+				try (final var in = IuHttp.get(uri, IuHttp.READ_STREAM)) {
 					cached.jwks = CryptJsonAdapters.JSONB.fromJson(in, Jwks.class);
 				}
 				cached.lastUpdate = Instant.now();

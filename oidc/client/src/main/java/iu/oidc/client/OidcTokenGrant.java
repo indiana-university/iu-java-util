@@ -306,8 +306,8 @@ public abstract class OidcTokenGrant {
 			var authTime = verifiedIdToken.getClaim("auth_time", Instant.class);
 			if (authTime == null) {
 				final var actor = verifiedIdToken.getClaim("act", IuOidcActor.class);
-				if (actor != null && actor.getAuthTime() != null)
-					authTime = Instant.ofEpochSecond(actor.getAuthTime());
+				if (actor != null)
+					authTime = actor.getAuthTime();
 			}
 
 			if (isAuthTimeRequired())
@@ -368,7 +368,7 @@ public abstract class OidcTokenGrant {
 				throw e;
 			}
 
-			final var tokenResponse = config.adaptJson(IuOidcTokenResponse.class).fromJson(httpResponse);
+			final var tokenResponse = WebToken.jsonb().fromJson(httpResponse.toString(), IuOidcTokenResponse.class);
 			LOG.fine(() -> "OIDC token response type=" + tokenResponse.getTokenType() + " expires_in="
 					+ tokenResponse.getExpiresIn() + " scope=" + tokenResponse.getScope());
 

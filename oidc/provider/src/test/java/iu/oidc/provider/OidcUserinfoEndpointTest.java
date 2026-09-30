@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -58,6 +59,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuBadRequestException;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -321,11 +323,13 @@ public class OidcUserinfoEndpointTest {
 		verify(claimsSource).claims(SUB, Set.of("sub"));
 		verify(claimsSource, never()).claims(any(), any(), any());
 
-		// and a client whose registration has gone missing signs nothing either
+		// and a client whose registration has gone missing is refused before the
+		// source is asked for anything
 		reset(claimsSource, clients);
 		sourceHolds();
-		endpoint.userinfo(accessToken("openid"));
-		verify(claimsSource).claims(SUB, Set.of("sub"));
+		assertThrows(IuBadRequestException.class, () -> endpoint.userinfo(accessToken("openid")));
+		verify(claimsSource, never()).claims(any(), any());
+		verify(claimsSource, never()).claims(any(), any(), any());
 	}
 
 	@Test
@@ -339,29 +343,34 @@ public class OidcUserinfoEndpointTest {
 	}
 
 	@Test
-	void testATokenNamingNoClientGetsAPlainDocument() {
+	void testATokenNamingNoClientIsRefused() {
 		sourceHolds();
 
 		final var token = OidcJose.sign(WebToken.builder().jti().iss(ISSUER).sub(SUB).aud(ISSUER).iat()
 				.exp(Instant.now().plus(Duration.ofMinutes(5L))).build().toString(), "at+jwt", issuerKey);
 
-		assertInstanceOf(Json.class, endpoint.userinfo(token));
+		assertEquals("missing client_id",
+				assertThrows(NullPointerException.class, () -> endpoint.userinfo(token)).getMessage());
 	}
 
 	@Test
-	void testARegistrationSinceGoneMissingDoesntTakeATokenOutOfService() {
+	void testARegistrationSinceGoneMissingIsRefused() {
 		sourceHolds();
 		when(clients.client(CLIENT_ID)).thenReturn(null);
 
-		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid")));
+		assertEquals("client " + CLIENT_ID + " not registered",
+				assertThrows(IuBadRequestException.class, () -> endpoint.userinfo(accessToken("openid")))
+						.getMessage());
 	}
 
 	@Test
-	void testAClientSourceThatRefusesDoesntTakeATokenOutOfService() {
+	void testAClientSourceThatRefusesIsRefused() {
 		sourceHolds();
-		when(clients.client(CLIENT_ID)).thenThrow(new IllegalStateException("no such registration"));
+		final var refusal = new IllegalStateException("no such registration");
+		when(clients.client(CLIENT_ID)).thenThrow(refusal);
 
-		assertInstanceOf(Json.class, endpoint.userinfo(accessToken("openid")));
+		assertSame(refusal,
+				assertThrows(IllegalStateException.class, () -> endpoint.userinfo(accessToken("openid"))));
 	}
 
 	@Test

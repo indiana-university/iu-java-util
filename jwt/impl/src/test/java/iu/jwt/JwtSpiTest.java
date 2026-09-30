@@ -33,6 +33,7 @@ package iu.jwt;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -42,6 +43,9 @@ import edu.iu.IdGenerator;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import iu.jwt.spi.Init;
+import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 
 @SuppressWarnings("javadoc")
 public class JwtSpiTest {
@@ -58,6 +62,26 @@ public class JwtSpiTest {
 	@Test
 	void testBuilder() {
 		assertInstanceOf(JwtBuilder.class, WebToken.builder());
+	}
+
+	@Test
+	void testJsonb() {
+		assertSame(TokenJsonb.get(), WebToken.jsonb());
+	}
+
+	@Test
+	void testRegister() {
+		final var adapter = mock(JsonbAdapter.class);
+		final var serializer = mock(JsonbSerializer.class);
+		final var deserializer = mock(JsonbDeserializer.class);
+		try (final var mockTokenJsonb = mockStatic(TokenJsonb.class)) {
+			WebToken.registerAdapter(adapter);
+			mockTokenJsonb.verify(() -> TokenJsonb.registerAdapter(adapter));
+			WebToken.registerSerializer(serializer);
+			mockTokenJsonb.verify(() -> TokenJsonb.registerSerializer(serializer));
+			WebToken.registerDeserializer(deserializer);
+			mockTokenJsonb.verify(() -> TokenJsonb.registerDeserializer(deserializer));
+		}
 	}
 
 	@Test

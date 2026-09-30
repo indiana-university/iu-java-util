@@ -56,8 +56,6 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcTokenResponse;
@@ -88,8 +86,6 @@ public class OidcPrincipalTest {
 		final var client = mock(IuOidcClient.class);
 		when(config.getResourceUri()).thenReturn(resourceUri);
 		when(config.getClient()).thenReturn(client);
-		when(config.adaptJson(String.class))
-				.thenReturn(IuJsonAdapter.adapt(String.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 		return config;
 	}
 
@@ -317,8 +313,6 @@ public class OidcPrincipalTest {
 		final var idToken = WebToken.builder().sub(sub)
 				.authorizationDetails((IuAuthorizationDetails) () -> idTokenType, IuAuthorizationDetails.class).build();
 		final var config = config();
-		when(config.adaptJson(IuAuthorizationDetails.class)).thenReturn(
-				IuJsonAdapter.adapt(IuAuthorizationDetails.class, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES));
 
 		final var principal = new OidcPrincipal(idToken, IuJson.object().add("sub", sub).build(), null, config, null,
 				null, null, List.of((IuAuthorizationDetails) () -> responseType), null);

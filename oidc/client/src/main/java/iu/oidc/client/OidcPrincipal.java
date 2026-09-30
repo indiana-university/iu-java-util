@@ -41,6 +41,7 @@ import java.util.logging.Logger;
 
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
@@ -66,6 +67,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
+	private final IuJsonProperties userinfo;
 	private final String setCookie;
 	private final IuOidcClientReference config;
 	private final String accessToken;
@@ -87,8 +89,8 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 *                               user agent if session state changed assembling
 	 *                               the principal
 	 * @param config                 OIDC client configuration reference; supplies
-	 *                               the client's own resource URI, downstream API
-	 *                               resource URIs, and JSON type adapters
+	 *                               the client's own resource URI and downstream
+	 *                               API resource URIs
 	 * @param accessToken            access token issued with the ID token
 	 * @param verifiedAccessToken    {@code accessToken} parsed and verified as a
 	 *                               JWT issued by the OpenID Provider; null if it
@@ -112,6 +114,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (!userinfoClaims.getString("sub").equals(idToken.getSubject()))
 			throw new IllegalArgumentException("userinfo sub claim doesn't match id token");
 		this.userinfoClaims = userinfoClaims;
+		this.userinfo = IuJsonProperties.of(userinfoClaims, WebToken.jsonb());
 
 		this.setCookie = setCookie;
 
@@ -129,9 +132,9 @@ public class OidcPrincipal implements IuOidcPrincipal {
 			final var idTokenValue = idToken.getClaim(principalNameClaimName, String.class);
 			if (idTokenValue != null)
 				return idTokenValue;
-			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
+			final var userinfoValue = userinfo.get(principalNameClaimName, String.class);
 			if (userinfoValue != null)
-				return config.adaptJson(String.class).fromJson(userinfoValue);
+				return userinfoValue;
 		}
 		return idToken.getSubject();
 	}
@@ -152,11 +155,10 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (idTokenClaimValue != null)
 			return idTokenClaimValue;
 
-		final var userinfoClaimValue = userinfoClaims.get(name);
-		if (userinfoClaimValue == null)
+		if (!userinfoClaims.containsKey(name))
 			return null;
 
-		return type.cast(config.adaptJson(type).fromJson(userinfoClaimValue));
+		return type.cast(userinfo.get(name, type));
 	}
 
 	@Override
@@ -216,10 +218,10 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	public <T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface,
 			String type) {
 		if (authorizationDetails != null) {
-			final var detailAdapter = config.adaptJson(detailInterface);
-			final var unwrap = config.adaptJson(IuAuthorizationDetails.class);
+			// as its runtime type, so a detail writes every property it has
+			final var jsonb = WebToken.jsonb();
 			return IuIterable.map(IuIterable.filter(authorizationDetails, a -> type.equals(a.getType())),
-					a -> detailAdapter.fromJson(unwrap.toJson(a)));
+					a -> jsonb.fromJson(jsonb.toJson(a), detailInterface));
 		} else
 			return idToken.getAuthorizationDetails(detailInterface, type);
 	}

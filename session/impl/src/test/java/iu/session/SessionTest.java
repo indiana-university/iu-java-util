@@ -51,6 +51,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -82,6 +83,10 @@ public class SessionTest {
 		String getFoo();
 
 		void setFoo(String foo);
+
+		Instant getNotAfter();
+
+		void setNotAfter(Instant notAfter);
 	}
 
 	@BeforeEach
@@ -228,6 +233,25 @@ public class SessionTest {
 
 		final var fromToken = new Session(resourceUri, token, secretKey, configuration);
 		assertEquals(foo, fromToken.getDetail(SessionDetailInterface.class).getFoo());
+	}
+
+	@Test
+	public void testTokenizeInstantDetail() {
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+
+		final var secretKey = WebKey.ephemeral(Encryption.AES_192_CBC_HMAC_SHA_384);
+		final var issuerKey = WebKey.builder(Algorithm.PS384).ephemeral().build();
+		when(configuration.getJwk()).thenReturn(issuerKey);
+		when(configuration.getEnc()).thenReturn(Encryption.AES_192_CBC_HMAC_SHA_384);
+
+		// stored in snake_case, as a NumericDate, like the token's own claims
+		final var notAfter = Instant.now().plusSeconds(60L).truncatedTo(ChronoUnit.SECONDS);
+		session.getDetail(SessionDetailInterface.class).setNotAfter(notAfter);
+		assertTrue(session.toString().contains("not_after=" + notAfter.getEpochSecond()), session::toString);
+
+		final var fromToken = new Session(resourceUri, session.tokenize(secretKey, configuration), secretKey,
+				configuration);
+		assertEquals(notAfter, fromToken.getDetail(SessionDetailInterface.class).getNotAfter());
 	}
 
 	@Test

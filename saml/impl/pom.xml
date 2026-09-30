@@ -97,6 +97,13 @@
 			<version>${project.version}</version>
 			<scope>test</scope>
 		</dependency>
+		<!-- crypt-impl requires JSON-B, provided -->
+		<dependency>
+			<groupId>jakarta.json.bind</groupId>
+			<artifactId>jakarta.json.bind-api</artifactId>
+			<version>${jakarta.json.bind-api.version}</version>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.jsoup</groupId>
 			<artifactId>jsoup</artifactId>
