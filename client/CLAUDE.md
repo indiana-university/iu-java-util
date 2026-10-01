@@ -6,7 +6,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 ## Role
 
-JSON conversion over Jakarta JSON Processing — the IU conversions and a JSON-B provider sharing one set of built-ins and one property model — plus the JDK HTTP client wrapper, the HashiCorp Vault integration that backs `config`, and remote invocation. Main code compiles with `--release 11`.
+JSON conversion over Jakarta JSON Processing — the IU conversions and a JSON-B provider sharing one set of built-ins and one property model — plus the JDK HTTP client wrapper, the HashiCorp Vault integration that backs `config`, and remote invocation. Compiles with `--release 17`.
 
 `jakarta.json` and `java.net.http` are `requires transitive`, so anything depending on this module also reads them; `jakarta.json` is a `provided` dependency, so the application supplies the API and an implementation. `jakarta.json.bind` is `requires static` and `provided`: optional at runtime. The module `provides jakarta.json.bind.spi.JsonbProvider with iu.client.jsonb.IuJsonbProvider`; there is no `META-INF/services` entry, since the module's components assert they run as a named module that isn't open. Adding a new transitive requirement here propagates widely — do it deliberately.
 
@@ -38,6 +38,6 @@ Only `edu.iu.client` is exported. Anything an application must name — config p
 
 ## Testing notes
 
-Tests compile with `--release 17` and `-parameters` (the `default-testCompile` execution in `pom.xml`), so they can declare records and creators without `@JsonbProperty` on every parameter; main code stays at 11. Tests here mock the HTTP layer rather than opening sockets. `iu-java-test` fails a test on any unexpected log record, and `IuHttp` logs every request — expect or allow those records explicitly.
+Tests compile with `-parameters` (the `default-testCompile` execution in `pom.xml`), so they can declare creators without `@JsonbProperty` on every parameter. Tests here mock the HTTP layer rather than opening sockets. `iu-java-test` fails a test on any unexpected log record, and `IuHttp` logs every request — expect or allow those records explicitly.
 
 Coverage is 100% instruction and branch. A coverage report showing most classes missed while every test passed means the class files changed under JaCoCo — look for "does not match" in the build log, typically an IDE rebuilding `target/` — and re-run with `clean` rather than chasing gaps.

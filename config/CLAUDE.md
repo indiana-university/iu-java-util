@@ -8,7 +8,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 The secure configuration layer. `IuConfig` is the single class in the public API, and it is the sanctioned way for every module above `base` to obtain settings. `edu.iu.IuRuntimeEnvironment` exists only to bootstrap *this* layer; application code should not read the environment directly.
 
-Compiled with `--release 11`. `iu.util.client`, `iu.util.crypt`, and `jakarta.json.bind` are `requires transitive`, so consumers get `IuVault`, the JOSE API, and `Jsonb` alongside it. `iu.util.crypt.impl` is required for `CryptJsonAdapters.config()`, which configuration binding builds on; both it and the JSON-B API are `provided`.
+Compiled with `--release 17`. `iu.util.client`, `iu.util.crypt`, and `jakarta.json.bind` are `requires transitive`, so consumers get `IuVault`, the JOSE API, and `Jsonb` alongside it. `iu.util.crypt.impl` is required for `CryptJsonAdapters.config()`, which configuration binding builds on; both it and the JSON-B API are `provided`.
 
 ## The registration model
 

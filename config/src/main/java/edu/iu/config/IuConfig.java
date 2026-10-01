@@ -44,9 +44,10 @@ import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
-import iu.crypt.CryptJsonAdapters;
+import edu.iu.crypt.Init;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -57,8 +58,8 @@ import jakarta.json.stream.JsonParser.Event;
  *
  * <p>
  * Configuration binds from JSON through {@link #jsonb()}: the web crypto
- * configuration, {@link CryptJsonAdapters#config()}, with property names in
- * snake_case and dates in ISO-8601, plus the components registered here.
+ * configuration, {@link Init#jsonbConfig()}, with property names in snake_case
+ * and dates in ISO-8601, plus the components registered here.
  * </p>
  */
 public class IuConfig {
@@ -180,8 +181,7 @@ public class IuConfig {
 	 * Registers a JSON-B deserializer for configuration binding.
 	 *
 	 * <p>
-	 * A lambda has no type argument to name the type it deserializes; wrap it
-	 * with
+	 * A lambda has no type argument to name the type it deserializes; wrap it with
 	 * {@link IuJsonAdapter#typedDeserializer(java.lang.reflect.Type, JsonbDeserializer)}.
 	 * </p>
 	 *
@@ -309,7 +309,7 @@ public class IuConfig {
 	 * Gets the {@link Jsonb} instance that binds configuration.
 	 *
 	 * <p>
-	 * Created on first use from {@link CryptJsonAdapters#config()} and the
+	 * Created on first use from {@link Init#jsonbConfig()} and the
 	 * components registered, which seals registration.
 	 * </p>
 	 *
@@ -318,10 +318,12 @@ public class IuConfig {
 	public static synchronized Jsonb jsonb() {
 		if (jsonb == null) {
 			seal();
-			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(CryptJsonAdapters.config() //
-					.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
-					.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
-					.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new))).build();
+			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider")
+					.withConfig(Init.<JsonbConfig>jsonbConfig() //
+							.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
+							.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
+							.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new)))
+					.build();
 		}
 		return jsonb;
 	}

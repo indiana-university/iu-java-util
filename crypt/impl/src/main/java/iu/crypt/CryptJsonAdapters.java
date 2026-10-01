@@ -334,7 +334,7 @@ public class CryptJsonAdapters {
 	 * 
 	 * @return {@link JsonbConfig}
 	 */
-	public static JsonbConfig config() {
+	static JsonbConfig config() {
 		return new JsonbConfig() //
 				.withNullValues(false) //
 				.withPropertyNamingStrategy(PropertyNamingStrategy.LOWER_CASE_WITH_UNDERSCORES) //

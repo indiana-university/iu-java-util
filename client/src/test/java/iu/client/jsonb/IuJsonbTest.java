@@ -72,7 +72,7 @@ import jakarta.json.bind.serializer.SerializationContext;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
 
-@SuppressWarnings({ "javadoc", "rawtypes", "unchecked" })
+@SuppressWarnings({ "javadoc", "rawtypes" })
 public class IuJsonbTest {
 
 	static IuJsonb jsonb(JsonbConfig config) {
@@ -418,8 +418,8 @@ public class IuJsonbTest {
 	@Test
 	public void testIsBroad() throws Exception {
 		for (final var broad : new Type[] { Object.class, java.io.Serializable.class, Comparable.class,
-				Iterable.class, Appendable.class, Class.forName("java.lang.constant.Constable"),
-				Class.forName("java.lang.constant.ConstantDesc"),
+				Iterable.class, Appendable.class, java.lang.constant.Constable.class,
+				java.lang.constant.ConstantDesc.class,
 				Holder.class.getDeclaredField("comparable").getGenericType() })
 			assertTrue(IuJsonb.isBroad(broad), broad.getTypeName());
 		for (final var other : new Class<?>[] { CharSequence.class, Number.class, String.class, Boolean.class,

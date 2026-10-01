@@ -44,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import edu.iu.TypeValue;
 import iu.client.ConversionScope;
 import iu.client.GenericTypes;
 import iu.client.JsonAdapters;
@@ -135,14 +136,18 @@ public final class IuJsonProperties {
 	 */
 	private static final Object ABSENT = new Object();
 
-	private static final Map<Type, IuJsonAdapter<?>> DEFAULT_ADAPTERS = new ConcurrentHashMap<>();
+	private static final TypeValue<IuJsonAdapter<?>> DEFAULT_ADAPTERS = new TypeValue<IuJsonAdapter<?>>() {
+		@Override
+		protected IuJsonAdapter<?> computeValue(Type type) {
+			return IuJsonAdapter.adapt(type, () -> IuJsonSerializationOptions.DEFAULT);
+		}
+	};
 
 	/**
 	 * The IU conversions with default options, for an index converting with no
 	 * JSON-B call to take conversions from.
 	 */
-	private static final Function<Type, IuJsonAdapter<?>> DEFAULTS = type -> DEFAULT_ADAPTERS.computeIfAbsent(type,
-			t -> IuJsonAdapter.adapt(t, () -> IuJsonSerializationOptions.DEFAULT));
+	private static final Function<Type, IuJsonAdapter<?>> DEFAULTS = DEFAULT_ADAPTERS::get;
 
 	/**
 	 * Builds an index from Java values.

@@ -369,7 +369,9 @@ public class ElTest {
 		b2.add("foo", Json.createObjectBuilder().add("bar", "baz"));
 		b2.add("baz", JsonValue.FALSE);
 		final var context2 = b2.build();
-		assertEquals("false", IuJsonAdapter.of(String.class).fromJson(El.eval(context2, "$.foo.bar?root.baz")));
+		// the conditional answers the JSON value it selects, which a strict string
+		// conversion doesn't coerce
+		assertEquals(JsonValue.FALSE, El.eval(context2, "$.foo.bar?root.baz"));
 	}
 
 	@Test

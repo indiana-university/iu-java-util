@@ -151,7 +151,6 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public T read(JsonParser parser) {
 		var event = parser.currentEvent();
 		if (event == Event.VALUE_NULL)

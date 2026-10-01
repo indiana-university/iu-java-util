@@ -32,9 +32,6 @@
 package iu.client;
 
 import java.beans.Introspector;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
@@ -44,6 +41,7 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -69,7 +67,7 @@ import java.util.stream.Stream;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
-import edu.iu.UnsafeSupplier;
+import edu.iu.TypeValue;
 
 /**
  * The properties of a business object type, as JSON-B discovers them, shared by
@@ -86,9 +84,9 @@ import edu.iu.UnsafeSupplier;
  * </p>
  *
  * <p>
- * Binding annotations apply as {@link BindingMetadata} reads them: a
- * visibility or property order a type declares, a name a member declares, a
- * member that excludes its property, and whether a property writes null.
+ * Binding annotations apply as {@link BindingMetadata} reads them: a visibility
+ * or property order a type declares, a name a member declares, a member that
+ * excludes its property, and whether a property writes null.
  * </p>
  */
 public final class BeanModel {
@@ -157,16 +155,15 @@ public final class BeanModel {
 		 * As the IU binding paths discovered properties before 7.1: public accessors
 		 * only, without binding annotations.
 		 */
-		public static final Discovery LEGACY = new Discovery(ACCESSORS, "LEXICOGRAPHICAL", BindingMetadata.NONE,
-				true);
+		public static final Discovery LEGACY = new Discovery(ACCESSORS, "LEXICOGRAPHICAL", BindingMetadata.NONE, true);
 
 		/**
 		 * Gets a discovery honoring binding annotations.
 		 *
-		 * @param visibility visibility for a class that declares none of its own;
-		 *                   null for {@link BeanModel#PUBLIC}
-		 * @param order      {@code LEXICOGRAPHICAL}, {@code REVERSE}, or
-		 *                   {@code ANY}, as JSON-B names them
+		 * @param visibility visibility for a class that declares none of its own; null
+		 *                   for {@link BeanModel#PUBLIC}
+		 * @param order      {@code LEXICOGRAPHICAL}, {@code REVERSE}, or {@code ANY},
+		 *                   as JSON-B names them
 		 * @return {@link Discovery}
 		 */
 		public static Discovery of(Visibility visibility, String order) {
@@ -181,12 +178,12 @@ public final class BeanModel {
 		/**
 		 * Constructor.
 		 *
-		 * @param visibility visibility for a class that declares none of its own;
-		 *                   null for {@link BeanModel#PUBLIC}
+		 * @param visibility visibility for a class that declares none of its own; null
+		 *                   for {@link BeanModel#PUBLIC}
 		 * @param order      property order strategy
 		 * @param metadata   binding annotations
-		 * @param legacy     true to apply {@code visibility} to every class,
-		 *                   whatever it declares
+		 * @param legacy     true to apply {@code visibility} to every class, whatever
+		 *                   it declares
 		 */
 		Discovery(Visibility visibility, String order, BindingMetadata metadata, boolean legacy) {
 			this.visibility = visibility == null ? PUBLIC : visibility;
@@ -240,8 +237,8 @@ public final class BeanModel {
 
 		/**
 		 * Considers a getter. The nearest class declaring one decides: its visible
-		 * getter is used, an {@code is} getter over a {@code get} getter, and a
-		 * getter that isn't visible but {@code closes} closes reading.
+		 * getter is used, an {@code is} getter over a {@code get} getter, and a getter
+		 * that isn't visible but {@code closes} closes reading.
 		 */
 		private void getter(Method method, boolean visible, boolean closes) {
 			if (!visible && !closes)
@@ -262,8 +259,8 @@ public final class BeanModel {
 
 		/**
 		 * Considers a setter. The nearest class declaring one decides: its visible
-		 * setters are candidates, and a setter that isn't visible but
-		 * {@code closes} closes writing.
+		 * setters are candidates, and a setter that isn't visible but {@code closes}
+		 * closes writing.
 		 */
 		private void setter(Method method, boolean visible, boolean closes) {
 			if (!visible && !closes)
@@ -284,10 +281,10 @@ public final class BeanModel {
 		 * Settles the members used once the whole hierarchy has been scanned, then
 		 * applies their binding annotations.
 		 *
-		 * @throws IllegalStateException if several setters could write the property
-		 *                               and none takes the type it reads as, or a
-		 *                               member excluding the property conflicts
-		 *                               with another binding annotation on it
+		 * @throws IllegalStateException if several setters could write the property and
+		 *                               none takes the type it reads as, or a member
+		 *                               excluding the property conflicts with another
+		 *                               binding annotation on it
 		 */
 		private void settle(BindingMetadata metadata, Field declaredField) {
 			getter = isGetter != null ? isGetter : getGetter;
@@ -318,7 +315,7 @@ public final class BeanModel {
 			// writing. A field that isn't visible still declares annotations.
 			final var field = readField != null ? readField //
 					: writeField != null ? writeField //
-					: declaredField;
+							: declaredField;
 			final var fieldTransient = field != null && metadata.isTransient(field);
 			final var readTransient = fieldTransient || (getter != null && metadata.isTransient(getter));
 			final var writeTransient = fieldTransient || (setter != null && metadata.isTransient(setter));
@@ -362,8 +359,8 @@ public final class BeanModel {
 		}
 
 		/**
-		 * Gets the format declared for one direction: on the accessor, then the
-		 * field, then the class declaring either, then its package.
+		 * Gets the format declared for one direction: on the accessor, then the field,
+		 * then the class declaring either, then its package.
 		 */
 		private BindingMetadata.Format format(Function<AnnotatedElement, BindingMetadata.Format> declared,
 				Method accessor, Field field) {
@@ -444,8 +441,7 @@ public final class BeanModel {
 		}
 
 		/**
-		 * Determines if the property can be read from a bean, and so written to
-		 * JSON.
+		 * Determines if the property can be read from a bean, and so written to JSON.
 		 *
 		 * @return true if readable
 		 */
@@ -487,8 +483,8 @@ public final class BeanModel {
 		}
 
 		/**
-		 * Gets whether a null value is written, as declared on the property, its
-		 * type, or its package.
+		 * Gets whether a null value is written, as declared on the property, its type,
+		 * or its package.
 		 *
 		 * @return true to write null, false to omit it; null if not declared
 		 */
@@ -554,8 +550,19 @@ public final class BeanModel {
 		}
 	}
 
-	private static final Map<Type, BeanModel> DEFAULT = new ConcurrentHashMap<>();
-	private static final Map<Type, BeanModel> LEGACY = new ConcurrentHashMap<>();
+	private static final TypeValue<BeanModel> DEFAULT = new TypeValue<BeanModel>() {
+		@Override
+		protected BeanModel computeValue(Type type) {
+			return new BeanModel(type, Discovery.DEFAULT);
+		}
+	};
+
+	private static final TypeValue<BeanModel> LEGACY = new TypeValue<BeanModel>() {
+		@Override
+		protected BeanModel computeValue(Type type) {
+			return new BeanModel(type, Discovery.LEGACY);
+		}
+	};
 
 	/**
 	 * Gets the model for a type, discovered as JSON-B discovers properties by
@@ -565,7 +572,7 @@ public final class BeanModel {
 	 * @return {@link BeanModel}
 	 */
 	public static BeanModel of(Type type) {
-		return DEFAULT.computeIfAbsent(type, t -> new BeanModel(t, Discovery.DEFAULT));
+		return DEFAULT.get(type);
 	}
 
 	/**
@@ -576,7 +583,7 @@ public final class BeanModel {
 	 * @return {@link BeanModel}
 	 */
 	public static BeanModel legacy(Type type) {
-		return LEGACY.computeIfAbsent(type, t -> new BeanModel(t, Discovery.LEGACY));
+		return LEGACY.get(type);
 	}
 
 	private final Class<?> type;
@@ -592,9 +599,9 @@ public final class BeanModel {
 	private final BindingMetadata.TypeInfo dispatch;
 
 	/**
-	 * Gets the type information properties an instance writes first: for each
-	 * type in the type information chain, outermost first, the alias of the
-	 * subtype this type is.
+	 * Gets the type information properties an instance writes first: for each type
+	 * in the type information chain, outermost first, the alias of the subtype this
+	 * type is.
 	 *
 	 * @return alias by key; empty if no type information applies
 	 */
@@ -617,8 +624,8 @@ public final class BeanModel {
 	 *
 	 * @param alias alias
 	 * @return subtype
-	 * @throws IllegalArgumentException if no subtype has the alias, or it isn't
-	 *                                  a subtype of this type
+	 * @throws IllegalArgumentException if no subtype has the alias, or it isn't a
+	 *                                  subtype of this type
 	 */
 	public Class<?> subtype(String alias) {
 		final var subtype = dispatch.subtype(alias);
@@ -700,8 +707,8 @@ public final class BeanModel {
 		}
 
 		/**
-		 * Gets the number format declared on the parameter, or its declaring class
-		 * or package.
+		 * Gets the number format declared on the parameter, or its declaring class or
+		 * package.
 		 *
 		 * @return number format; null if not declared
 		 */
@@ -720,8 +727,8 @@ public final class BeanModel {
 	}
 
 	/**
-	 * Creates the type from values read from JSON: a constructor or static
-	 * factory method declared a creator, or a record's canonical constructor.
+	 * Creates the type from values read from JSON: a constructor or static factory
+	 * method declared a creator, or a record's canonical constructor.
 	 */
 	public final class Creator {
 		private final Executable executable;
@@ -779,86 +786,18 @@ public final class BeanModel {
 	}
 
 	/**
-	 * A record's component, read reflectively so the module runs where records
-	 * don't exist.
-	 */
-	private static final class RecordComponent {
-		private final String name;
-		private final Method accessor;
-		private final Class<?> type;
-
-		private RecordComponent(String name, Method accessor, Class<?> type) {
-			this.name = name;
-			this.accessor = accessor;
-			this.type = type;
-		}
-	}
-
-	private static final MethodHandle IS_RECORD = handle(() -> MethodHandles.publicLookup()
-			.findVirtual(Class.class, "isRecord", MethodType.methodType(boolean.class)));
-
-	private static final MethodHandle RECORD_COMPONENTS = handle(() -> MethodHandles.publicLookup().findVirtual(
-			Class.class, "getRecordComponents",
-			MethodType.methodType(Class.forName("[Ljava.lang.reflect.RecordComponent;"))));
-
-	/**
-	 * Finds a method handle.
-	 *
-	 * @param find finds the handle
-	 * @return method handle; null if the runtime has no such method
-	 */
-	static MethodHandle handle(UnsafeSupplier<MethodHandle> find) {
-		try {
-			return find.get();
-		} catch (Throwable e) {
-			// the runtime predates records
-			return null;
-		}
-	}
-
-	/**
-	 * Determines if a class is a record.
-	 *
-	 * @param isRecord {@code Class.isRecord()}; null if the runtime has none
-	 * @param type     class
-	 * @return true if a record
-	 */
-	static boolean isRecord(MethodHandle isRecord, Class<?> type) {
-		return isRecord != null && IuException.unchecked(() -> (boolean) isRecord.invoke(type));
-	}
-
-	private static RecordComponent[] recordComponents(Class<?> type) {
-		if (!isRecord(IS_RECORD, type))
-			return null;
-
-		final var components = IuException.unchecked(() -> (Object[]) RECORD_COMPONENTS.invoke(type));
-		final var componentClass = components.getClass().getComponentType();
-		final var getName = IuException.unchecked(() -> componentClass.getMethod("getName"));
-		final var getAccessor = IuException.unchecked(() -> componentClass.getMethod("getAccessor"));
-		final var getType = IuException.unchecked(() -> componentClass.getMethod("getType"));
-		final var recordComponents = new RecordComponent[components.length];
-		for (var i = 0; i < components.length; i++) {
-			final var component = components[i];
-			recordComponents[i] = new RecordComponent( //
-					(String) IuException.uncheckedInvocation(() -> getName.invoke(component)),
-					accessible((Method) IuException.uncheckedInvocation(() -> getAccessor.invoke(component))),
-					(Class<?>) IuException.uncheckedInvocation(() -> getType.invoke(component)));
-		}
-		return recordComponents;
-	}
-
-	/**
 	 * Finds the creator: the one constructor or static method declared a creator,
 	 * else a record's canonical constructor.
 	 *
 	 * @throws IllegalStateException if more than one is declared, or one is an
-	 *                               instance method, or doesn't return the type,
-	 *                               or a parameter has no name
+	 *                               instance method, or doesn't return the type, or
+	 *                               a parameter has no name
 	 */
 	private Creator creator(BindingMetadata metadata, RecordComponent[] recordComponents) {
 		Executable declared = null;
-		for (final Executable candidate : Stream.concat(Stream.of(type.getDeclaredConstructors()),
-				Stream.of(type.getDeclaredMethods())).toArray(Executable[]::new))
+		for (final Executable candidate : Stream
+				.concat(Stream.of(type.getDeclaredConstructors()), Stream.of(type.getDeclaredMethods()))
+				.toArray(Executable[]::new))
 			if (metadata.isCreator(candidate)) {
 				if (declared != null)
 					throw new IllegalStateException("more than one creator declared for " + type.getName() + ": "
@@ -866,9 +805,8 @@ public final class BeanModel {
 				if (candidate instanceof Method //
 						&& (!Modifier.isStatic(candidate.getModifiers()) //
 								|| !type.isAssignableFrom(((Method) candidate).getReturnType())))
-					throw new IllegalStateException(
-							"creator " + candidate + " must be a constructor, or a static method returning "
-									+ type.getName());
+					throw new IllegalStateException("creator " + candidate
+							+ " must be a constructor, or a static method returning " + type.getName());
 				declared = candidate;
 			}
 
@@ -884,9 +822,9 @@ public final class BeanModel {
 				names[i] = parameter.getName();
 			}
 		} else if (recordComponents != null) {
-			final var types = Stream.of(recordComponents).map(c -> c.type).toArray(Class<?>[]::new);
+			final var types = Stream.of(recordComponents).map(RecordComponent::getType).toArray(Class<?>[]::new);
 			declared = IuException.unchecked(() -> type.getDeclaredConstructor(types));
-			names = Stream.of(recordComponents).map(c -> c.name).toArray(String[]::new);
+			names = Stream.of(recordComponents).map(RecordComponent::getName).toArray(String[]::new);
 		} else
 			return null;
 
@@ -918,7 +856,7 @@ public final class BeanModel {
 	public BeanModel(Type type, Discovery discovery) {
 		this.context = type;
 		this.type = JsonAdapters.erase(type);
-		final var recordComponents = recordComponents(this.type);
+		final var recordComponents = this.type.isRecord() ? this.type.getRecordComponents() : null;
 
 		// discovery order: nearest declaration first, so the first field, getter, or
 		// setter found for a name wins
@@ -975,9 +913,10 @@ public final class BeanModel {
 			final var closes = visibility == PUBLIC;
 			// a record reads each component by its accessor
 			if (next == this.type && recordComponents != null)
-				for (final var component : recordComponents)
-					property(component.name, properties).getter(component.accessor,
-							visibility.isVisible(component.accessor), closes);
+				for (final var component : recordComponents) {
+					final var accessor = accessible(component.getAccessor());
+					property(component.getName(), properties).getter(accessor, visibility.isVisible(accessor), closes);
+				}
 			for (final var method : next.getDeclaredMethods()) {
 				final var name = accessorName(method);
 				if (name == null)
@@ -1012,11 +951,10 @@ public final class BeanModel {
 			for (final var b : typeInfos)
 				if (!a.type().isAssignableFrom(b.type()) && !b.type().isAssignableFrom(a.type()))
 					throw new IllegalStateException(this.type.getName() + " inherits type information from both "
-							+ a.type().getName() + " and " + b.type().getName()
-							+ "; type information can't be merged");
+							+ a.type().getName() + " and " + b.type().getName() + "; type information can't be merged");
 		// outermost first: by how many in the chain it is a subtype of
-		typeInfos.sort(Comparator.comparingLong(
-				a -> typeInfos.stream().filter(b -> b.type().isAssignableFrom(a.type())).count()));
+		typeInfos.sort(Comparator
+				.comparingLong(a -> typeInfos.stream().filter(b -> b.type().isAssignableFrom(a.type())).count()));
 		final Map<String, String> typeKeys = new LinkedHashMap<>();
 		final Set<String> keys = new LinkedHashSet<>();
 		for (final var typeInfo : typeInfos) {
@@ -1066,8 +1004,8 @@ public final class BeanModel {
 	}
 
 	/**
-	 * Gets readable properties in serialization order; where two share a name
-	 * once named, the nearest declaration.
+	 * Gets readable properties in serialization order; where two share a name once
+	 * named, the nearest declaration.
 	 *
 	 * @param naming how properties are named
 	 * @return readable properties
@@ -1085,8 +1023,8 @@ public final class BeanModel {
 	}
 
 	/**
-	 * Gets a writable property by JSON name; where two share a name once named,
-	 * the nearest declaration.
+	 * Gets a writable property by JSON name; where two share a name once named, the
+	 * nearest declaration.
 	 *
 	 * @param naming   how properties are named
 	 * @param jsonName JSON property name, matched as the naming matches names
@@ -1108,8 +1046,7 @@ public final class BeanModel {
 	 * Gets the property a getter reads.
 	 *
 	 * @param getter getter
-	 * @return property; null if the getter isn't one, or its property is
-	 *         transient
+	 * @return property; null if the getter isn't one, or its property is transient
 	 */
 	public Property property(Method getter) {
 		return byGetter.get(getter);
@@ -1166,9 +1103,9 @@ public final class BeanModel {
 	}
 
 	/**
-	 * Gets the name of the property a method reads or writes by JavaBeans
-	 * naming: {@code getX()}, or {@code isX()} returning {@code boolean}, reads
-	 * {@code x}; {@code void setX(value)} writes it.
+	 * Gets the name of the property a method reads or writes by JavaBeans naming:
+	 * {@code getX()}, or {@code isX()} returning {@code boolean}, reads {@code x};
+	 * {@code void setX(value)} writes it.
 	 *
 	 * @param method method
 	 * @return property name; null if the method is not an accessor
@@ -1210,9 +1147,9 @@ public final class BeanModel {
 
 	/**
 	 * Suppresses access checks on a member that isn't public, or whose declaring
-	 * class isn't, where the declaring module permits it; where it doesn't,
-	 * access fails when the member is used, naming the module and package to
-	 * open. A public member of a public class is used as-is.
+	 * class isn't, where the declaring module permits it; where it doesn't, access
+	 * fails when the member is used, naming the module and package to open. A
+	 * public member of a public class is used as-is.
 	 */
 	private static <A extends AccessibleObject & Member> A accessible(A member) {
 		if (!Modifier.isPublic(member.getModifiers()) //
@@ -1222,12 +1159,12 @@ public final class BeanModel {
 	}
 
 	/**
-	 * Gets a method to invoke an accessor through: a public method of a class
-	 * that isn't accessible, such as a lambda's or a private implementation of a
-	 * public interface, invokes through the nearest public supertype declaring
-	 * it, in a package exported to this module, which reaches the same
-	 * implementation with no access check to suppress; any other accessor is
-	 * made accessible where the declaring module permits it.
+	 * Gets a method to invoke an accessor through: a public method of a class that
+	 * isn't accessible, such as a lambda's or a private implementation of a public
+	 * interface, invokes through the nearest public supertype declaring it, in a
+	 * package exported to this module, which reaches the same implementation with
+	 * no access check to suppress; any other accessor is made accessible where the
+	 * declaring module permits it.
 	 *
 	 * @param method accessor
 	 * @return method to invoke
@@ -1257,8 +1194,8 @@ public final class BeanModel {
 	}
 
 	/**
-	 * Determines if this module can invoke a class's public members with no
-	 * access check to suppress.
+	 * Determines if this module can invoke a class's public members with no access
+	 * check to suppress.
 	 *
 	 * @param c class
 	 * @return true if the class and every class enclosing it are public, and its

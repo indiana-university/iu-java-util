@@ -253,4 +253,12 @@ public class CryptSpiTest extends CryptImplTestCase {
 		}
 	}
 
+	@Test
+	public void testJsonbConfig() {
+		try (final var mockCryptJsonAdapters = mockStatic(CryptJsonAdapters.class)) {
+			spi.jsonbConfig();
+			mockCryptJsonAdapters.verify(() -> CryptJsonAdapters.config());
+		}
+	}
+
 }

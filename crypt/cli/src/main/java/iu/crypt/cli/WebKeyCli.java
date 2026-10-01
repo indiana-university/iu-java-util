@@ -56,14 +56,15 @@ import edu.iu.IuProcess;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuText;
 import edu.iu.client.IuJsonProperties;
+import edu.iu.crypt.Init;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.X500Utils;
 import edu.iu.crypt.X509CertificateAuthority;
-import iu.crypt.CryptJsonAdapters;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
 
 /**
  * CLI tool for generating and manipulating {@link WebKey}s.
@@ -125,7 +126,7 @@ public class WebKeyCli {
 	 * Reads and writes keys and CAs as web crypto JSON, formatted for reading.
 	 */
 	static final Jsonb JSONB = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider")
-			.withConfig(CryptJsonAdapters.config().withFormatting(true)).build();
+			.withConfig(Init.<JsonbConfig> jsonbConfig().withFormatting(true)).build();
 
 	private static final HexFormat HEX = HexFormat.of();
 	private static final HexFormat HEX_UPPER = HEX.withUpperCase();

@@ -90,10 +90,9 @@ import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -571,7 +570,12 @@ public final class JsonAdapters {
 		return new RuntimeTypeAdapter(valueAdapter);
 	}
 
-	private static final Map<Class<?>, Type> CONVERSION_TYPES = new ConcurrentHashMap<>();
+	private static final ClassValue<Type> CONVERSION_TYPES = new ClassValue<Type>() {
+		@Override
+		protected Type computeValue(Class<?> type) {
+			return JsonAdapters.resolveConversionType(type);
+		}
+	};
 
 	private static final Class<?>[] CONVERSION_INTERFACES = { CharSequence.class, Map.class, List.class, Set.class,
 			Collection.class, Iterable.class, Iterator.class, Enumeration.class, Stream.class };
@@ -594,7 +598,7 @@ public final class JsonAdapters {
 	 *         converts as; {@link Object} if none applies
 	 */
 	public static Type conversionType(Class<?> type) {
-		return CONVERSION_TYPES.computeIfAbsent(type, JsonAdapters::resolveConversionType);
+		return CONVERSION_TYPES.get(type);
 	}
 
 	/**

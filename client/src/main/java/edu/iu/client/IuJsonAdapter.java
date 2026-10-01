@@ -139,7 +139,6 @@ public interface IuJsonAdapter<T> {
 	 * @param serializer serializer
 	 * @return serializer to configure
 	 */
-	@SuppressWarnings("exports")
 	static <T> jakarta.json.bind.serializer.JsonbSerializer<T> typedSerializer(Type type,
 			jakarta.json.bind.serializer.JsonbSerializer<T> serializer) {
 		return IuJsonb.typedSerializer(type, serializer);
@@ -155,7 +154,6 @@ public interface IuJsonAdapter<T> {
 	 * @param deserializer deserializer
 	 * @return deserializer to configure
 	 */
-	@SuppressWarnings("exports")
 	static <T> jakarta.json.bind.serializer.JsonbDeserializer<T> typedDeserializer(Type type,
 			jakarta.json.bind.serializer.JsonbDeserializer<T> deserializer) {
 		return IuJsonb.typedDeserializer(type, deserializer);
@@ -174,7 +172,6 @@ public interface IuJsonAdapter<T> {
 	 * @param adapter  adapter
 	 * @return adapter to configure
 	 */
-	@SuppressWarnings("exports")
 	static <O, A> jakarta.json.bind.adapter.JsonbAdapter<O, A> typedAdapter(Type original, Type adapted,
 			jakarta.json.bind.adapter.JsonbAdapter<O, A> adapter) {
 		return IuJsonb.typedAdapter(original, adapted, adapter);

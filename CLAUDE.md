@@ -10,7 +10,7 @@ Modules are versioned and released together (`7.1.1-SNAPSHOT` at the root, inher
 
 ## Build
 
-Requires **JDK 25+** and **Maven 3.9+** (enforced by `maven-enforcer-plugin`). Compiler `release` is 17 by default, overridden to 11 in the widest-reach modules and 21 in `crypt/cli`.
+Requires **JDK 25+** and **Maven 3.9+** (enforced by `maven-enforcer-plugin`). Compiler `release` is 17, the minimum for every module (set once in the root `pluginManagement`); `crypt/cli` and `oidc/provider` override it to 21.
 
 ```bash
 mvn clean verify                       # full build: compile, test, javadoc, 100% coverage gate

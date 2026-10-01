@@ -152,10 +152,12 @@ public class IuJsonbGeneratorTest {
 		assertThrows(NumberFormatException.class, () -> generator.write(Double.NaN));
 		generator.write(1).writeEnd();
 		assertEquals(IuJson.parse("{\"a\":1}"), generator.value());
+		generator.close();
 	}
 
 	@Test
 	public void testEndRequiresTheValueForAKey() {
+		@SuppressWarnings("resource")
 		final var generator = new IuJsonbGenerator(IuJson.PROVIDER);
 		generator.writeStartObject().writeKey("a");
 		assertThrows(JsonGenerationException.class, generator::writeEnd);
@@ -180,10 +182,12 @@ public class IuJsonbGeneratorTest {
 		final var generator = new IuJsonbGenerator(IuJson.PROVIDER);
 		generator.writeStartObject().write("a", 1).writeKey("a").write(2).writeEnd();
 		assertEquals(IuJson.parse("{\"a\":2}"), generator.value());
+		generator.close();
 	}
 
 	@Test
 	public void testNullNamesAndValues() {
+		@SuppressWarnings("resource")
 		final var generator = new IuJsonbGenerator(IuJson.PROVIDER);
 		generator.writeStartObject();
 		assertThrows(NullPointerException.class, () -> generator.writeKey(null));

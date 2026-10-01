@@ -28,7 +28,7 @@ api  testlegacy  testruntime  testcomponent  testweb  testresources  base  impl 
 | Module | Artifact | Role |
 |---|---|---|
 | `api` | `iu-java-type-api` | `edu.iu.type`, `edu.iu.type.spi`; `uses IuTypeSpi` |
-| `base` | `iu-java-type-base` | `edu.iu.type.base` — class loading primitives, Java 11, depends only on `iu.util` |
+| `base` | `iu-java-type-base` | `edu.iu.type.base` — class loading primitives, depends only on `iu.util` |
 | `impl` | `iu-java-type-impl` | `iu.type` — the introspection engine; `provides IuTypeSpi with iu.type.TypeSpi` |
 | `bundle` | **`iu-java-type`** | Embeds `impl`'s bundle assembly; `provides IuTypeSpi with iu.type.bundle.TypeBundleSpi` |
 | `loader` | `iu-java-type-loader` | `edu.iu.type.loader` — `IuComponentLoader` |

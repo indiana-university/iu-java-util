@@ -31,9 +31,9 @@
  */
 package iu.client;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
@@ -48,10 +48,40 @@ import jakarta.json.stream.JsonParser;
  */
 public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 
+	/**
+	 * Holds one instance per type, created on first use from the functions that use
+	 * supplies; held by the class itself, so it doesn't keep the class from
+	 * unloading.
+	 */
+	static final class Singletons extends ClassValue<AtomicReference<ParsingJsonAdapter<?>>> {
+
+		/**
+		 * Default constructor.
+		 */
+		Singletons() {
+		}
+
+		@Override
+		protected AtomicReference<ParsingJsonAdapter<?>> computeValue(Class<?> type) {
+			return new AtomicReference<>();
+		}
+
+		/**
+		 * Gets the instance for a type, creating it on first use.
+		 *
+		 * @param type   target type
+		 * @param create creates the instance; called only while there is none
+		 * @return instance
+		 */
+		ParsingJsonAdapter<?> get(Class<?> type, Supplier<ParsingJsonAdapter<?>> create) {
+			return get(type).updateAndGet(a -> a == null ? create.get() : a);
+		}
+	}
+
 	// one instance per type and printer kind: a type may have both, as a date
 	// type whose format changed in 7.1 does
-	private static final Map<Class<?>, ParsingJsonAdapter<?>> TO_STRING = new ConcurrentHashMap<>();
-	private static final Map<Class<?>, ParsingJsonAdapter<?>> PRINTED = new ConcurrentHashMap<>();
+	private static final Singletons TO_STRING = new Singletons();
+	private static final Singletons PRINTED = new Singletons();
 
 	/**
 	 * Gets a singleton instance by target type that writes
@@ -64,13 +94,11 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> ParsingJsonAdapter<T> of(Class<T> type, Function<String, T> parser) {
-		return (ParsingJsonAdapter<T>) TO_STRING.computeIfAbsent(type,
-				t -> new ParsingJsonAdapter<T>(parser, T::toString));
+		return (ParsingJsonAdapter<T>) TO_STRING.get(type, () -> new ParsingJsonAdapter<T>(parser, T::toString));
 	}
 
 	/**
-	 * Gets a singleton instance by target type that writes by a printing
-	 * function.
+	 * Gets a singleton instance by target type that writes by a printing function.
 	 *
 	 * @param <T>    target type
 	 * @param type   target type
@@ -80,7 +108,7 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> ParsingJsonAdapter<T> of(Class<T> type, Function<String, T> parser, Function<T, String> print) {
-		return (ParsingJsonAdapter<T>) PRINTED.computeIfAbsent(type, t -> new ParsingJsonAdapter<T>(parser, print));
+		return (ParsingJsonAdapter<T>) PRINTED.get(type, () -> new ParsingJsonAdapter<T>(parser, print));
 	}
 
 	private final Function<String, T> parser;

@@ -8,7 +8,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 JSON Web Token issuance and verification, layered directly on `crypt`'s JOSE primitives. Consumed by `oidc` and `session`.
 
-Both modules compile with `--release 11`. `api` re-exports `iu.util` and `iu.util.crypt` transitively.
+Both modules compile with `--release 17`. `api` re-exports `iu.util` and `iu.util.crypt` transitively.
 
 ## Layout
 

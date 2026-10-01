@@ -38,9 +38,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import iu.crypt.CryptJsonAdapters;
+import edu.iu.crypt.Init;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -122,11 +123,13 @@ final class TokenJsonb {
 	 */
 	static synchronized Jsonb get() {
 		if (jsonb == null)
-			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(CryptJsonAdapters.config() //
-					.withAdapters(new NumericDate()) //
-					.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
-					.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
-					.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new))).build();
+			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider")
+					.withConfig(Init.<JsonbConfig>jsonbConfig() //
+							.withAdapters(new NumericDate()) //
+							.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
+							.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
+							.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new)))
+					.build();
 		return jsonb;
 	}
 

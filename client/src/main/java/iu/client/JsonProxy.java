@@ -33,7 +33,6 @@ package iu.client;
 
 import java.beans.Introspector;
 import java.io.StringWriter;
-import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -72,8 +71,8 @@ public final class JsonProxy implements InvocationHandler {
 	private static final Object NULL = new Object();
 
 	/**
-	 * Wraps a JSON object in a java interface, reading property names in a
-	 * specific format.
+	 * Wraps a JSON object in a java interface, reading property names in a specific
+	 * format.
 	 *
 	 * @param <T>                target interface type
 	 * @param value              value
@@ -99,9 +98,8 @@ public final class JsonProxy implements InvocationHandler {
 	 * @param <T>                target interface type
 	 * @param properties         properties
 	 * @param targetInterface    target interface class
-	 * @param propertyNameFormat format of the property names in
-	 *                           {@code properties}; a getter reads only the name
-	 *                           formatted this way
+	 * @param propertyNameFormat format of the property names in {@code properties};
+	 *                           a getter reads only the name formatted this way
 	 * @return {@link JsonProxy}
 	 */
 	public static <T> T wrap(IuJsonProperties properties, Class<T> targetInterface,
@@ -176,8 +174,8 @@ public final class JsonProxy implements InvocationHandler {
 	 * @param ignoreCase      true to match a JSON name that differs only in case
 	 *                        when none matches exactly
 	 * @param metadata        binding annotations: a getter that declares its JSON
-	 *                        name reads that name, and a transient getter reads
-	 *                        as absent
+	 *                        name reads that name, and a transient getter reads as
+	 *                        absent
 	 * @param declared        gets the conversion a getter declares
 	 * @return {@link JsonProxy}
 	 */
@@ -193,12 +191,9 @@ public final class JsonProxy implements InvocationHandler {
 				if (!subtype.isInterface())
 					throw new IllegalArgumentException("alias " + properties.get(dispatch.key(), String.class)
 							+ " names " + subtype.getName() + ", which isn't an interface to wrap");
-				return targetInterface
-						.cast(wrap(properties, subtype, naming, ignoreCase, metadata, declared));
+				return targetInterface.cast(wrap(properties, subtype, naming, ignoreCase, metadata, declared));
 			}
 		}
-
-		JsonProxy.class.getModule().addReads(targetInterface.getModule());
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),
 				new Class<?>[] { targetInterface }, new JsonProxy(properties, naming, ignoreCase, metadata, declared)));
@@ -293,11 +288,8 @@ public final class JsonProxy implements InvocationHandler {
 		final var declaredName = metadata.name(method);
 		final var jsonName = jsonName(declaredName != null ? declaredName : naming.apply(propertyName));
 		final var present = !isTransient && properties.containsKey(jsonName);
-		if (!present && method.isDefault()) {
-			final var type = proxy.getClass().getInterfaces()[0];
-			return checkResolvedValue(methodName, MethodHandles.privateLookupIn(type, MethodHandles.lookup())
-					.unreflectSpecial(method, type).bindTo(proxy).invokeWithArguments(args));
-		}
+		if (!present && method.isDefault())
+			return checkResolvedValue(methodName, InvocationHandler.invokeDefault(proxy, method, args));
 
 		if (isTransient)
 			return checkResolvedValue(methodName, null);
@@ -332,8 +324,8 @@ public final class JsonProxy implements InvocationHandler {
 	}
 
 	/**
-	 * Gets the JSON name a property reads: its name, or, when matching ignores
-	 * case and no name matches exactly, the first that differs only in case.
+	 * Gets the JSON name a property reads: its name, or, when matching ignores case
+	 * and no name matches exactly, the first that differs only in case.
 	 */
 	private String jsonName(String jsonName) {
 		if (ignoreCase && !properties.containsKey(jsonName))

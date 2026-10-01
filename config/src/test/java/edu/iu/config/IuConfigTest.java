@@ -70,6 +70,7 @@ import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
 import edu.iu.client.IuVaultKeyedValue;
+import edu.iu.crypt.Init;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -84,6 +85,10 @@ import jakarta.json.bind.serializer.JsonbSerializer;
 
 @SuppressWarnings("javadoc")
 public class IuConfigTest {
+	
+	static {
+		Init.init();
+	}
 
 	public interface LoadableConfig {
 		String getValue();
@@ -163,6 +168,7 @@ public class IuConfigTest {
 		((Map<?, ?>) f.get(null)).clear();
 	}
 
+	@SuppressWarnings("unchecked")
 	private static IuVault vault(Map<String, String> values) {
 		final var vault = mock(IuVault.class);
 		values.forEach((key, value) -> {

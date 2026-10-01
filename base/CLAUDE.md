@@ -6,9 +6,9 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 ## Role
 
-The foundation every other module depends on. Its `module-info.java` requires nothing but `java.logging`, and it is compiled with `--release 11` so it can be consumed by older runtimes.
+The foundation every other module depends on. Its `module-info.java` requires nothing but `java.logging`, and it compiles at the repository-wide `--release 17`.
 
-**Do not add dependencies to this module.** Anything needing Jakarta JSON, HTTP, or a third-party library belongs in `client` or higher. Anything that would raise the language level above 11 belongs elsewhere too.
+**Do not add dependencies to this module.** Anything needing Jakarta JSON, HTTP, or a third-party library belongs in `client` or higher.
 
 Surefire runs here with `-Xmx1g` (`argLine` override in `pom.xml`) because several concurrency and buffering tests allocate aggressively.
 

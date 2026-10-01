@@ -8,7 +8,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 Both sides of OpenID Connect and OAuth 2.0. The relying party — discovery, the authorization code flow, the non-interactive grant types — and the OpenID Provider: authorization, token, UserInfo, and the JWK Set. Built on `jwt` for token verification, `crypt` for signing and encryption, and `session` for carrying authentication state across the browser redirect.
 
-Compiled with `--release 11`, except `provider`, which is 21 for sealed interfaces and records.
+Compiled with `--release 17`, except `provider`, which is 21.
 
 ## Layout
 

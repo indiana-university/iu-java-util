@@ -4,7 +4,7 @@ IU Java Client
 Overview
 ========
 
-`iu-java-client` (module `iu.util.client`, package `edu.iu.client`) converts between Java and JSON, calls HTTP services, reads secrets from HashiCorp Vault, and invokes Java interfaces remotely over HTTP. It is a named module, compiled for Java 11, and exports only `edu.iu.client`; everything under `iu.client` is internal.
+`iu-java-client` (module `iu.util.client`, package `edu.iu.client`) converts between Java and JSON, calls HTTP services, reads secrets from HashiCorp Vault, and invokes Java interfaces remotely over HTTP. It is a named module, compiled for Java 17, and exports only `edu.iu.client`; everything under `iu.client` is internal.
 
 | Requirement | Scope | Purpose |
 |---|---|---|
@@ -217,6 +217,8 @@ The IU conversions adopt JSON-B's defaults in 7.1. Each change can be restored p
 Not restorable: built-in conversions are strict; a `Date` writes with a `Z` offset rather than a `[UTC]` zone, and a date read without an offset is in UTC; a value declared `Object` converts by its runtime type.
 
 Removed in 7.1: `IuVault.of(Properties, Function<Type, IuJsonAdapter<?>>)`; use `IuVault.of(Properties, Jsonb)`.
+
+The minimum runtime is Java 17: the module is compiled for Java 17, and binds records through the JDK's own record API.
 
 Deviations from standard behavior
 =================================

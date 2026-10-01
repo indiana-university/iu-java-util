@@ -44,6 +44,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.when;
 
+import java.security.interfaces.XECPublicKey;
+
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
@@ -105,12 +107,12 @@ public class JoseTest extends CryptImplTestCase {
 	}
 
 	@Test
-	public void testAlgorithmValidation() throws ClassNotFoundException {
+	public void testAlgorithmValidation() {
 		assertThrows(NullPointerException.class, () -> jose(Algorithm.A192KW).build());
 		assertThrows(NullPointerException.class, () -> jose(Algorithm.ECDH_ES) //
 				.param(Param.ENCRYPTION, Encryption.A128GCM) //
 				.build());
-		assertInstanceOf(Class.forName("java.security.interfaces.XECPublicKey"), jose(Algorithm.ECDH_ES) //
+		assertInstanceOf(XECPublicKey.class, jose(Algorithm.ECDH_ES) //
 				.param(Param.ENCRYPTION, Encryption.A128GCM) //
 				.param(Param.EPHEMERAL_PUBLIC_KEY, WebKey.ephemeral(Algorithm.ECDH_ES)) //
 				.build().<WebKey>getExtendedParameter("epk").getPublicKey());

@@ -8,7 +8,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 A library-agnostic Redis abstraction. `IuRedis extends IuDataStore` (from `base`) and `AutoCloseable`, so Redis is interchangeable with the in-memory store for callers that only need key/value semantics.
 
-Compiled with `--release 11`.
+Compiled with `--release 17`.
 
 ## Layout
 

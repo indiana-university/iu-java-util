@@ -44,6 +44,9 @@ import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
+import java.security.spec.EdECPoint;
+import java.security.spec.EdECPrivateKeySpec;
+import java.security.spec.EdECPublicKeySpec;
 import java.security.spec.KeySpec;
 import java.security.spec.NamedParameterSpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
@@ -217,17 +220,9 @@ public class Jwk extends JsonKeyReference<Jwk> implements WebKey {
 			y[0] &= 0x7f; // clear x-odd from unsigned big-endian integer encoding
 			final var yint = UnsignedBigInteger.bigInt(y); // decode y-axis value
 
-			// EdDSA support was introduced in JDK 15, not supported by JDK 11
-			// TODO: convert to compiled code for source level 17+
-			final var pointClass = ClassLoader.getPlatformClassLoader().loadClass("java.security.spec.EdECPoint");
-			return keyFactory.generatePublic(
-					(KeySpec) ClassLoader.getPlatformClassLoader().loadClass("java.security.spec.EdECPublicKeySpec")
-							.getConstructor(NamedParameterSpec.class, pointClass).newInstance(namedSpec,
-									pointClass.getConstructor(Boolean.TYPE, BigInteger.class).newInstance(xodd, yint)));
+			return keyFactory.generatePublic(new EdECPublicKeySpec(namedSpec, new EdECPoint(xodd, yint)));
 		})), IuObject.convert(d,
-				s -> IuException.unchecked(() -> keyFactory.generatePrivate((KeySpec) ClassLoader
-						.getPlatformClassLoader().loadClass("java.security.spec.EdECPrivateKeySpec")
-						.getConstructor(NamedParameterSpec.class, byte[].class).newInstance(namedSpec, s)))));
+				s -> IuException.unchecked(() -> keyFactory.generatePrivate(new EdECPrivateKeySpec(namedSpec, s)))));
 	}
 
 	private static KeyPair readEC(Type type, IuJsonProperties jwk) {

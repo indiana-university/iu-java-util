@@ -151,4 +151,10 @@ public class CryptSpi implements IuCryptSpi {
 		return JwsBuilder.parse(jws);
 	}
 
+	@SuppressWarnings("unchecked")
+	@Override
+	public <T> T jsonbConfig() {
+		return (T) CryptJsonAdapters.config();
+	}
+
 }

@@ -78,7 +78,6 @@ public class BindingAnnotationsTest {
 	private static final Supplier<IuJsonSerializationOptions> DEFAULT = () -> IuJsonSerializationOptions.DEFAULT;
 	private static final Supplier<IuJsonSerializationOptions> LEGACY = () -> IuJsonSerializationOptions.LEGACY;
 
-	@SuppressWarnings("unchecked")
 	private static <T> IuJsonAdapter<T> adapt(Class<T> type, Supplier<IuJsonSerializationOptions> options) {
 		return (IuJsonAdapter<T>) IuJsonAdapter.adapt(type, options);
 	}
@@ -594,11 +593,7 @@ public class BindingAnnotationsTest {
 	}
 
 	@Test
-	public void testRecordsNeedTheRuntimeToSupportThem() {
-		assertNull(BeanModel.handle(() -> {
-			throw new NoSuchMethodException();
-		}));
-		assertFalse(BeanModel.isRecord(null, IuJsonbCreatorTest.Point.class));
+	public void testARecordsCreatorIsItsCanonicalConstructor() {
 		assertNull(BeanModel.of(Annotated.class).creator());
 		assertEquals("public iu.client.jsonb.IuJsonbCreatorTest$Point(int,int)",
 				BeanModel.of(IuJsonbCreatorTest.Point.class).creator().toString());
