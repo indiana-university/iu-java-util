@@ -31,19 +31,26 @@
  */
 package iu.client;
 
-import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.Date;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Date}
+ *
+ * <p>
+ * Works in UTC throughout. A date at midnight UTC writes as a date, such as
+ * {@code 2026-09-26Z}; any other writes as a date and time, such as
+ * {@code 2026-09-26T04:01:30Z}. A date read without a time is midnight, and a
+ * date or a date and time read without an offset or zone is in UTC.
+ * </p>
  */
 class DateJsonAdapter implements IuJsonAdapter<Date> {
 
@@ -52,43 +59,61 @@ class DateJsonAdapter implements IuJsonAdapter<Date> {
 	 */
 	static final DateJsonAdapter INSTANCE = new DateJsonAdapter();
 
-	private final ZoneId UTC = ZoneId.of("UTC");
-	private final DateTimeFormatter DF = DateTimeFormatter.ISO_DATE.withZone(UTC);
-	private final DateTimeFormatter DTF = DateTimeFormatter.ISO_DATE_TIME.withZone(UTC);
+	private static final DateTimeFormatter DF = DateTimeFormatter.ISO_DATE.withZone(ZoneOffset.UTC);
+	private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_DATE_TIME.withZone(ZoneOffset.UTC);
 
 	private DateJsonAdapter() {
 	}
 
 	@Override
 	public Date fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-
-		final Instant instant;
-		if (text.indexOf('T') == -1)
-			instant = LocalDate.parse(text, DateTimeFormatter.ISO_DATE).atStartOfDay().atZone(ZoneId.systemDefault())
-					.toInstant();
-		else
-			instant = ZonedDateTime.parse(text, DateTimeFormatter.ISO_DATE_TIME).toInstant();
-
-		return Date.from(instant);
+		return fromText(TextJsonAdapter.INSTANCE.fromJson(value));
 	}
 
 	@Override
 	public JsonValue toJson(Date value) {
 		if (value == null)
 			return JsonValue.NULL;
-
-		final var instant = value.toInstant();
-
-		final String text;
-		if (LocalTime.from(instant.atZone(ZoneId.systemDefault())).equals(LocalTime.MIDNIGHT))
-			text = DF.format(instant);
 		else
-			text = DTF.format(instant);
+			return TextJsonAdapter.INSTANCE.toJson(toText(value));
+	}
 
-		return TextJsonAdapter.INSTANCE.toJson(text);
+	@Override
+	public Date read(JsonParser parser) {
+		return fromText(TextJsonAdapter.INSTANCE.read(parser));
+	}
+
+	@Override
+	public void write(Date value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(toText(value));
+	}
+
+	private Date fromText(String text) {
+		if (text == null)
+			return null;
+		else
+			return Date.from(FormatAdapters.zoned(parse(text)).toInstant());
+	}
+
+	/**
+	 * Parses an ISO date, or an ISO date and time.
+	 *
+	 * @param text text
+	 * @return parsed date, with or without a time, zone, or offset
+	 */
+	static TemporalAccessor parse(String text) {
+		return (text.indexOf('T') == -1 ? DateTimeFormatter.ISO_DATE : DateTimeFormatter.ISO_DATE_TIME).parse(text);
+	}
+
+	private String toText(Date value) {
+		final var instant = value.toInstant();
+		if (LocalTime.from(instant.atOffset(ZoneOffset.UTC)).equals(LocalTime.MIDNIGHT))
+			return DF.format(instant);
+		else
+			return DTF.format(instant);
 	}
 
 }

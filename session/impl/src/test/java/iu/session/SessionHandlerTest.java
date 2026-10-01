@@ -197,6 +197,7 @@ public class SessionHandlerTest {
 		final var stored = IdGenerator.generateId();
 		final var session = mock(Session.class);
 		when(session.tokenize(any(), eq(config))).thenReturn(stored);
+		when(session.getSameSite()).thenReturn("Lax");
 		final var setCookie = handler.store(session);
 		final var prefix = handler.getSessionCookieName(config) + "=";
 		assertTrue(setCookie.startsWith(prefix), setCookie);
@@ -218,7 +219,7 @@ public class SessionHandlerTest {
 		final var stored = IdGenerator.generateId();
 		final var session = mock(Session.class);
 		when(session.tokenize(any(), eq(config))).thenReturn(stored);
-		when(session.isStrict()).thenReturn(true);
+		when(session.getSameSite()).thenReturn("Strict");
 		final var setCookie = handler.store(session);
 		final var prefix = handler.getSessionCookieName(config) + "=";
 		assertTrue(setCookie.startsWith(prefix), setCookie);
@@ -228,6 +229,37 @@ public class SessionHandlerTest {
 				.base64Url(setCookie.substring(prefix.length(), setCookie.length() - suffix.length()));
 		verify(session).tokenize(WebKey.builder(WebKey.Type.RAW).key(secretKey).build(), config);
 		verify(store).put(SessionHandler.hashKey(secretKey), IuText.utf8(stored), Duration.ofMinutes(15L));
+	}
+
+	@Test
+	void testStoreSameSiteNone() {
+		final var resourceUri = URI.create("https://" + IdGenerator.generateId());
+		final var config = configuration();
+		when(config.getEnc()).thenReturn(Encryption.A256GCM);
+		final var store = mock(IuDataStore.class);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
+		final var session = mock(Session.class);
+		when(session.tokenize(any(), eq(config))).thenReturn(IdGenerator.generateId());
+		when(session.getSameSite()).thenReturn("None");
+
+		final var setCookie = handler.store(session);
+
+		assertTrue(setCookie.endsWith("; Path=/; Secure; HttpOnly; SameSite=None"), setCookie);
+	}
+
+	@Test
+	void testStoreWithoutSameSite() {
+		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var config = configuration();
+		when(config.getEnc()).thenReturn(Encryption.A256GCM);
+		final var store = mock(IuDataStore.class);
+		final var handler = new SessionHandler(resourceUri, () -> config, store);
+		final var session = mock(Session.class);
+		when(session.tokenize(any(), eq(config))).thenReturn(IdGenerator.generateId());
+
+		final var setCookie = handler.store(session);
+
+		assertTrue(setCookie.endsWith("; Path=" + resourceUri.getPath() + "; HttpOnly"), setCookie);
 	}
 
 	@Test

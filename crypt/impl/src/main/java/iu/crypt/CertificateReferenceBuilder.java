@@ -35,8 +35,8 @@ import java.io.InputStream;
 import java.net.URI;
 import java.security.cert.X509Certificate;
 
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonBuilder;
+import edu.iu.IuObject;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCertificateReference;
 
@@ -45,33 +45,80 @@ import edu.iu.crypt.WebCertificateReference;
  * 
  * @param <B> builder type
  */
-class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> extends IuJsonBuilder<B>
+@SuppressWarnings("unchecked")
+class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> // extends IuJsonBuilder<B>
 		implements WebCertificateReference.Builder<B> {
+
+	private IuJsonProperties.Builder builder;
 
 	/**
 	 * Default constructor.
 	 */
-	public CertificateReferenceBuilder() {
+	CertificateReferenceBuilder() {
+		this(CryptJsonAdapters.builder());
 	}
-	
+
+	/**
+	 * Copy constructor.
+	 *
+	 * @param copy builder to copy parameters from
+	 */
+	CertificateReferenceBuilder(CertificateReferenceBuilder<?> copy) {
+		this(CryptJsonAdapters.builder().putAll(copy.builder.build()));
+	}
+
+	/**
+	 * Constructor.
+	 *
+	 * @param builder holds the parameters
+	 */
+	private CertificateReferenceBuilder(IuJsonProperties.Builder builder) {
+		this.builder = builder;
+	}
+
+	/**
+	 * Sets a parameter value, once.
+	 *
+	 * @param name  parameter name
+	 * @param value parameter value; null leaves the parameter as it is
+	 * @return this
+	 * @throws IllegalArgumentException if already set to a different value
+	 */
+	protected B withParam(String name, Object value) {
+		if (value != null)
+			builder.put(name, IuObject.once(builder.get(name), value, "duplicate definition for " + name));
+		return (B) this;
+	}
+
+	/**
+	 * Gets a parameter value.
+	 *
+	 * @param <V>  value type
+	 * @param name parameter name
+	 * @return parameter value; null if not set
+	 */
+	protected <V> V param(String name) {
+		return (V) builder.get(name);
+	}
+
 	@Override
 	public B cert(URI uri) {
-		return super.param("x5u", uri, IuJsonAdapter.of(URI.class));
+		return withParam("x5u", uri);
 	}
 
 	@Override
 	public B cert(X509Certificate... chain) {
-		return super.param("x5c", chain, IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT));
+		return withParam("x5c", chain);
 	}
 
 	@Override
 	public B x5t(byte[] certificateThumbprint) {
-		return super.param("x5t", certificateThumbprint, CryptJsonAdapters.B64URL);
+		return withParam("x5t", certificateThumbprint);
 	}
 
 	@Override
 	public B x5t256(byte[] certificateSha256Thumbprint) {
-		return super.param("x5t#S256", certificateSha256Thumbprint, CryptJsonAdapters.B64URL);
+		return withParam("x5t#S256", certificateSha256Thumbprint);
 	}
 
 	@Override
@@ -82,6 +129,15 @@ class CertificateReferenceBuilder<B extends CertificateReferenceBuilder<B>> exte
 	@Override
 	public B pem(String pemEncoded) {
 		return cert(PemEncoded.getCertificateChain(PemEncoded.parse(pemEncoded)));
+	}
+
+	/**
+	 * Gets the parameters set so far.
+	 *
+	 * @return parameters
+	 */
+	IuJsonProperties values() {
+		return builder.build();
 	}
 
 }

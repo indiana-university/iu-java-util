@@ -37,8 +37,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 
+import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
+import edu.iu.client.IuJsonProperties;
+import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
 import iu.oidc.client.config.IuOidcClientReference;
@@ -59,12 +63,17 @@ import jakarta.json.JsonObject;
  */
 public class OidcPrincipal implements IuOidcPrincipal {
 
+	private static final Logger LOG = Logger.getLogger(OidcPrincipal.class.getName());
+
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
+	private final IuJsonProperties userinfo;
 	private final String setCookie;
 	private final IuOidcClientReference config;
 	private final String accessToken;
 	private final WebToken verifiedAccessToken;
+	private final String scope;
+	private final Iterable<? extends IuAuthorizationDetails> authorizationDetails;
 	private final String principalNameClaimName;
 
 	/** On-behalf-of grants by API root resource URI; synchronized on itself. */
@@ -80,18 +89,24 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 *                               user agent if session state changed assembling
 	 *                               the principal
 	 * @param config                 OIDC client configuration reference; supplies
-	 *                               the client's own resource URI, downstream API
-	 *                               resource URIs, and JSON type adapters
+	 *                               the client's own resource URI and downstream
+	 *                               API resource URIs
 	 * @param accessToken            access token issued with the ID token
 	 * @param verifiedAccessToken    {@code accessToken} parsed and verified as a
 	 *                               JWT issued by the OpenID Provider; null if it
 	 *                               couldn't be verified as such, in which case its
 	 *                               audience is not considered
+	 * @param scope                  granted, either from token response or original
+	 *                               request if token response omits scope
+	 * @param authorizationDetails   authorization details released by the
+	 *                               authorization server; considered before details
+	 *                               released via token claim
 	 * @param principalNameClaimName claim name for principal name; null to use
 	 *                               "sub"
 	 */
 	public OidcPrincipal(WebToken idToken, JsonObject userinfoClaims, String setCookie, IuOidcClientReference config,
-			String accessToken, WebToken verifiedAccessToken, String principalNameClaimName) {
+			String accessToken, WebToken verifiedAccessToken, String scope,
+			Iterable<? extends IuAuthorizationDetails> authorizationDetails, String principalNameClaimName) {
 		this.idToken = idToken;
 
 		if (!userinfoClaims.containsKey("sub"))
@@ -99,13 +114,15 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (!userinfoClaims.getString("sub").equals(idToken.getSubject()))
 			throw new IllegalArgumentException("userinfo sub claim doesn't match id token");
 		this.userinfoClaims = userinfoClaims;
+		this.userinfo = IuJsonProperties.of(userinfoClaims, WebToken.jsonb());
 
 		this.setCookie = setCookie;
 
 		this.config = config;
 		this.accessToken = accessToken;
 		this.verifiedAccessToken = verifiedAccessToken;
-
+		this.scope = scope;
+		this.authorizationDetails = authorizationDetails;
 		this.principalNameClaimName = principalNameClaimName;
 	}
 
@@ -115,9 +132,9 @@ public class OidcPrincipal implements IuOidcPrincipal {
 			final var idTokenValue = idToken.getClaim(principalNameClaimName, String.class);
 			if (idTokenValue != null)
 				return idTokenValue;
-			final var userinfoValue = userinfoClaims.get(principalNameClaimName);
+			final var userinfoValue = userinfo.get(principalNameClaimName, String.class);
 			if (userinfoValue != null)
-				return config.adaptJson(String.class).fromJson(userinfoValue);
+				return userinfoValue;
 		}
 		return idToken.getSubject();
 	}
@@ -138,11 +155,75 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (idTokenClaimValue != null)
 			return idTokenClaimValue;
 
-		final var userinfoClaimValue = userinfoClaims.get(name);
-		if (userinfoClaimValue == null)
+		if (!userinfoClaims.containsKey(name))
 			return null;
 
-		return type.cast(config.adaptJson(type).fromJson(userinfoClaimValue));
+		return type.cast(userinfo.get(name, type));
+	}
+
+	@Override
+	public boolean hasScope(Iterable<String> scopes) {
+		for (final var scope : scopes) {
+			if (this.scope != null)
+				for (final var claimedScope : this.scope.split(" "))
+					if (claimedScope.equals(scope)) {
+						LOG.info(() -> "scope-allow:" + scope + "; " + getName());
+						return true;
+					}
+
+			LOG.info(() -> "scope-deny:" + scope + "; " + getName());
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean hasRole(Iterable<String> roles) {
+		final var configuredRoles = config.getClient().getRoles();
+
+		final Iterable<String> claimedRoles;
+		final var rolesClaim = idToken.getClaim("roles", String[].class);
+		if (rolesClaim == null)
+			return false;
+		else
+			claimedRoles = IuIterable.iter(rolesClaim);
+
+		for (final var role : roles) {
+			var configured = false;
+			if (configuredRoles != null)
+				for (final var configuredRole : configuredRoles)
+					if (role.equalsIgnoreCase(configuredRole)) {
+						configured = true;
+						break;
+					}
+			if (!configured) {
+				LOG.fine(() -> "configured roles " + IuIterable.print(configuredRoles));
+				LOG.info(() -> "role-deny-noconfig:" + role + "; " + getName());
+				continue;
+			}
+
+			for (final var claimedRole : claimedRoles)
+				if (claimedRole.equalsIgnoreCase(role)) {
+					LOG.info(() -> "role-allow:" + role + "; " + getName());
+					return true;
+				}
+
+			LOG.info(() -> "role-deny:" + role + "; " + getName());
+		}
+
+		return false;
+	}
+
+	@Override
+	public <T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface,
+			String type) {
+		if (authorizationDetails != null) {
+			// as its runtime type, so a detail writes every property it has
+			final var jsonb = WebToken.jsonb();
+			return IuIterable.map(IuIterable.filter(authorizationDetails, a -> type.equals(a.getType())),
+					a -> jsonb.fromJson(jsonb.toJson(a), detailInterface));
+		} else
+			return idToken.getAuthorizationDetails(detailInterface, type);
 	}
 
 	@Override

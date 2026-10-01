@@ -40,7 +40,6 @@ module iu.util.session.impl {
 	requires transitive iu.util;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
-	requires iu.util.config;
 	requires iu.util.jwt.api;
 	requires transitive iu.util.session;
 }

@@ -48,14 +48,23 @@ class KeyReferenceBuilder<B extends KeyReferenceBuilder<B>> extends CertificateR
 	KeyReferenceBuilder() {
 	}
 
+	/**
+	 * Copy constructor.
+	 *
+	 * @param copy builder to copy parameters from
+	 */
+	KeyReferenceBuilder(KeyReferenceBuilder<?> copy) {
+		super(copy);
+	}
+
 	@Override
 	public B keyId(String id) {
-		return super.param("kid", id);
+		return withParam("kid", id);
 	}
 
 	@Override
 	public B algorithm(Algorithm algorithm) {
-		return super.param("alg", algorithm, CryptJsonAdapters.ALG);
+		return withParam("alg", algorithm);
 	}
 
 }

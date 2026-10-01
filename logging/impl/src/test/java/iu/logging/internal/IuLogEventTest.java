@@ -37,6 +37,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.logging.Level;
@@ -45,6 +47,7 @@ import java.util.logging.LogRecord;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuJson;
 import iu.logging.Bootstrap;
 import iu.logging.IuLoggingTestCase;
 import iu.logging.LogContext;
@@ -86,6 +89,16 @@ public class IuLogEventTest extends IuLoggingTestCase {
 			assertEquals(rec.getInstant(), event.getTimestamp());
 			assertEquals("INFO,,,,,,,,," + Thread.currentThread().getName() + ",,,,," + event.getTimestamp() + ",,"
 					+ System.lineSeparator() + msg + System.lineSeparator(), event.format());
+
+			// one line of JSON, nulls omitted
+			final var out = new ByteArrayOutputStream();
+			event.export(new PrintStream(out));
+			assertEquals(IuJson.object() //
+					.add("level", "INFO") //
+					.add("thread", Thread.currentThread().getName()) //
+					.add("timestamp", event.getTimestamp().toString()) //
+					.add("message", msg) //
+					.build().toString() + System.lineSeparator(), out.toString());
 		}
 	}
 

@@ -89,7 +89,13 @@ class Component implements IuComponent {
 		var module = loadedClass.getModule();
 		if (!IuObject.isPlatformName(loadedClass.getName()) //
 				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
-			final var type = TypeFactory.resolveRawClass(loadedClass);
+			final IuType<?, ?> type;
+			try {
+				type = TypeFactory.resolveRawClass(loadedClass);
+			} catch (Throwable e) {
+				LOG.log(Level.WARNING, e, () -> "Unresolveable class " + loadedClass + " in component");
+				return;
+			}
 
 			for (final var o : IuIterable.cat((Iterable) type.fields(), (Iterable) type.properties())) {
 				final var attribute = (DeclaredAttribute<?, ?>) o;

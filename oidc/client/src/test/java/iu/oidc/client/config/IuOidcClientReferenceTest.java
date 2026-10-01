@@ -35,43 +35,39 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Type;
+import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
 
 @SuppressWarnings("javadoc")
 public class IuOidcClientReferenceTest {
 
 	@Test
-	void testDefaults() {
+	void testDefaults() throws IOException {
 		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var secondResourceUri = URI.create(IdGenerator.generateId());
 		final var client = mock(IuOidcClient.class);
-		when(client.getResourceUri()).thenReturn(resourceUri);
 
 		final var clientRef = mock(IuOidcClientReference.class, CALLS_REAL_METHODS);
 		when(clientRef.getClient()).thenReturn(client);
 
-		final var adapter = mock(IuJsonAdapter.class);
-		try (final var mockIuJsonAdapter = mockStatic(IuJsonAdapter.class)) {
-			mockIuJsonAdapter.when(
-					() -> IuJsonAdapter.adapt((Type) getClass(), IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES))
-					.thenReturn(adapter);
-
-			assertEquals(resourceUri, clientRef.getResourceUri());
-			assertNull(clientRef.getRedirectUri());
-			assertNull(clientRef.getScope());
-			assertNull(clientRef.getApiResources());
-			assertNull(clientRef.getSessionHandler());
-			assertEquals(adapter, clientRef.adaptJson(getClass()));
-		}
+		when(client.getResourceUri()).thenReturn(null);
+		assertNull(clientRef.getResourceUri());
+		when(client.getResourceUri()).thenReturn(List.of());
+		assertNull(clientRef.getResourceUri());
+		when(client.getResourceUri()).thenReturn(List.of(resourceUri, secondResourceUri));
+		assertEquals(resourceUri, clientRef.getResourceUri());
+		assertNull(clientRef.getRedirectUri());
+		assertNull(clientRef.getScope());
+		assertNull(clientRef.getApiResources());
+		assertNull(clientRef.getSessionHandler());
+		assertNull(clientRef.exchange(null, null));
 	}
 
 }

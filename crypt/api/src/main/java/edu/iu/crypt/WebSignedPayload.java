@@ -31,6 +31,8 @@
  */
 package edu.iu.crypt;
 
+import java.util.Arrays;
+
 import edu.iu.IuException;
 
 /**
@@ -71,22 +73,37 @@ public interface WebSignedPayload {
 
 	/**
 	 * Verifies at least one signature using a public or shared key.
-	 * 
+	 *
+	 * <p>
+	 * A signature whose algorithm doesn't support the key's type is skipped. The
+	 * first signature that verifies returns; otherwise the first failure is
+	 * thrown, with later ones suppressed.
+	 * </p>
+	 *
 	 * @param key public or shared key
+	 * @throws IllegalArgumentException if no signature's algorithm supports the
+	 *                                  key's type
 	 */
 	default void verify(WebKey key) {
 		Throwable error = null;
 		final var payload = getPayload();
+
 		for (final var signature : getSignatures())
 			try {
-				signature.verify(payload, key);
-				return;
+				if (Arrays.asList(signature.getHeader().getAlgorithm().type).contains(key.getType())) {
+					signature.verify(payload, key);
+					return;
+				}
 			} catch (Throwable e) {
 				if (error == null)
 					error = e;
 				else
 					error.addSuppressed(e);
 			}
+
+		if (error == null)
+			error = new IllegalArgumentException("No signature algorithm supports key type " + key.getType());
+
 		throw IuException.unchecked(error);
 	}
 

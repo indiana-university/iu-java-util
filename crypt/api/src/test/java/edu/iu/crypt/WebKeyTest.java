@@ -102,6 +102,12 @@ public class WebKeyTest extends IuCryptApiTestCase {
 	public void testNamedParameterSpec() {
 		final var spec = assertInstanceOf(NamedParameterSpec.class, WebKey.algorithmParams("Ed448"));
 		assertEquals("Ed448", spec.getName());
+
+		// the JDK's shared instances, since NamedParameterSpec compares by identity
+		assertSame(NamedParameterSpec.ED25519, WebKey.algorithmParams("Ed25519"));
+		assertSame(NamedParameterSpec.ED448, WebKey.algorithmParams("Ed448"));
+		assertSame(NamedParameterSpec.X25519, WebKey.algorithmParams("X25519"));
+		assertSame(NamedParameterSpec.X448, WebKey.algorithmParams("X448"));
 	}
 
 	@Test

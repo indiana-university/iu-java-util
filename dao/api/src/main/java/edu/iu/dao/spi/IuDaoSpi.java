@@ -31,6 +31,9 @@
  */
 package edu.iu.dao.spi;
 
+import java.util.function.Supplier;
+
+import edu.iu.IuRefreshableCacheConfiguration;
 import javax.sql.DataSource;
 
 import edu.iu.dao.IuDao;
@@ -70,4 +73,29 @@ public interface IuDaoSpi {
 	 */
 	IuDao create(DataSource dataSource, TransactionManager transactionManager,
 			TransactionSynchronizationRegistry transactionSynchronizationRegistry);
+
+	/**
+	 * Creates a DAO backed by the supplied infrastructure, with a process-wide read
+	 * cache.
+	 *
+	 * <p>
+	 * Arguments have already been checked for {@code null} by
+	 * {@link IuDao#of(DataSource, TransactionManager, TransactionSynchronizationRegistry, Supplier)}.
+	 * </p>
+	 *
+	 * @param dataSource                         JDBC source the DAO will use for
+	 *                                           every operation
+	 * @param transactionManager                 transaction manager associated with
+	 *                                           {@code dataSource}
+	 * @param transactionSynchronizationRegistry registry in which the DAO stores
+	 *                                           transaction-scoped read caches, and
+	 *                                           the work it defers to commit
+	 * @param config                             supplies the read cache
+	 *                                           configuration in effect; a null
+	 *                                           refresh TTL leaves the cache inert
+	 * @return a new DAO instance
+	 */
+	IuDao create(DataSource dataSource, TransactionManager transactionManager,
+			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
+			Supplier<IuRefreshableCacheConfiguration> config);
 }

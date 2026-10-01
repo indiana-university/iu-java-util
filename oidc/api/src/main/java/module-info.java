@@ -34,6 +34,9 @@
  */
 module iu.util.oidc {
 	exports edu.iu.oidc;
+	// IuOidcProviderMetadata declares defaults, and JsonProxy reaches an unset one
+	// through MethodHandles#privateLookupIn, which exports alone does not allow
+	opens edu.iu.oidc;
 
 	requires transitive iu.util;
 	requires transitive iu.util.jwt.api;

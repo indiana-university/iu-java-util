@@ -31,13 +31,14 @@
  */
 package iu.client;
 
-import java.beans.Introspector;
 import java.lang.reflect.Type;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
+import edu.iu.client.IuJsonSerializationOptions;
 import jakarta.json.JsonObject;
 
 /**
@@ -52,42 +53,101 @@ public final class JsonDeserializer {
 	}
 
 	/**
-	 * Deserializes a business object from JSON.
-	 * 
+	 * Deserializes a business object from JSON, reading property names in the
+	 * format supplied by the options in effect.
+	 *
+	 * @param <T>     value type
+	 * @param type    value type for introspection
+	 * @param value   {@link JsonObject} to deserialize
+	 * @param options supplies the options in effect; read once per invocation
+	 * @param adapt   adapter function
+	 * @return business object
+	 * @see #deserialize(Type, JsonObject, Supplier, Function)
+	 */
+	public static <T> T deserialize(Class<T> type, JsonObject value, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> adapt) {
+		return type.cast(deserialize((Type) type, value, options, adapt));
+	}
+
+	/**
+	 * Deserializes a business object from JSON, reading property names in the
+	 * format supplied by the options in effect.
+	 *
 	 * <p>
 	 * An interface is wrapped by a thin {@link JsonProxy} that reads property
 	 * values directly from {@code value}. Any other type is instantiated using its
-	 * no-arg constructor, then each JavaBeans property with a setter that maps to a
-	 * defined JSON value is converted and applied. Properties without a setter, and
-	 * setters without a corresponding JSON value, are skipped.
+	 * no-arg constructor, then each JSON property that names a writable property,
+	 * as {@link BeanModel} discovers them, is converted to the property's type,
+	 * resolved against {@code type}, and applied. A JSON property that names no
+	 * writable property is skipped, and a property without a JSON value keeps the
+	 * value the constructor assigned.
 	 * </p>
-	 * 
-	 * @param <T>   value type
-	 * @param type  value type for introspection
-	 * @param value {@link JsonObject} to deserialize
-	 * @param adapt adapter function
+	 *
+	 * @param type    value type for introspection, or a parameterized type of one
+	 * @param value   {@link JsonObject} to deserialize
+	 * @param options supplies the options in effect; read once per invocation
+	 * @param adapt   adapter function
 	 * @return business object
 	 */
-	public static <T> T deserialize(Class<T> type, JsonObject value, Function<Type, IuJsonAdapter<?>> adapt) {
-		if (type.isInterface())
-			return JsonProxy.wrap(value, type, adapt);
+	public static Object deserialize(Type type, JsonObject value, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> adapt) {
+		final var snapshot = JsonSerializer.snapshot(options);
+		final var format = JsonSerializer.propertyNameFormat(snapshot);
 
-		final var bean = IuException.uncheckedInvocation(() -> type.getDeclaredConstructor().newInstance());
+		final var erased = JsonAdapters.erase(type);
+		final var model = JsonSerializer.model(type, snapshot);
 
-		for (final var propertyDescriptor : IuException.unchecked(() -> Introspector.getBeanInfo(type))
-				.getPropertyDescriptors()) {
-			final var writeMethod = propertyDescriptor.getWriteMethod();
-			if (writeMethod == null)
-				continue;
-
-			final var jsonValue = JsonProxy.valueWithCaseConversion(value, propertyDescriptor.getName());
-			if (jsonValue == null)
-				continue;
-
-			final var propertyValue = adapt.apply(writeMethod.getGenericParameterTypes()[0]).fromJson(jsonValue);
-			IuException.uncheckedInvocation(() -> writeMethod.invoke(bean, propertyValue));
+		// type information picks the subtype
+		final var dispatch = model.dispatch();
+		if (dispatch != null) {
+			final var alias = value.get(dispatch.key());
+			if (alias != null) {
+				final var subtype = model.subtype(TextJsonAdapter.INSTANCE.fromJson(alias));
+				if (subtype != erased)
+					return deserialize(subtype, value, options, adapt);
+			}
 		}
 
+		if (erased.isInterface()) {
+			final var metadata = snapshot.isLegacyProperties() ? BindingMetadata.NONE : BindingMetadata.get();
+			return JsonProxy.wrap(IuJsonProperties.of(value, adapt), erased,
+					name -> JsonSerializer.formatPropertyName(name, format), false, metadata,
+					JsonProxy.declared(metadata, () -> snapshot));
+		}
+
+		final var naming = PropertyNaming.of(format);
+		final var creator = model.creator();
+		if (creator == null) {
+			final var bean = model.newInstance();
+			for (final var entry : value.entrySet()) {
+				final var property = model.writable(naming, entry.getKey());
+				if (property != null)
+					property.set(bean,
+							JsonSerializer.writeAdapter(property, adapt, snapshot).fromJson(entry.getValue()));
+			}
+			return bean;
+		}
+
+		// the creator's parameters first, then the other properties set; a
+		// parameter not in the object is null, a primitive's default, or empty
+		final var parameters = creator.parameters();
+		final var arguments = new Object[parameters.length];
+		for (var i = 0; i < parameters.length; i++) {
+			final var parameter = parameters[i];
+			final var json = value.get(parameter.jsonName(naming));
+			arguments[i] = json == null //
+					? JsonAdapters.undefined(parameter.type())
+					: JsonSerializer.declared(parameter.type(), parameter.dateFormat(), parameter.numberFormat(),
+							parameter.members(), adapt, snapshot).fromJson(json);
+		}
+
+		final var bean = creator.create(arguments);
+		for (final var entry : value.entrySet()) {
+			final var key = entry.getKey();
+			final var property = model.writable(naming, key);
+			if (property != null && creator.index(naming, key) < 0)
+				property.set(bean, JsonSerializer.writeAdapter(property, adapt, snapshot).fromJson(entry.getValue()));
+		}
 		return bean;
 	}
 

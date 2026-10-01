@@ -206,6 +206,19 @@ public final class IuIterable {
 			}
 
 			@Override
+			public int hashCode() {
+				return IuObject.hashCode(stream(this).toArray());
+			}
+
+			@Override
+			public boolean equals(Object obj) {
+				if (!IuObject.typeCheck(this, obj))
+					return false;
+				else
+					return iterator().equals(((Iterable<?>) obj).iterator());
+			}
+
+			@Override
 			public String toString() {
 				return IuIterable.print(supplier.get(), 0);
 			}

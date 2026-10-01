@@ -400,8 +400,9 @@ final class DaoUtils {
 	 * <li>Anything else → {@link Object}</li>
 	 * </ul>
 	 * <p>
-	 * When no column definition is present, the property type is returned after
-	 * autoboxing any primitive via {@link #autobox(Class)}.
+	 * When no column definition is present, a {@link java.time.Duration} is stored
+	 * as ISO-8601 text; every other property type is returned after autoboxing any
+	 * primitive via {@link #autobox(Class)}.
 	 * </p>
 	 *
 	 * @param javaType declared type of the mapped property or field
@@ -431,6 +432,10 @@ final class DaoUtils {
 				return char[].class;
 			return Object.class;
 		}
+		// JDBC has no portable mapping for Duration. Persist it as ISO-8601 text
+		// unless the column definition explicitly asks for numeric storage.
+		if (javaType == java.time.Duration.class)
+			return String.class;
 		return autobox(javaType);
 	}
 

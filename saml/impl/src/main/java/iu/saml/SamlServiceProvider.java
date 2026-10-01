@@ -407,8 +407,12 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 		detail.setSessionId(sessionId);
 		detail.setPostUri(postUri);
 		detail.setReturnUri(returnUri);
-		session.setStrict(false);
+
+		// The IdP posts the SAML response from a different site.
+		session.setSameSite("None");
+
 		final var setCookie = sessionHandler.store(session);
+		// TODO: verify Secure flag is present, throw ISE if not
 
 		return new IuStatefulRedirect() {
 			@Override
@@ -483,7 +487,9 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 			postAuth.setInvalid(true);
 		}
 
-		session.setStrict(false);
+		// The authenticated session no longer needs to accept cross-site POSTs.
+		session.setSameSite("Lax");
+
 		final var setCookie = sessionHandler.store(session);
 		return new IuStatefulRedirect() {
 			@Override
@@ -500,9 +506,11 @@ public final class SamlServiceProvider implements IuSamlServiceProvider {
 
 	@Override
 	public IuSamlPrincipal getPrincipalIdentity(IuRequestAttributes requestAttributes) {
-		return SamlPrincipal.from(Objects
-				.requireNonNull(sessionHandler.activate(requestAttributes.getCookies()), "missing or expired session")
-				.getDetail(SamlPostAuthentication.class));
+		final var session = sessionHandler.activate(requestAttributes.getCookies());
+		if (session == null)
+			return null;
+
+		return SamlPrincipal.from(session.getDetail(SamlPostAuthentication.class));
 	}
 
 }

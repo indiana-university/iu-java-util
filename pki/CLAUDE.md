@@ -8,7 +8,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 X.509 trust verification expressed in terms of `crypt`'s `WebKey`. Turns a key with a certificate chain into a verified `java.security.Principal`.
 
-Compiled with `--release 11`. `api` re-exports `iu.util.crypt` transitively.
+Compiled with `--release 17`. `api` re-exports `iu.util.crypt` transitively.
 
 ## Layout
 

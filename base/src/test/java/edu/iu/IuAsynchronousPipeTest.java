@@ -502,6 +502,13 @@ public class IuAsynchronousPipeTest {
 				}
 				accepted = pipe.pauseReceiver(10, TIME_OUT);
 			}
+
+			// a pause reports only what arrived while it was waiting, and returns at
+			// once on close. The last segment therefore comes back empty whenever the
+			// pipe closes with a partial segment still queued, so what is left has to
+			// be drained directly rather than by pausing for more.
+			while (i.hasNext())
+				IdGenerator.verifyId(i.next(), TIME_OUT.toMillis());
 		});
 
 		for (int a = 0; a < 100; a++) {

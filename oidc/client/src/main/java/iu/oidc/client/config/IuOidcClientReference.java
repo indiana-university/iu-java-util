@@ -31,11 +31,12 @@
  */
 package iu.oidc.client.config;
 
-import java.lang.reflect.Type;
+import java.io.IOException;
 import java.net.URI;
 
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.IuRequestAttributes;
+import edu.iu.oidc.IuOidcAuthorization;
+import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSessionHandler;
 
 /**
@@ -64,12 +65,21 @@ public interface IuOidcClientReference {
 	IuOidcProvider getProvider();
 
 	/**
-	 * Gets the resource URI.
+	 * Gets the primary resource URI used as the post-authorization redirect
+	 * location and to identify resources served by this client.
 	 * 
-	 * @return resource URI
+	 * @return first configured resource URI; null if none is configured
 	 */
 	default URI getResourceUri() {
-		return getClient().getResourceUri();
+		final var uri = getClient().getResourceUri();
+		if (uri == null)
+			return null;
+		
+		final var i = uri.iterator();
+		if (i.hasNext())
+			return i.next();
+		else
+			return null;
 	}
 
 	/**
@@ -82,11 +92,11 @@ public interface IuOidcClientReference {
 	}
 
 	/**
-	 * Gets the scope parameter value to send to the token endpoint.
+	 * Gets the scopes to request token endpoint.
 	 * 
-	 * @return redirect URI
+	 * @return scope values
 	 */
-	default String getScope() {
+	default Iterable<String> getScope() {
 		return null;
 	}
 
@@ -110,25 +120,17 @@ public interface IuOidcClientReference {
 	}
 
 	/**
-	 * Gets an {@link IuJsonAdapter} for a generic type.
+	 * Performs a token exchange request, if requested.
 	 * 
-	 * @param type type
-	 * @return {@link IuJsonAdapter}
+	 * @param requestAttributes request attributes provided to
+	 *                          {@link IuOidcAuthorization#authorize(IuRequestAttributes, String, String)},
+	 *                          may be cast to retrieve extended attributes.
+	 * @param accessToken       access token from the authorized token response
+	 * @return token exchange response; null if no exchange
+	 * @throws IOException if the token exchange request fails
 	 */
-	default IuJsonAdapter<?> adaptJson(Type type) {
-		return IuJsonAdapter.adapt(type, IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
-	}
-
-	/**
-	 * Gets an {@link IuJsonAdapter} for a class.
-	 * 
-	 * @param <T>  type
-	 * @param type type class
-	 * @return {@link IuJsonAdapter}
-	 */
-	@SuppressWarnings("unchecked")
-	default <T> IuJsonAdapter<T> adaptJson(Class<T> type) {
-		return (IuJsonAdapter<T>) adaptJson((Type) type);
+	default IuOidcTokenResponse exchange(IuRequestAttributes requestAttributes, String accessToken) throws IOException {
+		return null;
 	}
 
 }
