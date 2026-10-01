@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"iu.jwt","l":"Jwt"},{"p":"iu.jwt","l":"JwtBuilder"},{"p":"iu.jwt","l":"JwtSpi"}];updateSearchResults();
+typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html","k":"18"},{"p":"iu.jwt","l":"Jwt"},{"p":"iu.jwt","l":"JwtBuilder"},{"p":"iu.jwt","l":"JwtSpi"},{"p":"iu.jwt","l":"TokenJsonb.NumericDate"},{"p":"iu.jwt","l":"TokenJsonb"}];updateSearchResults();
