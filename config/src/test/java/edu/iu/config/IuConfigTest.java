@@ -40,7 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,6 +52,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.time.Duration;
 import java.util.List;
@@ -70,13 +73,15 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
 import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.crypt.Init;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbConfig;
+import jakarta.json.bind.JsonbException;
+import jakarta.json.bind.config.PropertyNamingStrategy;
 
 @SuppressWarnings("javadoc")
 public class IuConfigTest {
@@ -108,7 +113,30 @@ public class IuConfigTest {
 		Collection<String> getCollection();
 	}
 
-	private static Object deserializers;
+	public static final class Token {
+		final String value;
+
+		Token(String value) {
+			this.value = value;
+		}
+	}
+
+	public interface TokenConfig {
+		Token getToken();
+	}
+
+	public interface NamedConfig {
+		String getSomeValue();
+	}
+
+	public static final class Pooled {
+	}
+
+	public interface PooledRef {
+		Pooled getPooled();
+	}
+
+	private static Map<String, Object> jsonbProperties;
 
 	private static JsonbConfig jsonbConfig() throws ReflectiveOperationException {
 		final var field = IuConfig.class.getDeclaredField("jsonbConfig");
@@ -118,9 +146,9 @@ public class IuConfigTest {
 
 	@BeforeAll
 	public static void snapshot() throws Exception {
-		// registration appends to the JSON-B configuration; each test starts from
-		// the configuration as initialized
-		deserializers = jsonbConfig().getProperty(JsonbConfig.DESERIALIZERS).get();
+		// registration and configureJsonb change the JSON-B configuration; each
+		// test starts from the configuration as initialized
+		jsonbProperties = new HashMap<>(jsonbConfig().getAsMap());
 	}
 
 	@BeforeEach
@@ -144,7 +172,11 @@ public class IuConfigTest {
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
 
-		jsonbConfig().setProperty(JsonbConfig.DESERIALIZERS, deserializers);
+		final var jsonbConfig = jsonbConfig();
+		for (final var name : Set.copyOf(jsonbConfig.getAsMap().keySet()))
+			if (!jsonbProperties.containsKey(name))
+				jsonbConfig.setProperty(name, null);
+		jsonbProperties.forEach(jsonbConfig::setProperty);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -156,12 +188,6 @@ public class IuConfigTest {
 			when(vault.get(key)).thenReturn(vkv);
 		});
 		return vault;
-	}
-
-	private static Jsonb jsonb() throws ReflectiveOperationException {
-		final var field = IuConfig.class.getDeclaredField("jsonb");
-		field.setAccessible(true);
-		return (Jsonb) field.get(null);
 	}
 
 	private static Type iterableType(String property) throws ReflectiveOperationException {
@@ -268,13 +294,16 @@ public class IuConfigTest {
 
 	@SuppressWarnings("unchecked")
 	@Test
-	public void testRegisterFactoryWithCacheTtl() {
+	public void testRegisterFactoryWithCacheTtl() throws ReflectiveOperationException {
 		final var key = IdGenerator.generateId();
 		final var factory = mock(Function.class);
 		final var config = mock(UnloadableConfig.class);
 		when(factory.apply(key)).thenReturn(config);
 
+		final var deserializers = ((Object[]) jsonbConfig().getProperty(JsonbConfig.DESERIALIZERS).get()).length;
 		assertThrows(NullPointerException.class, () -> IuConfig.registerFactory(LoadableConfig.class, null));
+		// a failed registration leaves no components behind
+		assertEquals(deserializers, ((Object[]) jsonbConfig().getProperty(JsonbConfig.DESERIALIZERS).get()).length);
 		assertDoesNotThrow(() -> IuConfig.registerFactory(UnloadableConfig.class, factory, Duration.ofMinutes(1L)));
 		IuConfig.seal();
 		assertSame(config, IuConfig.load(UnloadableConfig.class, key));
@@ -343,8 +372,8 @@ public class IuConfigTest {
 	public void testNullIterableBinding() throws ReflectiveOperationException {
 		IuConfig.seal();
 
-		assertNull(jsonb().fromJson("null", iterableType("getValues")));
-		assertNull(jsonb().fromJson("null", iterableType("getConfigs")));
+		assertNull(IuConfig.jsonb().fromJson("null", iterableType("getValues")));
+		assertNull(IuConfig.jsonb().fromJson("null", iterableType("getConfigs")));
 	}
 
 	@Test
@@ -353,8 +382,8 @@ public class IuConfigTest {
 		final var value = IdGenerator.generateId();
 		IuConfig.seal();
 
-		final var values = (Iterable<String>) jsonb().fromJson("\"" + value + "\"", iterableType("getValues"));
-		final var configs = (Iterable<LoadableConfig>) jsonb()
+		final var values = (Iterable<String>) IuConfig.jsonb().fromJson("\"" + value + "\"", iterableType("getValues"));
+		final var configs = (Iterable<LoadableConfig>) IuConfig.jsonb()
 				.fromJson(IuJson.object().add("value", value).build().toString(), iterableType("getConfigs"));
 		assertEquals(List.of(value), IuIterable.stream(values).toList());
 		assertEquals(List.of(value), IuIterable.stream(configs).map(LoadableConfig::getValue).toList());
@@ -367,9 +396,9 @@ public class IuConfigTest {
 		final var second = IdGenerator.generateId();
 		IuConfig.seal();
 
-		final var values = (Iterable<String>) jsonb()
+		final var values = (Iterable<String>) IuConfig.jsonb()
 				.fromJson(IuJson.array().add(first).add(second).build().toString(), iterableType("getValues"));
-		final var configs = (Iterable<LoadableConfig>) jsonb().fromJson(IuJson.array()
+		final var configs = (Iterable<LoadableConfig>) IuConfig.jsonb().fromJson(IuJson.array()
 				.add(IuJson.object().add("value", first)).add(IuJson.object().add("value", second)).build().toString(),
 				iterableType("getConfigs"));
 		assertEquals(List.of(first, second), IuIterable.stream(values).toList());
@@ -450,17 +479,130 @@ public class IuConfigTest {
 		final var json = "\"" + value + "\"";
 		IuConfig.seal();
 
-		final var list = (List<String>) jsonb().fromJson(json, iterableType("getList"));
+		final var list = (List<String>) IuConfig.jsonb().fromJson(json, iterableType("getList"));
 		assertInstanceOf(ArrayList.class, list);
 		assertEquals(List.of(value), list);
 
-		final var set = (Set<String>) jsonb().fromJson(json, iterableType("getSet"));
+		final var set = (Set<String>) IuConfig.jsonb().fromJson(json, iterableType("getSet"));
 		assertInstanceOf(LinkedHashSet.class, set);
 		assertEquals(Set.of(value), set);
 
-		final var collection = (Collection<String>) jsonb().fromJson(json, iterableType("getCollection"));
+		final var collection = (Collection<String>) IuConfig.jsonb().fromJson(json, iterableType("getCollection"));
 		assertInstanceOf(ArrayDeque.class, collection);
 		assertEquals(List.of(value), List.copyOf(collection));
+	}
+
+	@Test
+	public void testJsonbNotSealed() {
+		assertEquals("not sealed", assertThrows(IllegalStateException.class, IuConfig::jsonb).getMessage());
+		IuConfig.seal();
+		assertSame(IuConfig.jsonb(), IuConfig.jsonb());
+	}
+
+	@Test
+	public void testConfigureJsonb() {
+		final var key = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var vault = vault(Map.of("token/" + key, IuJson.object().add("token", value).build().toString()));
+
+		assertThrows(NullPointerException.class, () -> IuConfig.configureJsonb(null));
+		IuConfig.configureJsonb(c -> c.withDeserializers(
+				IuJsonAdapter.<Token>typedDeserializer(Token.class, (parser, ctx, type) -> new Token(parser.getString()))));
+		IuConfig.registerInterface("token", TokenConfig.class, vault);
+		IuConfig.seal();
+
+		assertEquals(value, IuConfig.load(TokenConfig.class, key).getToken().value);
+		assertEquals("already sealed",
+				assertThrows(IllegalStateException.class, () -> IuConfig.configureJsonb(c -> {
+				})).getMessage());
+	}
+
+	@Test
+	public void testConfigureJsonbReplaces() {
+		final var value = IdGenerator.generateId();
+
+		// the application may replace the defaults, here snake_case names
+		IuConfig.configureJsonb(c -> c.withPropertyNamingStrategy(PropertyNamingStrategy.IDENTITY));
+		IuConfig.seal();
+
+		assertEquals(value, IuConfig.jsonb()
+				.fromJson(IuJson.object().add("someValue", value).build().toString(), NamedConfig.class).getSomeValue());
+	}
+
+	@Test
+	public void testConfigureJsonbAfterSealIgnored() {
+		final var value = IdGenerator.generateId();
+		final var kept = new AtomicReference<JsonbConfig>();
+		IuConfig.configureJsonb(kept::set);
+		IuConfig.seal();
+
+		// a reference kept past sealing changes nothing
+		kept.get().withPropertyNamingStrategy(PropertyNamingStrategy.IDENTITY);
+		assertEquals(value, IuConfig.jsonb()
+				.fromJson(IuJson.object().add("some_value", value).build().toString(), NamedConfig.class).getSomeValue());
+	}
+
+	private static void assertRejectedJson(Throwable error) {
+		for (Throwable cause = error; cause != null; cause = cause.getCause())
+			if (cause instanceof JsonbException && cause.getMessage().contains(Pooled.class.getName())
+					&& cause.getMessage().contains("key string"))
+				return;
+		throw new AssertionError("expected a factory type rejection", error);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testFactoryReference() {
+		final var key = IdGenerator.generateId();
+		final var refKey = IdGenerator.generateId();
+		final var nullKey = IdGenerator.generateId();
+		final var pooled = new Pooled();
+		final Function<String, Pooled> factory = mock(Function.class);
+		when(factory.apply(key)).thenReturn(pooled);
+		final var vault = vault(Map.of( //
+				"pooled/" + refKey, IuJson.object().add("pooled", key).build().toString(), //
+				"pooled/" + nullKey, "{\"pooled\":null}"));
+
+		IuConfig.registerFactory(Pooled.class, factory);
+		IuConfig.registerInterface("pooled", PooledRef.class, vault);
+		IuConfig.seal();
+
+		assertSame(pooled, IuConfig.load(PooledRef.class, refKey).getPooled());
+		assertNull(IuConfig.load(PooledRef.class, nullKey).getPooled());
+		verify(factory).apply(key);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testFactoryRejectsJson() {
+		final var objectKey = IdGenerator.generateId();
+		final var numberKey = IdGenerator.generateId();
+		final Function<String, Pooled> factory = mock(Function.class);
+		final var vault = vault(Map.of( //
+				"pooled/" + objectKey, "{\"pooled\":{}}", //
+				"pooled/" + numberKey, "{\"pooled\":1}"));
+
+		IuConfig.registerFactory(Pooled.class, factory);
+		IuConfig.registerInterface("pooled", PooledRef.class, vault);
+		IuConfig.seal();
+
+		assertRejectedJson(
+				assertThrows(RuntimeException.class, () -> IuConfig.load(PooledRef.class, objectKey).getPooled()));
+		assertRejectedJson(
+				assertThrows(RuntimeException.class, () -> IuConfig.load(PooledRef.class, numberKey).getPooled()));
+		verify(factory, never()).apply(any());
+	}
+
+	@Test
+	public void testFactoryNotSerialized() {
+		IuConfig.registerFactory(Pooled.class, key -> new Pooled());
+		IuConfig.seal();
+
+		final var error = assertThrows(JsonbException.class, () -> IuConfig.jsonb().toJson(new Pooled()));
+		for (Throwable cause = error; cause != null; cause = cause.getCause())
+			if (cause.getMessage() != null && cause.getMessage().contains("doesn't convert to JSON"))
+				return;
+		throw new AssertionError("expected a factory type serialization rejection", error);
 	}
 
 }
