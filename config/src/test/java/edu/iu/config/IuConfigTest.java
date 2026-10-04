@@ -31,8 +31,10 @@
  */
 package edu.iu.config;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -43,45 +45,38 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.PrintStream;
 import java.lang.reflect.Field;
-import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
+import java.lang.reflect.Type;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.logging.Level;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuProcess;
+import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVault;
 import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.crypt.Init;
-import edu.iu.crypt.PemEncoded;
-import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
-import edu.iu.test.IuTestLogger;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
-import jakarta.json.bind.adapter.JsonbAdapter;
-import jakarta.json.bind.serializer.JsonbDeserializer;
-import jakarta.json.bind.serializer.JsonbSerializer;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
 
 @SuppressWarnings("javadoc")
 public class IuConfigTest {
@@ -101,43 +96,31 @@ public class IuConfigTest {
 	public interface UnloadableConfig {
 	}
 
-	public interface VerifiableConfig {
+	public interface IterableConfig {
+		Iterable<String> getValues();
+
+		Iterable<LoadableConfig> getConfigs();
+
+		List<String> getList();
+
+		Set<String> getSet();
+
+		Collection<String> getCollection();
 	}
 
-	public interface KeyRef {
-		WebKey getKey();
+	private static Object deserializers;
+
+	private static JsonbConfig jsonbConfig() throws ReflectiveOperationException {
+		final var field = IuConfig.class.getDeclaredField("jsonbConfig");
+		field.setAccessible(true);
+		return (JsonbConfig) field.get(null);
 	}
 
-	public enum Color {
-		RED, GREEN
-	}
-
-	public interface Formats {
-		Color getColor();
-
-		Instant getWhen();
-
-		Duration getTtl();
-
-		Algorithm getAlg();
-
-		Encryption getEnc();
-
-		byte[] getData();
-
-		String getSnakeCaseName();
-	}
-
-	public static final class Custom {
-		private final String value;
-
-		private Custom(String value) {
-			this.value = value;
-		}
-	}
-
-	public interface CustomConfig {
-		Custom getCustom();
+	@BeforeAll
+	public static void snapshot() throws Exception {
+		// registration appends to the JSON-B configuration; each test starts from
+		// the configuration as initialized
+		deserializers = jsonbConfig().getProperty(JsonbConfig.DESERIALIZERS).get();
 	}
 
 	@BeforeEach
@@ -157,15 +140,11 @@ public class IuConfigTest {
 		f.setAccessible(true);
 		f.set(null, null);
 
-		for (final var name : List.of("ADAPTERS", "SERIALIZERS", "DESERIALIZERS")) {
-			f = IuConfig.class.getDeclaredField(name);
-			f.setAccessible(true);
-			((List<?>) f.get(null)).clear();
-		}
-
 		f = IuConfig.class.getDeclaredField("CONFIG");
 		f.setAccessible(true);
 		((Map<?, ?>) f.get(null)).clear();
+
+		jsonbConfig().setProperty(JsonbConfig.DESERIALIZERS, deserializers);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -179,11 +158,21 @@ public class IuConfigTest {
 		return vault;
 	}
 
+	private static Jsonb jsonb() throws ReflectiveOperationException {
+		final var field = IuConfig.class.getDeclaredField("jsonb");
+		field.setAccessible(true);
+		return (Jsonb) field.get(null);
+	}
+
+	private static Type iterableType(String property) throws ReflectiveOperationException {
+		return IterableConfig.class.getMethod(property).getGenericReturnType();
+	}
+
 	@Test
 	public void testVault() {
 		final var key = IdGenerator.generateId();
 		final var invalidKey = IdGenerator.generateId();
-		assertThrows(NullPointerException.class, () -> IuConfig.load(LoadableConfig.class, key));
+		assertThrows(IllegalStateException.class, () -> IuConfig.load(LoadableConfig.class, key));
 
 		final var cacheTtl = Duration.ofSeconds(1L);
 		final var vault = vault(Map.of("loadable/" + key, "{}"));
@@ -194,27 +183,21 @@ public class IuConfigTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> IuConfig.registerInterface("Invalid", UnloadableConfig.class, vault));
 
-		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
+		assertThrows(IllegalStateException.class, () -> IuConfig.load(LoadableConfig.class, key));
+		IuConfig.seal();
+		final var config = IuConfig.load(LoadableConfig.class, key);
+		assertInstanceOf(LoadableConfig.class, config);
+		assertSame(config, IuConfig.load(LoadableConfig.class, key));
 		verify(vault).get("loadable/" + key);
-
-		// a string refers to a stored value by key
-		assertInstanceOf(LoadableConfig.class, IuConfig.jsonb().fromJson("\"" + key + "\"", LoadableConfig.class));
-		verify(vault).get("loadable/" + key); // cached by key
 		assertThrows(IllegalArgumentException.class, () -> IuConfig.load(LoadableConfig.class, invalidKey));
 
-		// first use seals registration
+		// sealing prevents later registration
 		assertThrows(IllegalStateException.class,
 				() -> IuConfig.registerInterface("unloadable", UnloadableConfig.class, vault));
 
 		assertDoesNotThrow(() -> Thread.sleep(1000L)); // expires cache
 		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
 		verify(vault, times(2)).get("loadable/" + key); // returned to vault after cache expired
-	}
-
-	@Test
-	public void testJsonbCreatedOnce() {
-		final var jsonb = IuConfig.jsonb();
-		assertSame(jsonb, IuConfig.jsonb());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -227,6 +210,7 @@ public class IuConfigTest {
 
 		assertDoesNotThrow(() -> IuConfig.registerFactory(LoadableConfig.class, factory));
 		assertThrows(IllegalArgumentException.class, () -> IuConfig.registerFactory(LoadableConfig.class, factory));
+		IuConfig.seal();
 		assertSame(config, IuConfig.load(LoadableConfig.class, key));
 		assertSame(config, IuConfig.load(LoadableConfig.class, key));
 		verify(factory).apply(key);
@@ -251,6 +235,7 @@ public class IuConfigTest {
 			}
 			return config;
 		});
+		IuConfig.seal();
 
 		final var executor = Executors.newFixedThreadPool(2);
 		try {
@@ -291,141 +276,20 @@ public class IuConfigTest {
 
 		assertThrows(NullPointerException.class, () -> IuConfig.registerFactory(LoadableConfig.class, null));
 		assertDoesNotThrow(() -> IuConfig.registerFactory(UnloadableConfig.class, factory, Duration.ofMinutes(1L)));
+		IuConfig.seal();
 		assertSame(config, IuConfig.load(UnloadableConfig.class, key));
 		verify(factory).apply(key);
 
-		IuConfig.seal();
 		assertThrows(IllegalStateException.class,
 				() -> IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class)));
 	}
 
 	@Test
 	public void testSealed() {
-		assertThrows(NullPointerException.class, () -> IuConfig.registerAdapter(null));
-		assertThrows(NullPointerException.class, () -> IuConfig.registerSerializer(null));
-		assertThrows(NullPointerException.class, () -> IuConfig.registerDeserializer(null));
-
 		IuConfig.seal();
-		assertThrows(IllegalStateException.class, () -> IuConfig.registerAdapter(mock(JsonbAdapter.class)));
-		assertThrows(IllegalStateException.class, () -> IuConfig.registerSerializer(mock(JsonbSerializer.class)));
 		assertThrows(IllegalStateException.class,
-				() -> IuConfig.registerDeserializer(mock(JsonbDeserializer.class)));
-	}
-
-	@Test
-	public void testComponents() {
-		IuConfig.registerAdapter(IuJsonAdapter.typedAdapter(Custom.class, String.class, new JsonbAdapter<Custom, String>() {
-			@Override
-			public String adaptToJson(Custom obj) {
-				return obj.value;
-			}
-
-			@Override
-			public Custom adaptFromJson(String obj) {
-				return new Custom(obj);
-			}
-		}));
-		IuConfig.registerSerializer(IuJsonAdapter.<Color>typedSerializer(Color.class,
-				(color, generator, context) -> generator.write(color.name().toLowerCase())));
-		IuConfig.registerDeserializer(IuJsonAdapter.<Color>typedDeserializer(Color.class,
-				(parser, context, type) -> Color.valueOf(parser.getString().toUpperCase())));
-
-		final var value = IdGenerator.generateId();
-		final var config = IuConfig.jsonb().fromJson("{\"custom\":\"" + value + "\"}", CustomConfig.class);
-		assertEquals(value, config.getCustom().value);
-		assertEquals("\"" + value + "\"", IuConfig.jsonb().toJson(config.getCustom()));
-
-		assertSame(Color.GREEN, IuConfig.jsonb().fromJson("\"green\"", Color.class));
-		assertEquals("\"red\"", IuConfig.jsonb().toJson(Color.RED));
-	}
-
-	@Test
-	public void testFormats() {
-		// JSON-B defaults, with snake_case property names and web crypto values
-		final var config = IuConfig.jsonb().fromJson("{" //
-				+ "\"color\":\"GREEN\"," //
-				+ "\"when\":\"2026-09-29T12:34:56Z\"," //
-				+ "\"ttl\":\"PT15M\"," //
-				+ "\"alg\":\"RSA-OAEP\"," //
-				+ "\"enc\":\"A128CBC-HS256\"," //
-				+ "\"data\":\"AQID\"," //
-				+ "\"snake_case_name\":\"foo\"" //
-				+ "}", Formats.class);
-		assertSame(Color.GREEN, config.getColor());
-		assertEquals(Instant.parse("2026-09-29T12:34:56Z"), config.getWhen());
-		assertEquals(Duration.ofMinutes(15L), config.getTtl());
-		assertSame(Algorithm.RSA_OAEP, config.getAlg());
-		assertSame(Encryption.AES_128_CBC_HMAC_SHA_256, config.getEnc());
-		assertEquals(3, config.getData().length);
-		assertEquals("foo", config.getSnakeCaseName());
-	}
-
-	@Test
-	void testJsonValues() {
-		final var jsonb = IuConfig.jsonb();
-		final var object = IuJson.object().add("a", 1).build();
-		assertEquals(object, jsonb.fromJson(jsonb.toJson(object), JsonObject.class));
-		final var array = IuJson.array().add("a").build();
-		assertEquals(array, jsonb.fromJson(jsonb.toJson(array), JsonArray.class));
-		assertEquals(IuJson.string("a"), jsonb.fromJson("\"a\"", JsonValue.class));
-	}
-
-	@Test
-	void testJsonKeyAndCertAdapters() {
-		IuTestLogger.allow("edu.iu.crypt", Level.CONFIG);
-		final var kid = IdGenerator.generateId();
-		final var jwk = WebKey.builder(Algorithm.EDDSA).keyId(kid).ephemeral().build();
-		final var privateKey = Objects.requireNonNull(jwk.getPrivateKey(), "Missing private key");
-		final var privateKeyFile = IuProcess.temp(PemEncoded::print, privateKey);
-
-		IuTestLogger.allow(IuProcess.class.getName(), Level.FINE);
-		final var pemCert = IuProcess.exec( //
-				"openssl", "req", "-x509", "-key", privateKeyFile.toString(), "-days", "1", //
-				"-subj", "/CN=" + jwk.getKeyId().replaceAll("([+=/])", "\\\\$1"), //
-				"-addext", "basicConstraints=critical,CA:true,pathlen:0", //
-				"-addext", "keyUsage=keyCertSign,cRLSign" //
-		);
-
-		final var jsonb = IuConfig.jsonb();
-		final var signedKey = WebKey.builder(Algorithm.EDDSA).keyId(kid).key(privateKey).pem(pemCert).build();
-		assertEquals(signedKey, jsonb.fromJson(jsonb.toJson(signedKey, WebKey.class), WebKey.class));
-		assertNull(jsonb.fromJson("null", WebKey.class));
-
-		final var cert = signedKey.getCertificateChain()[0];
-		assertEquals(cert,
-				jsonb.fromJson(jsonb.toJson(cert, X509Certificate.class), X509Certificate.class));
-
-		final var databaseFile = IuProcess.temp(PrintStream::print, "");
-		final var newCertsDir = IuProcess.createTempDirectory();
-		final var certificateFile = IuProcess.temp(PrintStream::println, pemCert);
-		var caConfigContents = "[ ca ]" + System.lineSeparator() //
-				+ "default_ca = a" + System.lineSeparator() //
-				+ System.lineSeparator() //
-				+ "[ a ]" + System.lineSeparator() //
-				+ "private_key = " + privateKeyFile.toString().replace('\\', '/') + System.lineSeparator() //
-				+ "certificate = " + certificateFile.toString().replace('\\', '/') + System.lineSeparator() //
-				+ "database = " + databaseFile.toString().replace('\\', '/') + System.lineSeparator() //
-				+ "new_certs_dir = " + newCertsDir.toString().replace('\\', '/') + System.lineSeparator() // //
-				+ "copy_extensions = copyall" + System.lineSeparator() //
-				+ "rand_serial = yes" + System.lineSeparator() //
-				+ "policy = b" + System.lineSeparator() //
-				+ System.lineSeparator() //
-				+ "[ b ]" + System.lineSeparator() //
-				+ "countryName = optional" + System.lineSeparator() //
-				+ "stateOrProvinceName = optional" + System.lineSeparator() //
-				+ "localityName = optional" + System.lineSeparator() //
-				+ "organizationName = optional" + System.lineSeparator() //
-				+ "organizationalUnitName = optional" + System.lineSeparator() //
-				+ "commonName = supplied" + System.lineSeparator() //
-				+ "emailAddress = optional" + System.lineSeparator();
-		final var caConfig = IuProcess.temp(PrintStream::print, caConfigContents);
-
-		final var crl = PemEncoded.parse(IuProcess.exec( //
-				"openssl", "ca", "-gencrl", "-config", caConfig.toString(), "-crldays", "1" //
-		)).next().asCRL();
-		assertEquals(crl, jsonb.fromJson(jsonb.toJson(crl, X509CRL.class), X509CRL.class));
-
-		IuProcess.deleteTempFiles();
+				() -> IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class)));
+		assertThrows(IllegalStateException.class, IuConfig::seal);
 	}
 
 	@Test
@@ -436,8 +300,7 @@ public class IuConfigTest {
 		final var vault = vault(Map.of("key/" + name, key.toString()));
 		IuConfig.registerInterface("key", WebKey.class, vault);
 
-		assertEquals(key, IuConfig.jsonb().fromJson("{\"key\":\"" + name + "\"}", KeyRef.class).getKey());
-		assertEquals(key, IuConfig.jsonb().fromJson("{\"key\":" + key + "}", KeyRef.class).getKey());
+		IuConfig.seal();
 		assertEquals(key, IuConfig.load(WebKey.class, name));
 	}
 
@@ -454,6 +317,7 @@ public class IuConfigTest {
 
 		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableConfig.class, vault));
 		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableRef.class, vault));
+		IuConfig.seal();
 
 		// nested object, bound inline
 		assertEquals(value, IuConfig.load(LoadableRef.class, key).getConfig().getValue());
@@ -470,19 +334,133 @@ public class IuConfigTest {
 				IuJson.object().add("config", IuJson.object().add("value", value)).build().toString()));
 
 		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableRef.class, vault));
+		IuConfig.seal();
 
 		assertEquals(value, IuConfig.load(LoadableRef.class, key).getConfig().getValue());
 	}
 
 	@Test
-	public void testLoadWithVerifier() {
+	public void testNullIterableBinding() throws ReflectiveOperationException {
+		IuConfig.seal();
+
+		assertNull(jsonb().fromJson("null", iterableType("getValues")));
+		assertNull(jsonb().fromJson("null", iterableType("getConfigs")));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testSingletonIterableBinding() throws ReflectiveOperationException {
+		final var value = IdGenerator.generateId();
+		IuConfig.seal();
+
+		final var values = (Iterable<String>) jsonb().fromJson("\"" + value + "\"", iterableType("getValues"));
+		final var configs = (Iterable<LoadableConfig>) jsonb()
+				.fromJson(IuJson.object().add("value", value).build().toString(), iterableType("getConfigs"));
+		assertEquals(List.of(value), IuIterable.stream(values).toList());
+		assertEquals(List.of(value), IuIterable.stream(configs).map(LoadableConfig::getValue).toList());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testArrayIterableBinding() throws ReflectiveOperationException {
+		final var first = IdGenerator.generateId();
+		final var second = IdGenerator.generateId();
+		IuConfig.seal();
+
+		final var values = (Iterable<String>) jsonb()
+				.fromJson(IuJson.array().add(first).add(second).build().toString(), iterableType("getValues"));
+		final var configs = (Iterable<LoadableConfig>) jsonb().fromJson(IuJson.array()
+				.add(IuJson.object().add("value", first)).add(IuJson.object().add("value", second)).build().toString(),
+				iterableType("getConfigs"));
+		assertEquals(List.of(first, second), IuIterable.stream(values).toList());
+		assertEquals(List.of(first, second),
+				IuIterable.stream(configs).map(LoadableConfig::getValue).toList());
+	}
+
+	@Test
+	public void testNotSealed() {
 		final var key = IdGenerator.generateId();
-		final var vault = vault(Map.of("verifiable/" + key, "{}"));
+		IuConfig.registerFactory(LoadableConfig.class, ignored -> mock(LoadableConfig.class));
+		assertEquals("not sealed",
+				assertThrows(IllegalStateException.class, () -> IuConfig.load(LoadableConfig.class, key)).getMessage());
+	}
 
-		assertDoesNotThrow(() -> IuConfig.registerInterface("verifiable", VerifiableConfig.class, vault));
+	@Test
+	public void testNotConfigured() {
+		final var key = IdGenerator.generateId();
+		IuConfig.seal();
+		assertEquals("not configured",
+				assertThrows(NullPointerException.class, () -> IuConfig.load(UnloadableConfig.class, key))
+						.getMessage());
+	}
 
-		VerifiableConfig config = IuConfig.load(VerifiableConfig.class, key);
-		assertInstanceOf(VerifiableConfig.class, config);
+	@Test
+	public void testNullPrefix() {
+		final var vault = vault(Map.of());
+		assertThrows(NullPointerException.class, () -> IuConfig.registerInterface(null, LoadableConfig.class, vault));
+	}
+
+	@Test
+	public void testVaultFallback() {
+		final var key = IdGenerator.generateId();
+		final var failingKey = IdGenerator.generateId();
+		final var first = vault(Map.of());
+		final var second = vault(Map.of("loadable/" + key, "{}"));
+		final var firstError = new IllegalArgumentException();
+		final var secondError = new IllegalStateException();
+		when(first.get("loadable/" + key)).thenThrow(new IllegalArgumentException());
+		when(first.get("loadable/" + failingKey)).thenThrow(firstError);
+		when(second.get("loadable/" + failingKey)).thenThrow(secondError);
+		IuConfig.registerInterface("loadable", LoadableConfig.class, first, second);
+		IuConfig.seal();
+
+		// the first vault that loads the key supplies it
+		assertInstanceOf(LoadableConfig.class, IuConfig.load(LoadableConfig.class, key));
+		verify(first).get("loadable/" + key);
+		verify(second).get("loadable/" + key);
+
+		// when none does, the first failure is thrown, the rest suppressed
+		final var error = assertThrows(IllegalArgumentException.class,
+				() -> IuConfig.load(LoadableConfig.class, failingKey));
+		assertSame(firstError, error);
+		assertArrayEquals(new Throwable[] { secondError }, error.getSuppressed());
+	}
+
+	@Test
+	public void testReferenceRequiresRegistration() {
+		final var key = IdGenerator.generateId();
+		final var vault = vault(Map.of("loadable/" + key,
+				IuJson.object().add("config", IdGenerator.generateId()).build().toString()));
+		IuConfig.registerInterface("loadable", LoadableRef.class, vault);
+		IuConfig.seal();
+
+		// a string isn't a reference to an unregistered type: it fails to bind as
+		// one, rather than attempting to load it
+		final var error = assertThrows(RuntimeException.class,
+				() -> IuConfig.load(LoadableRef.class, key).getConfig());
+		for (Throwable cause = error; cause != null; cause = cause.getCause())
+			assertFalse(cause instanceof NullPointerException && "not configured".equals(cause.getMessage()),
+					() -> "attempted to load an unregistered reference");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void testSingletonCollectionBinding() throws ReflectiveOperationException {
+		final var value = IdGenerator.generateId();
+		final var json = "\"" + value + "\"";
+		IuConfig.seal();
+
+		final var list = (List<String>) jsonb().fromJson(json, iterableType("getList"));
+		assertInstanceOf(ArrayList.class, list);
+		assertEquals(List.of(value), list);
+
+		final var set = (Set<String>) jsonb().fromJson(json, iterableType("getSet"));
+		assertInstanceOf(LinkedHashSet.class, set);
+		assertEquals(Set.of(value), set);
+
+		final var collection = (Collection<String>) jsonb().fromJson(json, iterableType("getCollection"));
+		assertInstanceOf(ArrayDeque.class, collection);
+		assertEquals(List.of(value), List.copyOf(collection));
 	}
 
 }

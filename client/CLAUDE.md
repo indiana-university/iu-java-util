@@ -16,7 +16,7 @@ Only `edu.iu.client` is exported. Anything an application must name — config p
 
 | Package | Holds |
 |---|---|
-| `edu.iu.client` | the public API: `IuJsonAdapter`, `IuJson`, `IuJsonProperties`, `IuJsonSerializationOptions`, `IuHttp`, `IuVault`, `RemoteInvocationHandler` |
+| `edu.iu.client` | the public API: `IuJsonAdapter`, `IuJsonArrayAdapter`, `IuJson`, `IuJsonProperties`, `IuJsonSerializationOptions`, `IuHttp`, `IuVault`, `RemoteInvocationHandler` |
 | `iu.client` | the built-in conversions (`JsonAdapters` and its adapters), the IU business-object paths (`JsonSerializer`, `JsonDeserializer`, `JsonProxy`), the shared property model (`BeanModel`), `BindingMetadata`, `FormatAdapters`, Vault |
 | `iu.client.jsonb` | the JSON-B provider: `IuJsonb`, `IuJsonbValueAdapter` (component chains), `IuJsonbAdapter` (business objects), `IuJsonbModel`, the call contexts, and `JsonbMetadata` |
 

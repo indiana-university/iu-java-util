@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
@@ -49,7 +50,6 @@ import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonSerializationOptions;
 import iu.client.BeanModel;
 import iu.client.BindingMetadata;
-import iu.client.JsonAdapters;
 import jakarta.json.JsonValue;
 import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.annotation.JsonbAnnotation;
@@ -241,7 +241,7 @@ public final class JsonbMetadata implements BindingMetadata {
 
 	@Override
 	public IuJsonAdapter<?> components(Type type, Supplier<IuJsonSerializationOptions> options) {
-		if (DECLARES.get(JsonAdapters.erase(type)))
+		if (DECLARES.get(GenericTypes.erase(type)))
 			return scoped(Components.JSONB.adapt(type), options);
 		else
 			return null;

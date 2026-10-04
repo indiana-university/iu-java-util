@@ -80,6 +80,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuObject;
 import iu.client.BinaryJsonAdapter;
 import iu.client.BindingMetadata;
@@ -504,7 +505,7 @@ public interface IuJsonAdapter<T> {
 
 	private static IuJsonAdapter<?> builtIn(Type type, Supplier<IuJsonSerializationOptions> options,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
-		final var c = JsonAdapters.erase(type);
+		final var c = GenericTypes.erase(type);
 		if (c == byte[].class)
 			return BinaryJsonAdapter.of(options);
 
@@ -531,8 +532,8 @@ public interface IuJsonAdapter<T> {
 			return FormatAdapters.legacyDates(c, options);
 
 		// a value declared Object, or another broad type, converts by its runtime
-		// type; Iterable is a java.lang interface with a conversion of its own
-		if (JsonAdapters.isBroad(c) && c != Iterable.class)
+		// type
+		if (JsonAdapters.isBroad(c))
 			return JsonAdapters.runtime(valueAdapter);
 
 		// a map key is text: an enum key follows the options' enum text

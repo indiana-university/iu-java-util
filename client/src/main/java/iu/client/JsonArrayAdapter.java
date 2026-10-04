@@ -32,12 +32,12 @@
 package iu.client;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonArrayAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
@@ -55,23 +55,7 @@ import jakarta.json.stream.JsonParser.Event;
  * @param <T> target type
  * @param <E> element type
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
-
-	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
-	 */
-	abstract protected Iterator<E> iterator(T value);
-
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
+abstract class JsonArrayAdapter<T, E> implements IuJsonArrayAdapter<T, E> {
 
 	private final IuJsonAdapter<E> itemAdapter;
 

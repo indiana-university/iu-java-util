@@ -35,10 +35,10 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 
+import edu.iu.GenericTypes;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonProperties;
 import iu.client.BindingMetadata;
-import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
@@ -78,7 +78,7 @@ final class IuJsonbAdapter<T> implements IuJsonAdapter<T> {
 	@SuppressWarnings("unchecked")
 	IuJsonbAdapter(Type type, IuJsonb jsonb) {
 		this.declared = type;
-		this.type = (Class<T>) JsonAdapters.erase(type);
+		this.type = (Class<T>) GenericTypes.erase(type);
 		this.jsonb = jsonb;
 	}
 

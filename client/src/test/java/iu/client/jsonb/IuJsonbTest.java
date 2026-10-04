@@ -418,12 +418,12 @@ public class IuJsonbTest {
 	@Test
 	public void testIsBroad() throws Exception {
 		for (final var broad : new Type[] { Object.class, java.io.Serializable.class, Comparable.class,
-				Iterable.class, Appendable.class, java.lang.constant.Constable.class,
+				Appendable.class, java.lang.constant.Constable.class,
 				java.lang.constant.ConstantDesc.class,
 				Holder.class.getDeclaredField("comparable").getGenericType() })
 			assertTrue(IuJsonb.isBroad(broad), broad.getTypeName());
 		for (final var other : new Class<?>[] { CharSequence.class, Number.class, String.class, Boolean.class,
-				Enum.class, List.class, Named.class, java.time.temporal.Temporal.class })
+				Enum.class, Iterable.class, List.class, Named.class, java.time.temporal.Temporal.class })
 			assertFalse(IuJsonb.isBroad(other), other.getName());
 	}
 

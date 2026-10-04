@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import edu.iu.GenericTypes;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonSerializationOptions;
@@ -124,7 +125,7 @@ public final class FormatAdapters {
 	 */
 	public static IuJsonAdapter<?> declared(Type type, BindingMetadata.Format date, BindingMetadata.Format number,
 			String configuredPattern, Locale configuredLocale, boolean strict) {
-		final var erased = JsonAdapters.erase(type);
+		final var erased = GenericTypes.erase(type);
 		if (date != null && isDate(erased))
 			return date(erased, date, configuredPattern, configuredLocale, strict);
 		else if (number != null && Number.class.isAssignableFrom((Class<?>) GenericTypes.box(erased)))

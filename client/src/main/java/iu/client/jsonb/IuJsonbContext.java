@@ -35,9 +35,9 @@ import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+import edu.iu.GenericTypes;
 import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuJsonSerializationOptions;
-import iu.client.JsonAdapters;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.stream.JsonLocation;
 
@@ -74,7 +74,7 @@ abstract class IuJsonbContext {
 		format = IuJsonb.format(options);
 		naming = jsonb.naming() != null ? jsonb.naming() : IuJsonbNaming.of(format);
 
-		final var rootClass = JsonAdapters.erase(root);
+		final var rootClass = GenericTypes.erase(root);
 		final var simpleName = rootClass.getSimpleName();
 		this.root = simpleName.isEmpty() ? rootClass.getName() : simpleName;
 	}

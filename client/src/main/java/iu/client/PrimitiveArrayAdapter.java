@@ -61,12 +61,12 @@ class PrimitiveArrayAdapter extends JsonArrayAdapter<Object, Object> {
 	}
 
 	@Override
-	protected Iterator<Object> iterator(Object value) {
+	public Iterator<Object> iterator(Object value) {
 		return IntStream.range(0, Array.getLength(value)).mapToObj(i -> Array.get(value, i)).iterator();
 	}
 
 	@Override
-	protected Object collect(Iterable<Object> items) {
+	public Object collect(Iterable<Object> items) {
 		final List<Object> list = new ArrayList<>();
 		items.forEach(list::add);
 

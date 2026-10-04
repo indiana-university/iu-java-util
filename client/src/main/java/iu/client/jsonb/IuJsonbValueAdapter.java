@@ -40,11 +40,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonProperties;
 import iu.client.FormatAdapters;
-import iu.client.GenericTypes;
 import iu.client.JsonAdapters;
 import iu.client.jsonb.IuJsonb.AdapterReference;
 import jakarta.json.JsonValue;
@@ -187,7 +187,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		this.builtIn = builtIn;
 		this.type = type;
 		this.jsonb = jsonb;
-		erased = JsonAdapters.erase(type);
+		erased = GenericTypes.erase(type);
 		readType = (Class<?>) GenericTypes.box(erased);
 		// broad components leave a scalar type alone, null included; a value of
 		// any other type may still read from a JSON scalar, which they leave alone
@@ -249,7 +249,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 	 * @return true if {@code adapted} reads values of that shape
 	 */
 	static boolean accepts(Type adapted, ValueType shape) {
-		final var c = (Class<?>) GenericTypes.box(JsonAdapters.erase(adapted));
+		final var c = (Class<?>) GenericTypes.box(GenericTypes.erase(adapted));
 		if (c == Object.class || JsonValue.class.isAssignableFrom(c))
 			return true;
 		if (c == Boolean.class)
@@ -358,8 +358,8 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		if (erased == byte[].class)
 			return jsonb.binary();
 
-		// Iterable is the one broad type with a conversion of its own
-		if (broad && erased != Iterable.class)
+		// a broad type converts by its runtime type
+		if (broad)
 			return new IuJsonbObjectAdapter(jsonb);
 
 		// an index of properties is built in, not a business object; an index read
@@ -406,7 +406,7 @@ final class IuJsonbValueAdapter<T> implements IuJsonAdapter<T> {
 		if (value == null)
 			return builtIn();
 
-		// Iterable is the one broad type with a conversion of its own, whatever
+		// Iterable keeps a conversion of its own, whatever
 		// class implements it
 		final var runtimeType = IuSerializationContext.runtimeType(value);
 		if (runtimeType == erased //

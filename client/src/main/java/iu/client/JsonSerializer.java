@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -211,7 +212,7 @@ public final class JsonSerializer {
 	 * @return key adapter
 	 */
 	public static IuJsonAdapter<?> keyAdapter(Type type, Supplier<IuJsonSerializationOptions> options) {
-		final var erased = JsonAdapters.erase(type);
+		final var erased = GenericTypes.erase(type);
 		if (!erased.isEnum())
 			return JsonAdapters.adapt(type, null);
 

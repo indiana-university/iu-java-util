@@ -27,7 +27,7 @@ Claims convert by one `Jsonb`, `TokenJsonb` in `impl`, exposed as `WebToken.json
 
 `Jwt` holds its claims as `IuJsonProperties`. `JwtBuilder` collects claims once each (a null value leaves a claim as it is; a different value fails) and builds from their JSON, so a built token reads exactly as the same token parsed. A single `aud` string reads as an audience of one.
 
-Configuration binding is separate: `IuConfig.jsonb()` uses ISO-8601 dates and resolves stored references, neither of which applies to tokens.
+Configuration binding is separate: `IuConfig` binds with ISO-8601 dates and resolves stored references, neither of which applies to tokens.
 
 ## API surface (`edu.iu.jwt`)
 

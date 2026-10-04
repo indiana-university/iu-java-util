@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -402,6 +402,34 @@ public class GenericTypesTest {
 		assertEquals(CharSequence.class, GenericTypes.supertype(String.class, CharSequence.class));
 		assertEquals("java.lang.Comparable<java.lang.String>",
 				GenericTypes.supertype(String.class, Comparable.class).getTypeName());
+	}
+
+	@Test
+	public void testErase() {
+		assertSame(String.class, GenericTypes.erase(String.class));
+		assertSame(List[].class, GenericTypes.erase(field("arrayOfListOfInteger")));
+		assertSame(List.class, GenericTypes.erase(field("listOfInteger")));
+		assertSame(Number.class, GenericTypes.erase(variablesField("t")));
+		assertSame(Number.class, GenericTypes.erase(argument("listOfExtendsNumber")));
+		assertSame(Object.class, GenericTypes.erase(argument("listOfWildcard")));
+	}
+
+	@Test
+	public void testBound() {
+		assertSame(Number.class, GenericTypes.bound(argument("listOfExtendsNumber")));
+		assertSame(Object.class, GenericTypes.bound(argument("listOfWildcard")));
+		assertSame(Number.class, GenericTypes.bound(variablesField("t")));
+		assertNull(GenericTypes.bound(String.class));
+		assertNull(GenericTypes.bound(field("listOfInteger")));
+	}
+
+	@Test
+	public void testItem() {
+		assertSame(String.class, GenericTypes.item(String[].class));
+		assertSame(Object.class, GenericTypes.item(String.class));
+		assertEquals(field("listOfInteger"), GenericTypes.item(field("arrayOfListOfInteger")));
+		assertSame(Integer.class, GenericTypes.item(field("listOfInteger")));
+		assertSame(Integer.class, GenericTypes.item(field("mapOfStringInteger")));
 	}
 
 }

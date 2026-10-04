@@ -29,7 +29,7 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.client;
+package edu.iu;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.GenericArrayType;
@@ -45,15 +45,28 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Resolves and compares generic types.
- *
+ * Provides simplified introspection for generic types suitable for use with
+ * base-layer utilities.
+ * 
  * <p>
  * Type variables and wildcards are compared by the erasure of their bounds
  * rather than by their bounds' full generic types, so a recursive bound such as
  * {@code T extends Comparable<T>} can't loop. Owner types are not compared.
  * </p>
+ * 
+ * <p>
+ * For more sophisticated type introspection scenarios, consider using the
+ * {@code iu.util.type} module.
+ * </p>
  */
 public final class GenericTypes {
+
+	private static final ClassValue<Class<?>> ARRAY_TYPES = new ClassValue<>() {
+		@Override
+		protected Class<?> computeValue(Class<?> component) {
+			return Array.newInstance(component, 0).getClass();
+		}
+	};
 
 	private static final Map<Class<?>, Class<?>> BOXES = Map.of( //
 			boolean.class, Boolean.class, //
@@ -70,15 +83,33 @@ public final class GenericTypes {
 	}
 
 	/**
+	 * Erases a {@link Type} to its equivalent raw {@link Class}.
+	 *
+	 * @param type type
+	 * @return raw class
+	 */
+	public static Class<?> erase(Type type) {
+		if (type instanceof Class)
+			return (Class<?>) type;
+		else if (type instanceof GenericArrayType)
+			return ARRAY_TYPES.get(erase(((GenericArrayType) type).getGenericComponentType()));
+		else if (type instanceof ParameterizedType)
+			return erase(((ParameterizedType) type).getRawType());
+		else if (type instanceof TypeVariable)
+			return erase(((TypeVariable<?>) type).getBounds()[0]);
+		else // if (type instanceof WildcardType)
+			return erase(((WildcardType) type).getUpperBounds()[0]);
+	}
+
+	/**
 	 * Gets the type arguments a type supplies to one of its generic supertypes.
 	 *
 	 * <p>
 	 * Walks the generic superclasses and interfaces of {@code type}, binding each
-	 * type variable to the argument supplied for it, so an argument passed
-	 * through a sub-interface or a generic superclass resolves to the type it
-	 * names. An argument no declaration binds, such as a type parameter of
-	 * {@code type} itself when it's raw, is returned as the unbound
-	 * {@link TypeVariable}.
+	 * type variable to the argument supplied for it, so an argument passed through
+	 * a sub-interface or a generic superclass resolves to the type it names. An
+	 * argument no declaration binds, such as a type parameter of {@code type}
+	 * itself when it's raw, is returned as the unbound {@link TypeVariable}.
 	 * </p>
 	 *
 	 * @param type      class or parameterized type
@@ -88,7 +119,7 @@ public final class GenericTypes {
 	 *         {@code type} is not a subtype of {@code supertype}
 	 */
 	public static Type[] typeArguments(Type type, Class<?> supertype) {
-		final var raw = JsonAdapters.erase(type);
+		final var raw = erase(type);
 		if (!supertype.isAssignableFrom(raw))
 			return null;
 
@@ -103,16 +134,15 @@ public final class GenericTypes {
 	 *
 	 * @param type      class
 	 * @param supertype class or interface {@code type} extends or implements
-	 * @return {@code supertype} itself if it isn't generic; otherwise
-	 *         parameterized as {@link #typeArguments(Type, Class)} finds, with
-	 *         an argument {@code type} doesn't bind left as its variable
+	 * @return {@code supertype} itself if it isn't generic; otherwise parameterized
+	 *         as {@link #typeArguments(Type, Class)} finds, with an argument
+	 *         {@code type} doesn't bind left as its variable
 	 */
 	public static Type supertype(Class<?> type, Class<?> supertype) {
 		if (supertype.getTypeParameters().length == 0)
 			return supertype;
 		else
-			return new ParameterizedTypeImpl(supertype, supertype.getDeclaringClass(),
-					typeArguments(type, supertype));
+			return new ParameterizedTypeImpl(supertype, supertype.getDeclaringClass(), typeArguments(type, supertype));
 	}
 
 	/**
@@ -166,11 +196,11 @@ public final class GenericTypes {
 	 *
 	 * <p>
 	 * Classes compare as {@link Class#isAssignableFrom(Class)} does. A
-	 * parameterized {@code to} also requires the arguments {@code from} supplies
-	 * to its raw type to match its own: an unbound type variable matches any
-	 * argument within its bounds, a wildcard matches any argument within its
-	 * bounds, and any other argument must be equal, since generic types are
-	 * invariant. Arrays are covariant. A primitive {@code from} is boxed.
+	 * parameterized {@code to} also requires the arguments {@code from} supplies to
+	 * its raw type to match its own: an unbound type variable matches any argument
+	 * within its bounds, a wildcard matches any argument within its bounds, and any
+	 * other argument must be equal, since generic types are invariant. Arrays are
+	 * covariant. A primitive {@code from} is boxed.
 	 * </p>
 	 *
 	 * @param to   declared type
@@ -183,11 +213,11 @@ public final class GenericTypes {
 			return true;
 
 		if (to instanceof Class)
-			return ((Class<?>) to).isAssignableFrom(JsonAdapters.erase(from));
+			return ((Class<?>) to).isAssignableFrom(erase(from));
 
 		if (to instanceof ParameterizedType) {
 			final var toArgs = ((ParameterizedType) to).getActualTypeArguments();
-			final var fromArgs = typeArguments(from, JsonAdapters.erase(to));
+			final var fromArgs = typeArguments(from, erase(to));
 			if (fromArgs == null)
 				return false;
 			for (var i = 0; i < toArgs.length; i++)
@@ -204,6 +234,54 @@ public final class GenericTypes {
 
 		// a variable or wildcard accepts anything within its bounds
 		return isWithinBounds(to, from);
+	}
+
+	/**
+	 * Gets the upper bound a type is a stand-in for.
+	 *
+	 * <p>
+	 * Answers only for the two forms that name a bound rather than a type: a
+	 * wildcard, as in {@code Iterable<? extends Foo>}, and a type variable, as in a
+	 * generic bean's {@code Iterable<T>}. Both erase to their bound, so both
+	 * convert as it.
+	 * </p>
+	 *
+	 * @param type Java type
+	 * @return first upper bound; null if {@code type} names a type of its own
+	 */
+	public static Type bound(Type type) {
+		if (type instanceof WildcardType)
+			return ((WildcardType) type).getUpperBounds()[0];
+		else if (type instanceof TypeVariable)
+			return ((TypeVariable<?>) type).getBounds()[0];
+		else
+			return null;
+	}
+
+	/**
+	 * Gets the item type of a collection type: array component type,
+	 * iterable/collection item type, or map value type.
+	 * 
+	 * @param type generic type
+	 * @return item type; Object.class if unknown
+	 */
+	public static Type item(Type type) {
+		if (type instanceof Class) {
+			final var c = (Class<?>) type;
+			if (c.isArray())
+				return ((Class<?>) type).getComponentType();
+			else
+				return Object.class;
+		} else if (type instanceof GenericArrayType)
+			return ((GenericArrayType) type).getGenericComponentType();
+		else {
+			final var p = (ParameterizedType) type;
+			final var raw = erase(p);
+			if (Map.class.isAssignableFrom(raw))
+				return p.getActualTypeArguments()[1];
+			else
+				return p.getActualTypeArguments()[0];
+		}
 	}
 
 	private static boolean argumentMatches(Type pattern, Type argument) {
@@ -249,9 +327,9 @@ public final class GenericTypes {
 		else
 			bounds = ((WildcardType) variableOrWildcard).getUpperBounds();
 
-		final var erased = JsonAdapters.erase(upperBound(type));
+		final var erased = erase(upperBound(type));
 		for (final var bound : bounds)
-			if (!JsonAdapters.erase(bound).isAssignableFrom(erased))
+			if (!erase(bound).isAssignableFrom(erased))
 				return false;
 		return true;
 	}
@@ -282,15 +360,15 @@ public final class GenericTypes {
 		final var parameterized = (ParameterizedType) type;
 		bind(parameterized.getOwnerType(), bindings);
 
-		final var parameters = JsonAdapters.erase(parameterized).getTypeParameters();
+		final var parameters = erase(parameterized).getTypeParameters();
 		final var arguments = parameterized.getActualTypeArguments();
 		for (var i = 0; i < parameters.length; i++)
 			bindings.put(parameters[i], substitute(arguments[i], bindings));
 	}
 
 	/**
-	 * Follows one path from a type up to a supertype, binding each type variable
-	 * on the way.
+	 * Follows one path from a type up to a supertype, binding each type variable on
+	 * the way.
 	 *
 	 * @param type      subtype of {@code supertype}
 	 * @param supertype generic class or interface
@@ -306,15 +384,15 @@ public final class GenericTypes {
 		// type is a proper subtype, so one of its direct supertypes leads there
 		final var genericSuperclass = type.getGenericSuperclass();
 		final Type next;
-		if (genericSuperclass != null && supertype.isAssignableFrom(JsonAdapters.erase(genericSuperclass)))
+		if (genericSuperclass != null && supertype.isAssignableFrom(erase(genericSuperclass)))
 			next = genericSuperclass;
 		else
 			next = Stream.of(type.getGenericInterfaces()) //
-					.filter(i -> supertype.isAssignableFrom(JsonAdapters.erase(i))) //
+					.filter(i -> supertype.isAssignableFrom(erase(i))) //
 					.findFirst().get();
 
 		bind(substitute(next, bindings), bindings);
-		return find(JsonAdapters.erase(next), supertype, bindings);
+		return find(erase(next), supertype, bindings);
 	}
 
 	private static Type substitute(Type type, Map<TypeVariable<?>, Type> bindings) {

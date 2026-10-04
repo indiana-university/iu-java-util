@@ -33,7 +33,6 @@ package iu.client;
 
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
@@ -96,6 +95,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuException;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonProperties;
@@ -105,13 +105,6 @@ import jakarta.json.JsonValue;
  * Provides standard {@link IuJsonAdapter} instances.
  */
 public final class JsonAdapters {
-
-	private static final ClassValue<Class<?>> ARRAY_TYPES = new ClassValue<>() {
-		@Override
-		protected Class<?> computeValue(Class<?> component) {
-			return Array.newInstance(component, 0).getClass();
-		}
-	};
 
 	/**
 	 * {@link IuJsonAdapter} factory method.
@@ -141,8 +134,8 @@ public final class JsonAdapters {
 	 *
 	 * @param type         Java type
 	 * @param valueAdapter value type adapter
-	 * @param scope        tracks the item converting, for an array, collection,
-	 *                     or map
+	 * @param scope        tracks the item converting, for an array, collection, or
+	 *                     map
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings("rawtypes")
@@ -152,28 +145,27 @@ public final class JsonAdapters {
 
 	/**
 	 * {@link IuJsonAdapter} factory method, tracking the items of an array,
-	 * collection, or map, and converting a map's keys by a function of their
-	 * own.
+	 * collection, or map, and converting a map's keys by a function of their own.
 	 *
 	 * @param type         Java type
 	 * @param valueAdapter value type adapter
 	 * @param keyAdapter   map key type adapter, whose values convert to and from
 	 *                     text
-	 * @param scope        tracks the item converting, for an array, collection,
-	 *                     or map
+	 * @param scope        tracks the item converting, for an array, collection, or
+	 *                     map
 	 * @return {@link IuJsonAdapter}
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static IuJsonAdapter adapt(Type type, Function<Type, IuJsonAdapter<?>> valueAdapter,
 			Function<Type, IuJsonAdapter<?>> keyAdapter, ItemScope scope) {
-		final var bound = bound(type);
+		final var bound = GenericTypes.bound(type);
 		if (bound != null)
 			if (valueAdapter != null)
 				return valueAdapter.apply(bound);
 			else
 				return adapt(bound, null, keyAdapter, scope);
 
-		Class erased = erase(type);
+		Class erased = GenericTypes.erase(type);
 
 		if (erased == Object.class)
 			return BasicJsonAdapter.INSTANCE;
@@ -253,7 +245,8 @@ public final class JsonAdapters {
 			return ParsingJsonAdapter.of(OffsetDateTime.class, OffsetDateTime::parse,
 					DateTimeFormatter.ISO_OFFSET_DATE_TIME::format);
 		if (erased == OffsetTime.class)
-			return ParsingJsonAdapter.of(OffsetTime.class, OffsetTime::parse, DateTimeFormatter.ISO_OFFSET_TIME::format);
+			return ParsingJsonAdapter.of(OffsetTime.class, OffsetTime::parse,
+					DateTimeFormatter.ISO_OFFSET_TIME::format);
 		if (erased == Pattern.class)
 			return ParsingJsonAdapter.of(Pattern.class, Pattern::compile);
 		if (erased == Period.class)
@@ -288,14 +281,14 @@ public final class JsonAdapters {
 
 		if (erased == Optional.class)
 			if (valueAdapter != null)
-				return new OptionalJsonAdapter(valueAdapter.apply(item(type)));
+				return new OptionalJsonAdapter(valueAdapter.apply(GenericTypes.item(type)));
 			else if (type instanceof ParameterizedType)
-				return new OptionalJsonAdapter(IuJsonAdapter.of(item(type)));
+				return new OptionalJsonAdapter(IuJsonAdapter.of(GenericTypes.item(type)));
 			else
 				return OptionalJsonAdapter.INSTANCE;
 
 		if (erased.isArray()) {
-			final var item = item(type);
+			final var item = GenericTypes.item(type);
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
 				itemAdapter = valueAdapter.apply(item);
@@ -316,9 +309,9 @@ public final class JsonAdapters {
 				|| erased == Stream.class) {
 			final IuJsonAdapter itemAdapter;
 			if (valueAdapter != null)
-				itemAdapter = valueAdapter.apply(item(type));
+				itemAdapter = valueAdapter.apply(GenericTypes.item(type));
 			else if (type instanceof ParameterizedType)
-				itemAdapter = IuJsonAdapter.of(item(type));
+				itemAdapter = IuJsonAdapter.of(GenericTypes.item(type));
 			else
 				itemAdapter = BasicJsonAdapter.INSTANCE;
 
@@ -342,7 +335,7 @@ public final class JsonAdapters {
 				return scoped(new CollectionAdapter(itemAdapter, PriorityQueue::new), scope);
 
 			if (erased == EnumSet.class) {
-				final Class element = enumType(item(type), type);
+				final Class element = enumType(GenericTypes.item(type), type);
 				return scoped(new CollectionAdapter(itemAdapter, () -> EnumSet.noneOf(element)), scope);
 			}
 
@@ -404,74 +397,13 @@ public final class JsonAdapters {
 				factory = null;
 
 			if (factory != null) {
-				final var adapter = new JsonObjectAdapter(keys, valueAdapter.apply(item(type)), factory);
+				final var adapter = new JsonObjectAdapter(keys, valueAdapter.apply(GenericTypes.item(type)), factory);
 				adapter.scope = scope;
 				return adapter;
 			}
 		}
 
 		throw new UnsupportedOperationException("Unsupported for JSON conversion: " + type);
-	}
-
-	/**
-	 * Gets the upper bound a type is a stand-in for.
-	 *
-	 * <p>
-	 * Answers only for the two forms that name a bound rather than a type: a
-	 * wildcard, as in {@code Iterable<? extends Foo>}, and a type variable, as in
-	 * a generic bean's {@code Iterable<T>}. Both erase to their bound, so both
-	 * convert as it.
-	 * </p>
-	 *
-	 * @param type Java type
-	 * @return first upper bound; null if {@code type} names a type of its own
-	 */
-	private static Type bound(Type type) {
-		if (type instanceof WildcardType)
-			return ((WildcardType) type).getUpperBounds()[0];
-		else if (type instanceof TypeVariable)
-			return ((TypeVariable<?>) type).getBounds()[0];
-		else
-			return null;
-	}
-
-	/**
-	 * Erases a {@link Type} to its equivalent raw {@link Class}.
-	 *
-	 * @param type type
-	 * @return raw class
-	 */
-	public static Class<?> erase(Type type) {
-		if (type instanceof Class)
-			return (Class<?>) type;
-		else if (type instanceof GenericArrayType)
-			return ARRAY_TYPES.get(erase(((GenericArrayType) type).getGenericComponentType()));
-		else if (type instanceof ParameterizedType)
-			return erase(((ParameterizedType) type).getRawType());
-		else if (type instanceof TypeVariable)
-			return erase(((TypeVariable<?>) type).getBounds()[0]);
-		else // if (type instanceof WildcardType)
-			return erase(((WildcardType) type).getUpperBounds()[0]);
-	}
-
-	private static Type item(Type type) {
-		if (type instanceof Class) {
-			final var c = (Class<?>) type;
-			if (c.isArray())
-				return ((Class<?>) type).getComponentType();
-			else
-				return Object.class;
-		} else if (type instanceof GenericArrayType)
-			return ((GenericArrayType) type).getGenericComponentType();
-		else {
-			// assumes erase() was invoked and returned a supported type first
-			final var p = (ParameterizedType) type;
-			final var raw = erase(p);
-			if (Map.class.isAssignableFrom(raw))
-				return p.getActualTypeArguments()[1];
-			else
-				return p.getActualTypeArguments()[0];
-		}
 	}
 
 	private static <A extends JsonArrayAdapter<?, ?>> A scoped(A adapter, ItemScope scope) {
@@ -487,7 +419,7 @@ public final class JsonAdapters {
 	 *         subtypes, and the primitive number types and {@code boolean}
 	 */
 	public static boolean isScalar(Type type) {
-		final var c = (Class<?>) GenericTypes.box(erase(type));
+		final var c = (Class<?>) GenericTypes.box(GenericTypes.erase(type));
 		return CharSequence.class.isAssignableFrom(c) //
 				|| Number.class.isAssignableFrom(c) //
 				|| c == Boolean.class;
@@ -504,11 +436,13 @@ public final class JsonAdapters {
 	 *         isn't {@link #isScalar(Type) scalar}
 	 */
 	public static boolean isBroad(Type type) {
-		final var c = erase(type);
+		final var c = GenericTypes.erase(type);
 		if (c == Object.class || c == Serializable.class)
 			return true;
-		if (!c.isInterface() || isScalar(c))
+
+		if (!c.isInterface() || isScalar(c) || Iterable.class == c)
 			return false;
+
 		final var packageName = c.getPackageName();
 		return packageName.equals("java.lang") || packageName.startsWith("java.lang.");
 	}
@@ -534,16 +468,16 @@ public final class JsonAdapters {
 	}
 
 	/**
-	 * Gets the value of something undefined in JSON, without converting: a
-	 * property not in an object, or a creator parameter not read.
+	 * Gets the value of something undefined in JSON, without converting: a property
+	 * not in an object, or a creator parameter not read.
 	 *
 	 * @param type type asked for
 	 * @return a primitive's default; an empty {@link Optional},
-	 *         {@link OptionalInt}, {@link OptionalLong}, or
-	 *         {@link OptionalDouble}; otherwise null
+	 *         {@link OptionalInt}, {@link OptionalLong}, or {@link OptionalDouble};
+	 *         otherwise null
 	 */
 	public static Object undefined(Type type) {
-		final var c = erase(type);
+		final var c = GenericTypes.erase(type);
 		if (c.isPrimitive())
 			return Array.get(Array.newInstance(c, 1), 0);
 		else if (c == Optional.class)
@@ -602,9 +536,9 @@ public final class JsonAdapters {
 	}
 
 	/**
-	 * Gets the type a class of the application's own converts as, when it
-	 * extends or implements a type with a conversion, such as a list or an
-	 * iterable: that type, parameterized as the class sees it.
+	 * Gets the type a class of the application's own converts as, when it extends
+	 * or implements a type with a conversion, such as a list or an iterable: that
+	 * type, parameterized as the class sees it.
 	 *
 	 * @param type class of the application's own
 	 * @return container type; null if the class extends and implements none
@@ -620,9 +554,9 @@ public final class JsonAdapters {
 
 	/**
 	 * Converts a class of the application's own as the container it extends or
-	 * implements: written by the container's conversion, and read by it into a
-	 * new instance, created by the class's no-arg constructor, that the values
-	 * read are added or put into.
+	 * implements: written by the container's conversion, and read by it into a new
+	 * instance, created by the class's no-arg constructor, that the values read are
+	 * added or put into.
 	 *
 	 * @param type       class of the application's own
 	 * @param conversion the container type's conversion
@@ -701,7 +635,7 @@ public final class JsonAdapters {
 	 *                                       for a raw type
 	 */
 	private static Class<?> enumType(Type argument, Type type) {
-		final var c = erase(argument);
+		final var c = GenericTypes.erase(argument);
 		if (c.isEnum())
 			return c;
 		else

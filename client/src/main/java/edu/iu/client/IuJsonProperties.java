@@ -44,9 +44,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import edu.iu.GenericTypes;
 import edu.iu.TypeValue;
 import iu.client.ConversionScope;
-import iu.client.GenericTypes;
 import iu.client.JsonAdapters;
 import iu.client.JsonProxy;
 import iu.client.ScopedParser;
@@ -677,7 +677,7 @@ public final class IuJsonProperties {
 	 */
 	private Object fit(String name, Object value, Type type) {
 		if (value == null //
-				|| ((Class<?>) GenericTypes.box(JsonAdapters.erase(type))).isInstance(value))
+				|| ((Class<?>) GenericTypes.box(GenericTypes.erase(type))).isInstance(value))
 			return value;
 		else
 			return adapter(type).fromJson(adapter(types.get(name)).toJson(value));

@@ -35,6 +35,7 @@ import java.lang.reflect.Type;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuJsonProperties;
@@ -94,7 +95,7 @@ public final class JsonDeserializer {
 		final var snapshot = JsonSerializer.snapshot(options);
 		final var format = JsonSerializer.propertyNameFormat(snapshot);
 
-		final var erased = JsonAdapters.erase(type);
+		final var erased = GenericTypes.erase(type);
 		final var model = JsonSerializer.model(type, snapshot);
 
 		// type information picks the subtype

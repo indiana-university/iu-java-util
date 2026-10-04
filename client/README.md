@@ -84,6 +84,8 @@ A null property, or an empty optional, is omitted unless nulls are included or t
 
 Built-in conversions are strict: a number doesn't read from a string, text doesn't read from a number or array, and a scalar doesn't read as a one-item list. A failure names what was expected and found. A date read without a time is at midnight, and without a zone or offset is in UTC. A platform class with no conversion of its own, such as a JDK-internal list, converts as the nearest type that has one.
 
+The conversion for a type that reads from a JSON array is an `IuJsonArrayAdapter`, from `IuJsonArrayAdapter.of(type)`. Beyond converting, it takes the items out of a value (`iterator`) and puts items into a new one (`collect`), for code that reads or writes the items itself. Accepting a single value where an array is expected, which the built-ins don't, is one line: `IuJsonArrayAdapter.of(type).collect(List.of(item))`. Inside a JSON-B call, as in a `JsonbDeserializer`, `of(type)` converts items as the call does, so the items can be any type the instance converts; `of(type, valueAdapter)` takes the item conversions explicitly. A collection or array it collects is new and, for a collection, mutable; an `Iterable` is the items given; a `Stream`, `Iterator`, or `Enumeration` is a single-use view of them.
+
 ### `IuJson`
 
 `IuJson` parses and writes JSON, builds values (`object()`, `array()`, `string(...)`, `number(...)`), and reads and adds properties by adapter (`get`, `add`). `IuJson.add` always omits a null value, whatever the options; Vault's merge patch, where JSON null deletes a key, relies on that.

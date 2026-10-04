@@ -65,6 +65,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.TypeValue;
@@ -855,7 +856,7 @@ public final class BeanModel {
 	 */
 	public BeanModel(Type type, Discovery discovery) {
 		this.context = type;
-		this.type = JsonAdapters.erase(type);
+		this.type = GenericTypes.erase(type);
 		final var recordComponents = this.type.isRecord() ? this.type.getRecordComponents() : null;
 
 		// discovery order: nearest declaration first, so the first field, getter, or

@@ -31,35 +31,68 @@
  */
 package edu.iu.config;
 
+import java.lang.reflect.Type;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
+import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonArrayAdapter;
 import edu.iu.client.IuVault;
 import edu.iu.crypt.Init;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.JsonbConfig;
-import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.DeserializationContext;
 import jakarta.json.bind.serializer.JsonbDeserializer;
-import jakarta.json.bind.serializer.JsonbSerializer;
+import jakarta.json.stream.JsonParser;
 import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Secure configuration utility.
  *
  * <p>
- * Configuration binds from JSON through {@link #jsonb()}: the web crypto
- * configuration, {@link Init#jsonbConfig()}, with property names in snake_case
- * and dates in ISO-8601, plus the components registered here.
+ * Configuration has a one-way lifecycle:
+ * </p>
+ * <ol>
+ * <li>Register each configuration type, with
+ * {@link #registerInterface(String, Class, IuVault...)} for a type stored in
+ * vault or {@link #registerFactory(Class, Function)} for one created by the
+ * application.</li>
+ * <li>Call {@link #seal()} once, early in application initialization. Sealing
+ * is required and can't be undone: no type can be registered afterward, and no
+ * configuration can be loaded before.</li>
+ * <li>{@link #load(Class, String) Load} configuration by type and key.</li>
+ * </ol>
+ *
+ * <p>
+ * Stored configuration binds from JSON by the web crypto configuration,
+ * {@link Init#jsonbConfig()}: property names in snake_case, binary data in
+ * base64url, algorithms and encryptions by JOSE name, and crypt's conversions
+ * for keys and certificates; JSON-B's defaults apply otherwise, so dates are
+ * ISO-8601 and enums are by {@link Enum#name() name}. Beyond that
+ * configuration:
+ * </p>
+ * <ul>
+ * <li>Wherever a type registered by
+ * {@link #registerInterface(String, Class, Duration, IuVault...)
+ * registerInterface} is bound, a JSON string refers to a stored value by key.
+ * </li>
+ * <li>Wherever an {@link Iterable}, {@link java.util.Collection Collection},
+ * {@link java.util.List List}, or {@link java.util.Set Set} is bound, a value
+ * other than an array binds as a one-item container of that type.</li>
+ * </ul>
+ *
+ * <p>
+ * That {@link JsonbConfig} is the only means of changing how configuration
+ * binds, and it is fixed when sealed.
  * </p>
  */
 public class IuConfig {
@@ -99,7 +132,7 @@ public class IuConfig {
 				Throwable error;
 
 				void check(IuVault vault) {
-					final var value = jsonb().fromJson(vault.get(prefix + key).getValue(), configType);
+					final var value = jsonb.fromJson(vault.get(prefix + key).getValue(), configType);
 					cache.put(key, value);
 					this.value = value;
 				}
@@ -137,75 +170,50 @@ public class IuConfig {
 		}
 	}
 
-	private static final List<JsonbAdapter<?, ?>> ADAPTERS = new ArrayList<>();
-	private static final List<JsonbSerializer<?>> SERIALIZERS = new ArrayList<>();
-	private static final List<JsonbDeserializer<?>> DESERIALIZERS = new ArrayList<>();
 	private static final Map<Class<?>, BaseConfig<?>> CONFIG = new HashMap<>();
-	private static boolean sealed;
+
+	private static final JsonbConfig jsonbConfig = Init.<JsonbConfig>jsonbConfig()
+			.withDeserializers(new JsonbDeserializer<Iterable<?>>() {
+				@Override
+				public Iterable<?> deserialize(JsonParser parser, DeserializationContext ctx, Type rtType) {
+					final var event = parser.currentEvent();
+					if (Event.VALUE_NULL.equals(event))
+						return null;
+					else if (!Event.START_ARRAY.equals(event))
+						return (Iterable<?>) IuJsonArrayAdapter.of(rtType)
+								.collect(IuIterable.iter((Object) ctx.deserialize(GenericTypes.item(rtType), parser)));
+					else
+						return ctx.deserialize(rtType, parser);
+				}
+			});
+
+	/**
+	 * Written last by {@link #seal()}, so a {@link #load(Class, String)} that
+	 * reads true also sees {@link #jsonb} and every registration.
+	 */
+	private static volatile boolean sealed;
 	private static Jsonb jsonb;
 
 	/**
-	 * Registers a JSON-B adapter for configuration binding, for example for a
-	 * custom value type.
-	 *
-	 * <p>
-	 * A lambda has no type arguments to name the types it adapts; wrap it with
-	 * {@link IuJsonAdapter#typedAdapter(java.lang.reflect.Type, java.lang.reflect.Type, JsonbAdapter)}.
-	 * </p>
-	 *
-	 * @param adapter {@link JsonbAdapter}
-	 * @throws IllegalStateException if sealed
-	 */
-	public static synchronized void registerAdapter(JsonbAdapter<?, ?> adapter) {
-		requireNotSealed();
-		ADAPTERS.add(Objects.requireNonNull(adapter, "Missing adapter"));
-	}
-
-	/**
-	 * Registers a JSON-B serializer for configuration binding.
-	 *
-	 * <p>
-	 * A lambda has no type argument to name the type it serializes; wrap it with
-	 * {@link IuJsonAdapter#typedSerializer(java.lang.reflect.Type, JsonbSerializer)}.
-	 * </p>
-	 *
-	 * @param serializer {@link JsonbSerializer}
-	 * @throws IllegalStateException if sealed
-	 */
-	public static synchronized void registerSerializer(JsonbSerializer<?> serializer) {
-		requireNotSealed();
-		SERIALIZERS.add(Objects.requireNonNull(serializer, "Missing serializer"));
-	}
-
-	/**
-	 * Registers a JSON-B deserializer for configuration binding.
-	 *
-	 * <p>
-	 * A lambda has no type argument to name the type it deserializes; wrap it with
-	 * {@link IuJsonAdapter#typedDeserializer(java.lang.reflect.Type, JsonbDeserializer)}.
-	 * </p>
-	 *
-	 * @param deserializer {@link JsonbDeserializer}
-	 * @throws IllegalStateException if sealed
-	 */
-	public static synchronized void registerDeserializer(JsonbDeserializer<?> deserializer) {
-		requireNotSealed();
-		DESERIALIZERS.add(Objects.requireNonNull(deserializer, "Missing deserializer"));
-	}
-
-	/**
-	 * Registers factory method for a configuration type.
+	 * Registers a factory method for a configuration type, caching what it
+	 * creates for 15 seconds.
 	 *
 	 * @param <T>        configuration type
 	 * @param configType configuration type
-	 * @param load       factory method handle
+	 * @param load       factory method handle; creates the configuration for a
+	 *                   key
+	 * @throws IllegalStateException    if sealed
+	 * @throws IllegalArgumentException if {@code configType} is already
+	 *                                  registered
+	 * @throws NullPointerException     if {@code load} is null
+	 * @see #registerFactory(Class, Function, Duration)
 	 */
 	public static synchronized <T> void registerFactory(Class<T> configType, Function<String, T> load) {
 		registerFactory(configType, load, null);
 	}
 
 	/**
-	 * Registers factory method for a configuration type.
+	 * Registers a factory method for a configuration type.
 	 *
 	 * <p>
 	 * When concurrent callers request the same uncached key, the factory is invoked
@@ -215,8 +223,14 @@ public class IuConfig {
 	 *
 	 * @param <T>        configuration type
 	 * @param configType configuration type
-	 * @param load       factory method handle
-	 * @param cacheTtl   time period for caching config objects
+	 * @param load       factory method handle; creates the configuration for a
+	 *                   key
+	 * @param cacheTtl   time period for caching config objects; null for 15
+	 *                   seconds
+	 * @throws IllegalStateException    if sealed
+	 * @throws IllegalArgumentException if {@code configType} is already
+	 *                                  registered
+	 * @throws NullPointerException     if {@code load} is null
 	 */
 	public static synchronized <T> void registerFactory(Class<T> configType, Function<String, T> load,
 			Duration cacheTtl) {
@@ -229,21 +243,34 @@ public class IuConfig {
 	}
 
 	/**
-	 * Registers a vault for loading authorization configuration using the default
-	 * cache TTL of 15 seconds.
+	 * Registers a configuration type loaded from vault, caching what it loads for
+	 * 15 seconds.
 	 *
-	 * @param <T>             configuration type
-	 * @param prefix          prefix to append to vault key to classify the resource
-	 *                        names used by {@link #load(Class, String)}
-	 * @param configInterface configuration interface
-	 * @param vault           vault to use for loading configuration
+	 * @param <T>        configuration type
+	 * @param prefix     prefix to append to vault key to classify the resource
+	 *                   names used by {@link #load(Class, String)}; lowercase
+	 *                   letters only
+	 * @param configType configuration type
+	 * @param vault      vaults to load configuration from, in order
+	 * @throws IllegalStateException    if sealed
+	 * @throws IllegalArgumentException if {@code configType} is already
+	 *                                  registered, or {@code prefix} isn't
+	 *                                  lowercase letters
+	 * @throws NullPointerException     if {@code prefix} is null
+	 * @see #registerInterface(String, Class, Duration, IuVault...)
 	 */
-	public static synchronized <T> void registerInterface(String prefix, Class<T> configInterface, IuVault... vault) {
-		registerInterface(prefix, configInterface, null, vault);
+	public static synchronized <T> void registerInterface(String prefix, Class<T> configType, IuVault... vault) {
+		registerInterface(prefix, configType, null, vault);
 	}
 
 	/**
-	 * Registers a vault for loading authorization configuration.
+	 * Registers a configuration type loaded from vault.
+	 *
+	 * <p>
+	 * A key loads from the secret named by the prefix, a slash, and the key, from
+	 * each vault in turn: the first that binds is cached and returned, and if none
+	 * does, the first failure is thrown with the others suppressed.
+	 * </p>
 	 *
 	 * <p>
 	 * Wherever the configuration type is bound, a JSON string refers to a stored
@@ -254,10 +281,17 @@ public class IuConfig {
 	 *
 	 * @param <T>        configuration type
 	 * @param prefix     prefix to append to vault key to classify the resource
-	 *                   names used by {@link #load(Class, String)}
+	 *                   names used by {@link #load(Class, String)}; lowercase
+	 *                   letters only
 	 * @param configType configuration type
-	 * @param cacheTtl   time period for caching config objects
-	 * @param vault      vault to use for loading configuration
+	 * @param cacheTtl   time period for caching config objects; null for 15
+	 *                   seconds
+	 * @param vault      vaults to load configuration from, in order
+	 * @throws IllegalStateException    if sealed
+	 * @throws IllegalArgumentException if {@code configType} is already
+	 *                                  registered, or {@code prefix} isn't
+	 *                                  lowercase letters
+	 * @throws NullPointerException     if {@code prefix} is null
 	 */
 	public static synchronized <T> void registerInterface(String prefix, Class<T> configType, Duration cacheTtl,
 			IuVault... vault) {
@@ -269,68 +303,61 @@ public class IuConfig {
 		if (CONFIG.containsKey(configType))
 			throw new IllegalArgumentException("already configured");
 
-		// a string refers to a stored value; anything else passes down the chain, to
-		// the type's own conversion
-		DESERIALIZERS.add(IuJsonAdapter.<T>typedDeserializer(configType, (parser, context, type) -> {
+		jsonbConfig.withDeserializers(IuJsonAdapter.<T>typedDeserializer(configType, (parser, context, type) -> {
 			if (Event.VALUE_STRING.equals(parser.currentEvent()))
 				return load(configType, parser.getString());
 			else
 				return context.deserialize(configType, parser);
 		}));
+
 		CONFIG.put(configType, new StorageConfig<>(prefix + '/', configType, cacheTtl, vault));
 	}
 
 	/**
-	 * Loads a configuration object from vault.
+	 * Loads a configuration object, from its registered vaults or factory.
+	 *
+	 * <p>
+	 * A loaded object is cached by key for the time period registered with its
+	 * type.
+	 * </p>
 	 *
 	 * @param <T>        configuration type
-	 * @param configType configuration interface
-	 * @param key        vault key
+	 * @param configType configuration type
+	 * @param key        key
 	 * @return loaded configuration
+	 * @throws IllegalStateException if not sealed
+	 * @throws NullPointerException  if {@code configType} isn't registered
+	 * @throws RuntimeException      if no vault loads the key, as described for
+	 *                               {@link #registerInterface(String, Class, Duration, IuVault...)},
+	 *                               or if the factory fails
 	 */
 	public static <T> T load(Class<T> configType, String key) {
+		if (!sealed)
+			throw new IllegalStateException("not sealed");
+
 		return configType.cast(Objects.requireNonNull(CONFIG.get(configType), "not configured").load(key));
 	}
 
 	/**
-	 * Seals the authentication and authorization configuration.
+	 * Seals configuration; required once, early in application initialization.
 	 *
 	 * <p>
-	 * Until sealed, no per-realm configurations can be used. Once sealed, no new
-	 * configurations or components can be registered. Configuration state is
-	 * controlled by the auth module.
+	 * Fixes how configuration binds, from the JSON-B configuration accumulated by
+	 * registration. Until sealed, nothing can be loaded; once sealed, no type can
+	 * be registered.
 	 * </p>
+	 *
+	 * @throws IllegalStateException if already sealed
 	 */
 	public static synchronized void seal() {
+		requireNotSealed();
+		jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(jsonbConfig).build();
 		sealed = true;
-	}
-
-	/**
-	 * Gets the {@link Jsonb} instance that binds configuration.
-	 *
-	 * <p>
-	 * Created on first use from {@link Init#jsonbConfig()} and the
-	 * components registered, which seals registration.
-	 * </p>
-	 *
-	 * @return {@link Jsonb}
-	 */
-	public static synchronized Jsonb jsonb() {
-		if (jsonb == null) {
-			seal();
-			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider")
-					.withConfig(Init.<JsonbConfig>jsonbConfig() //
-							.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
-							.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
-							.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new)))
-					.build();
-		}
-		return jsonb;
 	}
 
 	private static void requireNotSealed() {
 		if (sealed)
-			throw new IllegalStateException("sealed");
+			throw new IllegalStateException("already sealed");
 	}
 
 	private IuConfig() {
