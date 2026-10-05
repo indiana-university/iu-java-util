@@ -136,6 +136,24 @@ public class IuConfigTest {
 		Pooled getPooled();
 	}
 
+	public interface Access {
+	}
+
+	public interface AccessHeader extends Access {
+		String getValue();
+	}
+
+	public interface OtherAccess extends Access {
+	}
+
+	public interface AccessRef {
+		Access getAccess();
+
+		AccessHeader getHeader();
+
+		OtherAccess getOther();
+	}
+
 	private static Map<String, Object> jsonbProperties;
 
 	private static JsonbConfig jsonbConfig() throws ReflectiveOperationException {
@@ -430,6 +448,18 @@ public class IuConfigTest {
 	}
 
 	@Test
+	public void testNoVault() {
+		assertEquals("Missing vault", assertThrows(IllegalArgumentException.class,
+				() -> IuConfig.registerInterface("loadable", LoadableConfig.class)).getMessage());
+		assertEquals("Missing vault", assertThrows(NullPointerException.class,
+				() -> IuConfig.registerInterface("loadable", LoadableConfig.class, (IuVault[]) null)).getMessage());
+
+		// a rejected registration registers nothing
+		final var vault = vault(Map.of());
+		assertDoesNotThrow(() -> IuConfig.registerInterface("loadable", LoadableConfig.class, vault));
+	}
+
+	@Test
 	public void testVaultFallback() {
 		final var key = IdGenerator.generateId();
 		final var failingKey = IdGenerator.generateId();
@@ -542,9 +572,9 @@ public class IuConfigTest {
 				.fromJson(IuJson.object().add("some_value", value).build().toString(), NamedConfig.class).getSomeValue());
 	}
 
-	private static void assertRejectedJson(Throwable error) {
+	private static void assertRejectedJson(Class<?> factoryType, Throwable error) {
 		for (Throwable cause = error; cause != null; cause = cause.getCause())
-			if (cause instanceof JsonbException && cause.getMessage().contains(Pooled.class.getName())
+			if (cause instanceof JsonbException && cause.getMessage().contains(factoryType.getName())
 					&& cause.getMessage().contains("key string"))
 				return;
 		throw new AssertionError("expected a factory type rejection", error);
@@ -586,23 +616,71 @@ public class IuConfigTest {
 		IuConfig.registerInterface("pooled", PooledRef.class, vault);
 		IuConfig.seal();
 
-		assertRejectedJson(
+		assertRejectedJson(Pooled.class,
 				assertThrows(RuntimeException.class, () -> IuConfig.load(PooledRef.class, objectKey).getPooled()));
-		assertRejectedJson(
+		assertRejectedJson(Pooled.class,
 				assertThrows(RuntimeException.class, () -> IuConfig.load(PooledRef.class, numberKey).getPooled()));
 		verify(factory, never()).apply(any());
 	}
 
 	@Test
-	public void testFactoryNotSerialized() {
-		IuConfig.registerFactory(Pooled.class, key -> new Pooled());
+	public void testFactoryWriteByApplication() {
+		// IuConfig doesn't write a factory type; an application that writes
+		// configuration may, here as the type's key
+		final var key = IdGenerator.generateId();
+		IuConfig.registerFactory(Pooled.class, k -> new Pooled());
+		IuConfig.configureJsonb(c -> c.withSerializers(IuJsonAdapter.<Pooled>typedSerializer(Pooled.class,
+				(value, generator, context) -> generator.write(key))));
 		IuConfig.seal();
 
-		final var error = assertThrows(JsonbException.class, () -> IuConfig.jsonb().toJson(new Pooled()));
-		for (Throwable cause = error; cause != null; cause = cause.getCause())
-			if (cause.getMessage() != null && cause.getMessage().contains("doesn't convert to JSON"))
-				return;
-		throw new AssertionError("expected a factory type serialization rejection", error);
+		assertEquals("\"" + key + "\"", IuConfig.jsonb().toJson(new Pooled()));
+	}
+
+	@Test
+	public void testFactorySubtypeRegisteredInterface() {
+		final var headerKey = IdGenerator.generateId();
+		final var refKey = IdGenerator.generateId();
+		final var accessKey = IdGenerator.generateId();
+		final var otherKey = IdGenerator.generateId();
+		final var objectKey = IdGenerator.generateId();
+		final var value = IdGenerator.generateId();
+		final var access = new Access() {
+		};
+		final var vault = vault(Map.of( //
+				"access/" + headerKey, IuJson.object().add("value", value).build().toString(), //
+				"ref/" + refKey, IuJson.object() //
+						.add("access", accessKey) //
+						.add("header", IuJson.object().add("value", value)) //
+						.build().toString(), //
+				"ref/" + objectKey, "{\"access\":{}}", //
+				"ref/" + otherKey, "{\"other\":{}}"));
+
+		// a configuration interface that extends a factory type, as in
+		// registerInterface("access", Header.class) with registerFactory(Access.class)
+		IuConfig.registerInterface("access", AccessHeader.class, vault);
+		IuConfig.registerFactory(Access.class, key -> {
+			assertEquals(accessKey, key);
+			return access;
+		});
+		IuConfig.registerInterface("ref", AccessRef.class, vault);
+		IuConfig.seal();
+
+		// the subtype binds from an object by its own registration
+		final var header = IuConfig.load(AccessHeader.class, headerKey);
+		assertEquals(value, header.getValue());
+
+		final var ref = IuConfig.load(AccessRef.class, refKey);
+		assertEquals(value, ref.getHeader().getValue());
+		assertSame(access, ref.getAccess());
+
+		// the factory type, and a subtype not registered, still bind only from a key
+		final var rejected = IuConfig.load(AccessRef.class, objectKey);
+		assertRejectedJson(Access.class, assertThrows(RuntimeException.class, rejected::getAccess));
+		// reading it again fails the same way, rather than reading as null
+		assertRejectedJson(Access.class, assertThrows(RuntimeException.class, rejected::getAccess));
+		assertRejectedJson(Access.class,
+				assertThrows(RuntimeException.class, () -> IuConfig.load(AccessRef.class, otherKey).getOther()));
+
 	}
 
 }

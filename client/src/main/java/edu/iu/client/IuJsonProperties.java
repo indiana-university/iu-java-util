@@ -458,6 +458,8 @@ public final class IuJsonProperties {
 	private boolean owned;
 	private String pending;
 	private volatile JsonObject json;
+	private String failedName;
+	private Throwable failure;
 
 	/**
 	 * Constructor.
@@ -542,6 +544,10 @@ public final class IuJsonProperties {
 	 *         reached, or was captured raw
 	 */
 	private Object pull(String name, Type type) {
+		if (failure != null)
+			throw new IllegalStateException("properties can't be read after " + failedName + " failed to convert",
+					failure);
+
 		while (parser != null) {
 			final String key;
 			if (pending != null) {
@@ -558,7 +564,7 @@ public final class IuJsonProperties {
 			parser.next();
 			final Object value;
 			if (key.equals(name) && type != null) {
-				value = box(adapter(type).read(parser));
+				value = box(readValue(key, type));
 				resolved.put(key, value);
 				types.put(key, type);
 			} else {
@@ -573,6 +579,31 @@ public final class IuJsonProperties {
 				return value;
 		}
 		return ABSENT;
+	}
+
+	/**
+	 * Converts a property straight from the parser.
+	 *
+	 * <p>
+	 * A conversion that fails leaves the parser somewhere within the value, so the
+	 * rest of the object can't be read: the parser is released, and every later
+	 * read that needs it fails, rather than reading the rest of the object as
+	 * absent. Properties read before the failure stay readable.
+	 * </p>
+	 *
+	 * @param key  property name
+	 * @param type type to convert to
+	 * @return converted value
+	 */
+	private Object readValue(String key, Type type) {
+		try {
+			return adapter(type).read(parser);
+		} catch (RuntimeException | Error e) {
+			failedName = key;
+			failure = e;
+			finish();
+			throw e;
+		}
 	}
 
 	/**
@@ -604,6 +635,9 @@ public final class IuJsonProperties {
 	 *
 	 * @param name JSON property name
 	 * @return true if present, with any value, null included
+	 * @throws IllegalStateException if a property failed to convert as it was read
+	 *                               from the parser, and this read needs the rest of
+	 *                               the object
 	 */
 	public boolean containsKey(String name) {
 		if (source != null)
@@ -625,6 +659,9 @@ public final class IuJsonProperties {
 	 * @return converted value; for a property not in the object, with no conversion
 	 *         looked up whatever the type, a primitive's default, an empty
 	 *         optional, or null
+	 * @throws IllegalStateException if a property failed to convert as it was read
+	 *                               from the parser, and this read needs the rest of
+	 *                               the object
 	 */
 	public <T> T get(String name, Class<T> type) {
 		return get(name, (Type) type);
@@ -639,6 +676,9 @@ public final class IuJsonProperties {
 	 * @return converted value; for a property not in the object, with no conversion
 	 *         looked up whatever the type, a primitive's default, an empty
 	 *         optional, or null
+	 * @throws IllegalStateException if a property failed to convert as it was read
+	 *                               from the parser, and this read needs the rest of
+	 *                               the object
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T get(String name, Type type) {
@@ -654,7 +694,8 @@ public final class IuJsonProperties {
 
 	private Object resolve(String name, Type type) {
 		var json = raw(name);
-		if (json == null && parser != null) {
+		if (json == null //
+				&& (parser != null || failure != null)) {
 			final var pulled = pull(name, type);
 			if (pulled != ABSENT)
 				return pulled;
@@ -687,6 +728,9 @@ public final class IuJsonProperties {
 	 * Reads the object through, then gets its property names.
 	 *
 	 * @return property names, in the order the object has them
+	 * @throws IllegalStateException if a property failed to convert as it was read
+	 *                               from the parser, and this read needs the rest of
+	 *                               the object
 	 */
 	public Set<String> names() {
 		if (source != null)

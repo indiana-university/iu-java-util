@@ -402,4 +402,33 @@ public class IuJsonPropertiesTest {
 		assertEquals("{\"a\":1,\"c\":2}", copy.build().toString());
 	}
 
+	@Test
+	public void testFailedConversionFailsLaterReads() {
+		final var parser = parser("[{\"a\":1,\"b\":\"x\",\"c\":3},5]");
+		parser.next();
+		final var properties = IuJsonProperties.read(parser, IuJsonAdapter::of);
+		assertEquals(1, (Integer) properties.get("a", Integer.class));
+
+		// b streams straight from the parser, and fails part way through
+		final var failure = assertThrows(IllegalArgumentException.class, () -> properties.get("b", Integer.class));
+
+		// the rest of the object can't be read, so a later read fails rather than
+		// reading as absent
+		for (final var later : List.<Runnable>of( //
+				() -> properties.get("b", Integer.class), //
+				() -> properties.get("c", Integer.class), //
+				() -> properties.containsKey("c"), //
+				properties::names, //
+				properties::toJsonObject)) {
+			final var error = assertThrows(IllegalStateException.class, later::run);
+			assertEquals("properties can't be read after b failed to convert", error.getMessage());
+			assertSame(failure, error.getCause());
+		}
+
+		// what was read before the failure stays readable
+		assertEquals(1, (Integer) properties.get("a", Integer.class));
+		assertTrue(properties.containsKey("b"));
+		properties.detach();
+	}
+
 }

@@ -33,7 +33,7 @@ Only `edu.iu.client` is exported. Anything an application must name — config p
 
 - Components form one chain per direction per type (`IuJsonb.readChain`/`writeChain`), most specific first; see the README for precedence. A property's own components head a per-property `IuJsonbValueAdapter`.
 - Every call runs inside `IuSerializationContext` or `IuDeserializationContext`, which also sets `iu.client.ConversionScope` so an `IuJsonProperties` without conversions of its own follows the call.
-- A deserializer gets an `IuJsonbBoundedParser` view; when the call holds the source text, `IuJsonProperties` can detach by continuing from the text rather than capturing the rest.
+- A deserializer gets an `IuJsonbBoundedParser` view; when the call holds the source text, `IuJsonProperties` can detach by continuing from the text rather than capturing the rest. A property `IuJsonProperties` converts straight from the parser that fails leaves the parser inside the value, so the index releases it: later reads that need the rest of the object throw `IllegalStateException` (caused by the original failure) rather than reading it as absent, while properties read before the failure stay readable.
 - The JSON-B specification text and Yasson's source are the references for behavior; where this provider deviates, the README's "Deviations from standard behavior" says so, and a new deviation is added there.
 
 ## Testing notes

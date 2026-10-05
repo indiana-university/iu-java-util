@@ -101,12 +101,20 @@ import jakarta.json.stream.JsonParser.Event;
  * {@link #registerInterface(String, Class, Duration, IuVault...)
  * registerInterface} or {@link #registerFactory(Class, Function, Duration)
  * registerFactory} is bound, a JSON string refers to a value by key, loaded by
- * {@link #load(Class, String)}. A factory type binds only from a key, or null,
- * and doesn't convert to JSON.</li>
+ * {@link #load(Class, String)}. A factory type binds only from a key, or
+ * null.</li>
  * <li>Wherever an {@link Iterable}, {@link java.util.Collection Collection},
  * {@link java.util.List List}, or {@link java.util.Set Set} is bound, a value
  * other than an array binds as a one-item container of that type.</li>
  * </ul>
+ *
+ * <p>
+ * IuConfig only reads configuration: {@link #load(Class, String)} is the one
+ * operation it provides to consumers. {@link #jsonb()} lets application code
+ * convert in the same JSON dialect. A tool that writes configuration may load
+ * through IuConfig, but saves values by its own logic, which is outside this
+ * module's scope.
+ * </p>
  *
  * <p>
  * {@link #configureJsonb(Consumer)} is how the application changes how
@@ -227,8 +235,12 @@ public class IuConfig {
 	 * <p>
 	 * Wherever the configuration type is bound, a JSON string is a key, loaded by
 	 * {@link #load(Class, String)} through the factory, and JSON null binds as
-	 * null. Any other JSON value, and writing the type to JSON, fails with
-	 * {@link JsonbException}. As with
+	 * null. Any other JSON value fails with {@link JsonbException}. A subtype
+	 * registered in its own right, such as a configuration interface that extends
+	 * the type, converts by its own registration instead. Writing the type is
+	 * outside IuConfig's scope; an application that writes configuration may
+	 * register its own serializer with {@link #configureJsonb(Consumer)}, for
+	 * example writing the key. As with
 	 * {@link #registerInterface(String, Class, Duration, IuVault...)
 	 * registerInterface}, the order of this call relative to
 	 * {@link #configureJsonb(Consumer)} matters for components of the same type.
@@ -256,8 +268,12 @@ public class IuConfig {
 	 * <p>
 	 * Wherever the configuration type is bound, a JSON string is a key, loaded by
 	 * {@link #load(Class, String)} through the factory, and JSON null binds as
-	 * null. Any other JSON value, and writing the type to JSON, fails with
-	 * {@link JsonbException}. As with
+	 * null. Any other JSON value fails with {@link JsonbException}. A subtype
+	 * registered in its own right, such as a configuration interface that extends
+	 * the type, converts by its own registration instead. Writing the type is
+	 * outside IuConfig's scope; an application that writes configuration may
+	 * register its own serializer with {@link #configureJsonb(Consumer)}, for
+	 * example writing the key. As with
 	 * {@link #registerInterface(String, Class, Duration, IuVault...)
 	 * registerInterface}, the order of this call relative to
 	 * {@link #configureJsonb(Consumer)} matters for components of the same type.
@@ -286,9 +302,14 @@ public class IuConfig {
 
 		final var factory = Objects.requireNonNull(load, "Missing factory");
 
-		// a key string is the only JSON a factory type converts from, and it has no
-		// JSON form to write
+		// a key string is the only JSON a factory type converts from; a subtype
+		// registered in its own right converts by its own registration
 		jsonbConfig.withDeserializers(IuJsonAdapter.<T>typedDeserializer(configType, (parser, context, type) -> {
+			final var erased = GenericTypes.erase(type);
+			if (erased != configType //
+					&& CONFIG.containsKey(erased))
+				return context.deserialize(type, parser);
+
 			final var event = parser.currentEvent();
 			if (Event.VALUE_NULL.equals(event))
 				return null;
@@ -297,9 +318,6 @@ public class IuConfig {
 			else
 				throw new JsonbException(
 						configType.getName() + " is created by its factory; expected a key string, found " + event);
-		}));
-		jsonbConfig.withSerializers(IuJsonAdapter.<T>typedSerializer(configType, (value, generator, context) -> {
-			throw new JsonbException(configType.getName() + " is created by its factory and doesn't convert to JSON");
 		}));
 
 		CONFIG.put(configType, new FactoryConfig<>(factory, cacheTtl));
@@ -321,8 +339,9 @@ public class IuConfig {
 	 * @param vault      vaults to load configuration from, in order
 	 * @throws IllegalStateException    if sealed
 	 * @throws IllegalArgumentException if {@code configType} is already registered,
-	 *                                  or {@code prefix} isn't lowercase letters
-	 * @throws NullPointerException     if {@code prefix} is null
+	 *                                  {@code prefix} isn't lowercase letters, or
+	 *                                  {@code vault} is empty
+	 * @throws NullPointerException     if {@code prefix} or {@code vault} is null
 	 * @see #registerInterface(String, Class, Duration, IuVault...)
 	 */
 	public static <T> void registerInterface(String prefix, Class<T> configType, IuVault... vault) {
@@ -358,8 +377,9 @@ public class IuConfig {
 	 * @param vault      vaults to load configuration from, in order
 	 * @throws IllegalStateException    if sealed
 	 * @throws IllegalArgumentException if {@code configType} is already registered,
-	 *                                  or {@code prefix} isn't lowercase letters
-	 * @throws NullPointerException     if {@code prefix} is null
+	 *                                  {@code prefix} isn't lowercase letters, or
+	 *                                  {@code vault} is empty
+	 * @throws NullPointerException     if {@code prefix} or {@code vault} is null
 	 */
 	public static <T> void registerInterface(String prefix, Class<T> configType, Duration cacheTtl,
 			IuVault... vault) {
@@ -367,6 +387,7 @@ public class IuConfig {
 
 		IuObject.require(Objects.requireNonNull(prefix, "Missing prefix"), a -> a.matches("\\p{Lower}+"),
 				"invalid prefix " + prefix);
+		IuObject.require(Objects.requireNonNull(vault, "Missing vault"), a -> a.length > 0, "Missing vault");
 
 		if (CONFIG.containsKey(configType))
 			throw new IllegalArgumentException("already configured");

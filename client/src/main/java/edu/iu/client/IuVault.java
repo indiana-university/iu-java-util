@@ -45,7 +45,11 @@ import jakarta.json.bind.Jsonb;
  * 
  * <p>
  * Properties for use with {@link #RUNTIME} or {@link #of(Properties, Jsonb)}
- * are listed below.
+ * are listed below. Each is read as a system property, then as the environment
+ * variable named in parentheses: upper case, with '.' replaced by '_', as
+ * {@link edu.iu.IuRuntimeEnvironment#envOptional(String)} derives it. A
+ * camel-case name isn't split into words, so {@code iu.vault.roleId} reads
+ * {@code IU_VAULT_ROLEID}.
  * </p>
  * 
  * <dl>
@@ -58,14 +62,14 @@ import jakarta.json.bind.Jsonb;
  * iu.vault.loginEndpoint, iu.vault.roleId, and iu.vault.secretId <em>must</em>
  * be provided, i.e., for use by a CI/CD environment. If iu.vault.token is set,
  * the approle properties will be ignored.</dd>
- * <dt>iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)</dt>
+ * <dt>iu.vault.loginEndpoint (IU_VAULT_LOGINENDPOINT)</dt>
  * <dd>URL for the Vault approle login endpoint, for use when iu.vault.token is
  * not set.</dd>
- * <dt>iu.vault.roleId (IU_VAULT_ROLE_ID)</dt>
+ * <dt>iu.vault.roleId (IU_VAULT_ROLEID)</dt>
  * <dd>Vault approle Role ID, for use when iu.vault.token is not set.</dd>
- * <dt>iu.vault.secretId (IU_VAULT_SECRET_ID)</dt>
+ * <dt>iu.vault.secretId (IU_VAULT_SECRETID)</dt>
  * <dd>Vault approle Secret ID, for use when iu.vault.token is not set.</dd>
-	 * <dt>iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)</dt>
+	 * <dt>iu.vault.cacheTtl (IU_VAULT_CACHETTL)</dt>
 	 * <dd>Secrets cache lifetime. When set, reads are cached per secret and the
 	 * last successful value is returned while a refresh is performed in the
 	 * background after half this duration has elapsed. The cache uses the default
@@ -98,14 +102,14 @@ public interface IuVault {
 	 * iu.vault.loginEndpoint, iu.vault.roleId, and iu.vault.secretId <em>must</em> be
 	 * provided, i.e., for use by a CI/CD environment. If iu.vault.token is set, the
 	 * approle properties will be ignored.</dd>
-	 * <dt>iu.vault.loginEndpoint (IU_VAULT_LOGIN_ENDPOINT)</dt>
+	 * <dt>iu.vault.loginEndpoint (IU_VAULT_LOGINENDPOINT)</dt>
 	 * <dd>URL for the Vault approle login endpoint, for use when iu.vault.token is not
 	 * set.</dd>
-	 * <dt>iu.vault.roleId (IU_VAULT_ROLE_ID)</dt>
+	 * <dt>iu.vault.roleId (IU_VAULT_ROLEID)</dt>
 	 * <dd>Vault approle Role ID, for use when iu.vault.token is not set.</dd>
-	 * <dt>iu.vault.secretId (IU_VAULT_SECRET_ID)</dt>
+	 * <dt>iu.vault.secretId (IU_VAULT_SECRETID)</dt>
 	 * <dd>Vault approle Secret ID, for use when iu.vault.token is not set.</dd>
-	 * <dt>iu.vault.cacheTtl (IU_VAULT_CACHE_TTL)</dt>
+	 * <dt>iu.vault.cacheTtl (IU_VAULT_CACHETTL)</dt>
 	 * <dd>Secrets cache lifetime. When set, reads are cached per secret, refreshed
 	 * in the background after half this duration, and can serve the last good
 	 * value for up to the full duration while Vault is unavailable. The default
