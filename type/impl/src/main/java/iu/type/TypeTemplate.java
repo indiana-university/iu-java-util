@@ -34,14 +34,18 @@ package iu.type;
 import java.beans.Introspector;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import edu.iu.IuException;
@@ -317,12 +321,17 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	private Iterable<MethodFacade<? super T, ?>> initializeMethods() {
 		Queue<MethodFacade<? super T, ?>> rv = new ArrayDeque<>();
+		Set<List<Object>> signatures = new HashSet<>();
 
 		if (!isNative()) //
 			for (var method : annotatedElement.getDeclaredMethods()) {
-				if (method.isSynthetic())
+				if (method.isSynthetic()) {
+					if (method.isBridge()) // generic override, hides inherited erased signature
+						signatures.add(signature(method));
 					continue; // skip lambdas
+				}
 
+				signatures.add(signature(method));
 				TypeTemplate<?, ?> returnType;
 				if (method.getReturnType() == annotatedElement)
 					returnType = this;
@@ -334,11 +343,25 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 		for (var superType : hierarchy)
 			superType.template.postInit(() -> {
-				for (var inheritedMethod : superType.template.methods)
-					rv.offer(inheritedMethod);
+				for (var inheritedMethod : superType.template.methods) {
+					var method = inheritedMethod.annotatedElement;
+					var mod = method.getModifiers();
+					if (Modifier.isStatic(mod) || Modifier.isPrivate(mod)) {
+						rv.offer(inheritedMethod); // never overridden
+						continue;
+					}
+
+					// drop copies overridden by a subtype or already inherited
+					if (signatures.add(signature(method)))
+						rv.offer(inheritedMethod);
+				}
 			});
 
 		return rv;
+	}
+
+	private static List<Object> signature(Method method) {
+		return List.of(method.getName(), List.of(method.getParameterTypes()));
 	}
 
 	private void doSealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {

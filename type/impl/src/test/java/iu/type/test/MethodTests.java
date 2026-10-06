@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.logging.Level;
 
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,7 @@ import edu.iu.type.testresources.HasAroundInvokeMethod;
 import edu.iu.type.testresources.HasInterceptors;
 import edu.iu.type.testresources.HasInterceptorsOnMethod;
 import edu.iu.type.testresources.MethodTestSupport;
+import edu.iu.type.testresources.OverrideTestSupport.StringGreeter;
 import iu.type.IuTypeTestCase;
 
 @SuppressWarnings("javadoc")
@@ -85,6 +87,25 @@ public class MethodTests extends IuTypeTestCase {
 	@Test
 	public void testNonPublicMethod() {
 		assertFalse(IuType.of(MethodTestSupport.class).method("echo", String.class).isPublic());
+	}
+
+	private long count(IuType<?, ?> type, String name) {
+		long count = 0;
+		for (var method : type.methods())
+			if (method.name().equals(name))
+				count++;
+		return count;
+	}
+
+	@Test
+	public void testOverriddenMethodsDropped() throws Exception {
+		var type = IuType.of(StringGreeter.class);
+		assertEquals(1, count(type, "name"));
+		assertEquals(1, count(type, "greet"));
+		assertEquals(1, count(type, "inherited"));
+		assertEquals(2, count(type, "util"));
+		assertEquals(2, count(type, "hidden"));
+		assertEquals("sub", type.method("name").exec(new StringGreeter()));
 	}
 
 	@Test
