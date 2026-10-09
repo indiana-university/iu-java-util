@@ -29,35 +29,36 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package iu.type.test;
+package edu.iu.type.testresources.inherit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-
-import org.junit.jupiter.api.Test;
-
-import edu.iu.type.IuType;
-import edu.iu.type.testresources.MethodTestSupport;
-import iu.type.IuTypeTestCase;
+import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
-public class ParameterTests extends IuTypeTestCase {
+abstract class AbstractGenericHolder<V> {
 
-	@Test
-	public void testBasicParam() {
-		var method = IuType.of(MethodTestSupport.class).method("parameterTest", String.class);
-		var parameter = method.parameter(0);
-		assertSame(method, parameter.declaringExecutable());
-		assertEquals(0, parameter.index());
-		assertEquals("arg0", parameter.name());
-		assertEquals("arg0:String", parameter.toString());
+	@Resource
+	Object genericShared;
+
+	@Resource(name = "genericValue", type = String.class)
+	V value;
+
+	Object genericProp;
+
+	int preDestroyCount;
+
+	public Object getGenericProp() {
+		return genericProp;
 	}
 
-	@Test
-	public void testDeref() throws Exception {
-		var method = IuType.of(MethodTestSupport.class).method("parameterTest", String.class);
-		assertEquals(MethodTestSupport.class.getDeclaredMethod("parameterTest", String.class).getParameters()[0],
-				method.parameter(0).deref());
+	@Resource
+	public void setGenericProp(Object genericProp) {
+		this.genericProp = genericProp;
+	}
+
+	@PreDestroy
+	void preDestroy() {
+		preDestroyCount++;
 	}
 
 }

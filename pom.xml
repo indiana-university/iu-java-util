@@ -82,6 +82,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		<junit-jupiter.version>6.0.3</junit-jupiter.version>
 		<junit-platform.version>6.0.3</junit-platform.version>
 		<mockito.version>5.23.0</mockito.version>
+
+		<!-- disable Maven 3.10's default fixed timestamp; a single character disables it -->
+		<project.build.outputTimestamp>x</project.build.outputTimestamp>
 	</properties>
 
 	<distributionManagement>

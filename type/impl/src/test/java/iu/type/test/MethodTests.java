@@ -33,10 +33,13 @@ package iu.type.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 
 
@@ -51,6 +54,20 @@ import edu.iu.type.testresources.HasInterceptors;
 import edu.iu.type.testresources.HasInterceptorsOnMethod;
 import edu.iu.type.testresources.MethodTestSupport;
 import edu.iu.type.testresources.OverrideTestSupport.StringGreeter;
+import edu.iu.type.testresources.inherit.CollectionApi;
+import edu.iu.type.testresources.inherit.FromHidden;
+import edu.iu.type.testresources.inherit.FromHiddenOverrides;
+import edu.iu.type.testresources.inherit.FromOpen;
+import edu.iu.type.testresources.inherit.OpenBase;
+import edu.iu.type.testresources.inherit.ServiceFromHidden;
+import edu.iu.type.testresources.inherit.ServiceFromOpen;
+import edu.iu.type.testresources.inherit.ServiceFromOpenSubclass;
+import edu.iu.type.testresources.inherit.Sized;
+import edu.iu.type.testresources.inherit.SizedCollection;
+import edu.iu.type.testresources.inherit.SubApiFirst;
+import edu.iu.type.testresources.inherit.SubApiLast;
+import edu.iu.type.testresources.inherit.SubApiViaSuperclass;
+import edu.iu.type.testresources.inherit.SubCollectionApi;
 import iu.type.IuTypeTestCase;
 
 @SuppressWarnings("javadoc")
@@ -106,6 +123,96 @@ public class MethodTests extends IuTypeTestCase {
 		assertEquals(2, count(type, "util"));
 		assertEquals(2, count(type, "hidden"));
 		assertEquals("sub", type.method("name").exec(new StringGreeter()));
+	}
+
+	private void assertInheritsBaseMethods(IuType<?, ?> type, Object instance) throws Exception {
+		assertEquals(1, count(type, "size"));
+		assertEquals(1, count(type, "post"));
+		assertEquals(1, count(type, "get"));
+		assertEquals(1, type.method("size").exec(instance));
+		assertEquals(List.of(), type.method("list", int.class, Integer.class).exec(instance, 0, 10));
+		type.method("post", Object.class).exec(instance, "value");
+	}
+
+	@Test
+	public void testInheritsFromPublicGenericBase() throws Exception {
+		final var type = IuType.of(FromOpen.class);
+		assertInheritsBaseMethods(type, new FromOpen());
+		assertEquals(1, count(type, "list"));
+		assertNull(type.method("get", String.class).exec(new FromOpen(), "id"));
+	}
+
+	@Test
+	public void testVisibilityBridgesDontHideInheritedMethods() throws Exception {
+		final var bridges = new ArrayList<String>();
+		for (final var method : FromHidden.class.getDeclaredMethods())
+			if (method.isBridge())
+				bridges.add(method.getName());
+		assertTrue(bridges.containsAll(List.of("size", "list", "post", "get")), bridges::toString);
+
+		final var type = IuType.of(FromHidden.class);
+		assertInheritsBaseMethods(type, new FromHidden());
+		assertEquals(1, count(type, "list"));
+		assertNull(type.method("get", String.class).exec(new FromHidden(), "id"));
+	}
+
+	private void assertResolves(Class<?> expected, IuType<?, ?> type, String name, Class<?>... params) {
+		assertEquals(1, count(type, name), name);
+		assertSame(expected, type.method(name, params).declaringType().erasedClass(), name);
+	}
+
+	private void assertSuperclassPreferred(Class<?> superclass, IuType<?, ?> type, Object instance) throws Exception {
+		assertResolves(superclass, type, "size");
+		assertResolves(superclass, type, "list", int.class, Integer.class);
+		assertEquals(1, type.method("size").exec(instance));
+		assertEquals(List.of(), type.method("list", int.class, Integer.class).exec(instance, 0, 10));
+	}
+
+	@Test
+	public void testSuperclassMethodPreferredOverInterface() throws Exception {
+		assertSuperclassPreferred(OpenBase.class, IuType.of(ServiceFromOpen.class), new ServiceFromOpen());
+	}
+
+	@Test
+	public void testInheritedSuperclassMethodPreferredOverInterface() throws Exception {
+		assertSuperclassPreferred(OpenBase.class, IuType.of(ServiceFromOpenSubclass.class),
+				new ServiceFromOpenSubclass());
+	}
+
+	@Test
+	public void testHiddenSuperclassMethodPreferredOverInterface() throws Exception {
+		assertSuperclassPreferred(Class.forName("edu.iu.type.testresources.inherit.HiddenBase"),
+				IuType.of(ServiceFromHidden.class), new ServiceFromHidden());
+	}
+
+	@Test
+	public void testMoreSpecificInterfacePreferred() throws Exception {
+		assertResolves(SubCollectionApi.class, IuType.of(SubApiFirst.class), "size");
+		assertResolves(SubCollectionApi.class, IuType.of(SubApiLast.class), "size");
+		assertResolves(CollectionApi.class, IuType.of(SubApiLast.class), "list", int.class, Integer.class);
+		// CollectionApi precedes the superclass in the hierarchy, then is replaced
+		assertResolves(SubCollectionApi.class, IuType.of(SubApiViaSuperclass.class), "size");
+	}
+
+	@Test
+	public void testUnrelatedInterfacesResolveOnce() throws Exception {
+		// neither is more specific; either may be resolved, but only one
+		final var type = IuType.of(SizedCollection.class);
+		assertEquals(1, count(type, "size"));
+		final var declaringClass = type.method("size").declaringType().erasedClass();
+		assertTrue(declaringClass == CollectionApi.class || declaringClass == Sized.class,
+				declaringClass::toString);
+	}
+
+	@Test
+	public void testGenericAndVisibilityBridges() throws Exception {
+		final var type = IuType.of(FromHiddenOverrides.class);
+		final var instance = new FromHiddenOverrides();
+		assertInheritsBaseMethods(type, instance);
+		assertEquals(2, count(type, "list"));
+		assertEquals(List.of("filter"), type.method("list", String.class).exec(instance, "filter"));
+		assertEquals("id", type.method("get", String.class).exec(instance, "id"));
+		assertEquals(String.class, type.method("get", String.class).returnType().erasedClass());
 	}
 
 	@Test

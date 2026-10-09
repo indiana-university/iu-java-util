@@ -57,6 +57,10 @@ import edu.iu.type.testresources.TypeVariableScopeSupport.ReturnsCollection;
 import edu.iu.type.testresources.TypeVariableScopeSupport.ReturnsList;
 import edu.iu.type.testresources.TypeVariableScopeSupport.Shadow;
 import edu.iu.type.testresources.TypeVariableScopeSupport.Swapper;
+import edu.iu.type.testresources.inherit.DiamondLeaf;
+import edu.iu.type.testresources.inherit.DiamondService;
+import edu.iu.type.testresources.inherit.DiamondServiceReversed;
+import edu.iu.type.testresources.inherit.DiamondValue;
 
 /**
  * Verifies type variables resolve in the scope they came from when names
@@ -148,18 +152,48 @@ public class TypeVariableScopeTest extends IuTypeTestCase {
 		});
 		assertEquals(t, type.typeParameter("T").deref());
 
-		// IuTypeKey identifies a type variable by name and bounds, not by
-		// declaration, so EntityDao's T and Iterable's T may share a template;
-		// verify by name and by scope identity instead of TypeVariable equality.
+		// EntityDao's T and Iterable's T are distinct variables
 		final var found = type.method("selectAndPopulate", List.class).parameter(0).type();
 		final var foundElement = found.typeParameter("E");
-		assertEquals("T", ((TypeVariable<?>) foundElement.deref()).getName());
+		assertEquals(t, foundElement.deref());
 		assertSame(foundElement, assertCollectionOf(found));
 
 		final var selected = type.method("select", Object.class).returnType();
 		final var selectedElement = selected.typeParameter("E");
-		assertEquals("T", ((TypeVariable<?>) selectedElement.deref()).getName());
+		assertEquals(t, selectedElement.deref());
 		assertSame(selectedElement, assertCollectionOf(selected));
+	}
+
+	/**
+	 * Asserts that methods inherited through a diamond keep their declaring
+	 * type's variables, whichever path is resolved first.
+	 */
+	private static void assertDiamond(Class<?> service) throws Exception {
+		final var type = complete(() -> IuType.of(service));
+		final var leafK = variable(DiamondLeaf.class, "K");
+		final var leafV = variable(DiamondLeaf.class, "V");
+		final var valueK = variable(DiamondValue.class, "K");
+		final var valueV = variable(DiamondValue.class, "V");
+
+		final var get = type.method("get", Object.class);
+		assertEquals(leafK, get.parameter(0).type().deref(), service::toString);
+		assertEquals(leafV, get.returnType().deref(), service::toString);
+		assertEquals(leafK, type.method("post", Object.class).parameter(0).type().deref(), service::toString);
+
+		final var put = type.method("put", Object.class, Object.class);
+		assertEquals(valueK, put.parameter(0).type().deref(), service::toString);
+		assertEquals(valueV, put.parameter(1).type().deref(), service::toString);
+		assertEquals(valueV, put.returnType().deref(), service::toString);
+	}
+
+	@Test
+	public void testDiamondKeepsDeclaringTypeVariables() throws Exception {
+		assertDiamond(DiamondService.class);
+	}
+
+	@Test
+	public void testReversedDiamondKeepsDeclaringTypeVariables() throws Exception {
+		assertDiamond(DiamondServiceReversed.class);
 	}
 
 	@Test
@@ -173,36 +207,35 @@ public class TypeVariableScopeTest extends IuTypeTestCase {
 	/**
 	 * Asserts a type parameter resolves to the executable's own
 	 * {@code <T extends CharSequence>}, not to the class's
-	 * {@code <T extends Number>} or its argument. IuTypeKey identifies a type
-	 * variable by name and bounds, so the method's and the constructor's T may
-	 * share a template; compare by name and bounds.
+	 * {@code <T extends Number>} or its argument.
 	 */
-	private static void assertOwnT(IuType<?, ?> typeParameter) {
+	private static void assertOwnT(GenericDeclaration declaration, IuType<?, ?> typeParameter) {
 		final var t = (TypeVariable<?>) typeParameter.deref();
-		assertEquals("T", t.getName());
+		assertEquals(variable(declaration, "T"), t);
 		assertArrayEquals(new Type[] { CharSequence.class }, t.getBounds());
 		assertEquals(CharSequence.class, typeParameter.erasedClass());
 	}
 
 	@Test
-	public void testMethodShadowsClassTypeParameter() {
+	public void testMethodShadowsClassTypeParameter() throws Exception {
 		final var shadow = complete(() -> IuType.of(Shadow.class).method("shadow", CharSequence.class));
-		assertOwnT(shadow.typeParameter("T"));
+		assertOwnT(Shadow.class.getMethod("shadow", CharSequence.class), shadow.typeParameter("T"));
 		assertEquals(CharSequence.class, shadow.returnType().erasedClass());
 		assertEquals(CharSequence.class, shadow.parameter(0).type().erasedClass());
 	}
 
 	@Test
-	public void testInheritedMethodShadowsClassTypeArgument() {
+	public void testInheritedMethodShadowsClassTypeArgument() throws Exception {
 		final var type = complete(() -> IuType.of(IntegerShadow.class));
 		assertEquals(Integer.class, type.referTo(Shadow.class).typeParameter("T").erasedClass());
-		assertOwnT(type.method("shadow", CharSequence.class).typeParameter("T"));
+		assertOwnT(Shadow.class.getMethod("shadow", CharSequence.class),
+				type.method("shadow", CharSequence.class).typeParameter("T"));
 	}
 
 	@Test
-	public void testConstructorShadowsClassTypeParameter() {
+	public void testConstructorShadowsClassTypeParameter() throws Exception {
 		final var shadow = complete(() -> IuType.of(Shadow.class).constructor(CharSequence.class));
-		assertOwnT(shadow.typeParameter("T"));
+		assertOwnT(Shadow.class.getConstructor(CharSequence.class), shadow.typeParameter("T"));
 		assertEquals(CharSequence.class, shadow.parameter(0).type().erasedClass());
 	}
 
