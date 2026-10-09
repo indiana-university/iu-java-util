@@ -182,8 +182,8 @@ public interface IuOidcPrincipal extends Principal {
 	 * client itself has no such authority to name. Three readings cover every token
 	 * a provider issues &mdash; this claim present is an end user; absent with
 	 * {@link #getActor()} is a delegation, where the authority belongs to the actor
-	 * and is read through {@link IuOidcActor#getAcr()}; absent with no actor
-	 * is the client itself.
+	 * and is read through {@link IuOidcActor#getAcr()}; absent with no actor is the
+	 * client itself.
 	 * </p>
 	 *
 	 * <p>
@@ -360,7 +360,8 @@ public interface IuOidcPrincipal extends Principal {
 	 * </p>
 	 *
 	 * @param resourceUri root resource URI for the API to get an access token for
-	 * @return access token for use at the indicated resource URI
+	 * @return access token for use at the indicated resource URI; null if the
+	 *         principal doesn't carry an access token for the API
 	 * @throws IOException if communication with an upstream provider is interrupted
 	 */
 	String getAccessToken(URI resourceUri) throws IOException;

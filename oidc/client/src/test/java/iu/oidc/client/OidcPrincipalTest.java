@@ -477,17 +477,21 @@ public class OidcPrincipalTest {
 	}
 
 	@Test
-	void testAccessTokenRequiresApiResources() {
+	void testAccessTokenFallsThroughWithoutApiResources() throws Exception {
 		final var config = config();
+		when(config.getApiResources()).thenReturn(null);
 		final var principal = principal(config, IdGenerator.generateId(), null);
 
 		final var resourceUri = URI.create("api://" + IdGenerator.generateId());
-		assertEquals("invalid resource URI " + resourceUri + "; access token not verified",
-				assertThrows(NullPointerException.class, () -> principal.getAccessToken(resourceUri)).getMessage());
+		try (final var mockOboGrant = mockConstruction(OnBehalfOfGrant.class,
+				(a, ctx) -> fail("must not exchange an access token without configured API resources"))) {
+			assertNull(principal.getAccessToken(resourceUri));
+			assertEquals(0, mockOboGrant.constructed().size());
+		}
 	}
 
 	@Test
-	void testAccessTokenRequiresMatchingApiResource() {
+	void testAccessTokenFallsThroughForUnmatchedApiResource() throws Exception {
 		final var config = config();
 		when(config.getApiResources()).thenReturn(IuIterable.iter(URI.create("api://" + IdGenerator.generateId())));
 
@@ -498,10 +502,11 @@ public class OidcPrincipalTest {
 		final var principal = principal(config, IdGenerator.generateId(), verifiedAccessToken);
 
 		final var resourceUri = URI.create("api://" + IdGenerator.generateId());
-		assertEquals(
-				"invalid resource URI " + resourceUri + "; access token doesn't include resource URI as audience "
-						+ audience,
-				assertThrows(NullPointerException.class, () -> principal.getAccessToken(resourceUri)).getMessage());
+		try (final var mockOboGrant = mockConstruction(OnBehalfOfGrant.class,
+				(a, ctx) -> fail("must not exchange an access token for an unmatched API resource"))) {
+			assertNull(principal.getAccessToken(resourceUri));
+			assertEquals(0, mockOboGrant.constructed().size());
+		}
 	}
 
 	@Test

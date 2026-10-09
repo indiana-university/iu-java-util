@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -235,7 +234,9 @@ public class OidcPrincipal implements IuOidcPrincipal {
 				? "; access token not verified"
 				: "; access token doesn't include resource URI as audience " + verifiedAccessToken.getAudience());
 
-		final var apiResource = Objects.requireNonNull(selectApiResource(resourceUri, error), error);
+		final var apiResource = selectApiResource(resourceUri);
+		if (apiResource == null)
+			return null;
 
 		try {
 			return oboGrant(apiResource).getTokenResponse().getAccessToken();
@@ -278,14 +279,16 @@ public class OidcPrincipal implements IuOidcPrincipal {
 	 * resource URI.
 	 *
 	 * @param resourceUri resource URI
-	 * @param error       describes the resource URI mismatch that made the lookup
-	 *                    necessary; reported if no API resources are configured
-	 * @return API root resource URI; null if none cover {@code resourceUri}
-	 * @throws NullPointerException if no API resources are configured
+	 * @return API root resource URI; null if no configured API resource covers
+	 *         {@code resourceUri}
 	 */
-	private URI selectApiResource(URI resourceUri, Supplier<String> error) {
+	private URI selectApiResource(URI resourceUri) {
+		final var apiResources = config.getApiResources();
+		if (apiResources == null)
+			return null;
+
 		URI apiResource = null;
-		for (final var configured : Objects.requireNonNull(config.getApiResources(), error))
+		for (final var configured : apiResources)
 			if (IuWebUtils.isRootOf(configured, resourceUri) //
 					&& (apiResource == null //
 							|| IuWebUtils.isRootOf(apiResource, configured)))

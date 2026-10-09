@@ -909,8 +909,8 @@ public class OidcAuthorizationTest {
 			assertTrue(strictPrincipal.hasScope(responseScope));
 			
 			final var wrongUri = URI.create(IdGenerator.generateId());
-			assertEquals("invalid resource URI " + wrongUri + "; access token not verified",
-					assertThrows(NullPointerException.class, () -> principal.getAccessToken(wrongUri)).getMessage());
+			assertNull(principal.getAccessToken(wrongUri));
+			assertEquals(0, mockOboGrant.constructed().size());
 
 			assertEquals(apiAccessToken2, principal.getAccessToken(apiResourcev2));
 			assertEquals(apiAccessToken2, principal.getAccessToken(apiResourcev2));

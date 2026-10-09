@@ -102,8 +102,15 @@ public interface IuOidcClientReference {
 
 	/**
 	 * Gets root resource URIs for downstream APIs.
+	 *
+	 * <p>
+	 * When absent, an authenticated principal doesn't exchange its session-bound
+	 * access token for downstream APIs, allowing the application to use
+	 * container-managed credentials instead.
+	 * </p>
 	 * 
-	 * @return resource URIs
+	 * @return resource URIs; null if authenticated principals don't exchange their
+	 *         access tokens for downstream APIs
 	 */
 	default Iterable<URI> getApiResources() {
 		return null;
