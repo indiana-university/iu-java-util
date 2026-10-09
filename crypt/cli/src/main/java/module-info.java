@@ -38,4 +38,6 @@ module iu.util.crypt.cli {
 	requires transitive iu.util;
 	requires transitive iu.util.crypt;
 	requires iu.util.crypt.impl;
+	requires iu.util.client;
+	requires jakarta.json.bind;
 }

@@ -39,11 +39,13 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 import edu.iu.IuCacheMap;
 import edu.iu.IuException;
+import edu.iu.IuObject;
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
@@ -54,8 +56,8 @@ import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebSignature;
 import edu.iu.crypt.WebSignedPayload;
+import iu.crypt.model.Jwks;
 import iu.crypt.spi.IuCryptSpi;
-import jakarta.json.JsonObject;
 
 /**
  * {@link IuCryptSpi} implementation.
@@ -81,13 +83,17 @@ public class CryptSpi implements IuCryptSpi {
 
 	@Override
 	public WebCryptoHeader getProtectedHeader(String serialized) {
-		final JsonObject protectedHeader;
-		if (serialized.charAt(0) == '{')
-			protectedHeader = IuJson.parse(serialized).asJsonObject().getJsonObject("protected");
-		else
-			protectedHeader = CompactEncoded.getProtectedHeader(serialized);
-
-		return CryptJsonAdapters.JOSE.fromJson(protectedHeader);
+		if (serialized.charAt(0) == '{') {
+			// JWE and flattened JWS at the top level; general JWS by first signature
+			final var json = CryptJsonAdapters.JSONB.fromJson(serialized, IuJsonProperties.class);
+			var encodedProtectedHeader = json.get("protected", String.class);
+			if (encodedProtectedHeader == null)
+				encodedProtectedHeader = IuObject.convert(json.get("signatures", IuJsonProperties[].class),
+						signatures -> signatures[0].get("protected", String.class));
+			return new Jose(Objects.requireNonNull(CompactEncoded.decodeHeader(encodedProtectedHeader),
+					"protected header required"));
+		} else
+			return new Jose(CompactEncoded.getProtectedHeader(serialized));
 	}
 
 	@Override
@@ -97,12 +103,12 @@ public class CryptSpi implements IuCryptSpi {
 
 	@Override
 	public WebKey parseJwk(String jwk) {
-		return new Jwk(IuJson.parse(jwk).asJsonObject());
+		return CryptJsonAdapters.JSONB.fromJson(jwk, WebKey.class);
 	}
 
 	@Override
 	public Iterable<? extends WebKey> parseJwks(String jwks) {
-		return Jwk.parseJwks(IuJson.parse(jwks).asJsonObject());
+		return CryptJsonAdapters.JSONB.fromJson(jwks, Jwks.class).getKeys();
 	}
 
 	@Override
@@ -117,7 +123,7 @@ public class CryptSpi implements IuCryptSpi {
 
 	@Override
 	public String asJwks(Iterable<? extends WebKey> webKeys) {
-		return Jwk.asJwks(webKeys).toString();
+		return CryptJsonAdapters.JSONB.toJson((Jwks) () -> webKeys, Jwks.class);
 	}
 
 	@Override
@@ -137,12 +143,18 @@ public class CryptSpi implements IuCryptSpi {
 
 	@Override
 	public WebEncryption parseJwe(String jwe) {
-		return new Jwe(jwe);
+		return Jwe.parse(jwe);
 	}
 
 	@Override
 	public WebSignedPayload parseJws(String jws) {
 		return JwsBuilder.parse(jws);
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public <T> T jsonbConfig() {
+		return (T) CryptJsonAdapters.config();
 	}
 
 }

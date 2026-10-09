@@ -38,7 +38,7 @@ module iu.util.dao {
 
 	uses edu.iu.dao.spi.IuDaoSpi;
 
-	requires iu.util;
+	requires transitive iu.util;
 	requires transitive java.sql;
 	requires transitive java.naming;
 	requires transitive jakarta.persistence;

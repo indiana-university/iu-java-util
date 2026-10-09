@@ -36,6 +36,7 @@ import java.lang.ref.SoftReference;
 import java.time.Duration;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -57,6 +58,28 @@ public class IuCachedValue<V> {
 	private static final Timer PURGE_TIMER = new Timer("iu-cache-purge", true);
 	private static final ReferenceQueue<Object> REFQ = new ReferenceQueue<>();
 
+	/**
+	 * Counts expiration tasks cancelled since the last {@link Timer#purge()}.
+	 *
+	 * <p>
+	 * Every cached value schedules its own expiration task, and replacing or
+	 * clearing a value cancels that task. {@link Timer} only drops a cancelled task
+	 * when it would have come due, so a cache that is refreshed actively — where
+	 * values are replaced far more often than they are allowed to expire —
+	 * accumulates cancelled tasks in the shared timer's queue for as long as the
+	 * longest time to live in use. Purging clears them all at once but costs a scan
+	 * of the whole queue, so cancellations are counted and purged in batches rather
+	 * than swept one at a time.
+	 * </p>
+	 */
+	private static final AtomicInteger CANCELLED = new AtomicInteger();
+
+	/**
+	 * Number of cancelled expiration tasks that must accumulate before the next
+	 * sweep purges them.
+	 */
+	private static final int PURGE_THRESHOLD = 128;
+
 	private static class Ref extends SoftReference<Object> {
 		private final IuCachedValue<?> cachedValue;
 
@@ -73,6 +96,13 @@ public class IuCachedValue<V> {
 				Ref ref;
 				while ((ref = (Ref) REFQ.poll()) != null)
 					ref.cachedValue.clear();
+
+				// reset before purging, so cancellations recorded while the purge is in
+				// progress count toward the next batch rather than being discarded
+				if (CANCELLED.get() >= PURGE_THRESHOLD) {
+					CANCELLED.set(0);
+					PURGE_TIMER.purge();
+				}
 			}
 		}, 500L, 500L);
 	}
@@ -164,19 +194,30 @@ public class IuCachedValue<V> {
 	 * </p>
 	 */
 	public synchronized void clear() {
-		if (!expired)
-			try {
-				expireTask.cancel();
-				reference.clear();
-				onExpire.run();
-			} catch (Throwable e) {
-				LOG.log(Level.INFO, e, () -> "Unhandled error in cache reference expiration thunk " + onExpire);
-			} finally {
-				expired = true;
-				expireTask = null;
-				reference = null;
-				onExpire = null;
-			}
+		if (expired)
+			return;
+
+		// marked before the thunk runs, not after. The thunk reaches back into the
+		// collection holding this value, and any read of this value while it is
+		// being cleared resolves it as expired and calls back into this method; the
+		// monitor is reentrant, so only this flag stops that from recurring.
+		expired = true;
+
+		try {
+			// counted only when a scheduled run was actually prevented, since a task
+			// that already came due is no longer in the timer's queue to purge
+			if (expireTask.cancel())
+				CANCELLED.incrementAndGet();
+
+			reference.clear();
+			onExpire.run();
+		} catch (Throwable e) {
+			LOG.log(Level.INFO, e, () -> "Unhandled error in cache reference expiration thunk " + onExpire);
+		} finally {
+			expireTask = null;
+			reference = null;
+			onExpire = null;
+		}
 	}
 
 	@Override
@@ -214,3 +255,4 @@ public class IuCachedValue<V> {
 	}
 
 }
+

@@ -42,8 +42,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
+import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcProviderMetadata;
 import iu.oidc.client.config.IuOidcProvider;
 
@@ -88,10 +87,9 @@ public final class OidcProviders {
 		if (cached.lastUpdate == null //
 				|| Duration.between(cached.lastUpdate, Instant.now()).compareTo(config.getMetadataTtl()) > 0)
 			try {
-				final var adapter = IuJsonAdapter.adapt(IuOidcProviderMetadata.class,
-						IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES);
-
-				cached.instance = adapter.fromJson(IuHttp.get(config.getMetadataUri(), IuHttp.READ_JSON_OBJECT));
+				cached.instance = WebToken.jsonb().fromJson(
+						IuHttp.get(config.getMetadataUri(), IuHttp.READ_JSON_OBJECT).toString(),
+						IuOidcProviderMetadata.class);
 
 				cached.lastUpdate = Instant.now();
 			} catch (Throwable e) {

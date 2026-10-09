@@ -41,6 +41,9 @@ module iu.util.client {
 
 	requires iu.util;
 	requires transitive jakarta.json;
+	requires static jakarta.json.bind;
 	requires java.desktop;
 	requires transitive java.net.http;
+	
+	provides jakarta.json.bind.spi.JsonbProvider with iu.client.jsonb.IuJsonbProvider;
 }

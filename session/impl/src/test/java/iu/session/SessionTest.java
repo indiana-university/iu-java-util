@@ -51,6 +51,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -82,6 +83,10 @@ public class SessionTest {
 		String getFoo();
 
 		void setFoo(String foo);
+
+		Instant getNotAfter();
+
+		void setNotAfter(Instant notAfter);
 	}
 
 	@BeforeEach
@@ -231,6 +236,25 @@ public class SessionTest {
 	}
 
 	@Test
+	public void testTokenizeInstantDetail() {
+		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
+
+		final var secretKey = WebKey.ephemeral(Encryption.AES_192_CBC_HMAC_SHA_384);
+		final var issuerKey = WebKey.builder(Algorithm.PS384).ephemeral().build();
+		when(configuration.getJwk()).thenReturn(issuerKey);
+		when(configuration.getEnc()).thenReturn(Encryption.AES_192_CBC_HMAC_SHA_384);
+
+		// stored in snake_case, as a NumericDate, like the token's own claims
+		final var notAfter = Instant.now().plusSeconds(60L).truncatedTo(ChronoUnit.SECONDS);
+		session.getDetail(SessionDetailInterface.class).setNotAfter(notAfter);
+		assertTrue(session.toString().contains("not_after=" + notAfter.getEpochSecond()), session::toString);
+
+		final var fromToken = new Session(resourceUri, session.tokenize(secretKey, configuration), secretKey,
+				configuration);
+		assertEquals(notAfter, fromToken.getDetail(SessionDetailInterface.class).getNotAfter());
+	}
+
+	@Test
 	public void testTokenWithoutDetails() {
 		IuTestLogger.allow("iu.crypt.Jwe", Level.FINE);
 
@@ -255,9 +279,42 @@ public class SessionTest {
 	}
 
 	@Test
-	void testStrict() {
-		assertTrue(session.isStrict());
+	void testSameSite() {
+		assertEquals("Strict", session.getSameSite());
+		session.setStrict(true);
+		assertEquals("Strict", session.getSameSite());
+
 		session.setStrict(false);
-		assertFalse(session.isStrict());
+		assertEquals("Lax", session.getSameSite());
+		assertTrue(session.isChanged());
+
+		session.setSameSite("None");
+		assertEquals("None", session.getSameSite());
+
+		session.setSameSite(null);
+		assertNull(session.getSameSite());
+	}
+
+	@Test
+	void testSameSiteAcceptsEachDefinedValueDirectly() {
+		// setStrict() only ever passes "Strict" or "Lax" through; called directly,
+		// setSameSite() must accept both itself rather than refusing anything
+		// setStrict() wouldn't have sent it
+		session.setSameSite("Strict");
+		assertEquals("Strict", session.getSameSite());
+
+		session.setSameSite("Lax");
+		assertEquals("Lax", session.getSameSite());
+	}
+
+	@Test
+	void testSameSiteRejectsAnythingButTheThreeDefinedValues() {
+		// written verbatim into the Set-Cookie header, so anything else could inject
+		// additional cookie attributes rather than merely naming this one
+		assertEquals("Invalid SameSite value: Lax; Domain=example.com",
+				assertThrows(IllegalArgumentException.class,
+						() -> session.setSameSite("Lax; Domain=example.com")).getMessage());
+		assertEquals("Invalid SameSite value: strict",
+				assertThrows(IllegalArgumentException.class, () -> session.setSameSite("strict")).getMessage());
 	}
 }

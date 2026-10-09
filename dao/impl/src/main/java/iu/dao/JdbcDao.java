@@ -173,6 +173,70 @@ public final class JdbcDao implements IuDao {
 	}
 
 	@Override
+	public Iterable<String> getPrimaryKeyProperties(Class<?> beanClass) {
+		return sqlBuilder.getPrimaryKeyProperties(Objects.requireNonNull(beanClass, "beanClass"));
+	}
+
+	@Override
+	public Map<String, Object> getBeanKey(Object bean) {
+		final var entity = Objects.requireNonNull(bean, "bean");
+		final Map<String, Object> key = new LinkedHashMap<>();
+		for (final var column : EntityMetaData.of(entityType(entity)).idColumns)
+			key.put(column.propertyName, DaoUtils.getPropertyValue(entity, column));
+		return key;
+	}
+
+	@Override
+	public <B> B newBean(Class<B> beanClass, Map<String, ?> idParams) {
+		Objects.requireNonNull(beanClass, "beanClass");
+		Objects.requireNonNull(idParams, "idParams");
+		if (beanClass.isInterface() || beanClass.isRecord())
+			throw new IllegalArgumentException("Cannot populate " + beanClass.getName());
+
+		final Map<String, ColumnMetaData> idColumns = new LinkedHashMap<>();
+		for (final var column : EntityMetaData.of(beanClass).idColumns)
+			idColumns.put(column.propertyName, column);
+
+		for (final var property : idParams.keySet())
+			if (!idColumns.containsKey(property))
+				throw new IllegalArgumentException(property + " is not an @Id of " + beanClass.getName());
+
+		final var bean = instantiate(beanClass);
+		for (final var entry : idParams.entrySet())
+			writeKey(bean, idColumns.get(entry.getKey()), entry.getValue());
+		return bean;
+	}
+
+	/**
+	 * Writes one key value to a new entity, the way a read writes a column: to the
+	 * field when the mapping is on the field or there is no setter, and through the
+	 * setter otherwise.
+	 *
+	 * @param bean   entity being populated
+	 * @param column key column
+	 * @param value  key value; a null value for a primitive member is skipped
+	 * @throws IllegalArgumentException if the member cannot be written
+	 */
+	private static void writeKey(Object bean, ColumnMetaData column, Object value) {
+		if (value == null && column.javaType.isPrimitive())
+			return;
+
+		final var setter = column.fieldMapped ? null : column.property.getWriteMethod();
+		try {
+			if (setter != null)
+				setter.invoke(bean, value);
+			else if (column.field != null)
+				DaoUtils.accessible(column.field).set(bean, value);
+			else
+				throw new IllegalArgumentException(
+						"No setter or field for " + column.propertyName + " on " + bean.getClass().getName());
+		} catch (IllegalAccessException | InvocationTargetException e) {
+			throw new IllegalArgumentException(
+					"Unable to set " + column.propertyName + " on " + bean.getClass().getName(), e);
+		}
+	}
+
+	@Override
 	public TableDefinition getTableDefinition(String tableName) {
 		Objects.requireNonNull(tableName, "tableName");
 		try (var connection = dataSource.getConnection()) {
@@ -250,22 +314,32 @@ public final class JdbcDao implements IuDao {
 			return entityClass.cast(Proxy.newProxyInstance(entityClass.getClassLoader(),
 					new Class<?>[] { entityClass }, new ResolvedRow(entityClass, resolvedValues(columnMembers, resultSet))));
 
-		final B bean;
-		try {
-			final var constructor = entityClass.getDeclaredConstructor();
-			if (!constructor.canAccess(null))
-				constructor.setAccessible(true);
-			bean = constructor.newInstance();
-		} catch (ReflectiveOperationException e) {
-			throw new IllegalArgumentException("Cannot instantiate " + entityClass.getName(), e);
-		}
-
+		final var bean = instantiate(entityClass);
 		for (int i = 0; i < columnMembers.length; i++) {
 			final var member = columnMembers[i];
 			if (member != null)
 				member.set(bean, member.fromSql(columnValue(resultSet, i + 1, member.sqlType())));
 		}
 		return bean;
+	}
+
+	/**
+	 * Instantiates an entity class through its no-argument constructor.
+	 *
+	 * @param <B>         entity type
+	 * @param entityClass entity class
+	 * @return new instance
+	 * @throws IllegalArgumentException if the class cannot be instantiated
+	 */
+	private static <B> B instantiate(Class<B> entityClass) {
+		try {
+			final var constructor = entityClass.getDeclaredConstructor();
+			if (!constructor.canAccess(null))
+				constructor.setAccessible(true);
+			return constructor.newInstance();
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalArgumentException("Cannot instantiate " + entityClass.getName(), e);
+		}
 	}
 
 	/**

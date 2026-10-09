@@ -55,6 +55,9 @@ public class ParameterizedElementTest extends IuTypeTestCase {
 		assertEquals("sealed",
 				assertThrows(IllegalStateException.class, () -> parameterizedElement.apply(null)).getMessage());
 		assertEquals("sealed",
+				assertThrows(IllegalStateException.class, () -> parameterizedElement.applyDeclared(null))
+						.getMessage());
+		assertEquals("sealed",
 				assertThrows(IllegalStateException.class, () -> parameterizedElement.apply(null, null, null))
 						.getMessage());
 		assertEquals("already sealed",
