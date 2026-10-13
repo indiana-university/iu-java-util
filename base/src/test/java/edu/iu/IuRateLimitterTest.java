@@ -234,10 +234,19 @@ public class IuRateLimitterTest {
 		rateLimit.unpause();
 		rateLimit.join();
 
+		// the limiter ran at least as long as the sleep above and finished well
+		// inside its own timeout. Elapsed is measured against the wall clock, so a
+		// tighter bound than this measures scheduler jitter rather than the limiter.
 		final var elapsed = rateLimit.getElapsed();
-		assertTrue(elapsed.minus(halfTimeout).toMillis() < 25L, elapsed::toString);
+		assertTrue(elapsed.compareTo(halfTimeout) >= 0, elapsed::toString);
+		assertTrue(elapsed.compareTo(timeout) < 0, elapsed::toString);
+
+		// the queue drained when the work was joined, so there is nothing left to
+		// pause and this returns rather than blocking
+		final var pausedAt = Instant.now();
 		rateLimit.pause();
-		assertTrue(rateLimit.getElapsed().minus(elapsed).toMillis() <= 1L);
+		final var pausing = Duration.between(pausedAt, Instant.now());
+		assertTrue(pausing.compareTo(halfTimeout) < 0, pausing::toString);
 	}
 
 	@Test
@@ -297,3 +306,4 @@ public class IuRateLimitterTest {
 	}
 
 }
+

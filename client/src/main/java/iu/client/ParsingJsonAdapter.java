@@ -31,12 +31,14 @@
  */
 package iu.client;
 
-import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for types that provide a mechanism for
@@ -46,11 +48,45 @@ import jakarta.json.JsonValue;
  */
 public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 
-	private static final Map<Class<?>, ParsingJsonAdapter<?>> INSTANCES = new WeakHashMap<>();
+	/**
+	 * Holds one instance per type, created on first use from the functions that use
+	 * supplies; held by the class itself, so it doesn't keep the class from
+	 * unloading.
+	 */
+	static final class Singletons extends ClassValue<AtomicReference<ParsingJsonAdapter<?>>> {
+
+		/**
+		 * Default constructor.
+		 */
+		Singletons() {
+		}
+
+		@Override
+		protected AtomicReference<ParsingJsonAdapter<?>> computeValue(Class<?> type) {
+			return new AtomicReference<>();
+		}
+
+		/**
+		 * Gets the instance for a type, creating it on first use.
+		 *
+		 * @param type   target type
+		 * @param create creates the instance; called only while there is none
+		 * @return instance
+		 */
+		ParsingJsonAdapter<?> get(Class<?> type, Supplier<ParsingJsonAdapter<?>> create) {
+			return get(type).updateAndGet(a -> a == null ? create.get() : a);
+		}
+	}
+
+	// one instance per type and printer kind: a type may have both, as a date
+	// type whose format changed in 7.1 does
+	private static final Singletons TO_STRING = new Singletons();
+	private static final Singletons PRINTED = new Singletons();
 
 	/**
-	 * Gets a singleton instance by target type.
-	 * 
+	 * Gets a singleton instance by target type that writes
+	 * {@link Object#toString()}.
+	 *
 	 * @param <T>    target type
 	 * @param type   target type
 	 * @param parser parsing function
@@ -58,14 +94,21 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> ParsingJsonAdapter<T> of(Class<T> type, Function<String, T> parser) {
-		var instance = INSTANCES.get(type);
-		if (instance == null) {
-			instance = new ParsingJsonAdapter<T>(parser, T::toString);
-			synchronized (INSTANCES) {
-				INSTANCES.put(type, instance);
-			}
-		}
-		return (ParsingJsonAdapter<T>) instance;
+		return (ParsingJsonAdapter<T>) TO_STRING.get(type, () -> new ParsingJsonAdapter<T>(parser, T::toString));
+	}
+
+	/**
+	 * Gets a singleton instance by target type that writes by a printing function.
+	 *
+	 * @param <T>    target type
+	 * @param type   target type
+	 * @param parser parsing function
+	 * @param print  printing function
+	 * @return {@link ParsingJsonAdapter}
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> ParsingJsonAdapter<T> of(Class<T> type, Function<String, T> parser, Function<T, String> print) {
+		return (ParsingJsonAdapter<T>) PRINTED.get(type, () -> new ParsingJsonAdapter<T>(parser, print));
 	}
 
 	private final Function<String, T> parser;
@@ -84,11 +127,7 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 
 	@Override
 	public T fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-		else
-			return parser.apply(text);
+		return parse(TextJsonAdapter.INSTANCE.fromJson(value));
 	}
 
 	@Override
@@ -97,6 +136,26 @@ public class ParsingJsonAdapter<T> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 		else
 			return TextJsonAdapter.INSTANCE.toJson(print.apply(value));
+	}
+
+	@Override
+	public T read(JsonParser parser) {
+		return parse(TextJsonAdapter.INSTANCE.read(parser));
+	}
+
+	@Override
+	public void write(T value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			TextJsonAdapter.INSTANCE.write(print.apply(value), generator);
+	}
+
+	private T parse(String text) {
+		if (text == null)
+			return null;
+		else
+			return parser.apply(text);
 	}
 
 }

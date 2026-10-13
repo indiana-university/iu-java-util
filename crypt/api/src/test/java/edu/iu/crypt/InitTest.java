@@ -32,6 +32,8 @@
 package edu.iu.crypt;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 
@@ -41,5 +43,12 @@ public class InitTest extends IuCryptApiTestCase {
 	@Test
 	public void testInit() {
 		assertDoesNotThrow(Init::init);
+	}
+
+	@Test
+	public void testJsonbConfig() {
+		final Object config = new Object();
+		when(Init.SPI.jsonbConfig()).thenReturn(config);
+		assertSame(config, Init.jsonbConfig());
 	}
 }

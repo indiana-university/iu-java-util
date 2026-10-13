@@ -433,10 +433,15 @@ public final class IuWebUtils {
 
 	/**
 	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
-	 * 
+	 *
+	 * <p>
+	 * Scheme, authority, and path are compared; query and fragment are ignored
+	 * unless the URIs are equal.
+	 * </p>
+	 *
 	 * @param rootUri     root {@link URI}
 	 * @param resourceUri resource {@link URI}
-	 * @return {@link URI}
+	 * @return true if the root encompasses the resource; else false
 	 */
 	public static boolean isRootOf(URI rootUri, URI resourceUri) {
 		if (rootUri.equals(resourceUri))
@@ -455,7 +460,8 @@ public final class IuWebUtils {
 		final var resource = resourceUri.getPath();
 		final var l = root.length();
 		return resource.startsWith(root) //
-				&& (root.charAt(l - 1) == '/' //
+				&& (resource.length() == l // same path, may differ by query or fragment
+						|| root.charAt(l - 1) == '/' //
 						|| resource.charAt(l) == '/');
 	}
 

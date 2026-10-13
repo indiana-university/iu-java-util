@@ -31,17 +31,18 @@
  */
 package iu.crypt;
 
+import java.lang.reflect.Type;
 import java.net.URI;
-import java.util.HashMap;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-import edu.iu.IuIterable;
 import edu.iu.IuObject;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryptionRecipient;
@@ -49,7 +50,6 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonValue;
 
 /**
  * {@link WebCryptoHeader} implementation.
@@ -59,14 +59,26 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		IuObject.assertNotOpen(Jose.class);
 	}
 
-	private static final Map<String, Extension<?>> EXTENSIONS = new HashMap<>();
+	private static final Map<String, Extension<?>> EXTENSIONS = new ConcurrentHashMap<>();
+
+	private static final Set<Param> NON_EXT_PARAMS = EnumSet.of(Param.ALGORITHM, Param.KEY_ID, Param.KEY_SET_URI,
+			Param.KEY, Param.CERTIFICATE_URI, Param.CERTIFICATE_CHAIN, Param.CERTIFICATE_THUMBPRINT,
+			Param.CERTIFICATE_SHA256_THUMBPRINT, Param.TYPE, Param.CONTENT_TYPE, Param.CRITICAL_PARAMS);
 
 	/**
 	 * Extension provider interface.
 	 * 
 	 * @param <T> value type
 	 */
-	public interface Extension<T> extends IuJsonAdapter<T> {
+	public interface Extension<T> {
+
+		/**
+		 * Gets the extension type.
+		 *
+		 * @return type the parameter value converts as
+		 */
+		Type type();
+
 		/**
 		 * Validates an incoming parameter value.
 		 * 
@@ -134,6 +146,8 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 		if (EXTENSIONS.containsKey(parameterName))
 			throw new IllegalArgumentException("Already registered");
 
+		Objects.requireNonNull(extension.type(), "missing type");
+
 		EXTENSIONS.put(parameterName, extension);
 	}
 
@@ -158,31 +172,17 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	 * @param perRecipientHeader unprotected per-recipient header data
 	 * @return JOSE header
 	 */
-	static Jose from(JsonObject protectedHeader, JsonObject sharedHeader, JsonObject perRecipientHeader) {
+	static Jose from(IuJsonProperties protectedHeader, IuJsonProperties sharedHeader,
+			IuJsonProperties perRecipientHeader) {
 		if (sharedHeader == null && perRecipientHeader == null)
 			return new Jose(protectedHeader);
-
-		final var b = IuJson.object();
-		for (final var header : IuIterable.iter(protectedHeader, sharedHeader, perRecipientHeader))
-			if (header != null)
-				header.forEach(b::add);
-
-		return new Jose(b.build());
-	}
-
-	/**
-	 * Determines if a parameter name not registered for use with JWS is understood.
-	 * 
-	 * @param paramName parameter name
-	 * @return true if the parameter name is not registered for JWS and understood
-	 *         by this implementation.
-	 */
-	private static boolean isUnderstood(String paramName) {
-		final var param = Param.from(paramName);
-		if (param == null)
-			return EXTENSIONS.containsKey(paramName);
-		else
-			return !param.isUsedFor(Use.SIGN);
+		else {
+			final var builder = CryptJsonAdapters.builder();
+			IuObject.convert(protectedHeader, builder::putAll);
+			IuObject.convert(sharedHeader, builder::putAll);
+			IuObject.convert(perRecipientHeader, builder::putAll);
+			return new Jose(builder.build());
+		}
 	}
 
 	private final Jwk key;
@@ -190,7 +190,7 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	private final String type;
 	private final String contentType;
 	private final Set<String> criticalParameters;
-	private final JsonObject extendedParameters;
+	private final Map<String, Object> extendedParameters;
 	private final Jwk wellKnownKey;
 
 	/**
@@ -198,22 +198,36 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	 * 
 	 * @param joseValue header parameters
 	 */
-	Jose(JsonValue joseValue) {
+	Jose(IuJsonProperties joseValue) {
 		super(joseValue);
 
-		final var jose = joseValue.asJsonObject();
-		keySetUri = IuJson.get(jose, "jku", IuJsonAdapter.of(URI.class));
-		key = (Jwk) IuObject.convert(IuJson.get(jose, "jwk", CryptJsonAdapters.WEBKEY), WebKey::wellKnown);
-		type = IuJson.get(jose, "typ");
-		contentType = IuJson.get(jose, "cty");
-		criticalParameters = IuJson.get(jose, "crit", IuJsonAdapter.of(Set.class, IuJsonAdapter.of(String.class)));
+		keySetUri = joseValue.get("jku", URI.class);
+		// only the public part of a key belongs in a header
+		key = IuObject.convert((Jwk) joseValue.get("jwk", WebKey.class), Jwk::wellKnown);
+		type = joseValue.get("typ", String.class);
+		contentType = joseValue.get("cty", String.class);
+		criticalParameters = IuObject.convert(joseValue.get("crit", String[].class), Set::of);
 
-		final var extendedParametersBuilder = IuJson.object();
-		for (final var parameterEntry : jose.entrySet()) {
-			final var paramName = parameterEntry.getKey();
-			IuJson.add(extendedParametersBuilder, paramName, parameterEntry.getValue(), () -> isUnderstood(paramName));
+		// registered parameters beyond the common ones, and the extensions
+		// understood; any other is ignored, unless critical, which verify rejects
+		extendedParameters = new LinkedHashMap<>();
+		for (final var name : joseValue.names()) {
+			final var param = Param.from(name);
+			final Type paramType;
+			if (param == null) {
+				final var extension = EXTENSIONS.get(name);
+				if (extension == null)
+					continue;
+				paramType = extension.type();
+			} else if (NON_EXT_PARAMS.contains(param))
+				continue;
+			else
+				paramType = param.type;
+
+			final var value = joseValue.get(name, paramType);
+			if (value != null)
+				extendedParameters.put(name, value);
 		}
-		this.extendedParameters = extendedParametersBuilder.build();
 
 		wellKnownKey = (Jwk) WebCryptoHeader.verify(this);
 
@@ -248,21 +262,14 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
 	public <T> T getExtendedParameter(String name) {
-		final var param = Param.from(name);
-
-		final IuJsonAdapter<T> adapter;
-		if (param != null)
-			adapter = CryptJsonAdapters.of(param);
-		else
-			adapter = Jose.getExtension(name);
-
-		return IuJson.get(extendedParameters, name, adapter);
+		return (T) extendedParameters.get(name);
 	}
 
 	@Override
 	public String toString() {
-		return toJson(a -> true).toString();
+		return CryptJsonAdapters.JSONB.toJson(this);
 	}
 
 	/**
@@ -279,8 +286,22 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	 * 
 	 * @return extended parameters
 	 */
-	JsonObject extendedParameters() {
+	Map<String, Object> extendedParameters() {
 		return extendedParameters;
+	}
+
+	/**
+	 * Determines whether the header has a parameter.
+	 *
+	 * @param paramName registered or extended parameter name
+	 * @return true if the parameter has a non-null value; else false
+	 */
+	boolean hasParam(String paramName) {
+		final var param = Param.from(paramName);
+		if (param == null)
+			return extendedParameters.containsKey(paramName);
+		else
+			return param.get(this) != null;
 	}
 
 	/**
@@ -290,27 +311,23 @@ public final class Jose extends JsonKeyReference<Jose> implements WebCryptoHeade
 	 *                   include the parameter; else false
 	 * @return {@link JsonObject}; null if no parameters match the filter
 	 */
-	JsonObject toJson(Predicate<String> nameFilter) {
-		final var headerBuilder = IuJson.object();
+	IuJsonProperties values(Predicate<String> nameFilter) {
+		final var builder = CryptJsonAdapters.builder();
 
 		for (final var param : Param.values())
 			if (!param.equals(Param.KEY) //
 					&& param.isUsedFor(Use.SIGN) //
 					&& nameFilter.test(param.name))
-				IuJson.add(headerBuilder, param.name, () -> param.get(this), CryptJsonAdapters.of(param));
-		if (key != null)
-			IuJson.add(headerBuilder, "jwk", () -> wellKnownKey, CryptJsonAdapters.WEBKEY);
+				IuObject.convert(param.get(this), value -> builder.put(param.name, value));
 
-		for (final var extendedParameterEntry : extendedParameters.entrySet()) {
-			final var name = extendedParameterEntry.getKey();
-			IuJson.add(headerBuilder, name, extendedParameterEntry.getValue(), () -> nameFilter.test(name));
-		}
+		if (key != null && nameFilter.test("jwk"))
+			builder.put("jwk", key);
 
-		final var header = headerBuilder.build();
-		if (header.isEmpty())
-			return null;
-		else
-			return header;
+		for (final var extendedParameterEntry : extendedParameters.entrySet())
+			if (nameFilter.test(extendedParameterEntry.getKey()))
+				builder.put(extendedParameterEntry.getKey(), extendedParameterEntry.getValue());
+
+		return builder.isEmpty() ? null : builder.build();
 	}
 
 }

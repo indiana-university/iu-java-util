@@ -31,39 +31,39 @@
  */
 package iu.client;
 
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 
 import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonArrayAdapter;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Adapts to/from {@link JsonArray} values.
+ *
+ * <p>
+ * Each item converts within the adapter's {@link ItemScope}, so a failure can
+ * name its position.
+ * </p>
  * 
  * @param <T> target type
  * @param <E> element type
  */
-abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
-
-	/**
-	 * Extracts an iterator from a Java value.
-	 * 
-	 * @param value value
-	 * @return iterator
-	 */
-	abstract protected Iterator<E> iterator(T value);
-
-	/**
-	 * Collects items into the target type.
-	 * 
-	 * @param items items
-	 * @return target value
-	 */
-	abstract protected T collect(Iterable<E> items);
+abstract class JsonArrayAdapter<T, E> implements IuJsonArrayAdapter<T, E> {
 
 	private final IuJsonAdapter<E> itemAdapter;
+
+	/**
+	 * Tracks the item converting; set by {@link JsonAdapters} before the adapter
+	 * is shared.
+	 */
+	ItemScope scope = ItemScope.NONE;
 
 	/**
 	 * Constructor
@@ -79,13 +79,21 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 		if (jsonValue == null //
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
-		else {
-			final JsonArray array;
-			if (jsonValue instanceof JsonArray)
-				array = jsonValue.asJsonArray();
-			else
-				array = IuJson.array().add(jsonValue).build();
-			return collect(IuIterable.map(array, itemAdapter::fromJson));
+		else if (jsonValue instanceof JsonArray) {
+			final var index = new int[1];
+			return collect(IuIterable.map(jsonValue.asJsonArray(), item -> fromJson(index[0]++, item)));
+		} else
+			throw JsonAdapters.expected("an array", jsonValue.getValueType());
+	}
+
+	private E fromJson(int index, JsonValue item) {
+		scope.enterIndex(false, index);
+		try {
+			return itemAdapter.fromJson(item);
+		} catch (RuntimeException e) {
+			throw scope.fail(false, e);
+		} finally {
+			scope.exit(false);
 		}
 	}
 
@@ -95,8 +103,68 @@ abstract class JsonArrayAdapter<T, E> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 
 		final var a = IuJson.array();
-		iterator(javaValue).forEachRemaining(i -> a.add(itemAdapter.toJson(i)));
+		final var items = iterator(javaValue);
+		for (var index = 0; items.hasNext(); index++) {
+			final var item = items.next();
+			scope.enterIndex(true, index);
+			try {
+				a.add(itemAdapter.toJson(item));
+			} catch (RuntimeException e) {
+				throw scope.fail(true, e);
+			} finally {
+				scope.exit(true);
+			}
+		}
 		return a.build();
+	}
+
+	/**
+	 * Reads items as the parser reaches them, collected eagerly since the parser
+	 * moves on.
+	 */
+	@Override
+	public T read(JsonParser parser) {
+		final var event = parser.currentEvent();
+		if (event == Event.VALUE_NULL)
+			return null;
+		if (event != Event.START_ARRAY)
+			throw JsonAdapters.expected("an array", event);
+
+		final List<E> items = new ArrayList<>();
+		for (var index = 0; parser.next() != Event.END_ARRAY; index++) {
+			scope.enterIndex(false, index);
+			try {
+				items.add(itemAdapter.read(parser));
+			} catch (RuntimeException e) {
+				throw scope.fail(false, e);
+			} finally {
+				scope.exit(false);
+			}
+		}
+		return collect(items);
+	}
+
+	@Override
+	public void write(T javaValue, JsonGenerator generator) {
+		if (javaValue == null) {
+			generator.writeNull();
+			return;
+		}
+
+		generator.writeStartArray();
+		final var items = iterator(javaValue);
+		for (var index = 0; items.hasNext(); index++) {
+			final var item = items.next();
+			scope.enterIndex(true, index);
+			try {
+				itemAdapter.write(item, generator);
+			} catch (RuntimeException e) {
+				throw scope.fail(true, e);
+			} finally {
+				scope.exit(true);
+			}
+		}
+		generator.writeEnd();
 	}
 
 }

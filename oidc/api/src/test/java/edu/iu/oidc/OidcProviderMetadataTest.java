@@ -31,6 +31,8 @@
  */
 package edu.iu.oidc;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
@@ -44,6 +46,13 @@ public class OidcProviderMetadataTest {
 	void testDefaults() {
 		final var metadata = mock(IuOidcProviderMetadata.class, CALLS_REAL_METHODS);
 		assertTrue(metadata.isRequestUriParameterSupported());
+
+		// a discovery document written before either of these was defined says nothing
+		// about them, so both default to the reading that assumes the least: PKCE
+		// support undeclared rather than claimed, and no RFC 9207 iss to rely on. An OP
+		// that does either overrides them, as iu.oidc.provider does
+		assertNull(metadata.getCodeChallengeMethodsSupported());
+		assertFalse(metadata.isAuthorizationResponseIssParameterSupported());
 	}
 
 }

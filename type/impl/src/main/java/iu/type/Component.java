@@ -36,10 +36,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ModuleLayer.Controller;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Member;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,7 +59,6 @@ import edu.iu.UnsafeRunnable;
 import edu.iu.type.IuAttribute;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponentVersion;
-import edu.iu.type.IuProperty;
 import edu.iu.type.IuResource;
 import edu.iu.type.IuResourceReference;
 import edu.iu.type.IuType;
@@ -77,7 +78,7 @@ class Component implements IuComponent {
 	private static void indexClass(String className, ClassLoader classLoader, Kind kind, Properties properties,
 			Set<IuType<?, ?>> interfaces, Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes,
 			Map<Class<?>, List<IuType<?, ?>>> annotatedTypes, List<ComponentResource<?>> resources,
-			List<ComponentResourceReference<?, ?>> resourceReferences) {
+			Map<Class<?>, TypeTemplate<?, ?>> indexedTypes) {
 		final Class<?> loadedClass;
 		try {
 			loadedClass = classLoader.loadClass(className);
@@ -89,7 +90,14 @@ class Component implements IuComponent {
 		var module = loadedClass.getModule();
 		if (!IuObject.isPlatformName(loadedClass.getName()) //
 				&& module.isOpen(loadedClass.getPackageName(), TYPE_MODULE)) {
-			final var type = TypeFactory.resolveRawClass(loadedClass);
+			final TypeTemplate<?, ?> type;
+			try {
+				type = TypeFactory.resolveRawClass(loadedClass);
+			} catch (Throwable e) {
+				LOG.log(Level.WARNING, e, () -> "Unresolveable class " + loadedClass + " in component");
+				return;
+			}
+			indexedTypes.put(loadedClass, type);
 
 			for (final var o : IuIterable.cat((Iterable) type.fields(), (Iterable) type.properties())) {
 				final var attribute = (DeclaredAttribute<?, ?>) o;
@@ -104,19 +112,6 @@ class Component implements IuComponent {
 
 					annotatedWithType.add(attribute);
 				}
-
-				final Resource resource;
-				if (attribute instanceof IuProperty property) {
-					final var write = property.write();
-					if (write != null)
-						resource = write.annotation(Resource.class);
-					else
-						resource = null;
-				} else
-					resource = attribute.annotation(Resource.class);
-
-				if (resource != null)
-					resourceReferences.add(new ComponentResourceReference<>(attribute, resource));
 			}
 
 			var mod = loadedClass.getModifiers();
@@ -140,6 +135,92 @@ class Component implements IuComponent {
 		}
 	}
 
+	/**
+	 * Creates {@link ComponentResourceReference}s for the {@literal @}Resource
+	 * attributes of all indexed types.
+	 *
+	 * <p>
+	 * Each {@literal @}Resource field or setter method has exactly one reference
+	 * per component hierarchy, created for the most general indexed type that has
+	 * the attribute and subscribed to that type, so it applies to instances of all
+	 * of its subtypes (see {@link TypeTemplate#observe(Object)}):
+	 * </p>
+	 * <ul>
+	 * <li>An attribute declared by an indexed type, in this component or in a
+	 * {@link #parent() parent} component, is referenced by its declaring type
+	 * only. Subtypes that inherit the attribute don't create references for
+	 * it.</li>
+	 * <li>An attribute inherited from a type that isn't indexed, such as a library
+	 * superclass loaded outside the component, is referenced by each indexed type
+	 * that inherits it directly, i.e., without an indexed supertype between it and
+	 * the declaring type.</li>
+	 * </ul>
+	 * <p>
+	 * A type declared in a package that isn't open to this module is never
+	 * introspected, so its attributes are not visible to its subtypes and are not
+	 * referenced.
+	 * </p>
+	 *
+	 * @param parent             parent component, may be null
+	 * @param indexedTypes       types indexed for this component
+	 * @param resourceReferences receives resource references
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static void indexResourceReferences(Component parent, Map<Class<?>, TypeTemplate<?, ?>> indexedTypes,
+			List<ComponentResourceReference<?, ?>> resourceReferences) {
+		for (final var type : indexedTypes.values()) {
+			// inherited properties are reported by the declaring type and by subtypes
+			final Set<Member> referenced = new HashSet<>();
+			for (final var o : IuIterable.cat((Iterable) type.fields(), (Iterable) type.properties())) {
+				final var attribute = (DeclaredAttribute<?, ?>) o;
+
+				final Member member;
+				final Resource resource;
+				if (attribute instanceof PropertyFacade<?, ?> property) {
+					final var write = property.write();
+					// a public subclass of a non-public class has a bridge for each
+					// inherited public method, annotated like the method it delegates to;
+					// that method is reported by the supertype that declares it
+					if (write == null || write.annotatedElement.isBridge())
+						continue;
+					member = write.annotatedElement;
+					resource = write.annotation(Resource.class);
+				} else {
+					member = ((FieldFacade<?, ?>) attribute).annotatedElement;
+					resource = attribute.annotation(Resource.class);
+				}
+
+				if (resource != null //
+						&& referenced.add(member) //
+						&& !hasIndexedSupertype(parent, indexedTypes, type, member.getDeclaringClass()))
+					resourceReferences.add(new ComponentResourceReference(type, attribute, resource));
+			}
+		}
+	}
+
+	/**
+	 * Determines if an indexed type in the hierarchy of a type also has an
+	 * attribute.
+	 *
+	 * @param parent         parent component, may be null
+	 * @param indexedTypes   types indexed for this component
+	 * @param type           indexed type
+	 * @param declaringClass class that declares the attribute
+	 * @return true if a supertype of {@code type} is assignable to
+	 *         {@code declaringClass} and indexed by this component or a parent
+	 */
+	private static boolean hasIndexedSupertype(Component parent, Map<Class<?>, TypeTemplate<?, ?>> indexedTypes,
+			TypeTemplate<?, ?> type, Class<?> declaringClass) {
+		for (final var superType : type.hierarchy()) {
+			final var superClass = superType.erasedClass();
+			if (declaringClass.isAssignableFrom(superClass) //
+					&& (indexedTypes.containsKey(superClass) //
+							|| (parent != null && parent.isIndexed(superClass))))
+				return true;
+		}
+		return false;
+	}
+
 	private final Component parent;
 	private final ClassLoader classLoader;
 	private final ModuleLayer moduleLayer;
@@ -153,6 +234,7 @@ class Component implements IuComponent {
 	private final Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes;
 	private final List<ComponentResource<?>> resources;
 	private final List<ComponentResourceReference<?, ?>> resourceReferences;
+	private final Set<Class<?>> indexedClasses;
 
 	private final UnsafeRunnable onClose;
 
@@ -173,6 +255,7 @@ class Component implements IuComponent {
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
 		List<ComponentResourceReference<?, ?>> resourceReferences = new ArrayList<>();
+		Map<Class<?>, TypeTemplate<?, ?>> indexedTypes = new LinkedHashMap<>();
 
 		this.parent = null;
 
@@ -209,7 +292,8 @@ class Component implements IuComponent {
 						&& resourceName.indexOf('$') == -1)
 					indexClass(resourceName.substring(0, resourceName.length() - 6).replace('/', '.'), classLoader,
 							kind, properties, interfaces, annotatedAttributes, annotatedTypes, resources,
-							resourceReferences);
+							indexedTypes);
+			indexResourceReferences(null, indexedTypes, resourceReferences);
 		}));
 
 		this.interfaces = Collections.unmodifiableSet(interfaces);
@@ -221,6 +305,7 @@ class Component implements IuComponent {
 		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
 		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
+		this.indexedClasses = Collections.unmodifiableSet(indexedTypes.keySet());
 		this.onClose = null;
 	}
 
@@ -243,6 +328,7 @@ class Component implements IuComponent {
 		Map<Class<?>, List<IuAttribute<?, ?>>> annotatedAttributes = new LinkedHashMap<>();
 		List<ComponentResource<?>> resources = new ArrayList<>();
 		List<ComponentResourceReference<?, ?>> resourceReferences = new ArrayList<>();
+		Map<Class<?>, TypeTemplate<?, ?>> indexedTypes = new LinkedHashMap<>();
 
 		if (parent != null) {
 			if (parent.kind.isWeb())
@@ -277,8 +363,9 @@ class Component implements IuComponent {
 
 				for (var className : archive.nonEnclosedTypeNames())
 					indexClass(className, classLoader, archive.kind(), archive.properties(), interfaces,
-							annotatedAttributes, annotatedTypes, resources, resourceReferences);
+							annotatedAttributes, annotatedTypes, resources, indexedTypes);
 			}
+			indexResourceReferences(parent, indexedTypes, resourceReferences);
 		}));
 
 		if (parent != null)
@@ -293,12 +380,24 @@ class Component implements IuComponent {
 		this.annotatedAttributes = Collections.unmodifiableMap(annotatedAttributes);
 		this.resources = Collections.unmodifiableList(resources);
 		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
+		this.indexedClasses = Collections.unmodifiableSet(indexedTypes.keySet());
 		this.onClose = onClose;
 	}
 
 	private void checkClosed() {
 		if (closed)
 			throw new IllegalStateException("closed");
+	}
+
+	/**
+	 * Determines if a class was indexed by this component or a parent.
+	 *
+	 * @param loadedClass class
+	 * @return true if indexed
+	 */
+	private boolean isIndexed(Class<?> loadedClass) {
+		return indexedClasses.contains(loadedClass) //
+				|| (parent != null && parent.isIndexed(loadedClass));
 	}
 
 	/**

@@ -47,9 +47,7 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuText;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonPropertyNameFormat;
-import edu.iu.config.IuConfig;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebEncryption;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -60,61 +58,41 @@ import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
 
 /**
  * Immutable {@link WebToken} with JWT signing, signature verification, and
  * encryption methods.
+ *
+ * <p>
+ * Claims convert by {@link WebToken#jsonb()}.
+ * </p>
  */
 public class Jwt implements WebToken {
 	static {
 		IuObject.assertNotOpen(Jwt.class);
 	}
 
-	/** Translates {@link Instant} values as seconds since epoch */
-	static final IuJsonAdapter<Instant> NUMERIC_DATE = IuJsonAdapter.from( //
-			v -> Instant.ofEpochSecond(IuJsonAdapter.of(Long.class).fromJson(v).longValue()),
-			v -> IuJsonAdapter.of(Long.class).toJson(v.getEpochSecond()));
-
-	/**
-	 * Gets a JSON adapter for decoding JWT claims.
-	 * 
-	 * @param <T>  claim value type
-	 * @param type claim value type class
-	 * @return {@link IuJsonAdapter}
-	 */
-	@SuppressWarnings("unchecked")
-	static final <T> IuJsonAdapter<T> adapt(Type type) {
-		if (type == Instant.class)
-			return (IuJsonAdapter<T>) NUMERIC_DATE;
-		else if ((type instanceof Class) //
-				&& IuAuthorizationDetails.class.isAssignableFrom((Class<?>) type))
-			return (IuJsonAdapter<T>) IuJsonAdapter.from((Class<?>) type,
-					IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, Jwt::adapt);
-		else
-			return (IuJsonAdapter<T>) IuConfig.adaptJson(type);
-	}
-
-	/**
-	 * Gets a JSON adapter for decoding JWT claims.
-	 * 
-	 * @param <T>  claim value type
-	 * @param type claim value type class
-	 * @return {@link IuJsonAdapter}
-	 */
-	static final <T> IuJsonAdapter<T> adapt(Class<T> type) {
-		return adapt((Type) type);
-	}
-
 	/** Parsed JWT claims */
-	protected final JsonObject claims;
+	protected final IuJsonProperties claims;
 
 	/**
 	 * JSON claims constructor
-	 * 
+	 *
 	 * @param claims {@link JsonObject} of token claims
 	 */
 	Jwt(JsonObject claims) {
+		this(IuJsonProperties.of(claims, TokenJsonb.get()));
+	}
+
+	/**
+	 * Claims constructor
+	 *
+	 * @param claims token claims
+	 */
+	Jwt(IuJsonProperties claims) {
 		this.claims = claims;
 		validate();
 	}
@@ -122,25 +100,25 @@ public class Jwt implements WebToken {
 	/**
 	 * Parses and verifies a JWT encoded with {@link WebSignedPayload#compact() JWS
 	 * compact serialization}.
-	 * 
+	 *
 	 * @param jwt       {@link WebSignedPayload#compact() JWS compact serialization}
 	 * @param issuerKey Issuer public {@link WebKey}
-	 * @return {@link JsonObject} of token claims
+	 * @return {@link Jwt} of token claims
 	 */
 	static Jwt verify(String jwt, WebKey issuerKey) {
 		final var jws = WebSignedPayload.parse(jwt);
 		jws.verify(issuerKey);
-		return new Jwt(IuJson.parse(IuText.utf8(jws.getPayload())).asJsonObject());
+		return new Jwt(TokenJsonb.get().fromJson(IuText.utf8(jws.getPayload()), IuJsonProperties.class));
 	}
 
 	/**
 	 * Parses, decrypts, and verifies a JWT encoded with
 	 * {@link WebEncryption#compact() JWE compact serialization}.
-	 * 
+	 *
 	 * @param jwt        {@link WebEncryption#compact() JWE} compact serialization
 	 * @param issuerKey  Issuer public {@link WebKey key}
 	 * @param decryptKey Private {@link WebKey key} for decryption
-	 * @return {@link JsonObject} of token claims
+	 * @return {@link Jwt} of token claims
 	 */
 	static Jwt decryptAndVerify(String jwt, WebKey issuerKey, WebKey decryptKey) {
 		return verify(WebEncryption.parse(jwt).decryptText(Objects.requireNonNull(decryptKey, "missing decyptKey")),
@@ -156,7 +134,7 @@ public class Jwt implements WebToken {
 
 	/**
 	 * Performs JWT point in time validation.
-	 * 
+	 *
 	 * @see <a href=
 	 *      "https://datatracker.ietf.org/doc/html/rfc7519#section-4.1">RFC-7519
 	 *      JSON Web Token Section 4.1</a>
@@ -197,11 +175,7 @@ public class Jwt implements WebToken {
 
 	@Override
 	public Object getClaim(String name, Type type) {
-		final var value = claims.get(name);
-		if (value == null)
-			return null;
-		else
-			return adapt(type).fromJson(value);
+		return claims.get(name, type);
 	}
 
 	@Override
@@ -216,11 +190,14 @@ public class Jwt implements WebToken {
 
 	@Override
 	public Iterable<URI> getAudience() {
-		final var aud = getClaim("aud", URI[].class);
-		if (aud == null)
-			return null;
+		// a single audience may be a string, rather than an array of one
+		final var aud = getClaim("aud", JsonValue.class);
+		if (aud instanceof JsonArray)
+			return IuIterable.iter(getClaim("aud", URI[].class));
+		else if (aud instanceof JsonString)
+			return IuIterable.iter(getClaim("aud", URI.class));
 		else
-			return IuIterable.iter(aud);
+			return null;
 	}
 
 	@Override
@@ -257,15 +234,12 @@ public class Jwt implements WebToken {
 	public <T extends IuAuthorizationDetails> Iterable<T> getAuthorizationDetails(Class<T> detailInterface,
 			String type) {
 		final Queue<T> rv = new ArrayDeque<>();
-		final var authorizationDetails = claims.get("authorization_details");
-		if (authorizationDetails instanceof JsonArray) {
-			final var adapter = Jwt.adapt(detailInterface);
+		final var authorizationDetails = getClaim("authorization_details", JsonValue.class);
+		if (authorizationDetails instanceof JsonArray)
 			for (final var authorizationDetail : (JsonArray) authorizationDetails)
-				if (authorizationDetail instanceof JsonObject) {
-					if (type.equals(IuJson.get(authorizationDetail.asJsonObject(), "type")))
-						rv.offer(adapter.fromJson(authorizationDetail));
-				}
-		}
+				if (authorizationDetail instanceof JsonObject //
+						&& type.equals(IuJson.get(authorizationDetail.asJsonObject(), "type")))
+					rv.offer(TokenJsonb.get().fromJson(authorizationDetail.toString(), detailInterface));
 		return rv;
 	}
 
@@ -278,7 +252,7 @@ public class Jwt implements WebToken {
 
 	/**
 	 * Signs this {@link Jwt}
-	 * 
+	 *
 	 * @param type      Token type
 	 * @param algorithm {@link Algorithm}
 	 * @param issuerKey Issuer private {@link WebKey}
@@ -301,12 +275,12 @@ public class Jwt implements WebToken {
 				builder.cert(certChain);
 		}
 
-		return builder.sign(claims.toString()).compact();
+		return builder.sign(TokenJsonb.get().toJson(claims)).compact();
 	}
 
 	/**
 	 * Signs and encrypts this {@link Jwt}
-	 * 
+	 *
 	 * @param type             Token type
 	 * @param signAlgorithm    {@link Algorithm}
 	 * @param issuerKey        Issuer private {@link WebKey}
@@ -324,7 +298,7 @@ public class Jwt implements WebToken {
 
 	@Override
 	public int hashCode() {
-		return claims.hashCode();
+		return claims.toJsonObject().hashCode();
 	}
 
 	@Override
@@ -332,7 +306,7 @@ public class Jwt implements WebToken {
 		if (!IuObject.typeCheck(this, obj))
 			return false;
 		Jwt other = (Jwt) obj;
-		return IuObject.equals(claims, other.claims);
+		return IuObject.equals(claims.toJsonObject(), other.claims.toJsonObject());
 	}
 
 	@Override
@@ -340,7 +314,7 @@ public class Jwt implements WebToken {
 		final var writer = new StringWriter();
 		IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)) //
 				.createWriter(writer) //
-				.write(claims);
+				.write(claims.toJsonObject());
 		return writer.toString();
 	}
 

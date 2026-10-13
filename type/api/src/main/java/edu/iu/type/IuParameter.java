@@ -68,4 +68,17 @@ public interface IuParameter<T> extends IuAnnotatedElement {
 	 */
 	IuType<?, T> type();
 
+	/**
+	 * Gets the underlying parameter.
+	 *
+	 * <p>
+	 * Annotations read directly from the {@link Parameter} are not mapped from
+	 * legacy {@code javax.*} types to their {@code jakarta.*} equivalents; use
+	 * {@link #annotation(Class)} and {@link #annotations()} for that.
+	 * </p>
+	 *
+	 * @return parameter
+	 */
+	Parameter deref();
+
 }

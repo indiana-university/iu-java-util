@@ -59,12 +59,12 @@ public class ArrayAdapter<C> extends JsonArrayAdapter<C[], C> {
 	}
 
 	@Override
-	protected Iterator<C> iterator(C[] value) {
+	public Iterator<C> iterator(C[] value) {
 		return IuIterable.iter(value).iterator();
 	}
 
 	@Override
-	protected C[] collect(Iterable<C> items) {
+	public C[] collect(Iterable<C> items) {
 		return StreamSupport.stream(items.spliterator(), false).toArray(factory);
 	}
 

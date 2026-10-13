@@ -35,13 +35,10 @@ import java.net.URI;
 import java.security.cert.X509Certificate;
 
 import edu.iu.IuObject;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCertificateReference;
 import edu.iu.crypt.WebKey;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
-import jakarta.json.JsonValue;
 
 /**
  * Encapsulates JSON properties that refer to or verify an X.509 certificate
@@ -62,12 +59,12 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 	 * 
 	 * @param certRef {@link JsonObject}
 	 */
-	JsonCertificateReference(JsonValue certRef) {
-		final var jwk = certRef.asJsonObject();
-		certificateUri = IuJson.get(jwk, "x5u", IuJsonAdapter.of(URI.class));
-		certificateChain = IuJson.get(jwk, "x5c", IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT));
-		certificateThumbprint = IuJson.get(jwk, "x5t", CryptJsonAdapters.B64URL);
-		certificateSha256Thumbprint = IuJson.get(jwk, "x5t#S256", CryptJsonAdapters.B64URL);
+	JsonCertificateReference(IuJsonProperties certRef) {
+		certificateUri = certRef.get("x5u", URI.class);
+		certificateChain = certRef.get("x5c", X509Certificate[].class);
+		certificateThumbprint = certRef.get("x5t", byte[].class);
+		certificateSha256Thumbprint = certRef.get("x5t#S256", byte[].class);
+
 		verifiedCertificateChain = WebCertificateReference.verify(this);
 	}
 
@@ -109,9 +106,7 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 
 	@Override
 	public String toString() {
-		final var jwkBuilder = IuJson.object();
-		serializeTo(jwkBuilder);
-		return jwkBuilder.build().toString();
+		return CryptJsonAdapters.JSONB.toJson(this);
 	}
 
 	/**
@@ -126,18 +121,15 @@ class JsonCertificateReference<R extends JsonCertificateReference<R>> implements
 	}
 
 	/**
-	 * Adds serialized JWK attributes to a JSON object builder.
+	 * Adds serialized JWK attributes to a JSON properties builder.
 	 * 
-	 * @param jwkBuilder {@link JsonObjectBuilder}
-	 * @return jwkBuilder
+	 * @param builder {@link IuJsonProperties.Builder}
 	 */
-	JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
-		IuJson.add(jwkBuilder, "x5u", () -> certificateUri, IuJsonAdapter.of(URI.class));
-		IuJson.add(jwkBuilder, "x5c", () -> certificateChain,
-				IuJsonAdapter.of(X509Certificate[].class, CryptJsonAdapters.CERT));
-		IuJson.add(jwkBuilder, "x5t", () -> certificateThumbprint, CryptJsonAdapters.B64URL);
-		IuJson.add(jwkBuilder, "x5t#S256", () -> certificateSha256Thumbprint, CryptJsonAdapters.B64URL);
-		return jwkBuilder;
+	void append(IuJsonProperties.Builder builder) {
+		builder.put("x5u", certificateUri);
+		builder.put("x5c", certificateChain);
+		builder.put("x5t", certificateThumbprint);
+		builder.put("x5t#S256", certificateSha256Thumbprint);
 	}
 
 	/**

@@ -31,21 +31,16 @@
  */
 package iu.crypt;
 
-import edu.iu.client.IuJsonAdapter;
+import java.lang.reflect.Type;
+
 import iu.crypt.Jose.Extension;
-import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
 public class StringExtension implements Extension<String> {
 
 	@Override
-	public String fromJson(JsonValue jsonValue) {
-		return IuJsonAdapter.of(String.class).fromJson(jsonValue);
-	}
-
-	@Override
-	public JsonValue toJson(String value) {
-		return IuJsonAdapter.of(String.class).toJson(value);
+	public Type type() {
+		return String.class;
 	}
 
 }

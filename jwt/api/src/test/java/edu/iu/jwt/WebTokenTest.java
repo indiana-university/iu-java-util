@@ -40,6 +40,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import edu.iu.IdGenerator;
 import edu.iu.crypt.WebKey;
 import iu.jwt.spi.Init;
+import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 
 @SuppressWarnings("javadoc")
 @ExtendWith({ IuJwtSpiTestSupport.class })
@@ -58,6 +61,27 @@ public class WebTokenTest {
 		final var audienceKey = mock(WebKey.class);
 		WebToken.decryptAndVerify(jwt, issuerKey, audienceKey);
 		verify(Init.SPI).decryptAndVerifyJwt(jwt, issuerKey, audienceKey);
+	}
+
+	@Test
+	public void testJsonb() {
+		WebToken.jsonb();
+		verify(Init.SPI).getJsonb();
+	}
+
+	@Test
+	public void testRegister() {
+		final var adapter = mock(JsonbAdapter.class);
+		WebToken.registerAdapter(adapter);
+		verify(Init.SPI).registerAdapter(adapter);
+
+		final var serializer = mock(JsonbSerializer.class);
+		WebToken.registerSerializer(serializer);
+		verify(Init.SPI).registerSerializer(serializer);
+
+		final var deserializer = mock(JsonbDeserializer.class);
+		WebToken.registerDeserializer(deserializer);
+		verify(Init.SPI).registerDeserializer(deserializer);
 	}
 
 	@Test

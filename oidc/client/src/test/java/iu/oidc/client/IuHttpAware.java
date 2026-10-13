@@ -34,6 +34,8 @@ package iu.oidc.client;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.net.URI;
 
 import org.junit.jupiter.api.extension.AfterEachCallback;
@@ -43,7 +45,9 @@ import org.mockito.MockedStatic;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuException;
+import edu.iu.IuText;
 import edu.iu.client.IuHttp;
+import jakarta.json.JsonValue;
 
 @SuppressWarnings({ "javadoc", "exports" })
 public class IuHttpAware implements BeforeEachCallback, AfterEachCallback {
@@ -57,6 +61,17 @@ public class IuHttpAware implements BeforeEachCallback, AfterEachCallback {
 	}
 
 	static MockedStatic<IuHttp> mock;
+
+	/**
+	 * Answers a JSON document as {@link IuHttp#READ_STREAM} would, a fresh stream
+	 * each time.
+	 *
+	 * @param document JSON document
+	 * @return response body stream
+	 */
+	static InputStream stream(JsonValue document) {
+		return new ByteArrayInputStream(IuText.utf8(document.toString()));
+	}
 
 	@Override
 	public void beforeEach(ExtensionContext context) throws Exception {

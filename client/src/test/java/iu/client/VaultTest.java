@@ -34,6 +34,7 @@ package iu.client;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -55,8 +56,12 @@ import java.net.http.HttpRequest.BodyPublisher;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -79,6 +84,7 @@ import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
 import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.client.IuVaultSecret;
+import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class VaultTest extends IuHttpTestCase {
@@ -147,34 +153,77 @@ public class VaultTest extends IuHttpTestCase {
 	}
 
 	@Test
-	public void testOfPropertiesWithCache() {
+	public void testRefreshableCacheUsesHalfCacheTtl() throws InterruptedException {
 		final var key = IdGenerator.generateId();
-		final var value = IdGenerator.generateId();
+		final var initialValue = IdGenerator.generateId();
+		final var refreshedValue = IdGenerator.generateId();
 		final var secret = IdGenerator.generateId();
 		final var token = IdGenerator.generateId();
 		final var endpoint = URI.create("test:/" + IdGenerator.generateId());
+		final var cacheTtl = Duration.ofMillis(100L);
+		final var cacheConfig = Vault.cacheConfiguration(cacheTtl);
+		final var refreshStarted = new CountDownLatch(1);
+		final var completeRefresh = new CountDownLatch(1);
+		final var reads = new AtomicInteger();
 
+		assertEquals(cacheTtl.dividedBy(2L), cacheConfig.getRefreshTtl());
+		assertNull(Vault.cacheConfiguration(null).getRefreshTtl());
+
+		final var vault = new Vault(endpoint, new String[] { secret }, token, false, IuJsonAdapter::of, cacheConfig,
+				name -> {
+					final var read = reads.incrementAndGet();
+					if (read == 2) {
+						refreshStarted.countDown();
+						if (!completeRefresh.await(5L, TimeUnit.SECONDS))
+							throw new AssertionError("timed out waiting to complete refresh");
+					}
+					return vaultResponse(false, key, read == 1 ? initialValue : refreshedValue, null, null, 1)
+							.getJsonObject("data");
+				});
+		final var vaultSecret = vault.getSecret(secret);
+
+		assertKeyedValue(vaultSecret, key, initialValue, vaultSecret.get(key, String.class));
+		assertEquals(1, reads.get());
+
+		Thread.sleep(cacheTtl.dividedBy(2L).plusMillis(25L).toMillis());
+		assertKeyedValue(vaultSecret, key, initialValue, vaultSecret.get(key, String.class));
+		assertTrue(refreshStarted.await(5L, TimeUnit.SECONDS));
+		assertEquals(2, reads.get());
+
+		completeRefresh.countDown();
+		final var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5L);
+		do {
+			final var value = vaultSecret.get(key, String.class);
+			if (refreshedValue.equals(value.getValue())) {
+				assertKeyedValue(vaultSecret, key, refreshedValue, value);
+				return;
+			}
+			Thread.sleep(10L);
+		} while (System.nanoTime() < deadline);
+
+		assertEquals(refreshedValue, vaultSecret.get(key, String.class).getValue());
+	}
+
+	@Test
+	public void testOfPropertiesWithCache() {
 		final var props = new Properties();
-		props.setProperty("iu.vault.endpoint", endpoint.toString());
-		props.setProperty("iu.vault.token", token);
-		props.setProperty("iu.vault.secrets", secret);
-		props.setProperty("iu.vault.cacheTtl", "PT15S");
+		props.setProperty("iu.vault.endpoint", URI.create("test:/" + IdGenerator.generateId()).toString());
+		props.setProperty("iu.vault.token", IdGenerator.generateId());
+		props.setProperty("iu.vault.cacheTtl", "PT1S");
 
-		final var vault = Vault.of(props, IuJsonAdapter::of);
-		try (final var mockHttp = mockStatic(IuHttp.class)) {
-			final Verification readVault = () -> IuHttp.send(
-					eq(URI.create(endpoint + "/" + URLEncoder.encode(secret, StandardCharsets.UTF_8))),
-					withToken(token), eq(IuHttp.READ_JSON_OBJECT));
+		assertNotNull(Vault.of(props, IuJsonAdapter::of));
+	}
 
-			mockHttp.when(readVault).thenReturn(IuJson.object() //
-					.add("data", IuJson.object() //
-							.add("data", IuJson.object().add(key, value))) //
-					.build());
+	@Test
+	public void testApproleWithCache() {
+		final var props = new Properties();
+		props.setProperty("iu.vault.endpoint", URI.create("test:/" + IdGenerator.generateId()).toString());
+		props.setProperty("iu.vault.loginEndpoint", URI.create("test:/" + IdGenerator.generateId()).toString());
+		props.setProperty("iu.vault.roleId", IdGenerator.generateId());
+		props.setProperty("iu.vault.secretId", IdGenerator.generateId());
+		props.setProperty("iu.vault.cacheTtl", "PT1S");
 
-			assertKeyedValue(vault.getSecret(secret), key, value, vault.get(key));
-			assertKeyedValue(vault.getSecret(secret), key, value, vault.get(key));
-			mockHttp.verify(readVault);
-		}
+		assertNotNull(Vault.of(props, IuJsonAdapter::of));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -851,7 +900,15 @@ public class VaultTest extends IuHttpTestCase {
 		if (cubbyhole)
 			props.setProperty("iu.vault.cubbyhole", "true");
 
-		final var vault = Vault.of(props, IuJsonAdapter::of);
+		final var cached = ttl != null;
+		final var initialResponse = vaultResponse(cubbyhole, key, value, anotherKey, anotherValue, version);
+		final var updatedResponse = vaultResponse(cubbyhole, key, updatedValue, anotherKey, anotherValue, version + 1);
+		final Vault vault;
+		if (cached)
+			vault = new Vault(endpoint, null, token, cubbyhole, IuJsonAdapter::of,
+					Vault.cacheConfiguration(Duration.parse(ttl)), a -> initialResponse.getJsonObject("data"));
+		else
+			vault = Vault.of(props, IuJsonAdapter::of);
 		try (final var mockHttp = mockStatic(IuHttp.class); //
 				final var mockBodyPublishers = mockStatic(BodyPublishers.class)) {
 			final Verification readVault = () -> IuHttp.send(
@@ -870,38 +927,7 @@ public class VaultTest extends IuHttpTestCase {
 						return !box.post;
 					}), eq(IuHttp.READ_JSON_OBJECT));
 
-			if (cubbyhole)
-				mockHttp.when(readVault).thenReturn( //
-						IuJson.object() //
-								.add("data", IuJson.object() //
-										.add(key, value) //
-										.add(anotherKey, anotherValue)) //
-								.build(),
-						IuJson.object() //
-								.add("data", IuJson.object() //
-										.add(key, updatedValue) //
-										.add(anotherKey, anotherValue)) //
-								.build());
-			else
-				mockHttp.when(readVault).thenReturn( //
-						IuJson.object() //
-								.add("data", IuJson.object() //
-										.add("metadata", IuJson.object() //
-												.add("version", version)) //
-										.add("data", IuJson.object() //
-												.add(key, value) //
-												.add(anotherKey, anotherValue) //
-										)) //
-								.build(),
-						IuJson.object() //
-								.add("data", IuJson.object() //
-										.add("metadata", IuJson.object() //
-												.add("version", version + 1)) //
-										.add("data", IuJson.object() //
-												.add(key, updatedValue) //
-												.add(anotherKey, anotherValue) //
-										)) //
-								.build());
+			mockHttp.when(readVault).thenReturn(cached ? updatedResponse : initialResponse, updatedResponse);
 
 			final var postPayloadBuilder = IuJson.object();
 			if (cubbyhole)
@@ -955,7 +981,8 @@ public class VaultTest extends IuHttpTestCase {
 				assertNull(vs.getMetadata());
 			else
 				assertEquals(version, vs.getMetadata().getVersion());
-			mockHttp.verify(readVault);
+			if (!cached)
+				mockHttp.verify(readVault);
 
 			vs.set(key, updatedValue, String.class);
 			verify(handler).publish(argThat(a -> {
@@ -965,11 +992,26 @@ public class VaultTest extends IuHttpTestCase {
 			}));
 
 			mockHttp.verify(postVault);
-			mockHttp.verify(readVault, times(2));
+			mockHttp.verify(readVault, times(cached ? 1 : 2));
 			assertKeyedValue(vs, key, updatedValue, vs.get(key, String.class));
 			if (!cubbyhole)
 				assertEquals(version + 1, vs.getMetadata().getVersion());
 		}
+	}
+
+	private static JsonObject vaultResponse(boolean cubbyhole, String key, String value, String anotherKey,
+			String anotherValue, int version) {
+		final var data = IuJson.object().add(key, value);
+		if (anotherKey != null)
+			data.add(anotherKey, anotherValue);
+
+		if (cubbyhole)
+			return IuJson.object().add("data", data).build();
+
+		return IuJson.object().add("data", IuJson.object() //
+				.add("metadata", IuJson.object().add("version", version)) //
+				.add("data", data)) //
+				.build();
 	}
 
 	private void assertKeyedValue(IuVaultSecret vs, String key, String value, IuVaultKeyedValue<?> keyedValue) {

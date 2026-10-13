@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Proxy;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 
 @SuppressWarnings({ "javadoc" })
 public class JsonProxyTest {
@@ -111,12 +113,32 @@ public class JsonProxyTest {
 						return IuJsonAdapter.of(t);
 				}).getData());
 
-		final var data4 = IuJson.wrap(IuJson.object().add("lower_snake_foo", "little snek").build(),
-				JsonBackedInterface.class);
+		final var snake = IuJson.object().add("lower_snake_foo", "little snek").add("UPPER_SNAKE_FOO", "BIG SNEK")
+				.build();
+		final var identity = IuJson.wrap(snake, JsonBackedInterface.class);
+		assertNull(identity.getLowerSnakeFoo());
+		assertNull(identity.getUpperSnakeFoo());
+		final var data4 = IuJson.wrap(snake, JsonBackedInterface.class,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuJsonAdapter::of);
 		assertEquals("little snek", data4.getLowerSnakeFoo());
-		final var data5 = IuJson.wrap(IuJson.object().add("UPPER_SNAKE_FOO", "BIG SNEK").build(),
-				JsonBackedInterface.class);
+		assertNull(data4.getUpperSnakeFoo());
+		final var data5 = IuJson.wrap(snake, JsonBackedInterface.class,
+				IuJsonPropertyNameFormat.UPPER_CASE_WITH_UNDERSCORES, IuJsonAdapter::of);
 		assertEquals("BIG SNEK", data5.getUpperSnakeFoo());
+		assertNull(data5.getLowerSnakeFoo());
+	}
+
+	interface Acronyms {
+		String getURL();
+
+		boolean isOK();
+	}
+
+	@Test
+	public void testNamesPropertiesAsIntrospectorDoes() {
+		final var data = IuJson.wrap(IuJson.object().add("URL", "u").add("OK", true).build(), Acronyms.class);
+		assertEquals("u", data.getURL());
+		assertTrue(data.isOK());
 	}
 
 	@Test

@@ -68,6 +68,16 @@ public class IuWebUtilsTest {
 	}
 
 	@Test
+	public void testIsRootSamePathDifferentQueryOrFragment() throws URISyntaxException {
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz?q=1")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz#f")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz?q=1"), new URI("foo://bar/baz?q=2")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz?q=1"), new URI("foo://bar/baz#f")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/?q=1")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz/foo"), new URI("foo://bar/baz?q=1")));
+	}
+
+	@Test
 	public void testEmptyString() {
 		assertTrue(assertQueryString("?").isEmpty());
 	}

@@ -34,15 +34,23 @@ package iu.type;
 import java.beans.Introspector;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
@@ -152,12 +160,28 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	// Parameterized
 	private final ParameterizedElement parameterizedElement = new ParameterizedElement();
 
-	// Instance management
-	private final IuVisitor<InstanceReference<T>> instanceReferences = new IuVisitor<>();
+	private static final Logger LOG = Logger.getLogger(TypeTemplate.class.getName());
+	private static final Module TYPE_MODULE = TypeTemplate.class.getModule();
+
+	// Instance management, shared by all parameterizations of a raw type
+	private final IuVisitor<InstanceReference<T>> instanceReferences;
+
+	// Opaque to introspection, shared by all parameterizations of a raw type
+	private final boolean isNative;
 
 	private TypeTemplate(Class<T> annotatedElement, Consumer<TypeTemplate<?, ?>> preInitHook, Type type,
 			TypeTemplate<D, T> erasedType) {
 		super(annotatedElement, preInitHook, type, resolveDeclaringType(annotatedElement));
+
+		// a parameterized type's hierarchy, e.g. Base<String>, refers to a separate
+		// template from the raw Base class; subscriptions belong to the raw type
+		if (erasedType == null) {
+			instanceReferences = new IuVisitor<>();
+			isNative = isNative(annotatedElement);
+		} else {
+			instanceReferences = erasedType.instanceReferences;
+			isNative = erasedType.isNative;
+		}
 
 		if (declaringType == null || isStatic())
 			initializeDeclared(erasedType);
@@ -197,12 +221,48 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 	}
 
 	private boolean isNative() {
-		final var packageName = annotatedElement.getPackageName();
-		final var targetModule = annotatedElement.getModule();
-		final var typeImplModule = getClass().getModule();
-		return IuObject.isPlatformName(name()) //
-				|| targetModule == typeImplModule //
-				|| !targetModule.isOpen(packageName, typeImplModule);
+		return isNative;
+	}
+
+	/**
+	 * Determines if a raw class is opaque to introspection, i.e., its fields,
+	 * properties, and methods are not resolved.
+	 *
+	 * <p>
+	 * Introspection is for container deployments, which inject and intercept
+	 * non-public members, so a type is introspected only when its package is open
+	 * to this module. {@code opens} is the opt-in: a shared library module
+	 * typically exports its API without opening it, and is a compile-time
+	 * dependency rather than a runtime injection point, so its types are left out.
+	 * Platform types and this module's own types are always opaque.
+	 * </p>
+	 *
+	 * <p>
+	 * A type in a package that is exported but not open is logged at
+	 * {@link Level#FINE}, since a contract module that means to be introspected
+	 * has most likely omitted {@code opens}.
+	 * </p>
+	 *
+	 * @param rawClass raw class
+	 * @return true if opaque
+	 */
+	private static boolean isNative(Class<?> rawClass) {
+		final var packageName = rawClass.getPackageName();
+		final var targetModule = rawClass.getModule();
+		if (IuObject.isPlatformName(rawClass.getName()) //
+				|| targetModule == TYPE_MODULE)
+			return true;
+
+		if (targetModule.isOpen(packageName, TYPE_MODULE))
+			return false;
+
+		if (!rawClass.isPrimitive() //
+				&& !rawClass.isArray() //
+				&& targetModule.isExported(packageName, TYPE_MODULE))
+			LOG.fine(() -> rawClass.getName() + " is opaque to introspection; " + targetModule.getName()
+					+ " exports " + packageName + " but does not open it to " + TYPE_MODULE.getName());
+
+		return true;
 	}
 
 	private void initializeDeclared(TypeTemplate<D, T> erasedType) {
@@ -317,12 +377,19 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 	private Iterable<MethodFacade<? super T, ?>> initializeMethods() {
 		Queue<MethodFacade<? super T, ?>> rv = new ArrayDeque<>();
+		Set<List<Object>> declaredSignatures = new HashSet<>();
+		Map<List<Object>, MethodFacade<? super T, ?>> inheritedBySignature = new HashMap<>();
 
-		if (!isNative()) //
-			for (var method : annotatedElement.getDeclaredMethods()) {
-				if (method.isSynthetic())
-					continue; // skip lambdas
+		if (!isNative()) {
+			final var declaredMethods = annotatedElement.getDeclaredMethods();
+			for (var method : declaredMethods) {
+				if (method.isSynthetic()) {
+					if (method.isBridge() && isOverrideBridge(method, declaredMethods))
+						declaredSignatures.add(signature(method)); // hides inherited erased signature
+					continue; // skip lambdas and bridges
+				}
 
+				declaredSignatures.add(signature(method));
 				TypeTemplate<?, ?> returnType;
 				if (method.getReturnType() == annotatedElement)
 					returnType = this;
@@ -331,14 +398,105 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 
 				rv.offer(new MethodFacade<>(method, returnType, this));
 			}
+		}
 
 		for (var superType : hierarchy)
 			superType.template.postInit(() -> {
-				for (var inheritedMethod : superType.template.methods)
-					rv.offer(inheritedMethod);
+				for (var inheritedMethod : superType.template.methods) {
+					var method = inheritedMethod.annotatedElement;
+					var mod = method.getModifiers();
+					if (Modifier.isStatic(mod) || Modifier.isPrivate(mod)) {
+						rv.offer(inheritedMethod); // never overridden
+						continue;
+					}
+
+					// drop copies overridden by this type
+					final var signature = signature(method);
+					if (declaredSignatures.contains(signature))
+						continue;
+
+					// keep one inherited copy, resolved as Java does; supertypes
+					// may complete initialization in any order
+					final var resolved = inheritedBySignature.get(signature);
+					if (resolved == null //
+							|| isMoreSpecific(method, resolved.annotatedElement)) {
+						if (resolved != null)
+							rv.remove(resolved);
+						inheritedBySignature.put(signature, inheritedMethod);
+						rv.offer(inheritedMethod);
+					}
+				}
 			});
 
 		return rv;
+	}
+
+	/**
+	 * Determines if an inherited method takes precedence over another inherited
+	 * method with the same signature.
+	 *
+	 * <p>
+	 * Follows Java's method resolution: a method declared by a class, abstract or
+	 * not, takes precedence over a method declared by an interface; otherwise a
+	 * method declared by a subtype takes precedence over one declared by its
+	 * supertype. For example, a class that extends a base class implementing
+	 * {@code size()} and implements an interface declaring {@code size()} inherits
+	 * the base class method.
+	 * </p>
+	 *
+	 * @param candidate inherited method
+	 * @param resolved  inherited method with the same signature already resolved
+	 * @return true if {@code candidate} should replace {@code resolved}
+	 */
+	static boolean isMoreSpecific(Method candidate, Method resolved) {
+		final var candidateClass = candidate.getDeclaringClass();
+		final var resolvedClass = resolved.getDeclaringClass();
+		if (candidateClass.isInterface() != resolvedClass.isInterface())
+			return resolvedClass.isInterface();
+		else
+			return candidateClass != resolvedClass //
+					&& resolvedClass.isAssignableFrom(candidateClass);
+	}
+
+	/**
+	 * Determines if a bridge method forwards to an override declared by the same
+	 * class.
+	 *
+	 * <p>
+	 * javac emits two kinds of bridge:
+	 * </p>
+	 * <ul>
+	 * <li>A generic or covariant bridge, e.g. {@code get(Object)} forwarding to
+	 * the class's own {@code get(String)}, which overrides the inherited method
+	 * the bridge's signature matches.</li>
+	 * <li>A visibility bridge, which a public class declares for each public
+	 * method it inherits from a non-public superclass. It forwards to the
+	 * inherited method, which is not overridden.</li>
+	 * </ul>
+	 * <p>
+	 * A bridge is taken as an override bridge when the class also declares a
+	 * non-synthetic method with the same name and number of parameters. A
+	 * visibility bridge for a method that the class only overloads with the same
+	 * number of parameters is therefore treated as an override bridge, and hides
+	 * the inherited method.
+	 * </p>
+	 *
+	 * @param bridge          bridge method
+	 * @param declaredMethods all methods declared by the bridge's class
+	 * @return true if the bridge forwards to an override; false if it is a
+	 *         visibility bridge
+	 */
+	private static boolean isOverrideBridge(Method bridge, Method[] declaredMethods) {
+		for (final var method : declaredMethods)
+			if (!method.isSynthetic() //
+					&& method.getName().equals(bridge.getName()) //
+					&& method.getParameterCount() == bridge.getParameterCount())
+				return true;
+		return false;
+	}
+
+	private static List<Object> signature(Method method) {
+		return List.of(method.getName(), List.of(method.getParameterTypes()));
 	}
 
 	private void doSealHierarchy(Iterable<? extends IuType<?, ? super T>> hierarchy) {
@@ -430,13 +588,44 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 		return () -> instanceReferences.clear(instanceReference);
 	}
 
+	/**
+	 * Gets the {@link InstanceReference} subscribers of this template and of every
+	 * template in its {@link #hierarchy()}.
+	 *
+	 * <p>
+	 * A reference subscribed to a supertype, for example to resolve a
+	 * {@literal @}Resource field declared by an abstract superclass, applies to
+	 * instances of all of its subtypes.
+	 * </p>
+	 *
+	 * @param leastSpecificFirst true to order from {@link Object} to this type, as
+	 *                           in instance construction; false to order from
+	 *                           this type to {@link Object}, as in instance
+	 *                           destruction
+	 * @return subscribers
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Iterable<IuVisitor<InstanceReference<T>>> instanceReferences(boolean leastSpecificFirst) {
+		final Deque<IuVisitor<InstanceReference<T>>> instanceReferences = new ArrayDeque<>();
+		instanceReferences.add(this.instanceReferences);
+		for (final var superType : hierarchy()) {
+			final IuVisitor<InstanceReference<T>> superTypeReferences = (IuVisitor) superType.template.instanceReferences;
+			if (leastSpecificFirst)
+				instanceReferences.push(superTypeReferences);
+			else
+				instanceReferences.add(superTypeReferences);
+		}
+		return instanceReferences;
+	}
+
 	@Override
 	public void observe(T instance) {
-		instanceReferences.visit(listener -> {
-			if (listener != null)
-				listener.accept(instance);
-			return null;
-		});
+		for (final var instanceReferences : instanceReferences(true))
+			instanceReferences.visit(listener -> {
+				if (listener != null)
+					listener.accept(instance);
+				return null;
+			});
 	}
 
 	@Override
@@ -448,11 +637,12 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 				return null;
 			}));
 
-		e = IuException.suppress(e, () -> instanceReferences.visit(listener -> {
-			if (listener != null)
-				listener.clear(instance);
-			return null;
-		}));
+		for (final var instanceReferences : instanceReferences(false))
+			e = IuException.suppress(e, () -> instanceReferences.visit(listener -> {
+				if (listener != null)
+					listener.clear(instance);
+				return null;
+			}));
 
 		if (e != null)
 			throw IuException.unchecked(e);

@@ -41,6 +41,15 @@ Beyond standard JPA annotations, this module defines:
 
 `TableDefinition` and `ColumnDefinition` are immutable snapshots of live database metadata; `SqlQuery`, `SqlStatement`, and `SqlJoinType` model generated statements. `IuSqlUnchangedException` signals an update that would change nothing.
 
+## `IuEntityDao` — keyed CRUD over one entity type
+
+`IuEntityDao<K, I, T>` (in `api`) is a base class for a DAO that stores contract interface `I` as entity `T`, keyed by `K`. It adds no state to `IuDao` and it is still not an ORM: each verb is an explicit read or write, and a save is an explicit merge (read the stored row, apply the input through `Consumer<I>`, write it back), so columns the input does not carry survive an update.
+
+- Subclasses supply `dao()`, `keyClass()` and `entityClass()`. Key handling uses `IuDao.getPrimaryKeyProperties`, `getBeanKey` and `newBean`, so it follows the entity's own mapping; a composite key overrides `id`, `key` and `validate`.
+- Hooks are `afterLoad`, `beforeSave` (audit stamping belongs here), `afterSave` and `beforeDelete`. **No hook may share a name with a public verb**: an overloaded `delete(T)` hook once shadowed `delete(K)` for callers passing an entity.
+- `search` sorts in memory and populates related rows for the returned range only, so it suits registration-sized tables. `searchWhere` emits its clauses verbatim and bypasses the read cache.
+- Interface, record and `@EffectiveDated` entities are not supported.
+
 ## Database-backed tests
 
 Requires a live PostgreSQL instance. `liquibase-maven-plugin` applies `src/test/sql/db.changelog-master.sql` at `generate-test-resources`:

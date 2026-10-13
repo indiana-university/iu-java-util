@@ -206,8 +206,49 @@ public final class IuIterable {
 			}
 
 			@Override
+			public int hashCode() {
+				return IuObject.hashCode(stream(this).toArray());
+			}
+
+			@Override
+			public boolean equals(Object obj) {
+				if (!IuObject.typeCheck(this, obj))
+					return false;
+				else
+					return iterator().equals(((Iterable<?>) obj).iterator());
+			}
+
+			@Override
 			public String toString() {
 				return IuIterable.print(supplier.get(), 0);
+			}
+		};
+	}
+
+	/**
+	 * Defers lookup of a source {@link Iterable} until first used.
+	 * 
+	 * @param <T> item type
+	 * @param supplier deferred source lookup
+	 * @return {@link Iterable} wrapper that defers resolution until first use.
+	 */
+	public static <T> Iterable<T> defer(Supplier<Iterable<T>> supplier) {
+		return new Iterable<T>() {
+			private volatile Iterable<T> resolved;
+
+			@Override
+			public synchronized Iterator<T> iterator() {
+				if (resolved == null)
+					resolved = supplier.get();
+				return resolved.iterator();
+			}
+
+			@Override
+			public String toString() {
+				if (resolved == null)
+					return "[<<deferred>>]";
+				else
+					return resolved.toString();
 			}
 		};
 	}

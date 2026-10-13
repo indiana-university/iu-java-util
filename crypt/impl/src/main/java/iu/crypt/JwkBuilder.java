@@ -40,23 +40,23 @@ import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.EdECPrivateKey;
+import java.security.interfaces.EdECPublicKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.interfaces.XECPrivateKey;
+import java.security.interfaces.XECPublicKey;
 import java.security.spec.NamedParameterSpec;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
 
 import edu.iu.IdGenerator;
-import edu.iu.IuException;
 import edu.iu.IuObject;
 import edu.iu.IuText;
-import edu.iu.client.IuJsonAdapter;
 import edu.iu.crypt.EphemeralKeys;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
@@ -66,8 +66,6 @@ import edu.iu.crypt.WebKey.Builder;
 import edu.iu.crypt.WebKey.Operation;
 import edu.iu.crypt.WebKey.Type;
 import edu.iu.crypt.WebKey.Use;
-import jakarta.json.JsonObjectBuilder;
-import jakarta.json.JsonString;
 
 /**
  * JWK {@link Builder} implementation.
@@ -87,7 +85,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 	 * @param type key type
 	 * @return {@link Builder}
 	 */
-	public static Builder<?> of(Type type) {
+	static JwkBuilder of(Type type) {
 		return new JwkBuilder().type(type);
 	}
 
@@ -96,20 +94,20 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 
 	@Override
 	public JwkBuilder type(Type type) {
-		param("kty", type.kty);
+		withParam("kty", type.kty);
 		if (type.crv != null)
-			param("crv", type.crv);
+			withParam("crv", type.crv);
 		return this;
 	}
 
 	@Override
 	public JwkBuilder use(Use use) {
-		return param("use", use, CryptJsonAdapters.USE);
+		return withParam("use", use);
 	}
 
 	@Override
 	public JwkBuilder ops(Operation... ops) {
-		return param("key_ops", ops, IuJsonAdapter.of(Operation[].class, CryptJsonAdapters.OP));
+		return withParam("key_ops", ops);
 	}
 
 	@Override
@@ -208,7 +206,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 	@Override
 	public JwkBuilder key(byte[] key) {
 		type(Type.RAW);
-		return param("k", key, CryptJsonAdapters.B64URL);
+		return withParam("k", key);
 	}
 
 	@Override
@@ -216,58 +214,42 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		type(key);
 		if (key instanceof RSAPublicKey) {
 			final var rsa = (RSAPublicKey) key;
-			return param("n", rsa.getModulus(), CryptJsonAdapters.BIGINT) //
-					.param("e", rsa.getPublicExponent(), CryptJsonAdapters.BIGINT);
+			return withParam("n", rsa.getModulus()) //
+					.withParam("e", rsa.getPublicExponent());
 		} else if (key instanceof ECPublicKey) {
 			final var w = ((ECPublicKey) key).getW();
-			return param("x", w.getAffineX(), CryptJsonAdapters.BIGINT) //
-					.param("y", w.getAffineY(), CryptJsonAdapters.BIGINT);
-		} else
-			return IuException.unchecked(() -> {
-				// TODO: convert to compiled code for source level 17+
-				// EdDSA support was introduced in JDK 15
-				// XDH was experimental in JDK 11
+			return withParam("x", w.getAffineX()) //
+					.withParam("y", w.getAffineY());
+		} else if (key instanceof XECPublicKey) {
+			final var xec = (XECPublicKey) key;
+			final var spec = (NamedParameterSpec) xec.getParams();
+			final var u = xec.getU();
+			final int l;
+			final BigInteger p;
+			if (spec.getName().equals(Type.X25519.algorithmParams)) {
+				l = 32;
+				p = X25519_P;
+			} else {
+				l = 57;
+				p = X448_P;
+			}
+			return withParam("x", Arrays.copyOf(EncodingUtils.reverse(UnsignedBigInteger.bigInt(u.mod(p))), l));
+		} else {
+			final var edec = (EdECPublicKey) key;
+			final var l = edec.getParams().getName().equals(Type.ED25519.algorithmParams) ? 32 : 57;
+			final var point = edec.getPoint();
 
-				final var xkeyClass = ClassLoader.getPlatformClassLoader()
-						.loadClass("java.security.interfaces.XECPublicKey");
-				if (xkeyClass.isInstance(key)) {
-					final var spec = (NamedParameterSpec) xkeyClass.getMethod("getParams").invoke(key);
-					final var u = (BigInteger) xkeyClass.getMethod("getU").invoke(key);
-					final int l;
-					final BigInteger p;
-					if (spec.getName().equals(Type.X25519.algorithmParams)) {
-						l = 32;
-						p = X25519_P;
-					} else {
-						l = 57;
-						p = X448_P;
-					}
-					return param("x", Arrays.copyOf(EncodingUtils.reverse(UnsignedBigInteger.bigInt(u.mod(p))), l),
-							CryptJsonAdapters.B64URL);
-				} else {
-					final var keyClass = ClassLoader.getPlatformClassLoader()
-							.loadClass("java.security.interfaces.EdECPublicKey");
-					final var spec = (NamedParameterSpec) keyClass.getMethod("getParams").invoke(key);
-					final var l = spec.getName().equals(Type.ED25519.algorithmParams) ? 32 : 57;
+			// Convert from JCE EdECPoint to RFC-8032 encoded format
+			// https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.2
+			// https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/spec/EdECPoint.html
+			final var a = UnsignedBigInteger.bigInt(point.getY());
+			final var y = Arrays.copyOf(EncodingUtils.reverse(a), l);
+			if (point.isXOdd())
+				y[l - 1] |= 0x80;
 
-					final var pointClass = ClassLoader.getPlatformClassLoader()
-							.loadClass("java.security.spec.EdECPoint");
-					final var point = keyClass.getMethod("getPoint").invoke(key);
-					final var yint = (BigInteger) pointClass.getMethod("getY").invoke(point);
-					final var xodd = (boolean) pointClass.getMethod("isXOdd").invoke(point);
-
-					// Convert from JCE EdECPoint to RFC-8032 encoded format
-					// https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.2
-					// https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/security/spec/EdECPoint.html
-					final var a = UnsignedBigInteger.bigInt(yint);
-					final var y = Arrays.copyOf(EncodingUtils.reverse(a), l);
-					if (xodd)
-						y[l - 1] |= 0x80;
-
-					// convert from big- to little-endian
-					return param("x", y, CryptJsonAdapters.B64URL);
-				}
-			});
+			// convert from big- to little-endian
+			return withParam("x", y);
+		}
 	}
 
 	@Override
@@ -275,32 +257,24 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 		type(key);
 		if (key instanceof RSAPrivateKey) {
 			final var rsa = (RSAPrivateKey) key;
-			param("n", rsa.getModulus(), CryptJsonAdapters.BIGINT);
-			param("d", rsa.getPrivateExponent(), CryptJsonAdapters.BIGINT);
+			withParam("n", rsa.getModulus());
+			withParam("d", rsa.getPrivateExponent());
 			if (rsa instanceof RSAPrivateCrtKey) {
 				final var crt = (RSAPrivateCrtKey) rsa;
-				param("e", crt.getPublicExponent(), CryptJsonAdapters.BIGINT);
-				param("p", crt.getPrimeP(), CryptJsonAdapters.BIGINT);
-				param("q", crt.getPrimeQ(), CryptJsonAdapters.BIGINT);
-				param("dp", crt.getPrimeExponentP(), CryptJsonAdapters.BIGINT);
-				param("dq", crt.getPrimeExponentQ(), CryptJsonAdapters.BIGINT);
-				param("qi", crt.getCrtCoefficient(), CryptJsonAdapters.BIGINT);
+				withParam("e", crt.getPublicExponent());
+				withParam("p", crt.getPrimeP());
+				withParam("q", crt.getPrimeQ());
+				withParam("dp", crt.getPrimeExponentP());
+				withParam("dq", crt.getPrimeExponentQ());
+				withParam("qi", crt.getCrtCoefficient());
 			}
 			return this;
 		} else if (key instanceof ECPrivateKey)
-			return param("d", ((ECPrivateKey) key).getS(), CryptJsonAdapters.BIGINT);
+			return withParam("d", ((ECPrivateKey) key).getS());
 		else if (key instanceof XECPrivateKey)
-			return param("d", ((XECPrivateKey) key).getScalar().get(), CryptJsonAdapters.B64URL);
+			return withParam("d", ((XECPrivateKey) key).getScalar().get());
 		else
-			return IuException.unchecked(() -> {
-				// EdDSA support was introduced in JDK 15, not supported by JDK 11
-				// TODO: convert to compiled code for source level 17+
-				final var keyClass = ClassLoader.getPlatformClassLoader()
-						.loadClass("java.security.interfaces.EdECPrivateKey");
-				@SuppressWarnings("unchecked")
-				final var bytes = (Optional<byte[]>) keyClass.getMethod("getBytes").invoke(key);
-				return param("d", bytes.get(), CryptJsonAdapters.B64URL);
-			});
+			return withParam("d", ((EdECPrivateKey) key).getBytes().get());
 	}
 
 	@Override
@@ -323,12 +297,7 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 
 	@Override
 	public Jwk build() {
-		return new Jwk(toJson());
-	}
-
-	@Override
-	protected JsonObjectBuilder build(JsonObjectBuilder builder) {
-		return super.build(builder);
+		return new Jwk(values());
 	}
 
 	private void type(Key key) {
@@ -340,12 +309,11 @@ public class JwkBuilder extends KeyReferenceBuilder<JwkBuilder> implements Build
 	}
 
 	private Type type() {
-		return Type.from(Objects.requireNonNull((JsonString) param("kty"), "Missing key type").getString(),
-				IuObject.convert((JsonString) param("crv"), JsonString::getString));
+		return Type.from(Objects.requireNonNull(param("kty"), "Missing key type"), param("crv"));
 	}
 
 	private Algorithm alg() {
-		return CryptJsonAdapters.ALG.fromJson(Objects.requireNonNull(param("alg"), "algorithm is required"));
+		return Objects.requireNonNull(param("alg"), "algorithm is required");
 	}
 
 	private void pem(Iterator<PemEncoded> pem) {

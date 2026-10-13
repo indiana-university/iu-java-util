@@ -52,6 +52,41 @@
  * Annotations</a></li>
  * </ul>
  *
+ * <h2>Introspection scope</h2>
+ * <p>
+ * Type introspection supports container deployments, which inject resources
+ * into and intercept non-public members. A type's fields, properties, and
+ * methods are introspected only when its package is <strong>open</strong> to
+ * the implementation module. In a named module, that requires {@code opens}:
+ * </p>
+ *
+ * <pre>
+ * module com.example.api {
+ * 	exports com.example.api;
+ * 	opens com.example.api;
+ * }
+ * </pre>
+ *
+ * <p>
+ * Packages in the unnamed module and in automatic modules are open. A type in a
+ * package that is exported but not open is <em>opaque</em>: it has a
+ * {@link edu.iu.type.IuType#hierarchy() hierarchy} and annotations, but no
+ * fields, properties, or methods, and contributes none to its subtypes. This
+ * is intentional: shared library modules typically export their API without
+ * opening it, and are compile-time dependencies rather than runtime injection
+ * points, so they are left out. {@code opens} is the opt-in.
+ * </p>
+ *
+ * <p>
+ * Contract modules whose API types are meant to be introspected, for example
+ * interfaces a deployed component implements, <em>must</em> open those
+ * packages. Use an unqualified {@code opens}: the implementation module is
+ * typically loaded in a child module layer, which a qualified
+ * {@code opens ... to} cannot target. The implementation logs each type it
+ * treats as opaque only because its package is exported but not open, at
+ * {@link java.util.logging.Level#FINE FINE}.
+ * </p>
+ *
  * @see edu.iu.type.IuType
  */
 package edu.iu.type;

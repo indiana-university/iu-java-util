@@ -53,7 +53,6 @@ import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebKey;
 
 @SuppressWarnings("javadoc")
@@ -95,10 +94,8 @@ public class EncodingUtilsTest {
 	@Test
 	public void testGetSetBigInt() {
 		// covers getBytes()/setBytes()
-		final var o = IuJson.object();
 		final var bi = BigInteger.valueOf(System.currentTimeMillis());
-		IuJson.add(o, "time", () -> bi, CryptJsonAdapters.BIGINT);
-		assertEquals(bi, IuJson.get(o.build(), "time", CryptJsonAdapters.BIGINT));
+		assertEquals(bi, CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(bi), BigInteger.class));
 	}
 
 	private void assertEncodedBigInt(String e) {

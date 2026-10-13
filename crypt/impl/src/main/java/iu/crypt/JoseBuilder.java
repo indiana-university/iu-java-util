@@ -35,8 +35,6 @@ import java.net.URI;
 import java.util.Set;
 
 import edu.iu.IuObject;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.client.IuJsonBuilder;
 import edu.iu.crypt.WebCryptoHeader.Builder;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
@@ -60,10 +58,14 @@ class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> imple
 		algorithm(algorithm);
 	}
 
-	@Override
-	protected <S extends IuJsonBuilder<S>> B copy(S builder) {
-		key(((JoseBuilder<?>) builder).key());
-		return super.copy(builder);
+	/**
+	 * Copy constructor.
+	 * 
+	 * @param copy builder to copy
+	 */
+	protected JoseBuilder(JoseBuilder<?> copy) {
+		super(copy);
+		key = copy.key;
 	}
 
 	@Override
@@ -104,19 +106,14 @@ class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> imple
 
 	@Override
 	public <T> B param(Param param, T value) {
-		return super.param(param.name, value, CryptJsonAdapters.of(param));
+		return withParam(param.name, value);
 	}
 
 	@Override
 	public <T> B param(String paramName, T value) {
 		final var ext = Jose.getExtension(paramName);
 		ext.validate(value, this);
-		return super.param(paramName, value, ext);
-	}
-
-	@Override
-	protected <T> B param(String name, T value, IuJsonAdapter<T> adapter) {
-		throw new UnsupportedOperationException();
+		return withParam(paramName, value);
 	}
 
 	/**
@@ -127,4 +124,5 @@ class JoseBuilder<B extends JoseBuilder<B>> extends KeyReferenceBuilder<B> imple
 	protected Jwk key() {
 		return key;
 	}
+
 }
