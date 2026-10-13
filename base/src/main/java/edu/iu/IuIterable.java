@@ -226,6 +226,34 @@ public final class IuIterable {
 	}
 
 	/**
+	 * Defers lookup of a source {@link Iterable} until first used.
+	 * 
+	 * @param <T> item type
+	 * @param supplier deferred source lookup
+	 * @return {@link Iterable} wrapper that defers resolution until first use.
+	 */
+	public static <T> Iterable<T> defer(Supplier<Iterable<T>> supplier) {
+		return new Iterable<T>() {
+			private volatile Iterable<T> resolved;
+
+			@Override
+			public synchronized Iterator<T> iterator() {
+				if (resolved == null)
+					resolved = supplier.get();
+				return resolved.iterator();
+			}
+
+			@Override
+			public String toString() {
+				if (resolved == null)
+					return "[<<deferred>>]";
+				else
+					return resolved.toString();
+			}
+		};
+	}
+
+	/**
 	 * Returns an {@link Iterable} that supplies empty {@link Iterator}s.
 	 * 
 	 * @param <T> item type

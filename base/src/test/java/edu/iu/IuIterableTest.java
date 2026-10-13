@@ -51,6 +51,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -58,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -312,6 +318,31 @@ public class IuIterableTest {
 		assertEquals("[one, two, three]", of(Stream.of("one", "two", "three")::iterator).toString());
 		assertArrayEquals(new String[] { "one", "two", "three" },
 				IuIterable.stream(IuIterable.iter("one", "two", "three")).toArray(String[]::new));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDefer() {
+		final var s = mock(Supplier.class);
+		final var i = mock(Iterable.class);
+		when(s.get()).thenReturn(i);
+		final var d = IuIterable.defer(s);
+		verify(s, never()).get();
+		verify(i, never()).iterator();
+
+		assertEquals("[<<deferred>>]", d.toString());
+		verify(s, never()).get();
+		verify(i, never()).iterator();
+
+		d.iterator();
+		verify(s).get();
+		verify(i).iterator();
+		
+		assertEquals(i.toString(), d.toString());
+
+		d.iterator();
+		verify(s).get();
+		verify(i, times(2)).iterator();
 	}
 
 }

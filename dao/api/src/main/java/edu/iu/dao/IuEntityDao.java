@@ -33,57 +33,36 @@ package edu.iu.dao;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
+import edu.iu.GenericTypes;
 import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import jakarta.persistence.EntityNotFoundException;
 
 /**
- * Keyed CRUD over one entity type, on top of an {@link IuDao}.
+ * Abstract base class for a DAO resource with load, search, save, and delete
+ * operations.
  *
  * <p>
- * The verbs line up with a keyed collection: {@link #load(Object)} reads one
- * row, {@link #search(Map, int, Integer)} lists a range, {@link #save(Object,
- * Object)} writes one row whole, and {@link #delete(Object)} removes one. A
- * subclass names the key type {@code K}, the contract interface {@code I} its
- * callers read and write, and the entity type {@code T} that stores it; the
- * entity implements the contract and takes a contract value's own columns
- * through {@link Consumer#accept(Object)}.
- * </p>
- *
- * <p>
- * This is not an ORM, any more than {@link IuDao} is: there is no persistence
- * context, dirty checking, or lazy loading. Each verb is an explicit read or
- * write through the {@link IuDao}, and a save is an explicit merge: the row
- * already stored under the key is read, the input applied onto it, and the
- * result written back. Call the verbs inside a JTA transaction: a save reads
- * before it writes, and related rows are written by separate statements.
- * </p>
- *
- * <p>
- * Default behavior suits an entity class with a single {@code @Id} property. A
- * DAO with a composite key overrides {@link #id(Object)},
- * {@link #key(Object)} for its entity, and {@link #validate(Object)}.
- * {@link EffectiveDated} entities and interface or record entities are not
- * supported: a save would supersede rather than update, and an entity that
- * cannot be populated cannot take its input.
+ * Operations are suitable for a keyed collection: {@link #load(Object)} reads
+ * one row, {@link #search(Map, int, Integer)} lists a range,
+ * {@link #save(Object)} writes one row whole, and {@link #delete(Object)}
+ * removes one. A subclass names the key type {@code K}, the contract interface
+ * {@code I} its callers read and write, and the entity type {@code T} that
+ * stores it; the entity implements the contract and takes a contract value's
+ * own columns through {@link Consumer#accept(Object)}.
  * </p>
  *
  * <h2>Hooks</h2>
  *
  * <p>
- * Related rows are handled by overriding {@link #afterLoad}, {@link #beforeSave},
- * {@link #afterSave} and {@link #beforeDelete}; {@link #beforeSave} is also
- * where a subclass stamps audit columns. None of these shares a name with a
- * public verb: when one did, a call such as {@code childDao.delete(childEntity)}
- * resolved to the more specific hook rather than the verb, and ran the hook
- * without deleting the row.
+ * Related rows are handled by overriding {@link #afterLoad}, {@link #afterSave}
+ * and {@link #beforeDelete}; {@link #beforeSave} is where a subclass prepares
+ * an entity to be saved, i.e., stamps audit columns.
  * </p>
  *
  * <h2>Writes</h2>
@@ -91,18 +70,16 @@ import jakarta.persistence.EntityNotFoundException;
  * <p>
  * A save applies its input onto the row already stored under that key when
  * there is one, so columns the input does not carry -- when the row was
- * created, which parent it belongs to -- survive an update. A row belonging to
- * a parent is written through {@link #save(Object, Object, Consumer)}, whose
- * binding step names the parent on a new row and is expected to refuse moving
- * an existing one to a different parent.
+ * created, which parent it belongs to -- survive an update.
  * </p>
  *
  * <h2>Listing</h2>
  *
  * <p>
- * {@link #search(Map, int, Integer)} reads every matching row, orders them by
- * {@link #order()}, and populates related rows for the requested range only.
- * That suits tables of registrations, not tables that grow without bound.
+ * Search reads every matching row, orders them by {@link #order()}, and
+ * populates related rows for the requested range only. Range and order
+ * operations are suitable only for tables backed by a caching DAO with fewer
+ * than 10k rows.
  * </p>
  *
  * <h2>Access from sibling DAOs</h2>
@@ -116,14 +93,21 @@ import jakarta.persistence.EntityNotFoundException;
  *
  * @param <K> key type
  * @param <I> contract interface type
- * @param <T> entity type
+ * @param <E> entity type
  */
-public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
+public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
+
+	private final Class<K> keyClass;
+	private final Class<E> entityClass;
 
 	/**
 	 * Default constructor.
 	 */
+	@SuppressWarnings("unchecked")
 	protected IuEntityDao() {
+		final var typeArguments = GenericTypes.typeArguments(getClass(), IuEntityDao.class);
+		keyClass = (Class<K>) GenericTypes.erase(typeArguments[0]);
+		entityClass = (Class<E>) GenericTypes.erase(typeArguments[2]);
 	}
 
 	/**
@@ -134,28 +118,14 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	protected abstract IuDao dao();
 
 	/**
-	 * Gets the key class.
-	 *
-	 * @return key class
-	 */
-	protected abstract Class<K> keyClass();
-
-	/**
-	 * Gets the entity class.
-	 *
-	 * @return entity class
-	 */
-	protected abstract Class<T> entityClass();
-
-	/**
-	 * Maps a key to the entity's key properties, as {@link IuDao#loadBean(Class,
-	 * Map)} takes them.
+	 * Maps a key to the entity's key properties, as
+	 * {@link IuDao#loadBean(Class, Map)} takes them.
 	 *
 	 * @param key key, already validated
 	 * @return key properties, by entity property name
 	 */
 	protected Map<String, Object> id(K key) {
-		return Map.of(IuIterable.single(dao().getPrimaryKeyProperties(entityClass())), key);
+		return Map.of(IuIterable.single(dao().getPrimaryKeyProperties(entityClass)), key);
 	}
 
 	/**
@@ -164,8 +134,8 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @param entity entity
 	 * @return key
 	 */
-	protected K key(T entity) {
-		return keyClass().cast(IuIterable.single(dao().getBeanKey(entity).values()));
+	protected K key(E entity) {
+		return keyClass.cast(IuIterable.single(dao().getBeanKey(entity).values()));
 	}
 
 	/**
@@ -181,11 +151,9 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @return key; null if the input does not carry one
 	 */
 	protected K key(I input) {
-		final var keyClass = keyClass();
 		if (keyClass.isInstance(input))
 			return keyClass.cast(input);
 
-		final var entityClass = entityClass();
 		if (entityClass.isInstance(input))
 			return key(entityClass.cast(input));
 
@@ -199,21 +167,10 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @throws UnsupportedOperationException if not supported
 	 */
 	protected K generate() throws UnsupportedOperationException {
-		if (keyClass() == String.class)
-			return keyClass().cast(IdGenerator.generateId());
+		if (keyClass == String.class)
+			return keyClass.cast(IdGenerator.generateId());
 		else
 			throw new UnsupportedOperationException();
-	}
-
-	/**
-	 * Validates a key before passing it to the database.
-	 *
-	 * @param key key
-	 * @throws IllegalArgumentException if invalid; by default, only if missing
-	 */
-	protected void validate(K key) throws IllegalArgumentException {
-		if (key == null)
-			throw new IllegalArgumentException("missing key");
 	}
 
 	/**
@@ -222,8 +179,8 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @param key key, already validated
 	 * @return new entity
 	 */
-	protected T newEntity(K key) {
-		return dao().newBean(entityClass(), id(key));
+	protected E newEntity(K key) {
+		return dao().newBean(entityClass, id(key));
 	}
 
 	/**
@@ -233,8 +190,8 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 *         leaving results in the order the database answered them
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	protected Comparator<? super T> order() {
-		if (Comparable.class.isAssignableFrom(entityClass()))
+	protected Comparator<? super E> order() {
+		if (Comparable.class.isAssignableFrom(entityClass))
 			return (a, b) -> ((Comparable) a).compareTo(b);
 		else
 			return null;
@@ -247,34 +204,34 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @param key    key the entity was read by
 	 * @param entity entity
 	 */
-	protected void afterLoad(K key, T entity) {
+	protected void afterLoad(K key, E entity) {
 	}
 
 	/**
 	 * Prepares an entity for writing, after the input has been applied and before
-	 * the row is saved; the place to stamp audit columns.
+	 * the row is saved; i.e., the place to stamp audit columns.
 	 *
 	 * @param key    key the entity is being saved under
 	 * @param entity entity about to be saved
 	 * @param input  input the entity was saved from
 	 */
-	protected void beforeSave(K key, T entity, I input) {
+	protected void beforeSave(K key, E entity, I input) {
 	}
 
 	/**
 	 * Performs secondary writes after the row itself is saved.
 	 *
 	 * <p>
-	 * Related values are read from the input rather than from the entity: an
-	 * entity only takes its own columns from the input, so a child collection the
-	 * input carries is not on the entity.
+	 * Related values are read from the input rather than from the entity: an entity
+	 * only takes its own columns from the input, so a child collection the input
+	 * carries is not on the entity.
 	 * </p>
 	 *
 	 * @param key    key the entity was saved under
 	 * @param entity entity as saved
 	 * @param input  input the entity was saved from
 	 */
-	protected void afterSave(K key, T entity, I input) {
+	protected void afterSave(K key, E entity, I input) {
 	}
 
 	/**
@@ -283,72 +240,7 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @param key    key being deleted
 	 * @param entity entity being deleted
 	 */
-	protected void beforeDelete(K key, T entity) {
-	}
-
-	/**
-	 * Loads an entity by key.
-	 *
-	 * @param key key
-	 * @return loaded entity
-	 * @throws EntityNotFoundException if nothing is registered under the key
-	 */
-	public T load(K key) throws EntityNotFoundException {
-		return load(key, null);
-	}
-
-	/**
-	 * Loads an entity by key, binding it to context the row does not store before
-	 * its related rows are read.
-	 *
-	 * @param key  key
-	 * @param bind applied to the entity before {@link #afterLoad}; may be null
-	 * @return loaded entity
-	 * @throws EntityNotFoundException if nothing is registered under the key
-	 */
-	protected T load(K key, Consumer<T> bind) throws EntityNotFoundException {
-		validate(key);
-		final var entity = dao().loadBean(entityClass(), id(key));
-		if (bind != null)
-			bind.accept(entity);
-		afterLoad(key, entity);
-		return entity;
-	}
-
-	/**
-	 * Searches for entities.
-	 *
-	 * @param params search params, by entity property name; an {@link Iterable}
-	 *               value matches any of its elements
-	 * @return results, in {@link #order()}
-	 */
-	public Iterable<T> search(Map<String, ?> params) {
-		return search(params, 0, null);
-	}
-
-	/**
-	 * Searches for entities.
-	 *
-	 * @param params search params, by entity property name; an {@link Iterable}
-	 *               value matches any of its elements
-	 * @param from   start of range, inclusive
-	 * @param to     end of range, exclusive; null for end of list
-	 * @return results, in {@link #order()}
-	 */
-	public Iterable<T> search(Map<String, ?> params, int from, Integer to) {
-		return selectAndPopulate(dao().searchBeans(entityClass(), params), from, to, null);
-	}
-
-	/**
-	 * Searches for entities belonging to something that supplies context the rows
-	 * do not store, such as the resource root a path is resolved against.
-	 *
-	 * @param params search params, by entity property name
-	 * @param bind   applied to each result before its related rows are read
-	 * @return results, in {@link #order()}
-	 */
-	protected Iterable<T> search(Map<String, ?> params, Consumer<T> bind) {
-		return selectAndPopulate(dao().searchBeans(entityClass(), params), 0, null, bind);
+	protected void beforeDelete(K key, E entity) {
 	}
 
 	/**
@@ -367,7 +259,7 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @param args  placeholder values, in order
 	 * @return results, in {@link #order()}
 	 */
-	protected Iterable<T> searchWhere(String where, Object... args) {
+	protected Iterable<E> searchWhere(String where, Object... args) {
 		return searchWhere(IuIterable.iter(where), IuIterable.iter(args), 0, null);
 	}
 
@@ -380,167 +272,111 @@ public abstract class IuEntityDao<K, I, T extends Consumer<I>> {
 	 * @param to    end of range, exclusive; null for end of list
 	 * @return results, in {@link #order()}
 	 */
-	protected Iterable<T> searchWhere(Iterable<String> where, Iterable<?> args, int from, Integer to) {
-		return selectAndPopulate(dao().getBeanQuery(entityClass(), where, args).getResults(), from, to, null);
+	protected Iterable<E> searchWhere(Iterable<String> where, Iterable<?> args, int from, Integer to) {
+		return selectAndPopulate(dao().getBeanQuery(entityClass, where, args).getResults(), from, to);
 	}
 
 	// search() helper
-	private Iterable<T> selectAndPopulate(List<T> found, int from, Integer to, Consumer<T> bind) {
-		// a copy: the DAO may answer an unmodifiable list
-		final List<T> results = new ArrayList<>(found);
+	private Iterable<E> selectAndPopulate(List<E> found, int from, Integer to) {
 		final var order = order();
-		if (order != null)
+		final List<E> results;
+		if (order == null)
+			results = found;
+		else {
+			results = new ArrayList<>(found);
 			results.sort(order);
-
-		from = Integer.max(0, Integer.min(from, results.size()));
-		final List<T> range;
-		if (to != null)
-			range = results.subList(from, Integer.max(from, Integer.min(to, results.size())));
-		else
-			range = results.subList(from, results.size());
-
-		// populate related rows on range only
-		for (final var entity : range) {
-			if (bind != null)
-				bind.accept(entity);
-			afterLoad(key(entity), entity);
 		}
 
-		return range;
+		final List<E> range;
+		if (from == 0 && to == null)
+			range = results;
+		else {
+			final var size = results.size();
+			range = results.subList( //
+					Integer.max(0, Integer.min(from, size)), //
+					Integer.max(from, Integer.min(size, Objects.requireNonNullElse(to, size))) //
+			);
+		}
+
+		for (final var entity : range)
+			afterLoad(key(entity), entity);
+
+		return range::iterator;
 	}
 
 	/**
-	 * Saves an entity with a generated key.
+	 * Loads an entity by key.
+	 *
+	 * @param key key
+	 * @return loaded entity
+	 * @throws EntityNotFoundException if nothing is registered under the key
+	 */
+	public E load(K key) throws EntityNotFoundException {
+		final var entity = dao().loadBean(entityClass, id(key));
+		afterLoad(key, entity);
+		return entity;
+	}
+
+	/**
+	 * Searches for entities.
+	 *
+	 * @param params search params, by entity property name; an {@link Iterable}
+	 *               value matches any of its elements
+	 * @return results, in {@link #order()}
+	 */
+	public Iterable<E> search(Map<String, ?> params) {
+		return search(params, 0, null);
+	}
+
+	/**
+	 * Searches for entities.
+	 *
+	 * @param params search params, by entity property name; an {@link Iterable}
+	 *               value matches any of its elements
+	 * @param from   start of range, inclusive
+	 * @param to     end of range, exclusive; null for end of list
+	 * @return results, in {@link #order()}
+	 */
+	public Iterable<E> search(Map<String, ?> params, int from, Integer to) {
+		return selectAndPopulate(dao().searchBeans(entityClass, params), from, to);
+	}
+
+	/**
+	 * Saves an entity.
 	 *
 	 * @param input input properties
-	 * @return saved entity, with generated key populated
+	 * @return key under which the input was saved; generated if the input didn't
+	 *         carry a key
 	 */
-	public T create(I input) {
-		return save(generate(), input);
-	}
+	public K save(I input) throws IllegalArgumentException {
+		final var key = Objects.requireNonNullElseGet(key(input), this::generate);
 
-	/**
-	 * Saves an entity whose key the input carries.
-	 *
-	 * @param input input properties, must carry a key
-	 * @return saved entity
-	 * @throws IllegalArgumentException if the input carries no key
-	 */
-	public T save(I input) throws IllegalArgumentException {
-		final var key = key(input);
-		if (key == null)
-			throw new IllegalArgumentException("missing key");
-		return save(key, input);
-	}
-
-	/**
-	 * Saves an entity with a known key.
-	 *
-	 * @param key   key, must be valid and non-null
-	 * @param input input properties
-	 * @return saved entity
-	 */
-	public T save(K key, I input) {
-		return save(key, input, null);
-	}
-
-	/**
-	 * Saves an entity with a known key, binding it to what it belongs to.
-	 *
-	 * @param key   key, must be valid and non-null
-	 * @param input input properties
-	 * @param bind  applied to the entity before the input is, so a new row names
-	 *              its parent; expected to refuse an existing row that names a
-	 *              different one. May be null.
-	 * @return saved entity
-	 */
-	protected T save(K key, I input, Consumer<T> bind) {
-		if (input == null)
-			throw new IllegalArgumentException("missing input");
-		validate(key);
-
-		var entity = find(key);
-		if (entity == null)
+		E entity;
+		try {
+			entity = load(key);
+		} catch (EntityNotFoundException e) {
 			entity = newEntity(key);
+		}
 
-		if (bind != null)
-			bind.accept(entity);
 		entity.accept(input);
 		beforeSave(key, entity, input);
-
 		dao().saveBean(entity);
 		afterSave(key, entity, input);
-		return load(key, bind);
-	}
 
-	/**
-	 * Saves related input, generating a key for input that carries none.
-	 *
-	 * @param input input properties
-	 * @param bind  see {@link #save(Object, Object, Consumer)}
-	 * @return key the input was saved under
-	 */
-	protected K saveOrCreate(I input, Consumer<T> bind) {
-		var key = key(input);
-		if (key == null)
-			key = generate();
-		save(key, input, bind);
 		return key;
 	}
 
 	/**
 	 * Deletes an entity.
 	 *
-	 * <p>
-	 * Deleting a key nothing is registered under does nothing.
-	 * </p>
-	 *
 	 * @param key key
 	 */
 	public void delete(K key) {
-		validate(key);
-		final var entity = find(key);
-		if (entity != null) {
+		try {
+			final var entity = dao().loadBean(entityClass, id(key));
 			beforeDelete(key, entity);
 			dao().deleteBean(entity);
-		}
-	}
-
-	/**
-	 * Replaces a set of related rows with those an input names.
-	 *
-	 * <p>
-	 * A null {@code desired} leaves the related rows alone, which is what an input
-	 * that does not carry them means. An empty one removes them all.
-	 * </p>
-	 *
-	 * @param <C>     related input type
-	 * @param <R>     related key type
-	 * @param desired related input the rows should now match; may be null
-	 * @param current keys of the related rows as they stand
-	 * @param save    saves one related input, answering the key it was saved
-	 *                under
-	 * @param remove  removes the related row with a key no longer named
-	 */
-	protected static <C, R> void replace(Iterable<? extends C> desired, Iterable<R> current, Function<C, R> save,
-			Consumer<R> remove) {
-		if (desired == null)
-			return;
-
-		final Set<R> stale = new LinkedHashSet<>();
-		current.forEach(stale::add);
-
-		for (final C related : desired)
-			stale.remove(save.apply(related));
-
-		stale.forEach(remove);
-	}
-
-	private T find(K key) {
-		try {
-			return dao().loadBean(entityClass(), id(key));
 		} catch (EntityNotFoundException e) {
-			return null;
 		}
 	}
 

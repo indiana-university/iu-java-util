@@ -221,8 +221,8 @@ final class DaoCopy {
 		try {
 			return type.getMethod("clone");
 		} catch (NoSuchMethodException e) {
-			// Cloneable without a public clone() cannot be asked to copy itself; the
-			// field-by-field copy below produces the same shallow copy anyway
+			// Cloneable without a public clone() cannot be asked to copy itself;
+			// field-by-field copy produces the same shallow copy anyway
 			return null;
 		}
 	}

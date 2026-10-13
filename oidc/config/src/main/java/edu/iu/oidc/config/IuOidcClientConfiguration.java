@@ -74,20 +74,6 @@ public interface IuOidcClientConfiguration {
 	boolean isEnabled();
 
 	/**
-	 * Gets the identity roles that entitle an end user to administer this client's
-	 * own registration.
-	 *
-	 * <p>
-	 * These govern who may change what this registration describes, not what the
-	 * client may do once registered; a request through the client is governed by
-	 * the endpoint it names. Holding any one of them is enough.
-	 * </p>
-	 *
-	 * @return identity role names; {@code null} or empty to admit no one
-	 */
-	Iterable<String> getAdminRoles();
-
-	/**
 	 * Gets the algorithm a UserInfo response to this client is signed with.
 	 *
 	 * <p>

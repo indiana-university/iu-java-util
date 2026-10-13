@@ -31,490 +31,291 @@
  */
 package edu.iu.dao;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.TreeMap;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import jakarta.persistence.EntityNotFoundException;
 
-/**
- * Exercises {@link IuEntityDao} over an in-memory stand-in for {@link IuDao}
- * that behaves like a table: a read answers a copy of what was written, and a
- * search answers an unmodifiable list.
- */
-@SuppressWarnings("javadoc")
+@SuppressWarnings("unchecked")
 public class IuEntityDaoTest {
 
-	/** What callers read and write. */
-	interface Thing {
-		String getName();
-
-		default Iterable<String> getTags() {
-			return null;
-		}
-	}
-
-	/** Stores a {@link Thing}, and remembers what it belongs to and when it was first written. */
-	static class ThingEntity implements Thing, Consumer<Thing>, Comparable<ThingEntity> {
-		String id;
-		String parent;
-		String name;
-		Integer created;
-		String boundTo;
-
-		@Override
-		public String getName() {
-			return name;
-		}
-
-		void bind(String parent) {
-			if (this.parent != null && !this.parent.equals(parent))
-				throw new IllegalArgumentException("belongs to a different parent");
-			this.parent = parent;
-		}
-
-		@Override
-		public void accept(Thing value) {
-			name = value.getName();
-		}
-
-		@Override
-		public int compareTo(ThingEntity o) {
-			return name.compareTo(o.name);
-		}
-
-		ThingEntity copy() {
-			final var copy = new ThingEntity();
-			copy.id = id;
-			copy.parent = parent;
-			copy.name = name;
-			copy.created = created;
-			return copy;
-		}
-	}
-
-	/** An entity with no natural order. */
-	static class PlainEntity implements Consumer<Thing> {
-		@Override
-		public void accept(Thing value) {
-		}
-	}
-
-	/** Entity type used to test input-key discovery with an {@link Object} contract. */
-	static class KeyEntity implements Consumer<Object> {
-		@Override
-		public void accept(Object value) {
-		}
-	}
-
-	static Thing thing(String name) {
-		return () -> name;
-	}
-
-	static Thing thing(String name, String... tags) {
-		return new Thing() {
-			@Override
-			public String getName() {
-				return name;
-			}
-
-			@Override
-			public Iterable<String> getTags() {
-				return IuIterable.iter(tags);
-			}
-		};
-	}
-
-	/** The table: rows by ID, in the order they were first written. */
-	private Map<String, ThingEntity> table;
 	private IuDao dao;
-	private List<String> afterLoad;
-	private List<String> removed;
-	private int clock;
 
-	class ThingDao extends IuEntityDao<String, Thing, ThingEntity> {
+	private class EntityDao<K, I, E extends Consumer<I>> extends IuEntityDao<K, I, E> {
 		@Override
 		protected IuDao dao() {
 			return dao;
 		}
-
-		@Override
-		protected Class<String> keyClass() {
-			return String.class;
-		}
-
-		@Override
-		protected Class<ThingEntity> entityClass() {
-			return ThingEntity.class;
-		}
-
-		@Override
-		protected void afterLoad(String key, ThingEntity entity) {
-			afterLoad.add(key);
-		}
-
-		@Override
-		protected void beforeSave(String key, ThingEntity entity, Thing input) {
-			if (entity.created == null)
-				entity.created = ++clock;
-		}
-
-		@Override
-		protected void afterSave(String key, ThingEntity entity, Thing input) {
-			replace(input.getTags(), IuIterable.iter("old", "kept"), tag -> tag, removed::add);
-		}
-
-		@Override
-		protected void beforeDelete(String key, ThingEntity entity) {
-			removed.add("children of " + key);
-		}
-
-		ThingEntity save(String parent, String id, Thing input) {
-			return save(id, input, entity -> entity.bind(parent));
-		}
-
-		String saveOrCreate(String parent, Thing input) {
-			return saveOrCreate(input, entity -> entity.bind(parent));
-		}
-
-		Iterable<ThingEntity> searchBound(String parent) {
-			return search(Map.of("parent", parent), entity -> entity.boundTo = parent);
-		}
-
-		Iterable<ThingEntity> named(String name) {
-			return searchWhere("a.name = ?", name);
-		}
-
-		ThingEntity loadBound(String id, String context) {
-			return load(id, entity -> entity.boundTo = context);
-		}
 	}
 
-	/** A DAO that retains the no-op lifecycle hooks supplied by the base class. */
-	class DefaultThingDao extends IuEntityDao<String, Thing, ThingEntity> {
-		@Override
-		protected IuDao dao() {
-			return dao;
-		}
+	private class StringConsumerDao extends EntityDao<String, Object, Consumer<Object>> {
+	};
 
-		@Override
-		protected Class<String> keyClass() {
-			return String.class;
-		}
-
-		@Override
-		protected Class<ThingEntity> entityClass() {
-			return ThingEntity.class;
-		}
-	}
-
-	/** Exposes input-key discovery for its contract-neutral base implementation. */
-	class KeyInputDao extends IuEntityDao<String, Object, KeyEntity> {
-		@Override
-		protected IuDao dao() {
-			return dao;
-		}
-
-		@Override
-		protected Class<String> keyClass() {
-			return String.class;
-		}
-
-		@Override
-		protected Class<KeyEntity> entityClass() {
-			return KeyEntity.class;
-		}
-
-		String keyFrom(Object input) {
-			return key(input);
-		}
-	}
-
+	private class ObjectConsumerDao extends EntityDao<Object, Object, Consumer<Object>> {
+	};
 
 	@BeforeEach
-	void setUp() {
-		table = new TreeMap<>();
-		afterLoad = new ArrayList<>();
-		removed = new ArrayList<>();
-
+	void setup() {
 		dao = mock(IuDao.class);
-		when(dao.getPrimaryKeyProperties(any())).thenReturn(List.of("id"));
-		when(dao.getBeanKey(any())).thenAnswer(a -> Map.of("id", ((ThingEntity) a.getArgument(0)).id));
-		when(dao.newBean(any(), anyMap())).thenAnswer(a -> {
-			final var entity = new ThingEntity();
-			entity.id = (String) ((Map<?, ?>) a.getArgument(1)).get("id");
-			return entity;
-		});
-		when(dao.loadBean(any(), anyMap())).thenAnswer(a -> {
-			final var row = table.get(((Map<?, ?>) a.getArgument(1)).get("id"));
-			if (row == null)
-				throw new EntityNotFoundException();
-			return row.copy();
-		});
-		when(dao.searchBeans(any(), anyMap())).thenAnswer(a -> {
-			final var params = (Map<?, ?>) a.getArgument(1);
-			final List<ThingEntity> found = new ArrayList<>();
-			for (final var row : table.values())
-				if (!params.containsKey("parent") || Objects.equals(params.get("parent"), row.parent))
-					found.add(row.copy());
-			return Collections.unmodifiableList(found);
-		});
-		when(dao.getBeanQuery(any(), any(Iterable.class), any(Iterable.class))).thenAnswer(a -> {
-			final var name = IuIterable.single((Iterable<?>) a.getArgument(2));
-			final List<ThingEntity> found = new ArrayList<>();
-			for (final var row : table.values())
-				if (row.name.equals(name))
-					found.add(row.copy());
-			@SuppressWarnings("unchecked")
-			final SqlQuery<ThingEntity> query = mock(SqlQuery.class);
-			when(query.getResults()).thenReturn(Collections.unmodifiableList(found));
-			return query;
-		});
-		org.mockito.Mockito.doAnswer(a -> {
-			final ThingEntity entity = a.getArgument(0);
-			table.put(entity.id, entity.copy());
-			return null;
-		}).when(dao).saveBean(any());
-		org.mockito.Mockito.doAnswer(a -> {
-			final ThingEntity entity = a.getArgument(0);
-			if (table.remove(entity.id) == null)
-				throw new EntityNotFoundException();
-			return null;
-		}).when(dao).deleteBean(any());
 	}
 
 	@Test
-	void testKeepsColumnsTheInputDoesNotCarryAcrossAnUpdate() {
-		final var things = new ThingDao();
-		final var created = things.save("parent-a", "t1", thing("first"));
-		assertEquals(1, created.created);
-		assertEquals("parent-a", created.parent);
-
-		final var updated = things.save("t1", thing("renamed"));
-		assertEquals("renamed", updated.name);
-		assertEquals(1, updated.created);
-		assertEquals("parent-a", updated.parent);
-		assertEquals(List.of("t1", "t1"), afterLoad);
+	void testId() {
+		final var id = IdGenerator.generateId();
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		final var edao = new StringConsumerDao();
+		assertEquals(Map.of(prop, id), edao.id(id));
 	}
 
 	@Test
-	void testRefusesToMoveARowToAnotherParent() {
-		final var things = new ThingDao();
-		things.save("parent-a", "t1", thing("first"));
-
-		assertThrows(IllegalArgumentException.class, () -> things.save("parent-b", "t1", thing("moved")));
-		assertEquals("parent-a", table.get("t1").parent);
+	void testKeyFromEntity() {
+		final var entity = mock(Consumer.class);
+		final var id = IdGenerator.generateId();
+		when(dao.getBeanKey(entity)).thenReturn(Map.of(IdGenerator.generateId(), id));
+		final var edao = new StringConsumerDao();
+		assertEquals(id, edao.key(entity));
+		assertEquals(id, edao.key((Object) entity));
 	}
 
 	@Test
-	void testGeneratesAKeyForInputThatCarriesNone() {
-		final var things = new ThingDao();
-		final var created = things.create(thing("generated"));
-		assertNotNull(created.id);
-		assertEquals(32, created.id.length());
-
-		final var id = things.saveOrCreate("parent-a", thing("child"));
-		assertEquals("parent-a", table.get(id).parent);
-
-		// read back, the entity carries its key, so saving it updates in place
-		assertEquals(id, things.saveOrCreate("parent-a", things.load(id)));
-		assertEquals(2, table.size());
+	void testKeyFromKey() {
+		final var id = IdGenerator.generateId();
+		final var edao = new StringConsumerDao();
+		assertEquals(id, edao.key(id));
 	}
 
 	@Test
-	void testRefusesInputWithoutAKey() {
-		final var things = new ThingDao();
-		assertThrows(IllegalArgumentException.class, () -> things.save(thing("keyless")));
-		assertThrows(IllegalArgumentException.class, () -> things.save("t1", (Thing) null));
-		assertThrows(IllegalArgumentException.class, () -> things.load(null));
-		assertThrows(IllegalArgumentException.class, () -> things.delete(null));
+	void testKeyFromInput() {
+		final var edao = new StringConsumerDao();
+		assertNull(edao.key(new Object()));
 	}
 
 	@Test
-	void testSavesAnEntityReadBackUnderItsOwnKey() {
-		final var things = new ThingDao();
-		things.save("t1", thing("first"));
-
-		final var loaded = things.load("t1");
-		loaded.name = "edited";
-		assertEquals("edited", things.save(loaded).name);
+	void testGenerateString() {
+		final var edao = new StringConsumerDao();
+		assertDoesNotThrow(() -> IdGenerator.verifyId(edao.generate(), 0L));
 	}
 
 	@Test
-	void testLoadsWithContextTheRowDoesNotStore() {
-		final var things = new ThingDao();
-		things.save("t1", thing("first"));
-
-		assertEquals("request", things.loadBound("t1", "request").boundTo);
-		assertThrows(EntityNotFoundException.class, () -> things.load("missing"));
+	void testGenerateUnsupported() {
+		final var edao = new ObjectConsumerDao();
+		assertThrows(UnsupportedOperationException.class, edao::generate);
 	}
 
 	@Test
-	void testReplacesRelatedRowsWithWhatTheInputNames() {
-		final var things = new ThingDao();
-
-		things.save("t1", thing("untagged"));
-		assertEquals(List.of(), removed);
-
-		things.save("t1", thing("tagged", "kept", "new"));
-		assertEquals(List.of("old"), removed);
-
-		removed.clear();
-		things.save("t1", thing("cleared", new String[0]));
-		assertEquals(List.of("old", "kept"), removed);
+	void testNewEntity() {
+		final var id = IdGenerator.generateId();
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		final var edao = spy(new StringConsumerDao());
+		edao.newEntity(id);
+		verify(dao).newBean(Consumer.class, Map.of(prop, id));
 	}
 
 	@Test
-	void testDeletesARowAfterItsRelatedRows() {
-		final var things = new ThingDao();
-		things.save("t1", thing("first"));
+	void testNoOrder() {
+		final var edao = spy(new StringConsumerDao());
+		assertNull(edao.order());
+	}
 
-		things.delete("t1");
-		assertTrue(table.isEmpty());
-		assertEquals(List.of("children of t1"), removed);
+	interface NaturallyOrdered extends Consumer<Object>, Comparable<NaturallyOrdered> {
+	}
 
-		// nothing registered: nothing happens, and no hook runs
-		things.delete("t1");
-		assertEquals(List.of("children of t1"), removed);
+	class NaturallyOrderedDao extends EntityDao<String, Object, NaturallyOrdered> {
 	}
 
 	@Test
-	void testListsARangeInOrderPopulatingOnlyThatRange() {
-		final var things = new ThingDao();
-		things.save("p", "t1", thing("charlie"));
-		things.save("p", "t2", thing("alpha"));
-		things.save("p", "t3", thing("bravo"));
-		things.save("q", "t4", thing("delta"));
-		afterLoad.clear();
-
-		assertEquals(List.of("alpha", "bravo", "charlie"),
-				IuIterable.stream(things.search(Map.of("parent", "p"))).map(ThingEntity::getName).toList());
-
-		afterLoad.clear();
-		assertEquals(List.of("bravo"),
-				IuIterable.stream(things.search(Map.of("parent", "p"), 1, 2)).map(ThingEntity::getName).toList());
-		assertEquals(List.of("t3"), afterLoad);
-
-		assertEquals(List.of("bravo", "charlie", "delta"),
-				IuIterable.stream(things.search(Map.of(), 1, null)).map(ThingEntity::getName).toList());
-		assertFalse(things.search(Map.of(), 9, null).iterator().hasNext());
-		assertFalse(things.search(Map.of(), 2, 1).iterator().hasNext());
-		assertEquals(4, IuIterable.stream(things.search(Map.of(), -1, 99)).count());
+	void testNaturalOrder() {
+		final var edao = new NaturallyOrderedDao();
+		final var order = edao.order();
+		final var a = mock(NaturallyOrdered.class);
+		final var b = mock(NaturallyOrdered.class);
+		order.compare(a, b);
+		verify(a).compareTo(b);
 	}
 
 	@Test
-	void testBindsEachResultBeforeItsRelatedRowsAreRead() {
-		final var things = new ThingDao();
-		things.save("p", "t1", thing("first"));
-
-		assertEquals("p", IuIterable.single(things.searchBound("p")).boundTo);
+	void testLoad() {
+		final var id = IdGenerator.generateId();
+		final var prop = IdGenerator.generateId();
+		final var entity = mock(Consumer.class);
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
+		final var edao = spy(new StringConsumerDao());
+		assertEquals(entity, edao.load(id));
+		verify(edao).afterLoad(id, entity);
 	}
 
 	@Test
-	void testSearchesByCriteria() {
-		final var things = new ThingDao();
-		things.save("t1", thing("first"));
-		things.save("t2", thing("second"));
-
-		assertEquals("t2", IuIterable.single(things.named("second")).id);
+	void testSearchByParams() {
+		final var key = IdGenerator.generateId();
+		final var prop = IdGenerator.generateId();
+		final var params = Map.of(prop, key);
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Consumer.class);
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.searchBeans(Consumer.class, params)).thenReturn(List.of(entity));
+		when(dao.getBeanKey(entity)).thenReturn(Map.of(IdGenerator.generateId(), id));
+		final var edao = spy(new StringConsumerDao());
+		assertEquals(entity, edao.search(params).iterator().next());
+		verify(edao).afterLoad(id, entity);
 	}
 
 	@Test
-	void testLeavesResultsInTheOrderTheDatabaseAnsweredWithoutAnOrder() {
-		final var things = new ThingDao() {
+	void testSearchByWhere() {
+		class A implements Consumer<Object>, Comparable<A> {
+			String id;
+			int i;
+
 			@Override
-			protected java.util.Comparator<? super ThingEntity> order() {
-				return null;
-			}
-		};
-		things.save("t2", thing("alpha"));
-		things.save("t1", thing("bravo"));
-
-		assertEquals(List.of("t1", "t2"), IuIterable.stream(things.search(Map.of())).map(e -> e.id).toList());
-	}
-
-	@Test
-	void testOrdersNaturallyOnlyAComparableEntity() {
-		final var plain = new IuEntityDao<String, Thing, PlainEntity>() {
-			@Override
-			protected IuDao dao() {
-				return dao;
+			public int compareTo(A o) {
+				return -Integer.compare(i, o.i);
 			}
 
 			@Override
-			protected Class<String> keyClass() {
-				return String.class;
-			}
+			public void accept(Object t) {
 
-			@Override
-			protected Class<PlainEntity> entityClass() {
-				return PlainEntity.class;
 			}
-		};
-		assertNull(plain.order());
-		assertNotNull(new ThingDao().order());
+		}
+		class ADao extends EntityDao<String, Object, A>{}
+
+		final List<A> results = new ArrayList<>();
+		for (var i = 0; i < 10; i++) {
+			final var a = new A();
+			a.id = IdGenerator.generateId();
+			a.i = i;
+			results.add(a);
+			when(dao.getBeanKey(a)).thenReturn(Map.of(IdGenerator.generateId(), a.id));
+		}
+
+		final var where = IdGenerator.generateId();
+		final var query = mock(SqlQuery.class);
+		when(query.getResults()).thenReturn(results);
+		when(dao.getBeanQuery(A.class, IuIterable.iter(where), IuIterable.iter())).thenReturn(query);
+		when(dao.getPrimaryKeyProperties(A.class)).thenReturn(IuIterable.iter("i"));
+
+		final var edao = spy(new ADao());
+		final var search = edao.searchWhere(where).iterator();
+		for (var i = 0; i < 10; i++) {
+			final var a = search.next();
+			assertEquals(9 - i, a.i);
+			assertEquals(a, results.get(a.i));
+			verify(edao).afterLoad(a.id, a);
+		}
+
+		reset(edao);
+		final var range = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), 2, 7).iterator();
+		for (var i = 0; i < 5; i++) {
+			final var a = range.next();
+			assertEquals(7 - i, a.i);
+			assertEquals(a, results.get(a.i));
+			verify(edao).afterLoad(a.id, a);
+		}
+		assertFalse(range.hasNext());
+		for (final var a : results)
+			if (a.i < 3 || a.i > 7)
+				verify(edao, never()).afterLoad(a.id, a);
+
+		reset(edao);
+		final var range2 = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), 0, 3).iterator();
+		for (var i = 0; i < 3; i++) {
+			final var a = range2.next();
+			assertEquals(9 - i, a.i);
+			assertEquals(a, results.get(a.i));
+			verify(edao).afterLoad(a.id, a);
+		}
+		assertFalse(range2.hasNext());
+		for (final var a : results)
+			if (a.i < 7)
+				verify(edao, never()).afterLoad(a.id, a);
 	}
 
 	@Test
-	void testGeneratesOnlyStringKeys() {
-		final var longs = new IuEntityDao<Long, Thing, ThingEntity>() {
-			@Override
-			protected IuDao dao() {
-				return dao;
-			}
+	void testSaveCreate() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
 
-			@Override
-			protected Class<Long> keyClass() {
-				return Long.class;
-			}
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Consumer.class);
+		when(dao.newBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
 
-			@Override
-			protected Class<ThingEntity> entityClass() {
-				return ThingEntity.class;
-			}
-		};
-		assertThrows(UnsupportedOperationException.class, () -> longs.create(thing("x")));
-		assertNull(longs.key(thing("x")));
-		org.mockito.Mockito.doReturn(Map.of("id", 7L)).when(dao).getBeanKey(any());
-		assertEquals(7L, longs.key(new ThingEntity()));
-		assertEquals(Map.of("id", 7L), longs.id(7L));
+		final var input = new Object();
+		final var edao = spy(new StringConsumerDao());
+		when(edao.key(input)).thenReturn(id);
+
+		when(edao.load(id)).thenThrow(EntityNotFoundException.class);
+		assertEquals(id, edao.save(input));
+		verify(entity).accept(input);
+		verify(edao).beforeSave(id, entity, input);
+		verify(dao).saveBean(entity);
+		verify(edao).afterSave(id, entity, input);
 	}
 
 	@Test
-	void testRecognizesKeysSuppliedDirectlyAsInput() {
-		final var keys = new KeyInputDao();
-		org.mockito.Mockito.doReturn(Map.of("id", "t2")).when(dao).getBeanKey(any());
-		assertEquals("t1", keys.keyFrom("t1"));
-		assertEquals("t2", keys.keyFrom(new KeyEntity()));
-		assertNull(keys.keyFrom(thing("not an entity")));
+	void testSaveUpdate() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Consumer.class);
+		final var input = new Object();
+		final var edao = spy(new StringConsumerDao());
+		when(edao.key(input)).thenReturn(id);
+
+		when(edao.load(id)).thenReturn(entity);
+		assertEquals(id, edao.save(input));
+		verify(entity).accept(input);
+		verify(edao).beforeSave(id, entity, input);
+		verify(dao).saveBean(entity);
+		verify(edao).afterSave(id, entity, input);
 	}
 
 	@Test
-	void testDefaultLifecycleHooksAreNoOps() {
-		final var things = new DefaultThingDao();
-		things.save("t1", thing("first"));
-		assertEquals("first", things.load("t1").name);
-		things.delete("t1");
-		assertTrue(table.isEmpty());
+	void testDelete() {
+		final var id = IdGenerator.generateId();
+		final var prop = IdGenerator.generateId();
+		final var entity = mock(Consumer.class);
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
+		final var edao = spy(new StringConsumerDao());
+		edao.delete(id);
+		verify(edao, never()).afterLoad(id, entity);
+		verify(edao).beforeDelete(id, entity);
+		verify(dao).deleteBean(entity);
+	}
+
+	@Test
+	void testDeleteNoop() {
+		final var id = IdGenerator.generateId();
+		final var prop = IdGenerator.generateId();
+		final var entity = mock(Consumer.class);
+		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
+		final var edao = spy(new StringConsumerDao());
+		edao.delete(id);
+		verify(edao, never()).afterLoad(id, entity);
+		verify(edao, never()).beforeDelete(id, entity);
+		verify(dao, never()).deleteBean(entity);
 	}
 
 }
