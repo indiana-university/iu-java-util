@@ -67,7 +67,6 @@ public class IuDaoTest {
 	 * Runs {@code test} with {@link ServiceLoader#load(Class, ClassLoader)} stubbed
 	 * to find the supplied providers.
 	 */
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private static void withProviders(List<IuDaoSpi> providers, Runnable test) {
 		final var serviceLoader = mock(ServiceLoader.class);
 		when(serviceLoader.findFirst()).thenReturn(providers.stream().findFirst().map(Optional::of).orElse(Optional.empty()));

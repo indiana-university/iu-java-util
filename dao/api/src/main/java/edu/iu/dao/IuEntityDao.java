@@ -201,21 +201,18 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
 	 * Performs secondary lookups and populates related values on an entity just
 	 * read.
 	 *
-	 * @param key    key the entity was read by
 	 * @param entity entity
 	 */
-	protected void afterLoad(K key, E entity) {
+	protected void afterLoad(E entity) {
 	}
 
 	/**
 	 * Prepares an entity for writing, after the input has been applied and before
 	 * the row is saved; i.e., the place to stamp audit columns.
 	 *
-	 * @param key    key the entity is being saved under
 	 * @param entity entity about to be saved
-	 * @param input  input the entity was saved from
 	 */
-	protected void beforeSave(K key, E entity, I input) {
+	protected void beforeSave(E entity) {
 	}
 
 	/**
@@ -227,20 +224,17 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
 	 * carries is not on the entity.
 	 * </p>
 	 *
-	 * @param key    key the entity was saved under
 	 * @param entity entity as saved
-	 * @param input  input the entity was saved from
 	 */
-	protected void afterSave(K key, E entity, I input) {
+	protected void afterSave(E entity) {
 	}
 
 	/**
 	 * Performs secondary deletes before the row itself is deleted.
 	 *
-	 * @param key    key being deleted
 	 * @param entity entity being deleted
 	 */
-	protected void beforeDelete(K key, E entity) {
+	protected void beforeDelete(E entity) {
 	}
 
 	/**
@@ -299,7 +293,7 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
 		}
 
 		for (final var entity : range)
-			afterLoad(key(entity), entity);
+			afterLoad(entity);
 
 		return range::iterator;
 	}
@@ -313,7 +307,7 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
 	 */
 	public E load(K key) throws EntityNotFoundException {
 		final var entity = dao().loadBean(entityClass, id(key));
-		afterLoad(key, entity);
+		afterLoad(entity);
 		return entity;
 	}
 
@@ -353,15 +347,15 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
 
 		E entity;
 		try {
-			entity = load(key);
+			entity = dao().loadBean(entityClass, id(key));
 		} catch (EntityNotFoundException e) {
 			entity = newEntity(key);
 		}
 
 		entity.accept(input);
-		beforeSave(key, entity, input);
+		beforeSave(entity);
 		dao().saveBean(entity);
-		afterSave(key, entity, input);
+		afterSave(entity);
 
 		return key;
 	}
@@ -374,7 +368,7 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I>> {
 	public void delete(K key) {
 		try {
 			final var entity = dao().loadBean(entityClass, id(key));
-			beforeDelete(key, entity);
+			beforeDelete(entity);
 			dao().deleteBean(entity);
 		} catch (EntityNotFoundException e) {
 		}

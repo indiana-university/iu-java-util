@@ -31,15 +31,19 @@
  */
 package edu.iu;
 
+import java.lang.reflect.Array;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Spliterator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -228,19 +232,23 @@ public final class IuIterable {
 	/**
 	 * Defers lookup of a source {@link Iterable} until first used.
 	 * 
-	 * @param <T> item type
+	 * @param <T>      item type
 	 * @param supplier deferred source lookup
 	 * @return {@link Iterable} wrapper that defers resolution until first use.
 	 */
 	public static <T> Iterable<T> defer(Supplier<Iterable<T>> supplier) {
 		return new Iterable<T>() {
 			private volatile Iterable<T> resolved;
-
-			@Override
-			public synchronized Iterator<T> iterator() {
+			
+			private synchronized Iterable<T> resolve() {
 				if (resolved == null)
 					resolved = supplier.get();
-				return resolved.iterator();
+				return resolved;
+			}
+
+			@Override
+			public Iterator<T> iterator() {
+				return resolve().iterator();
 			}
 
 			@Override
@@ -420,6 +428,36 @@ public final class IuIterable {
 					return a[i++];
 				}
 			});
+	}
+
+	/**
+	 * Captures iterable elements to an array with the same number of elements.
+	 * 
+	 * @param <T>           component type
+	 * @param values        iterable values
+	 * @param componentType component class
+	 * @return array of iterable values; null if values are null
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T> T[] array(Iterable<? extends T> values, Class<T> componentType) {
+		return array(values, size -> (T[]) Array.newInstance(componentType, size));
+	}
+
+	/**
+	 * Captures iterable elements to an array with the same number of elements.
+	 * 
+	 * @param <T>       component type
+	 * @param values    iterable values
+	 * @param generator array factory
+	 * @return array of iterable values; null if values are null
+	 */
+	public static <T> T[] array(Iterable<? extends T> values, IntFunction<T[]> generator) {
+		if (values == null)
+			return null;
+
+		final Queue<T> queue = new ArrayDeque<>();
+		values.forEach(queue::offer);
+		return queue.toArray(generator);
 	}
 
 	/**

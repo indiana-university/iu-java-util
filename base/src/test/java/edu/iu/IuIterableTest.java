@@ -261,6 +261,13 @@ public class IuIterableTest {
 	}
 
 	@Test
+	public void testArray() {
+		assertNull(IuIterable.array(null, (Class<?>) null));
+		final var a = new String[] { "one", "two","three"};
+		assertArrayEquals(a, IuIterable.array(IuIterable.iter(a), String.class));
+	}
+	
+	@Test
 	public void testMap() {
 		var map = new LinkedHashMap<>();
 		map.put("one", 1);

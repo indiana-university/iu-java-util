@@ -163,7 +163,7 @@ public class IuEntityDaoTest {
 		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
 		final var edao = spy(new StringConsumerDao());
 		assertEquals(entity, edao.load(id));
-		verify(edao).afterLoad(id, entity);
+		verify(edao).afterLoad(entity);
 	}
 
 	@Test
@@ -178,7 +178,7 @@ public class IuEntityDaoTest {
 		when(dao.getBeanKey(entity)).thenReturn(Map.of(IdGenerator.generateId(), id));
 		final var edao = spy(new StringConsumerDao());
 		assertEquals(entity, edao.search(params).iterator().next());
-		verify(edao).afterLoad(id, entity);
+		verify(edao).afterLoad(entity);
 	}
 
 	@Test
@@ -220,7 +220,7 @@ public class IuEntityDaoTest {
 			final var a = search.next();
 			assertEquals(9 - i, a.i);
 			assertEquals(a, results.get(a.i));
-			verify(edao).afterLoad(a.id, a);
+			verify(edao).afterLoad(a);
 		}
 
 		reset(edao);
@@ -229,12 +229,12 @@ public class IuEntityDaoTest {
 			final var a = range.next();
 			assertEquals(7 - i, a.i);
 			assertEquals(a, results.get(a.i));
-			verify(edao).afterLoad(a.id, a);
+			verify(edao).afterLoad(a);
 		}
 		assertFalse(range.hasNext());
 		for (final var a : results)
 			if (a.i < 3 || a.i > 7)
-				verify(edao, never()).afterLoad(a.id, a);
+				verify(edao, never()).afterLoad(a);
 
 		reset(edao);
 		final var range2 = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), 0, 3).iterator();
@@ -242,12 +242,12 @@ public class IuEntityDaoTest {
 			final var a = range2.next();
 			assertEquals(9 - i, a.i);
 			assertEquals(a, results.get(a.i));
-			verify(edao).afterLoad(a.id, a);
+			verify(edao).afterLoad(a);
 		}
 		assertFalse(range2.hasNext());
 		for (final var a : results)
 			if (a.i < 7)
-				verify(edao, never()).afterLoad(a.id, a);
+				verify(edao, never()).afterLoad(a);
 	}
 
 	@Test
@@ -263,12 +263,13 @@ public class IuEntityDaoTest {
 		final var edao = spy(new StringConsumerDao());
 		when(edao.key(input)).thenReturn(id);
 
-		when(edao.load(id)).thenThrow(EntityNotFoundException.class);
+		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
 		assertEquals(id, edao.save(input));
+		verify(edao, never()).afterLoad(entity);
 		verify(entity).accept(input);
-		verify(edao).beforeSave(id, entity, input);
+		verify(edao).beforeSave(entity);
 		verify(dao).saveBean(entity);
-		verify(edao).afterSave(id, entity, input);
+		verify(edao).afterSave(entity);
 	}
 
 	@Test
@@ -282,12 +283,13 @@ public class IuEntityDaoTest {
 		final var edao = spy(new StringConsumerDao());
 		when(edao.key(input)).thenReturn(id);
 
-		when(edao.load(id)).thenReturn(entity);
+		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
 		assertEquals(id, edao.save(input));
+		verify(edao, never()).afterLoad(entity);
 		verify(entity).accept(input);
-		verify(edao).beforeSave(id, entity, input);
+		verify(edao).beforeSave(entity);
 		verify(dao).saveBean(entity);
-		verify(edao).afterSave(id, entity, input);
+		verify(edao).afterSave(entity);
 	}
 
 	@Test
@@ -299,8 +301,8 @@ public class IuEntityDaoTest {
 		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
 		final var edao = spy(new StringConsumerDao());
 		edao.delete(id);
-		verify(edao, never()).afterLoad(id, entity);
-		verify(edao).beforeDelete(id, entity);
+		verify(edao, never()).afterLoad(entity);
+		verify(edao).beforeDelete(entity);
 		verify(dao).deleteBean(entity);
 	}
 
@@ -313,8 +315,8 @@ public class IuEntityDaoTest {
 		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
 		final var edao = spy(new StringConsumerDao());
 		edao.delete(id);
-		verify(edao, never()).afterLoad(id, entity);
-		verify(edao, never()).beforeDelete(id, entity);
+		verify(edao, never()).afterLoad(entity);
+		verify(edao, never()).beforeDelete(entity);
 		verify(dao, never()).deleteBean(entity);
 	}
 

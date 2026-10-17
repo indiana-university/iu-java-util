@@ -208,13 +208,14 @@ public final class Vault implements IuVault {
 
 	/**
 	 * Unit test constructor.
-	 * @param endpoint Vault URI
-	 * @param secretNames secret names
-	 * @param token static token
-	 * @param cubbyhole cubbyhole flag
+	 * 
+	 * @param endpoint     Vault URI
+	 * @param secretNames  secret names
+	 * @param token        static token
+	 * @param cubbyhole    cubbyhole flag
 	 * @param valueAdapter JSON adapter function
-	 * @param cacheConfig cache configuration
-	 * @param cacheReader cache function
+	 * @param cacheConfig  cache configuration
+	 * @param cacheReader  cache function
 	 */
 	Vault(URI endpoint, String[] secretNames, String token, boolean cubbyhole,
 			Function<Type, IuJsonAdapter<?>> valueAdapter, IuRefreshableCacheConfiguration cacheConfig,
@@ -237,7 +238,8 @@ public final class Vault implements IuVault {
 	}
 
 	private Vault(URI endpoint, String[] secretNames, URI loginEndpoint, AuthType authType, String roleInfo,
-			String tokenInfo, boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter, IuRefreshableCacheConfiguration cacheConfig) {
+			String tokenInfo, boolean cubbyhole, Function<Type, IuJsonAdapter<?>> valueAdapter,
+			IuRefreshableCacheConfiguration cacheConfig) {
 		this.endpoint = endpoint;
 		this.secretNames = secretNames;
 		this.token = null;
@@ -255,8 +257,7 @@ public final class Vault implements IuVault {
 		if (cacheConfig.getRefreshTtl() == null)
 			return null;
 
-		return new IuRefreshableCache<>(() -> cacheConfig, cacheReader,
-				a -> IuRefreshableCacheHint.useDefaults());
+		return new IuRefreshableCache<>(() -> cacheConfig, cacheReader, a -> IuRefreshableCacheHint.useDefaults());
 	}
 
 	@Override
@@ -291,8 +292,7 @@ public final class Vault implements IuVault {
 				return secret.get(name, type);
 		}
 
-		throw new IllegalArgumentException(
-				name + " not found in Vault using " + endpoint + '/' + Arrays.toString(secretNames));
+		return null;
 	}
 
 	@Override
@@ -382,6 +382,11 @@ public final class Vault implements IuVault {
 		});
 
 		return new VaultSecret(secret, dataUri, dataSupplier, metadataSupplier, mergePatchConsumer, valueAdapter);
+	}
+
+	@Override
+	public String toString() {
+		return "Vault [endpoint=" + endpoint + ", secretNames=" + Arrays.toString(secretNames) + "]";
 	}
 
 	/**

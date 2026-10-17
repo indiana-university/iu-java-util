@@ -211,7 +211,9 @@ public class VaultTest extends IuHttpTestCase {
 		props.setProperty("iu.vault.token", IdGenerator.generateId());
 		props.setProperty("iu.vault.cacheTtl", "PT1S");
 
-		assertNotNull(Vault.of(props, IuJsonAdapter::of));
+		final var vault = Vault.of(props, IuJsonAdapter::of);
+		assertNotNull(vault);
+		assertDoesNotThrow(vault::toString);
 	}
 
 	@Test
@@ -598,8 +600,7 @@ public class VaultTest extends IuHttpTestCase {
 							.add("data", IuJson.object())) //
 					.build());
 
-			final var e = assertThrows(IllegalArgumentException.class, () -> vault.get(key));
-			assertEquals(key + " not found in Vault using " + endpoint + "/[" + secret + "]", e.getMessage());
+			assertNull(vault.get(key));
 		}
 	}
 

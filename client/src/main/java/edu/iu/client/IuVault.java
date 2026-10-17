@@ -176,7 +176,7 @@ public interface IuVault {
 	 * Reads a property value.
 	 * 
 	 * @param name property name
-	 * @return property value
+	 * @return property value; null if not found
 	 */
 	IuVaultKeyedValue<String> get(String name);
 
@@ -186,7 +186,7 @@ public interface IuVault {
 	 * @param <T>  value type
 	 * @param name property name
 	 * @param type value class
-	 * @return property value
+	 * @return property value; null if not found
 	 */
 	<T> IuVaultKeyedValue<T> get(String name, Class<T> type);
 
