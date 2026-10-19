@@ -433,6 +433,44 @@ public final class IuWebUtils {
 	}
 
 	/**
+	 * Determines if a resource {@link URI} is a valid resource URI.
+	 *
+	 * <p>
+	 * A valid resource URI is absolute, is not opaque, has an authority, carries no
+	 * query string, and has no potentially suspicious path elements. This method
+	 * MAY be used to validate an incoming or configured resource URI.
+	 * </p>
+	 * 
+	 * <p>
+	 * A URI is considered potentially suspicious if it contains a semicolon
+	 * {@code ;}, escaped slash {@code %2F} (or {@code %2f}), or an encoded
+	 * {@code .} or {@code ..} path segment.
+	 * </p>
+	 *
+	 * @param resourceUri resource {@link URI}
+	 * @return true if the resource URI is valid; else false
+	 */
+	public static boolean isValidResourceUri(URI resourceUri) {
+		if (!resourceUri.isAbsolute() //
+				|| resourceUri.isOpaque() //
+				|| resourceUri.getRawAuthority() == null //
+				|| resourceUri.getRawQuery() != null)
+			return false;
+
+		final var resourcePath = resourceUri.getRawPath();
+		if (resourcePath.indexOf(';') != -1 //
+				|| resourcePath.contains("%2f") //
+				|| resourcePath.contains("%2F"))
+			return false;
+
+		final var normalizedResource = resourceUri.normalize().getPath();
+		return !(normalizedResource.contains("/./") //
+				|| normalizedResource.endsWith("/.") //
+				|| normalizedResource.contains("/../") //
+				|| normalizedResource.endsWith("/.."));
+	}
+
+	/**
 	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
 	 *
 	 * <p>
@@ -441,12 +479,12 @@ public final class IuWebUtils {
 	 * </p>
 	 * 
 	 * <p>
-	 * A potentially suspicious resource URI is rejected even if it would otherwise
-	 * be relative to a valid root. A URI is considered potentially suspicious if it
-	 * contains a semicolon {@code ;}, escaped slash {@code %2F}, or an encoded
-	 * {@code .} or {@code ..} path segment.
+	 * Path comparison is handled by first normalizing both URIs, then comparing
+	 * decoded paths with {@link String#startsWith(String)} and ensuring the break
+	 * is on a slash character if normalized root's path length is different from
+	 * that of the normalized resource URI path.
 	 * </p>
-	 *
+	 * 
 	 * @param rootUri     root {@link URI}
 	 * @param resourceUri resource {@link URI}
 	 * @return true if the root encompasses the resource; else false
@@ -458,25 +496,12 @@ public final class IuWebUtils {
 				|| rootUri.getRawQuery() != null)
 			return false;
 
-		final var resourcePath = resourceUri.getRawPath();
-		if (resourcePath.indexOf(';') != -1 //
-				|| resourcePath.contains("%2f") //
-				|| resourcePath.contains("%2F"))
-			return false;
-
 		final var scheme = rootUri.getScheme();
 		if (!IuObject.equals(scheme, resourceUri.getScheme()))
 			return false;
 
 		final var authority = rootUri.getAuthority();
 		if (!IuObject.equals(authority, resourceUri.getAuthority()))
-			return false;
-
-		final var normalizedResource = resourceUri.normalize().getPath();
-		if (normalizedResource.contains("/./") //
-				|| normalizedResource.endsWith("/.") //
-				|| normalizedResource.contains("/../") //
-				|| normalizedResource.endsWith("/.."))
 			return false;
 
 		if (rootUri.equals(resourceUri))
@@ -487,6 +512,7 @@ public final class IuWebUtils {
 
 		final var normalizedRoot = rootUri.normalize().getPath();
 		final var normalizedRootLength = normalizedRoot.length();
+		final var normalizedResource = resourceUri.normalize().getPath();
 		return normalizedResource.startsWith(normalizedRoot) //
 				&& (normalizedResource.length() == normalizedRootLength
 						|| normalizedRoot.charAt(normalizedRootLength - 1) == '/' //

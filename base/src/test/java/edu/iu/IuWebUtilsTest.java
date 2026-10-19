@@ -54,6 +54,26 @@ import org.junit.jupiter.api.Test;
 public class IuWebUtilsTest {
 
 	@Test
+	public void testIsValidResourceUri() throws URISyntaxException {
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo/bar")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo:/bar")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo:bar")));
+		assertTrue(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/foo?baz")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz;/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz%2ffoo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz%2Ffoo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E%2E")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E%2E/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e%2e")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e%2e/foo")));
+	}
+
+	@Test
 	public void testIsRoot() throws URISyntaxException {
 		assertFalse(IuWebUtils.isRootOf(new URI("bar"), new URI("bar")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo:bar"), new URI("foo:bar")));
@@ -67,15 +87,8 @@ public class IuWebUtilsTest {
 		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
 		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar"), new URI("foo://bar/baz")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz;/foo"), new URI("foo://bar/baz;/foo")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz%2ffoo"), new URI("foo://bar/baz%2ffoo")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz%2Ffoo"), new URI("foo://bar/baz%2Ffoo")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E/foo")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E%2E/foo")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E%2E")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar"), new URI("foo://bar/baz/%2E%2E")));
-		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar"), new URI("foo://bar/baz/%2E%2E/foo")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E%2Ffoo")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E%2E")));
 	}
 
 	@Test
