@@ -36,8 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -60,17 +65,23 @@ public class IuEntityDaoTest {
 
 	private IuDao dao;
 
-	private class EntityDao<K, I, E extends Consumer<I>> extends IuEntityDao<K, I, E> {
+	interface Entity extends Consumer<Object>, MergeableEntity<Object> {
+	}
+
+	private class EntityDao<K, I, E extends Consumer<I> & MergeableEntity<I>> extends IuEntityDao<K, I, E> {
 		@Override
 		protected IuDao dao() {
 			return dao;
 		}
 	}
 
-	private class StringConsumerDao extends EntityDao<String, Object, Consumer<Object>> {
+	private class StringConsumerDao extends EntityDao<String, Object, Entity> {
 	};
 
-	private class ObjectConsumerDao extends EntityDao<Object, Object, Consumer<Object>> {
+	private class IntegerConsumerDao extends EntityDao<Integer, Object, Entity> {
+	};
+
+	private class ObjectConsumerDao extends EntityDao<Object, Object, Entity> {
 	};
 
 	@BeforeEach
@@ -82,14 +93,14 @@ public class IuEntityDaoTest {
 	void testId() {
 		final var id = IdGenerator.generateId();
 		final var prop = IdGenerator.generateId();
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
 		final var edao = new StringConsumerDao();
 		assertEquals(Map.of(prop, id), edao.id(id));
 	}
 
 	@Test
 	void testKeyFromEntity() {
-		final var entity = mock(Consumer.class);
+		final var entity = mock(Entity.class);
 		final var id = IdGenerator.generateId();
 		when(dao.getBeanKey(entity)).thenReturn(Map.of(IdGenerator.generateId(), id));
 		final var edao = new StringConsumerDao();
@@ -126,10 +137,10 @@ public class IuEntityDaoTest {
 	void testNewEntity() {
 		final var id = IdGenerator.generateId();
 		final var prop = IdGenerator.generateId();
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
 		final var edao = spy(new StringConsumerDao());
 		edao.newEntity(id);
-		verify(dao).newBean(Consumer.class, Map.of(prop, id));
+		verify(dao).newBean(Entity.class, Map.of(prop, id));
 	}
 
 	@Test
@@ -138,7 +149,7 @@ public class IuEntityDaoTest {
 		assertNull(edao.order());
 	}
 
-	interface NaturallyOrdered extends Consumer<Object>, Comparable<NaturallyOrdered> {
+	interface NaturallyOrdered extends Entity, Comparable<NaturallyOrdered> {
 	}
 
 	class NaturallyOrderedDao extends EntityDao<String, Object, NaturallyOrdered> {
@@ -158,9 +169,9 @@ public class IuEntityDaoTest {
 	void testLoad() {
 		final var id = IdGenerator.generateId();
 		final var prop = IdGenerator.generateId();
-		final var entity = mock(Consumer.class);
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
-		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
+		final var entity = mock(Entity.class);
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
 		final var edao = spy(new StringConsumerDao());
 		assertEquals(entity, edao.load(id));
 		verify(edao).afterLoad(entity);
@@ -172,18 +183,20 @@ public class IuEntityDaoTest {
 		final var prop = IdGenerator.generateId();
 		final var params = Map.of(prop, key);
 		final var id = IdGenerator.generateId();
-		final var entity = mock(Consumer.class);
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
-		when(dao.searchBeans(Consumer.class, params)).thenReturn(List.of(entity));
+		final var entity = mock(Entity.class);
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.searchBeans(Entity.class, params)).thenReturn(List.of(entity));
 		when(dao.getBeanKey(entity)).thenReturn(Map.of(IdGenerator.generateId(), id));
 		final var edao = spy(new StringConsumerDao());
-		assertEquals(entity, edao.search(params).iterator().next());
+		final List<Entity> found = edao.search(params);
+		assertEquals(List.of(entity), found);
+		assertThrows(UnsupportedOperationException.class, () -> found.add(entity));
 		verify(edao).afterLoad(entity);
 	}
 
 	@Test
 	void testSearchByWhere() {
-		class A implements Consumer<Object>, Comparable<A> {
+		class A implements Entity, Comparable<A> {
 			String id;
 			int i;
 
@@ -194,6 +207,11 @@ public class IuEntityDaoTest {
 
 			@Override
 			public void accept(Object t) {
+
+			}
+
+			@Override
+			public void merge(Object input) {
 
 			}
 		}
@@ -215,7 +233,10 @@ public class IuEntityDaoTest {
 		when(dao.getPrimaryKeyProperties(A.class)).thenReturn(IuIterable.iter("i"));
 
 		final var edao = spy(new ADao());
-		final var search = edao.searchWhere(where).iterator();
+		final List<A> all = edao.searchWhere(where);
+		assertEquals(10, all.size());
+		assertThrows(UnsupportedOperationException.class, () -> all.clear());
+		final var search = all.iterator();
 		for (var i = 0; i < 10; i++) {
 			final var a = search.next();
 			assertEquals(9 - i, a.i);
@@ -253,21 +274,21 @@ public class IuEntityDaoTest {
 	@Test
 	void testSaveCreate() {
 		final var prop = IdGenerator.generateId();
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
 
 		final var id = IdGenerator.generateId();
-		final var entity = mock(Consumer.class);
-		when(dao.newBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
+		final var entity = mock(Entity.class);
+		when(dao.newBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
 
 		final var input = new Object();
 		final var edao = spy(new StringConsumerDao());
 		when(edao.key(input)).thenReturn(id);
 
-		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
-		assertEquals(id, edao.save(input));
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
+		assertEquals(id, edao.save(null, input));
 		verify(edao, never()).afterLoad(entity);
 		verify(entity).accept(input);
-		verify(edao).beforeSave(entity);
+		verify(edao).afterInput(entity);
 		verify(dao).saveBean(entity);
 		verify(edao).afterSave(entity);
 	}
@@ -275,48 +296,272 @@ public class IuEntityDaoTest {
 	@Test
 	void testSaveUpdate() {
 		final var prop = IdGenerator.generateId();
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
 
 		final var id = IdGenerator.generateId();
-		final var entity = mock(Consumer.class);
+		final var entity = mock(Entity.class);
 		final var input = new Object();
 		final var edao = spy(new StringConsumerDao());
 		when(edao.key(input)).thenReturn(id);
 
-		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
-		assertEquals(id, edao.save(input));
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+		assertEquals(id, edao.save(null, input));
 		verify(edao, never()).afterLoad(entity);
 		verify(entity).accept(input);
-		verify(edao).beforeSave(entity);
+		verify(edao).afterInput(entity);
 		verify(dao).saveBean(entity);
 		verify(edao).afterSave(entity);
+	}
+
+	@Test
+	void testSaveUpdateInvokesBeforeInput() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		final var input = new Object();
+		final var edao = spy(new StringConsumerDao());
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		assertEquals(id, edao.save(id, input));
+		final var order = inOrder(edao, entity, dao);
+		order.verify(edao).beforeInput(entity);
+		order.verify(entity).accept(input);
+		order.verify(edao).afterInput(entity);
+		order.verify(dao).saveBean(entity);
+		order.verify(edao).afterSave(entity);
+		verify(edao, never()).afterMerge(entity);
+		verify(entity, never()).merge(input);
+	}
+
+	@Test
+	void testSaveCreateSkipsBeforeInput() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		final var input = new Object();
+		when(dao.newBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
+
+		final var edao = spy(new StringConsumerDao());
+		assertEquals(id, edao.save(id, input));
+		verify(edao, never()).beforeInput(entity);
+		verify(entity).accept(input);
+		verify(edao).afterInput(entity);
+		verify(dao).saveBean(entity);
+		verify(edao).afterSave(entity);
+	}
+
+	@Test
+	void testBeforeInputNotFoundPropagatesFromSave() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		final var input = new Object();
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		final var edao = spy(new StringConsumerDao());
+		doThrow(EntityNotFoundException.class).when(edao).beforeInput(entity);
+		assertThrows(EntityNotFoundException.class, () -> edao.save(id, input));
+		verify(dao, never()).newBean(any(), any());
+		verify(dao, never()).saveBean(any());
+	}
+
+	@Test
+	void testSaveExplicitKeyOnly() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		final var input = new Object();
+		when(dao.newBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
+
+		final var edao = new StringConsumerDao();
+		assertEquals(id, edao.save(id, input));
+		verify(dao).saveBean(entity);
+	}
+
+	@Test
+	void testSaveMatchingKeys() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		final var edao = new StringConsumerDao();
+		assertEquals(id, edao.save(id, id));
+		verify(dao).saveBean(entity);
+	}
+
+	@Test
+	void testSaveMismatchedKeys() {
+		final var edao = new StringConsumerDao();
+		final var id = IdGenerator.generateId();
+		final var other = IdGenerator.generateId();
+		assertThrows(IllegalArgumentException.class, () -> edao.save(id, other));
+		verify(dao, never()).saveBean(any());
+	}
+
+	@Test
+	void testSaveGeneratesKey() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+		final var entity = mock(Entity.class);
+		when(dao.newBean(eq(Entity.class), any())).thenReturn(entity);
+		when(dao.loadBean(eq(Entity.class), any())).thenThrow(EntityNotFoundException.class);
+
+		final var edao = new StringConsumerDao();
+		final var key = edao.save(null, new Object());
+		assertDoesNotThrow(() -> IdGenerator.verifyId(key, 0L));
+		verify(dao).newBean(Entity.class, Map.of(prop, key));
+		verify(dao).saveBean(entity);
+	}
+
+	@Test
+	void testSaveUnsupportedGenerate() {
+		final var edao = new IntegerConsumerDao();
+		assertThrows(UnsupportedOperationException.class, () -> edao.save(null, new Object()));
+		verify(dao, never()).saveBean(any());
+	}
+
+	@Test
+	void testMerge() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		final var input = new Object();
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		final var edao = spy(new StringConsumerDao());
+		assertEquals(id, edao.merge(id, input));
+
+		final var order = inOrder(edao, entity, dao);
+		order.verify(edao).afterLoad(entity);
+		order.verify(edao).beforeInput(entity);
+		order.verify(entity).merge(input);
+		order.verify(edao).afterInput(entity);
+		order.verify(dao).saveBean(entity);
+		order.verify(edao).afterMerge(entity);
+		verify(entity, never()).accept(input);
+		verify(edao, never()).afterSave(entity);
+	}
+
+	@Test
+	void testMergeKeyFromInput() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		final var edao = new StringConsumerDao();
+		assertEquals(id, edao.merge(null, id));
+		assertEquals(id, edao.merge(id, id));
+		verify(entity, times(2)).merge(id);
+	}
+
+	@Test
+	void testMergeKeyMismatch() {
+		final var edao = new StringConsumerDao();
+		final var id = IdGenerator.generateId();
+		final var other = IdGenerator.generateId();
+		assertThrows(IllegalArgumentException.class, () -> edao.merge(id, other));
+		verify(dao, never()).saveBean(any());
+	}
+
+	@Test
+	void testMergeNoKey() {
+		final var edao = new StringConsumerDao();
+		assertThrows(NullPointerException.class, () -> edao.merge(null, new Object()));
+		verify(dao, never()).saveBean(any());
+	}
+
+	@Test
+	void testMergeNotFound() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+		final var id = IdGenerator.generateId();
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
+
+		final var edao = new StringConsumerDao();
+		assertThrows(EntityNotFoundException.class, () -> edao.merge(id, new Object()));
+		verify(dao, never()).saveBean(any());
+	}
+
+	@Test
+	void testSaveInputCarryingKey() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		final var edao = spy(new StringConsumerDao());
+		assertEquals(id, edao.save(id));
+		verify(edao).save(null, id);
+		verify(entity).accept(id);
+		verify(dao).saveBean(entity);
+		verify(edao).afterSave(entity);
+	}
+
+	@Test
+	void testMergeInputCarryingKey() {
+		final var prop = IdGenerator.generateId();
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+
+		final var id = IdGenerator.generateId();
+		final var entity = mock(Entity.class);
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
+
+		final var edao = spy(new StringConsumerDao());
+		assertEquals(id, edao.merge(id));
+		verify(edao).merge(null, id);
+		verify(entity).merge(id);
+		verify(dao).saveBean(entity);
+		verify(edao).afterMerge(entity);
 	}
 
 	@Test
 	void testDelete() {
 		final var id = IdGenerator.generateId();
 		final var prop = IdGenerator.generateId();
-		final var entity = mock(Consumer.class);
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
-		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenReturn(entity);
+		final var entity = mock(Entity.class);
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
 		final var edao = spy(new StringConsumerDao());
 		edao.delete(id);
 		verify(edao, never()).afterLoad(entity);
-		verify(edao).beforeDelete(entity);
-		verify(dao).deleteBean(entity);
+		final var order = inOrder(edao, dao);
+		order.verify(edao).beforeDelete(entity);
+		order.verify(dao).deleteBean(entity);
+		order.verify(edao).afterDelete(entity);
 	}
 
 	@Test
 	void testDeleteNoop() {
 		final var id = IdGenerator.generateId();
 		final var prop = IdGenerator.generateId();
-		final var entity = mock(Consumer.class);
-		when(dao.getPrimaryKeyProperties(Consumer.class)).thenReturn(IuIterable.iter(prop));
-		when(dao.loadBean(Consumer.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
+		final var entity = mock(Entity.class);
+		when(dao.getPrimaryKeyProperties(Entity.class)).thenReturn(IuIterable.iter(prop));
+		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
 		final var edao = spy(new StringConsumerDao());
 		edao.delete(id);
 		verify(edao, never()).afterLoad(entity);
 		verify(edao, never()).beforeDelete(entity);
+		verify(edao, never()).afterDelete(entity);
 		verify(dao, never()).deleteBean(entity);
 	}
 

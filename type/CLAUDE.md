@@ -70,6 +70,12 @@ javac emits two kinds of bridge, and introspection must tell them apart. A gener
 
 When several supertypes provide the same inherited signature, `TypeTemplate.isMoreSpecific` resolves it as Java does: a class method (abstract or not) beats an interface method, and a subtype's beats its supertype's. Supertypes may finish initializing in any order, so the outcome must not depend on which one `initializeMethods` sees first.
 
+### Interceptors
+
+`MethodFacade.exec` and `ConstructorFacade.exec` run `InterceptorChain` when any interceptor applies, and take the direct reflective path when none does. `InvocationContextImpl` implements the context; `InterceptorInstances` holds one interceptor instance per target (weak, identity-keyed, released by `TypeTemplate.destroy` after `@PreDestroy`); `DefaultInterceptors` is the registry `Component` fills from `@DefaultInterceptor` classes it indexes and empties on close. The supported subset, ordering, and exclusions are in `edu.iu.type`'s `package-info.java`.
+
+An interceptor loaded in an isolated component references its own copy of `jakarta.interceptor`, so `InvocationContextImpl.contextFor` hands it a `Proxy` over its own `InvocationContext` type. Interceptor methods are therefore matched by the parameter type's *name*, never by `Class` identity.
+
 ### Resource injection and inheritance
 
 `IuType.observe` and `destroy` notify the `InstanceReference` subscribers of the observed type **and of every type in its hierarchy** (least specific first on observe, most specific first on destroy, after `@PreDestroy`). Containers observe on the concrete class, so a reference subscribed to a superclass reaches every subclass instance. Subscriptions belong to the raw type: a parameterized template (e.g. `Base<String>`, the hierarchy entry of `Sub extends Base<String>`) shares its erased template's subscriber set, so subscribing or observing through either form reaches the same references.

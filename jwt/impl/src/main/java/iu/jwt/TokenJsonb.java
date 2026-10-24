@@ -123,14 +123,21 @@ final class TokenJsonb {
 	 */
 	static synchronized Jsonb get() {
 		if (jsonb == null)
-			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider")
-					.withConfig(Init.<JsonbConfig>jsonbConfig() //
-							.withAdapters(new NumericDate()) //
-							.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
-							.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
-							.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new)))
-					.build();
+			jsonb = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(jsonbConfig()).build();
 		return jsonb;
+	}
+
+	/**
+	 * Gets a {@link JsonbConfig} instance that converts.
+	 * 
+	 * @return {@link JsonbConfig}
+	 */
+	static synchronized JsonbConfig jsonbConfig() {
+		return Init.<JsonbConfig>jsonbConfig() //
+				.withAdapters(new NumericDate()) //
+				.withAdapters(ADAPTERS.toArray(JsonbAdapter[]::new)) //
+				.withSerializers(SERIALIZERS.toArray(JsonbSerializer[]::new)) //
+				.withDeserializers(DESERIALIZERS.toArray(JsonbDeserializer[]::new));
 	}
 
 	private static void requireNotCreated() {

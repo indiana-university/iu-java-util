@@ -306,6 +306,51 @@ public class IuValidatorTest {
 	}
 
 	@Test
+	public void testFilterRetainsAcceptedViolations() {
+		final var result = IuValidator.validate(EnrlHeader.class, Beans.of(EnrlHeader.class));
+		assertEquals(Set.of("acadCareer", "emplid"), paths(result));
+
+		final var filtered = result.filter(v -> "emplid".equals(v.path()));
+		assertEquals(Set.of("emplid"), paths(filtered));
+		assertEquals(1, filtered.count());
+		assertFalse(filtered.isValid());
+		assertSame(EnrlHeader.class, filtered.rootType());
+		assertEquals(2, result.count(), "original is unchanged");
+	}
+
+	@Test
+	public void testFilterToNothingIsValid() {
+		final var filtered = IuValidator.validate(EnrlHeader.class, Beans.of(EnrlHeader.class)).filter(v -> false);
+		assertTrue(filtered.isValid());
+		assertEquals(0, filtered.count());
+		assertEquals("Valid " + EnrlHeader.class.getName(), filtered.report());
+		filtered.checkValid();
+	}
+
+	@Test
+	public void testFilterRetainingEverythingPreservesOrder() {
+		final var result = IuValidator.validate(EnrlHeader.class, Beans.of(EnrlHeader.class));
+		final var filtered = result.filter(v -> true);
+		assertEquals(result.report(), filtered.report());
+		assertEquals(new ArrayList<>(paths(result)), new ArrayList<>(paths(filtered)));
+	}
+
+	@Test
+	public void testFilterAcceptsSupertypePredicate() {
+		final java.util.function.Predicate<Object> any = v -> true;
+		assertEquals(2, IuValidator.validate(EnrlHeader.class, Beans.of(EnrlHeader.class)).filter(any).count());
+	}
+
+	@Test
+	public void testFilterRejectsNullPredicate() {
+		assertThrows(NullPointerException.class,
+				() -> IuValidator.validate(EnrlHeader.class, Beans.of(EnrlHeader.class)).filter(null));
+		assertThrows(NullPointerException.class,
+				() -> IuValidator.validate(EnrlHeader.class, Beans.of(EnrlHeader.class,
+						Map.of("getEmplid", "0123456789", "getAcadCareer", "UGRD"))).filter(null));
+	}
+
+	@Test
 	public void testRuntimeClassEntryPoints() {
 		final var header = Beans.of(EnrlHeader.class, Map.of("getAcadCareer", "ug"));
 

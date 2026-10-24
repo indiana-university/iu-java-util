@@ -48,6 +48,7 @@ import edu.iu.type.IuReferenceKind;
 final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements IuMethod<D, R> {
 
 	private final TypeFacade<?, R> returnType;
+	private InterceptorChain interceptors;
 
 	/**
 	 * Facade constructor.
@@ -64,12 +65,11 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 		declaringTypeTemplate.postInit(() -> returnTypeTemplate.postInit(this::seal));
 	}
 
-	// TODO: STARCH-653 restore to exec() and resolve Javadoc error triggered by importing jakarta.interceptors
-	// or create a static dependency helper utility 
-	private boolean hasAroundInvoke() {
-		return (hasAnnotation(jakarta.interceptor.Interceptors.class)
-				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class)
-				|| declaringType().annotatedMethods(jakarta.interceptor.AroundInvoke.class).iterator().hasNext());
+	private synchronized InterceptorChain interceptors() {
+		if (interceptors == null)
+			interceptors = new InterceptorChain(annotatedElement, this, declaringType(), annotatedElement.getDeclaringClass(),
+					false);
+		return interceptors;
 	}
 
 	@Override
@@ -98,9 +98,6 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 	@Override
 	public R exec(Object... arguments) throws Exception {
 		checkSealed();
-		
-		if (hasAroundInvoke())
-			throw new UnsupportedOperationException("@AroundInvoke not supported in this version");
 
 		Object obj;
 		Object[] args;
@@ -112,6 +109,11 @@ final class MethodFacade<D, R> extends ExecutableBase<D, R, Method> implements I
 			obj = arguments[0];
 			args = Arrays.copyOfRange(arguments, 1, arguments.length);
 		}
+
+		final var chain = interceptors();
+		if (chain.isIntercepted())
+			return returnType.autoboxClass().cast(chain.invoke(obj, args,
+					context -> IuException.checkedInvocation(() -> annotatedElement.invoke(obj, context.getParameters()))));
 
 		return IuException.checkedInvocation(() -> returnType.autoboxClass().cast(annotatedElement.invoke(obj, args)));
 	}

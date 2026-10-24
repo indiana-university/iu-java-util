@@ -52,6 +52,38 @@
  * Annotations</a></li>
  * </ul>
  *
+ * <h2>Interceptors</h2>
+ * <p>
+ * {@link edu.iu.type.IuMethod#exec(Object...)} and
+ * {@link edu.iu.type.IuConstructor#exec(Object...)} run the interceptors that
+ * apply to the method or constructor:
+ * </p>
+ * <ol>
+ * <li>Classes marked {@link edu.iu.type.DefaultInterceptor}, in class name
+ * order, unless excluded by
+ * {@code @ExcludeDefaultInterceptors}</li>
+ * <li>{@code @Interceptors} declared by the type declaring the method, unless
+ * excluded by {@code @ExcludeClassInterceptors}</li>
+ * <li>{@code @Interceptors} declared by the method or constructor</li>
+ * <li>{@code @AroundInvoke} methods of the declaring type itself, last</li>
+ * </ol>
+ * <p>
+ * Within an interceptor class, a superclass's {@code @AroundInvoke} (or
+ * {@code @AroundConstruct}) method runs before its subclass's, unless
+ * overridden. One interceptor instance exists per target instance, and is
+ * destroyed with it by {@link edu.iu.type.IuType#destroy(Object)}. Lifecycle
+ * callbacks ({@code @PostConstruct}, {@code @PreDestroy}) are never intercepted,
+ * and {@code @AroundConstruct} declared by a target class has no effect.
+ * Interceptor bindings ({@code @InterceptorBinding}, {@code @Priority}) and
+ * {@code @AroundTimeout} are not supported. An invalid interceptor method
+ * (static, wrong signature, or more than one per class) fails the invocation
+ * with {@link java.lang.IllegalArgumentException}.
+ * </p>
+ * <p>
+ * Interceptors are resolved from the type that <em>declares</em> the method, not
+ * the runtime class of the instance.
+ * </p>
+ *
  * <h2>Introspection scope</h2>
  * <p>
  * Type introspection supports container deployments, which inject resources

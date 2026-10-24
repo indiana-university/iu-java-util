@@ -236,6 +236,7 @@ class Component implements IuComponent {
 	private final List<ComponentResourceReference<?, ?>> resourceReferences;
 	private final Set<Class<?>> indexedClasses;
 
+	private final Runnable defaultInterceptors;
 	private final UnsafeRunnable onClose;
 
 	private volatile boolean closed;
@@ -306,6 +307,7 @@ class Component implements IuComponent {
 		this.resources = Collections.unmodifiableList(resources);
 		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
 		this.indexedClasses = Collections.unmodifiableSet(indexedTypes.keySet());
+		this.defaultInterceptors = DefaultInterceptors.register(indexedTypes.keySet());
 		this.onClose = null;
 	}
 
@@ -381,6 +383,7 @@ class Component implements IuComponent {
 		this.resources = Collections.unmodifiableList(resources);
 		this.resourceReferences = Collections.unmodifiableList(resourceReferences);
 		this.indexedClasses = Collections.unmodifiableSet(indexedTypes.keySet());
+		this.defaultInterceptors = DefaultInterceptors.register(indexedTypes.keySet());
 		this.onClose = onClose;
 	}
 
@@ -532,6 +535,8 @@ class Component implements IuComponent {
 			return;
 
 		closed = true;
+		if (defaultInterceptors != null)
+			defaultInterceptors.run();
 		if (onClose != null)
 			IuException.checked(onClose::run);
 	}

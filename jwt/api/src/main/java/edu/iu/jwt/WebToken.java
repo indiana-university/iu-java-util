@@ -42,6 +42,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import iu.jwt.spi.Init;
 import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -68,6 +69,26 @@ public interface WebToken {
 	 */
 	static Jsonb jsonb() {
 		return Init.SPI.getJsonb();
+	}
+
+	/**
+	 * Gets a {@link JsonbConfig} instance that converts token claims, for modules
+	 * that carry claim values in tokens of their own, such as session and OIDC.
+	 *
+	 * <p>
+	 * Configured for web crypto, with property names in snake_case, and every
+	 * {@link Instant} as a <a href=
+	 * "https://datatracker.ietf.org/doc/html/rfc7519#section-2">NumericDate</a>,
+	 * seconds since the epoch; plus the components registered here. Created on
+	 * first use, including a token built, parsed, or verified, which seals
+	 * registration.
+	 * </p>
+	 *
+	 * @return {@link JsonbConfig} that can be modified to create a custom
+	 *         {@link Jsonb} instance without affecting other instances.
+	 */
+	static JsonbConfig jsonbConfig() {
+		return Init.SPI.getJsonbConfig();
 	}
 
 	/**
@@ -104,8 +125,8 @@ public interface WebToken {
 	 * Registers a JSON-B deserializer for claim values.
 	 *
 	 * <p>
-	 * A lambda has no type argument to name the type it deserializes; wrap it
-	 * with {@code IuJsonAdapter.typedDeserializer}.
+	 * A lambda has no type argument to name the type it deserializes; wrap it with
+	 * {@code IuJsonAdapter.typedDeserializer}.
 	 * </p>
 	 *
 	 * @param deserializer {@link JsonbDeserializer}

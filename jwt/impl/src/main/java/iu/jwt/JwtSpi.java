@@ -36,6 +36,7 @@ import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import iu.jwt.spi.IuJwtSpi;
 import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -54,6 +55,11 @@ public class JwtSpi implements IuJwtSpi {
 	@Override
 	public Jsonb getJsonb() {
 		return TokenJsonb.get();
+	}
+
+	@Override
+	public JsonbConfig getJsonbConfig() {
+		return TokenJsonb.jsonbConfig();
 	}
 
 	@Override

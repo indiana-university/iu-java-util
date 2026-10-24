@@ -42,12 +42,12 @@ public class TestInterceptor {
 
 	@AroundConstruct
 	public Object interceptConstruct(InvocationContext ctx) throws Exception {
-		throw new UnsupportedOperationException("called interceptConstruct");
+		return ctx.proceed();
 	}
-	
+
 	@AroundInvoke
 	public Object interceptMethod(InvocationContext ctx) throws Exception {
-		throw new UnsupportedOperationException("called interceptMethod");
+		return ctx.proceed();
 	}
 	
 }

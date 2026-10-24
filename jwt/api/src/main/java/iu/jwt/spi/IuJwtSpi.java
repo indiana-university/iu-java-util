@@ -35,6 +35,7 @@ import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -51,6 +52,14 @@ public interface IuJwtSpi {
 	 * @see WebToken#jsonb()
 	 */
 	Jsonb getJsonb();
+
+	/**
+	 * Gets the {@link JsonbConfig} instance that converts token claims.
+	 *
+	 * @return {@link JsonbConfig}
+	 * @see WebToken#jsonbConfig()
+	 */
+	JsonbConfig getJsonbConfig();
 
 	/**
 	 * Registers a JSON-B adapter for claim values.

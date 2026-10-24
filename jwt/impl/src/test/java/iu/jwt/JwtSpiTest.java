@@ -70,6 +70,14 @@ public class JwtSpiTest {
 	}
 
 	@Test
+	void testEqualsJsonb() {
+		try (final var mockTokenJsonb = mockStatic(TokenJsonb.class)) {
+			WebToken.jsonbConfig();
+			mockTokenJsonb.verify(() -> TokenJsonb.jsonbConfig());
+		}
+	}
+
+	@Test
 	void testRegister() {
 		final var adapter = mock(JsonbAdapter.class);
 		final var serializer = mock(JsonbSerializer.class);

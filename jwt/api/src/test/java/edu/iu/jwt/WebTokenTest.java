@@ -70,6 +70,12 @@ public class WebTokenTest {
 	}
 
 	@Test
+	public void testJsonbConfig() {
+		WebToken.jsonbConfig();
+		verify(Init.SPI).getJsonbConfig();
+	}
+
+	@Test
 	public void testRegister() {
 		final var adapter = mock(JsonbAdapter.class);
 		WebToken.registerAdapter(adapter);

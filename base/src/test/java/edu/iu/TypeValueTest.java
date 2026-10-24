@@ -32,15 +32,17 @@
 package edu.iu;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 
 import org.junit.jupiter.api.Test;
 
@@ -50,86 +52,108 @@ public class TypeValueTest {
 	private static class ApplicationType {
 	}
 
-	@SuppressWarnings("unused")
-	private static class GenericTypes<T extends ApplicationType> {
-		private T[] array;
-		private GenericOwner<ApplicationType>.Member<Object> member;
-		private List<ApplicationType> parameterized;
-		private List<? extends ApplicationType> upperBounded;
-		private List<? super ApplicationType> lowerBounded;
-	}
-
-	private static class GenericOwner<T> {
-		private class Member<U> {
+	private Class<?> redefine(Class<?> type) throws Exception {
+		final byte[] resource;
+		try (final var in = type.getClassLoader().getResourceAsStream(type.getName().replace(".", "/") + ".class")) {
+			resource = IuStream.read(in);
 		}
-	}
-
-	private static class CountingTypeValue extends TypeValue<Integer> {
-		private final AtomicInteger calls = new AtomicInteger();
-
-		@Override
-		protected Integer computeValue(Type type) {
-			return calls.incrementAndGet();
-		}
-	}
-
-	@Test
-	public void testCachesReflectiveTypes() throws Exception {
-		final var value = new CountingTypeValue();
-		final var variable = GenericTypes.class.getTypeParameters()[0];
-		final var parameterized = typeOf("parameterized");
-		final var upperBounded = ((ParameterizedType) typeOf("upperBounded")).getActualTypeArguments()[0];
-		final var lowerBounded = ((ParameterizedType) typeOf("lowerBounded")).getActualTypeArguments()[0];
-		final var array = (GenericArrayType) typeOf("array");
-
-		assertEquals(1, value.get(ApplicationType.class));
-		assertEquals(2, value.get(parameterized));
-		assertEquals(3, value.get(variable));
-		assertEquals(4, value.get(upperBounded));
-		assertEquals(5, value.get(lowerBounded));
-		assertEquals(6, value.get(array));
-		assertSame(value.get(variable), value.get(variable));
-		assertEquals(6, value.calls.get());
-	}
-
-	@Test
-	public void testRejectsNullAndUnsupportedTypes() {
-		final var value = new CountingTypeValue();
-
-		assertThrows(NullPointerException.class, () -> value.get(null));
-		assertThrows(IllegalArgumentException.class, () -> value.get(new Type() {
-		}));
-	}
-
-	@Test
-	public void testHandlesNestedAndIncompleteParameterizedTypes() throws Exception {
-		final var value = new CountingTypeValue();
-
-		assertEquals(1, value.get(typeOf("member")));
-		assertEquals(2, value.get(incompleteParameterizedType()));
-	}
-
-	private static Type typeOf(String name) throws NoSuchFieldException {
-		final Field field = GenericTypes.class.getDeclaredField(name);
-		return field.getGenericType();
-	}
-
-	private static ParameterizedType incompleteParameterizedType() {
-		return new ParameterizedType() {
-			@Override
-			public Type[] getActualTypeArguments() {
-				return new Type[] { null };
-			}
-
-			@Override
-			public Type getRawType() {
-				return List.class;
-			}
-
-			@Override
-			public Type getOwnerType() {
-				return ApplicationType.class;
-			}
+		final var loader = new ClassLoader(type.getClassLoader()) {
+			Class<?> redefined = defineClass(type.getName(), resource, 0, resource.length);
 		};
+		return loader.redefined;
 	}
+
+	@Test
+	public void testApplicationTypeIsMoreSpecificThanString() {
+		assertEquals(ApplicationType.class, TypeValue.moreSpecific(ApplicationType.class, String.class));
+		assertEquals(ApplicationType.class, TypeValue.moreSpecific(String.class, ApplicationType.class));
+	}
+
+	@Test
+	public void testApplicationTypeIsMoreSpecificIfRedefined() throws Throwable {
+		final var redefined = redefine(ApplicationType.class);
+		assertEquals(redefined, TypeValue.moreSpecific(ApplicationType.class, redefined));
+		assertEquals(redefined, TypeValue.moreSpecific(redefined, ApplicationType.class));
+	}
+
+	@Test
+	public void testClassIsMostSpecific() {
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(ApplicationType.class));
+	}
+
+	@Test
+	public void testRawTypeIsMostSpecific() {
+		final var type = mock(ParameterizedType.class);
+		when(type.getRawType()).thenReturn(ApplicationType.class);
+		when(type.getActualTypeArguments()).thenReturn(new Type[] { String.class });
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testOwnerTypeIsMostSpecific() {
+		final var type = mock(ParameterizedType.class);
+		when(type.getOwnerType()).thenReturn(ApplicationType.class);
+		when(type.getActualTypeArguments()).thenReturn(new Type[] { String.class });
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testTypeArgIsMostSpecific() {
+		final var type = mock(ParameterizedType.class);
+		when(type.getRawType()).thenReturn(Iterable.class);
+		when(type.getActualTypeArguments()).thenReturn(new Type[] { ApplicationType.class });
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testTypeValueBoundsAreMostSpecific() {
+		final var type = mock(TypeVariable.class);
+		when(type.getBounds()).thenReturn(new Type[] { ApplicationType.class });
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testWildcardUpperBoundsAreMostSpecific() {
+		final var type = mock(WildcardType.class);
+		when(type.getLowerBounds()).thenReturn(new Type[] { String.class });
+		when(type.getUpperBounds()).thenReturn(new Type[] { ApplicationType.class });
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testWildcardLowerBoundsAreMostSpecific() {
+		final var type = mock(WildcardType.class);
+		when(type.getUpperBounds()).thenReturn(new Type[] { String.class });
+		when(type.getLowerBounds()).thenReturn(new Type[] { ApplicationType.class });
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testGenericArrayComponentIsMostSpecific() {
+		final var type = mock(GenericArrayType.class);
+		when(type.getGenericComponentType()).thenReturn(ApplicationType.class);
+		assertEquals(ApplicationType.class, TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testInvalidTypeThrows() {
+		final var type = mock(Type.class);
+		assertThrows(IllegalArgumentException.class, () -> TypeValue.mostSpecific(type));
+	}
+
+	@Test
+	public void testTypeValue() {
+		final var typeValue = spy(new TypeValue<String>() {
+			@Override
+			protected String computeValue(Type type) {
+				return type.toString();
+			}
+		});
+		final var type = mock(TypeVariable.class);
+		when(type.getBounds()).thenReturn(new Type[] { ApplicationType.class });
+		assertEquals(type.toString(), typeValue.get(type));
+		assertEquals(typeValue.get(type), typeValue.get(type));
+		verify(typeValue).computeValue(type);
+	}
+
 }

@@ -63,6 +63,8 @@ import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
+import edu.iu.type.testresources.InterceptorSupport.Plain;
+import edu.iu.type.testresources.TopLevelDefaultInterceptor;
 import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
@@ -115,6 +117,30 @@ public class ComponentTest extends IuTypeTestCase {
 			assertFalse(component.annotatedAttributes(Resource.class).iterator().hasNext());
 			assertFalse(component.annotatedTypes(Resource.class).iterator().hasNext());
 			assertFalse(component.annotatedTypes(Documented.class).iterator().hasNext());
+		}
+		Files.delete(temp);
+	}
+
+	@Test
+	public void testComponentRegistersDefaultInterceptorsUntilClosed() throws Exception {
+		final var temp = Files.createTempDirectory(Path.of("target"), "iu-type-ComponentTest");
+		final var classFile = temp.resolve("edu/iu/type/testresources/TopLevelDefaultInterceptor.class");
+		Files.createDirectories(classFile.getParent());
+		try (var source = TopLevelDefaultInterceptor.class.getResourceAsStream("TopLevelDefaultInterceptor.class")) {
+			Files.copy(source, classFile);
+		}
+
+		try (var loader = new URLClassLoader(new URL[] { temp.toUri().toURL() })) {
+			try (var component = new Component(loader, ModuleLayer.boot(), temp)) {
+				assertEquals(List.of(TopLevelDefaultInterceptor.class), DefaultInterceptors.applicableTo(Plain.class));
+			}
+			assertEquals(List.of(), DefaultInterceptors.applicableTo(Plain.class));
+		}
+
+		var dir = classFile;
+		while (!dir.equals(temp)) {
+			Files.delete(dir);
+			dir = dir.getParent();
 		}
 		Files.delete(temp);
 	}

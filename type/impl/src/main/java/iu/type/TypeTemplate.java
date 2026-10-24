@@ -637,6 +637,13 @@ final class TypeTemplate<D, T> extends DeclaredElementBase<D, Class<T>> implemen
 				return null;
 			}));
 
+		final var interceptorFailure = InterceptorInstances.release(instance);
+		if (interceptorFailure != null)
+			if (e == null)
+				e = interceptorFailure;
+			else
+				e.addSuppressed(interceptorFailure);
+
 		for (final var instanceReferences : instanceReferences(false))
 			e = IuException.suppress(e, () -> instanceReferences.visit(listener -> {
 				if (listener != null)

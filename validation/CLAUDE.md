@@ -20,6 +20,8 @@ Migrating a call site from the old `IuValidator.validate(Type.class, value)` mea
 
 `IuValidationException extends edu.iu.IuBadRequestException`, so a web boundary already mapping that exception to `400 BAD REQUEST` needs no change, and `getMessage()` is the redacted report so violations reach a log record even where nothing inspects `getResult()`.
 
+`IuValidationResult.filter(Predicate)` follows `Stream.filter`: violations the predicate accepts are **retained**, so discarding a kind of violation means negating the test. The returned result is an independent snapshot for the same root type, not a view.
+
 ## Standalone annotation targets
 
 `validate(AnnotatedElement, Object)` validates a value the caller already holds against the constraints on the target that declares it, for callers with no bean to walk from — the motivating case is a REST dispatcher that converts one parameter at a time and has the `Parameter` in hand at the moment it has the value.

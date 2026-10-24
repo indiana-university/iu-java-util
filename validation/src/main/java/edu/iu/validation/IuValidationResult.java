@@ -31,6 +31,8 @@
  */
 package edu.iu.validation;
 
+import java.util.function.Predicate;
+
 /**
  * Every constraint failure found by one validation pass.
  * 
@@ -63,6 +65,22 @@ public interface IuValidationResult extends Iterable<IuConstraintViolation> {
 	 * @return root type; never null
 	 */
 	Class<?> rootType();
+
+	/**
+	 * Selects violations.
+	 *
+	 * <p>
+	 * Follows {@link java.util.stream.Stream#filter(Predicate)}: violations for
+	 * which the predicate returns {@code true} are retained, all others are
+	 * dropped. To discard a particular kind of violation, negate the test.
+	 * </p>
+	 *
+	 * @param test predicate selecting the violations to retain
+	 * @return new result, independent of this one, holding only the retained
+	 *         violations in their original order, for the same root type
+	 * @throws NullPointerException if {@code test} is null
+	 */
+	IuValidationResult filter(Predicate<? super IuConstraintViolation> test);
 
 	/**
 	 * Renders every violation as a multi-line report suitable for a log record,

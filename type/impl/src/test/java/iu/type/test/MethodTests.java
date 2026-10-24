@@ -216,27 +216,21 @@ public class MethodTests extends IuTypeTestCase {
 	}
 
 	@Test
-	public void testInterceptorsOnTypeNotSupported() throws Exception {
+	public void testEmptyInterceptorsOnTypeAreDirect() throws Exception {
 		var method = IuType.of(HasInterceptors.class).method("fail");
-		assertEquals("@AroundInvoke not supported in this version",
-				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptors()))
-						.getMessage());
+		assertEquals("intercepted by nothing", method.exec(new HasInterceptors()));
 	}
 
 	@Test
-	public void testInterceptorsOnMethodNotSupported() throws Exception {
+	public void testEmptyInterceptorsOnMethodAreDirect() throws Exception {
 		var method = IuType.of(HasInterceptorsOnMethod.class).method("fail");
-		assertEquals("@AroundInvoke not supported in this version",
-				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasInterceptorsOnMethod()))
-						.getMessage());
+		assertEquals("intercepted by nothing", method.exec(new HasInterceptorsOnMethod()));
 	}
 
 	@Test
-	public void testAroundInvokeNotSupported() throws Exception {
+	public void testInvalidAroundInvokeOnTargetIsRejected() throws Exception {
 		var method = IuType.of(HasAroundInvokeMethod.class).method("fail");
-		assertEquals("@AroundInvoke not supported in this version",
-				assertThrows(UnsupportedOperationException.class, () -> method.exec(new HasAroundInvokeMethod()))
-						.getMessage());
+		assertThrows(IllegalArgumentException.class, () -> method.exec(new HasAroundInvokeMethod()));
 	}
 
 }

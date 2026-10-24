@@ -36,6 +36,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 import edu.iu.validation.IuConstraintViolation;
 import edu.iu.validation.IuValidationException;
@@ -53,7 +55,8 @@ final class ValidationResultImpl implements IuValidationResult {
 			.thenComparing(violation -> violation.constraint().getName());
 
 	private final Class<?> rootType;
-	private final List<IuConstraintViolation> violations;
+	private final List<Violation> violations;
+	private final List<IuConstraintViolation> view;
 
 	/**
 	 * Constructor.
@@ -64,6 +67,7 @@ final class ValidationResultImpl implements IuValidationResult {
 	ValidationResultImpl(Class<?> rootType, List<Violation> violations) {
 		this.rootType = rootType;
 		this.violations = order(violations);
+		this.view = Collections.<IuConstraintViolation>unmodifiableList(this.violations);
 	}
 
 	/**
@@ -79,11 +83,11 @@ final class ValidationResultImpl implements IuValidationResult {
 	 * @param violations violations found, in discovery order
 	 * @return unmodifiable ordered violations
 	 */
-	private static List<IuConstraintViolation> order(List<Violation> violations) {
+	private static List<Violation> order(List<Violation> violations) {
 		final var sorted = new ArrayList<>(violations);
 		sorted.sort(ORDER);
 
-		final List<IuConstraintViolation> distinct = new ArrayList<>(sorted.size());
+		final List<Violation> distinct = new ArrayList<>(sorted.size());
 		Violation previous = null;
 		for (final var violation : sorted) {
 			if (previous != null //
@@ -100,7 +104,7 @@ final class ValidationResultImpl implements IuValidationResult {
 
 	@Override
 	public Iterator<IuConstraintViolation> iterator() {
-		return violations.iterator();
+		return view.iterator();
 	}
 
 	@Override
@@ -151,6 +155,13 @@ final class ValidationResultImpl implements IuValidationResult {
 	public void checkValid() throws IuValidationException {
 		if (!violations.isEmpty())
 			throw new IuValidationException(this);
+	}
+
+	@Override
+	public IuValidationResult filter(Predicate<? super IuConstraintViolation> test) {
+		Objects.requireNonNull(test, "test");
+		// already sorted and distinct; the constructor re-ordering is idempotent
+		return new ValidationResultImpl(rootType, violations.stream().filter(test).toList());
 	}
 
 	/**
