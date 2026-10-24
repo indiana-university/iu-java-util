@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,14 +53,18 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
+import java.util.logging.Level;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.UnsafeRunnable;
+import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuComponent;
 import edu.iu.type.IuComponent.Kind;
 import edu.iu.type.base.ModularClassLoader;
 import edu.iu.type.base.TemporaryFile;
+import edu.iu.type.testresources.InterceptorSupport.Plain;
+import edu.iu.type.testresources.TopLevelDefaultInterceptor;
 import jakarta.annotation.Resource;
 
 @SuppressWarnings("javadoc")
@@ -113,6 +118,53 @@ public class ComponentTest extends IuTypeTestCase {
 			assertFalse(component.annotatedTypes(Resource.class).iterator().hasNext());
 			assertFalse(component.annotatedTypes(Documented.class).iterator().hasNext());
 		}
+		Files.delete(temp);
+	}
+
+	@Test
+	public void testComponentRegistersDefaultInterceptorsUntilClosed() throws Exception {
+		final var temp = Files.createTempDirectory(Path.of("target"), "iu-type-ComponentTest");
+		final var classFile = temp.resolve("edu/iu/type/testresources/TopLevelDefaultInterceptor.class");
+		Files.createDirectories(classFile.getParent());
+		try (var source = TopLevelDefaultInterceptor.class.getResourceAsStream("TopLevelDefaultInterceptor.class")) {
+			Files.copy(source, classFile);
+		}
+
+		try (var loader = new URLClassLoader(new URL[] { temp.toUri().toURL() })) {
+			try (var component = new Component(loader, ModuleLayer.boot(), temp)) {
+				assertEquals(List.of(TopLevelDefaultInterceptor.class), DefaultInterceptors.applicableTo(Plain.class));
+			}
+			assertEquals(List.of(), DefaultInterceptors.applicableTo(Plain.class));
+		}
+
+		var dir = classFile;
+		while (!dir.equals(temp)) {
+			Files.delete(dir);
+			dir = dir.getParent();
+		}
+		Files.delete(temp);
+	}
+
+	@Test
+	public void testScannedComponentGracefullyHandlesUnresolveableClass() throws Exception {
+		final var temp = Files.createTempDirectory(Path.of("target"), "iu-type-ComponentTest");
+		final var classFile = temp.resolve("iu/type/ComponentTest.class");
+		Files.createDirectories(classFile.getParent());
+		try (var source = getClass().getResourceAsStream("ComponentTest.class")) {
+			Files.copy(source, classFile);
+		}
+
+		try (var loader = new URLClassLoader(new URL[] { temp.toUri().toURL() });
+				var mockTypeFactory = mockStatic(TypeFactory.class)) {
+			IuTestLogger.allow(Component.class.getName(), Level.WARNING, "Unresolveable class .*", Error.class);
+			mockTypeFactory.when(() -> TypeFactory.resolveRawClass(ComponentTest.class)).thenThrow(new Error());
+			try (var component = new Component(loader, ModuleLayer.boot(), temp)) {
+				assertFalse(component.interfaces().iterator().hasNext());
+			}
+		}
+		Files.delete(classFile);
+		Files.delete(classFile.getParent());
+		Files.delete(classFile.getParent().getParent());
 		Files.delete(temp);
 	}
 

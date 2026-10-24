@@ -35,6 +35,11 @@ import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import iu.jwt.spi.IuJwtSpi;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
+import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 
 /**
  * Provides static SPI access to implementation resources.
@@ -45,6 +50,31 @@ public class JwtSpi implements IuJwtSpi {
 	 * Default constructor.
 	 */
 	public JwtSpi() {
+	}
+
+	@Override
+	public Jsonb getJsonb() {
+		return TokenJsonb.get();
+	}
+
+	@Override
+	public JsonbConfig getJsonbConfig() {
+		return TokenJsonb.jsonbConfig();
+	}
+
+	@Override
+	public void registerAdapter(JsonbAdapter<?, ?> adapter) {
+		TokenJsonb.registerAdapter(adapter);
+	}
+
+	@Override
+	public void registerSerializer(JsonbSerializer<?> serializer) {
+		TokenJsonb.registerSerializer(serializer);
+	}
+
+	@Override
+	public void registerDeserializer(JsonbDeserializer<?> deserializer) {
+		TokenJsonb.registerDeserializer(deserializer);
 	}
 
 	@Override

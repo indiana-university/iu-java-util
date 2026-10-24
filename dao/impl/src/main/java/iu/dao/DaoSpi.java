@@ -31,7 +31,11 @@
  */
 package iu.dao;
 
+import java.util.function.Supplier;
+
 import javax.sql.DataSource;
+
+import edu.iu.IuRefreshableCacheConfiguration;
 
 import edu.iu.dao.IuDao;
 import edu.iu.dao.spi.IuDaoSpi;
@@ -55,5 +59,18 @@ public final class DaoSpi implements IuDaoSpi {
 	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
 			TransactionSynchronizationRegistry transactionSynchronizationRegistry) {
 		return new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, new IuSqlBuilderImpl());
+	}
+
+	@Override
+	public IuDao create(DataSource dataSource, TransactionManager transactionManager,
+			TransactionSynchronizationRegistry transactionSynchronizationRegistry,
+			Supplier<IuRefreshableCacheConfiguration> config) {
+		// one builder, shared: the cache reads an entity's mapped key with the same
+		// builder the delegate generates its statements with, so the key it publishes
+		// a row under is the one a load of that row would be made with
+		final var sqlBuilder = new IuSqlBuilderImpl();
+		return new CachedDao(
+				new JdbcDao(dataSource, transactionManager, transactionSynchronizationRegistry, sqlBuilder), sqlBuilder,
+				transactionManager, transactionSynchronizationRegistry, config);
 	}
 }

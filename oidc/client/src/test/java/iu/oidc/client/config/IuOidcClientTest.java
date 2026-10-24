@@ -52,6 +52,7 @@ public class IuOidcClientTest {
 		assertEquals(Duration.ofMinutes(15L), client.getTokenTtl());
 		assertEquals(Duration.ofHours(12L), client.getMaxAge());
 		assertNull(client.getPrincipalNameClaimName());
+		assertNull(client.getRoles());
 	}
 
 }

@@ -45,6 +45,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -264,8 +265,14 @@ public class CacheMapTest {
 				}
 			});
 		});
-		Thread.sleep(251L);
-		assertTrue(cache.isEmpty());
+		// proactive eviction runs on a shared single-threaded timer, so the callbacks
+		// for a batch of entries that expire together trail their deadline by however
+		// long that thread takes to work through them — tens of milliseconds for a
+		// batch this size. Waiting for the outcome rather than for a fixed instant.
+		final var expires = System.nanoTime() + Duration.ofSeconds(5L).toNanos();
+		while (!cache.isEmpty() && System.nanoTime() < expires)
+			Thread.sleep(10L);
+		assertTrue(cache.isEmpty(), "expired entries were not evicted");
 	}
 
 	@Test
@@ -436,4 +443,117 @@ public class CacheMapTest {
 		results.forEach(result -> assertEquals("value/1", result));
 	}
 
+	/**
+	 * Stores a short-lived value, then replaces it with a long-lived one, so the
+	 * replaced value's expiration comes due while the replacement is still well
+	 * within its own time to live.
+	 *
+	 * <p>
+	 * Expiration is scheduled per value and removes by key, so a replacement path
+	 * that leaves the replaced value's expiration in place evicts the replacement
+	 * when that expiration fires. Widening the time to live between the two stores
+	 * separates the two deadlines far enough that the assertion does not depend on
+	 * timing.
+	 * </p>
+	 */
+	private void storeShortLivedValue(String key) throws Exception {
+		cache.setCacheTimeToLive(Duration.ofMillis(150L));
+		cache.put(key, "first");
+		cache.setCacheTimeToLive(Duration.ofSeconds(30L));
+	}
+
+	private void assertOutlivesReplacedExpiration(String key) throws Exception {
+		Thread.sleep(400L);
+		assertEquals("second", cache.get(key), "the replaced value's expiration evicted its replacement");
+		assertTrue(cache.containsKey(key));
+	}
+
+	@Test
+	public void testReplacingAValueDoesNotReenterItsExpiration() throws Exception {
+		final var log = java.util.logging.LogManager.getLogManager().getLogger("");
+		final var restore = log.getHandlers();
+		for (final var h : restore)
+			log.removeHandler(h);
+
+		// a plain handler rather than a mock: under the defect this path exhausts the
+		// stack, and a mock created or verified in that state fails to initialize
+		final var thrown = new ArrayList<Throwable>();
+		final var handler = new java.util.logging.Handler() {
+			@Override
+			public void publish(java.util.logging.LogRecord record) {
+				if (record.getThrown() != null)
+					thrown.add(record.getThrown());
+			}
+
+			@Override
+			public void flush() {
+			}
+
+			@Override
+			public void close() {
+			}
+		};
+
+		log.addHandler(handler);
+		try {
+			for (var i = 0; i < 50; i++)
+				cache.put("foo", "value/" + i);
+			assertEquals("value/49", cache.get("foo"));
+		} finally {
+			log.removeHandler(handler);
+			for (final var h : restore)
+				log.addHandler(h);
+		}
+
+		// clearing a replaced value reaches back into this map, and reading that
+		// value while it is being cleared calls back into the clear. Left unguarded
+		// that recurses until the stack overflows, and the error is swallowed by the
+		// thunk's own handler, so it surfaces only as a log record.
+		assertEquals(List.of(), thrown, "clearing a replaced value re-entered its own expiration");
+	}
+
+	@Test
+	public void testPutOutlivesTheExpirationOfTheValueItReplaced() throws Exception {
+		storeShortLivedValue("foo");
+		assertEquals("first", cache.put("foo", "second"));
+		assertOutlivesReplacedExpiration("foo");
+	}
+
+	@Test
+	public void testPutAllOutlivesTheExpirationOfTheValueItReplaced() throws Exception {
+		storeShortLivedValue("foo");
+		cache.putAll(Map.of("foo", "second"));
+		assertOutlivesReplacedExpiration("foo");
+	}
+
+	@Test
+	public void testSetValueOutlivesTheExpirationOfTheValueItReplaced() throws Exception {
+		storeShortLivedValue("foo");
+		assertEquals("first", cache.entrySet().iterator().next().setValue("second"));
+		assertOutlivesReplacedExpiration("foo");
+	}
+
+	@Test
+	public void testReplacementIsVisibleThroughoutAPut() throws Exception {
+		cache.put("foo", "first");
+
+		// stored in one step rather than removed and re-added, so a reader never
+		// observes the key as absent while it is being replaced
+		final var absent = new AtomicBoolean();
+		final var stop = new AtomicBoolean();
+		final var reader = new Thread(() -> {
+			while (!stop.get())
+				if (!cache.containsKey("foo"))
+					absent.set(true);
+		});
+		reader.start();
+		try {
+			for (var i = 0; i < 400; i++)
+				cache.put("foo", "value/" + i);
+		} finally {
+			stop.set(true);
+			reader.join(5000L);
+		}
+		assertFalse(absent.get(), "the key was momentarily absent while being replaced");
+	}
 }

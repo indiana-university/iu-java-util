@@ -32,14 +32,11 @@
 package iu.crypt;
 
 import edu.iu.IuObject;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKeyReference;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
-import jakarta.json.JsonValue;
 
 /**
  * Encapsulates JSON properties that refer to or verify an X.509 certificate
@@ -57,10 +54,10 @@ class JsonKeyReference<R extends JsonKeyReference<R>> extends JsonCertificateRef
 	 * 
 	 * @param jwk {@link JsonObject}
 	 */
-	JsonKeyReference(JsonValue jwk) {
+	JsonKeyReference(IuJsonProperties jwk) {
 		super(jwk);
-		keyId = IuJson.get(jwk.asJsonObject(), "kid", IuJsonAdapter.of(String.class));
-		algorithm = IuJson.get(jwk.asJsonObject(), "alg", CryptJsonAdapters.ALG);
+		keyId = jwk.get("kid", String.class);
+		algorithm = jwk.get("alg", Algorithm.class);
 	}
 
 	@Override
@@ -87,18 +84,11 @@ class JsonKeyReference<R extends JsonKeyReference<R>> extends JsonCertificateRef
 				&& IuObject.equals(algorithm, other.algorithm);
 	}
 
-	/**
-	 * Adds serialized JWK attributes to a JSON object builder.
-	 * 
-	 * @param jwkBuilder {@link JsonObjectBuilder}
-	 * @return jwkBuilder
-	 */
 	@Override
-	JsonObjectBuilder serializeTo(JsonObjectBuilder jwkBuilder) {
-		IuJson.add(jwkBuilder, "kid", keyId);
-		IuJson.add(jwkBuilder, "alg", () -> algorithm, CryptJsonAdapters.ALG);
-		super.serializeTo(jwkBuilder);
-		return jwkBuilder;
+	void append(IuJsonProperties.Builder builder) {
+		builder.put("kid", keyId);
+		builder.put("alg", algorithm);
+		super.append(builder);
 	}
 
 	/**

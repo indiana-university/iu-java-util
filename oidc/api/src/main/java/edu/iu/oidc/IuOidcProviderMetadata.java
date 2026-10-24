@@ -382,4 +382,47 @@ public interface IuOidcProviderMetadata {
 	 */
 	URI getOpTosUri();
 
+	/**
+	 * PKCE code challenge methods this OP supports.
+	 *
+	 * <p>
+	 * A client may not rely on PKCE for CSRF protection without first establishing
+	 * that the OP enforces it, so RFC 9700 &sect;4.7.1 obliges an OP to publish some
+	 * way of detecting support and &sect;2.1.1 recommends this element for it. An OP
+	 * that enforces PKCE but advertises nothing leaves every client to assume the
+	 * weaker case.
+	 * </p>
+	 *
+	 * <p>
+	 * A {@code default} rather than an abstract accessor, as every setting added
+	 * here should be, so metadata written before this existed keeps binding.
+	 * </p>
+	 *
+	 * @return supported {@code code_challenge_method} values; {@code null} if
+	 *         unstated
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc7636">RFC 7636</a>
+	 */
+	default Iterable<String> getCodeChallengeMethodsSupported() {
+		return null;
+	}
+
+	/**
+	 * Whether this OP names itself in the {@code iss} parameter of an authorization
+	 * response.
+	 *
+	 * <p>
+	 * A client interacting with more than one OP is required to defend against
+	 * mix-up attacks, and RFC 9207 is the recommended form of that defense: the
+	 * response says which OP produced it, so a response relayed from another cannot
+	 * be mistaken for one from the OP the request went to. A client reads this to
+	 * learn it may require the parameter.
+	 * </p>
+	 *
+	 * @return true if authorization responses carry {@code iss}; else false
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc9207">RFC 9207</a>
+	 */
+	default boolean isAuthorizationResponseIssParameterSupported() {
+		return false;
+	}
+
 }

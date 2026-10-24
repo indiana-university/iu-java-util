@@ -40,6 +40,7 @@ module iu.util.jwt.api {
 
 	requires transitive iu.util;
 	requires transitive iu.util.crypt;
+	requires transitive jakarta.json.bind;
 	requires java.logging;
 
 	uses iu.jwt.spi.IuJwtSpi;

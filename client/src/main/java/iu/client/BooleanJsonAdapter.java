@@ -32,15 +32,15 @@
 package iu.client;
 
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonString;
-import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link Long}
+ * Implements {@link IuJsonAdapter} for {@link Boolean}, reading only JSON
+ * {@code true} and {@code false}
  */
-class BooleanJsonAdapter implements IuJsonAdapter<Boolean> {
+class BooleanJsonAdapter implements IuJsonAdapter<Boolean>, TextForm<Boolean> {
 
 	/**
 	 * Adapts {@link Boolean}
@@ -63,12 +63,27 @@ class BooleanJsonAdapter implements IuJsonAdapter<Boolean> {
 		if (JsonValue.NULL.equals(value) //
 				|| value == null)
 			return nullValue;
-		else if (value instanceof JsonString)
-			return Boolean.valueOf(TextJsonAdapter.INSTANCE.fromJson(value));
-		else if (value instanceof JsonNumber)
-			return ((JsonNumber) value).intValue() != 0;
+		else if (JsonValue.TRUE.equals(value))
+			return Boolean.TRUE;
+		else if (JsonValue.FALSE.equals(value))
+			return Boolean.FALSE;
 		else
-			return (value instanceof JsonStructure) || JsonValue.TRUE.equals(value);
+			throw JsonAdapters.expected("a boolean", value.getValueType());
+	}
+
+	@Override
+	public Boolean fromText(String text) {
+		if (text.equals("true"))
+			return Boolean.TRUE;
+		else if (text.equals("false"))
+			return Boolean.FALSE;
+		else
+			throw JsonAdapters.expected("true or false", text);
+	}
+
+	@Override
+	public String toText(Boolean value) {
+		return value.toString();
 	}
 
 	@Override
@@ -77,6 +92,31 @@ class BooleanJsonAdapter implements IuJsonAdapter<Boolean> {
 			return JsonValue.NULL;
 		else
 			return value ? JsonValue.TRUE : JsonValue.FALSE;
+	}
+
+	@Override
+	public Boolean read(JsonParser parser) {
+		switch (parser.currentEvent()) {
+		case VALUE_TRUE:
+			return Boolean.TRUE;
+
+		case VALUE_FALSE:
+			return Boolean.FALSE;
+
+		case VALUE_NULL:
+			return nullValue;
+
+		default:
+			throw JsonAdapters.expected("a boolean", parser.currentEvent());
+		}
+	}
+
+	@Override
+	public void write(Boolean value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(value.booleanValue());
 	}
 
 }

@@ -53,12 +53,12 @@ class IteratorAdapter<E> extends JsonArrayAdapter<Iterator<E>, E> {
 	}
 
 	@Override
-	protected Iterator<E> iterator(Iterator<E> value) {
+	public Iterator<E> iterator(Iterator<E> value) {
 		return value;
 	}
 
 	@Override
-	protected Iterator<E> collect(Iterable<E> items) {
+	public Iterator<E> collect(Iterable<E> items) {
 		return items.iterator();
 	}
 

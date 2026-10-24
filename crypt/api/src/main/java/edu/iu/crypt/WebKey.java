@@ -44,6 +44,7 @@ import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECKey;
+import java.security.interfaces.EdECKey;
 import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
@@ -90,11 +91,20 @@ public interface WebKey extends WebKeyReference {
 				final var algorithmParamters = AlgorithmParameters.getInstance("EC");
 				algorithmParamters.init(new ECGenParameterSpec(a));
 				return algorithmParamters.getParameterSpec(ECParameterSpec.class);
-			} else if (Set.of("Ed25519", "Ed448", "X25519", "X448").contains(a))
-				return (AlgorithmParameterSpec) IuException
-						.unchecked(() -> NamedParameterSpec.class.getField(a.toUpperCase()).get(null));
-			else
-				return null;
+			} else
+				// the JDK's shared instances: NamedParameterSpec compares by identity
+				switch (a) {
+				case "Ed25519":
+					return NamedParameterSpec.ED25519;
+				case "Ed448":
+					return NamedParameterSpec.ED448;
+				case "X25519":
+					return NamedParameterSpec.X25519;
+				case "X448":
+					return NamedParameterSpec.X448;
+				default:
+					return null;
+				}
 		}));
 	}
 
@@ -114,10 +124,8 @@ public interface WebKey extends WebKeyReference {
 			return ((ECKey) key).getParams();
 		if (key instanceof XECKey)
 			return ((XECKey) key).getParams();
-		else // EdEC is the last supported type; throws IllegalStateException on JDK 11
-				// TODO switch from reflection to compiled cast for source level to 17+
-			return (NamedParameterSpec) IuException.uncheckedInvocation(() -> ClassLoader.getPlatformClassLoader()
-					.loadClass("java.security.interfaces.EdECKey").getMethod("getParams").invoke(key));
+		else // EdEC is the last supported type
+			return ((EdECKey) key).getParams();
 	}
 
 	/**

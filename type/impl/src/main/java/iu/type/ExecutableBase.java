@@ -99,8 +99,6 @@ abstract sealed class ExecutableBase<D, R, E extends Executable> extends Declare
 
 			parameters.add(new ParameterFacade<>(parameter, parameters.size(), this, paramTypeTemplate));
 		}
-
-		declaringTypeTemplate.postInit(() -> parameterizedElement.apply(declaringTypeTemplate.typeParameters()));
 	}
 
 	@Override

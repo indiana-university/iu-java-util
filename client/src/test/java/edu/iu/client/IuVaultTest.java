@@ -35,7 +35,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 import java.util.Properties;
-import java.util.function.Function;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,13 +64,13 @@ public class IuVaultTest {
 		vault.verify(() -> Vault.isConfigured());
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testOf() {
+		// values convert as the JSON-B instance does
 		final var properties = mock(Properties.class);
-		final var valueAdapter = mock(Function.class);
-		IuVault.of(properties, valueAdapter);
-		vault.verify(() -> Vault.of(properties, valueAdapter));
+		final var jsonb = jakarta.json.bind.JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").build();
+		IuVault.of(properties, jsonb);
+		vault.verify(() -> Vault.of(properties, iu.client.jsonb.IuJsonb.adapters(jsonb)));
 	}
 
 }

@@ -37,8 +37,8 @@ import jakarta.interceptor.Interceptors;
 public class HasInterceptorsOnMethod {
 
 	@Interceptors({})
-	private void fail() {
-		throw new AssertionError("Iterceptors should not be supported in this version");
+	private String fail() {
+		return "intercepted by nothing";
 	}
 
 }

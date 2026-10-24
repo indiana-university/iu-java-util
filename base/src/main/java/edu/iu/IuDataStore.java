@@ -32,19 +32,38 @@
 package edu.iu;
 
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Backing data storage interface for use in implementing data management
  * resources.
  */
 public interface IuDataStore {
-	
+
 	/**
-	 * Returns a listing of all entries in the data store (without contents).
-	 * 
+	 * Returns a listing of all entries in the data store, without their contents.
+	 *
+	 * <p>
+	 * A listing is a point-in-time approximation, not a transaction: entries added
+	 * or removed while it is being taken may or may not appear, and an entry that
+	 * appears may already be gone by the time it is read. Callers <em>should</em>
+	 * treat it as a diagnostic view of the store rather than as a set they can act
+	 * on element by element.
+	 * </p>
+	 *
+	 * <p>
+	 * Not every backing store can enumerate itself, and one that shares its
+	 * namespace with other tenants may not be able to tell its own entries from
+	 * theirs. An implementation that cannot produce a listing it can stand behind
+	 * throws {@link UnsupportedOperationException} rather than an approximation of
+	 * one.
+	 * </p>
+	 *
 	 * @return data entry listing
+	 * @throws UnsupportedOperationException if the store cannot enumerate its
+	 *                                       entries
 	 */
-	Iterable<?> list();
+	Iterable<IuDataStoreEntry> list();
 
 	/**
 	 * Get the binary value representation from Redis stored for the given key.
@@ -52,6 +71,30 @@ public interface IuDataStore {
 	 * @return {@literal null} if key does not exist.
 	 */
 	byte[] get(byte[] key);
+
+	/**
+	 * Gets the instant the data stored for a given key was last written.
+	 *
+	 * <p>
+	 * Intended as a freshness check that does not transfer the value, so a caller
+	 * holding a copy can decide whether to read it again. Implementations
+	 * <em>should</em> resolve it without reading the value itself.
+	 * </p>
+	 *
+	 * <p>
+	 * Not every backing store records a write time, and one that does may lose it
+	 * separately from the value it describes. A null return therefore means "no
+	 * write time is available", which does <em>not</em> imply the key is absent:
+	 * verify with {@link #get(byte[])} rather than inferring existence from this
+	 * method. An implementation that never records one returns null for every key.
+	 * </p>
+	 *
+	 * @param key data key. Must not be {@literal null}.
+	 * @return instant the value stored for {@code key} was last written;
+	 *         {@literal null} if the key does not exist or the store cannot
+	 *         determine when it was written
+	 */
+	Instant lastModified(byte[] key);
 
 	/**
 	 * Puts or deletes data represented by a given key.
@@ -70,5 +113,50 @@ public interface IuDataStore {
 	 * @param ttl optional expiration time. Can be {@literal null}.
 	 */
 	void put(byte[] key, byte[] value, Duration ttl);
-	
+
+	/**
+	 * Atomically stores data for a key, but only when nothing is currently stored
+	 * there.
+	 *
+	 * <p>
+	 * Deliberately not a default method built from {@link #get(byte[])} and
+	 * {@link #put(byte[], byte[], Duration)}: a caller relying on this to reserve a
+	 * key exactly once across concurrent callers needs the check and the write to
+	 * be one operation, and a fallback assembled from the other two would silently
+	 * reintroduce the race it exists to close. An implementation that cannot offer
+	 * this atomically must refuse to implement it rather than approximate it.
+	 * </p>
+	 *
+	 * @param key   key. Must not be {@literal null}.
+	 * @param value value to store if {@code key} is absent. Must not be
+	 *              {@literal null}.
+	 * @param ttl   optional expiration time for the stored value. Can be
+	 *              {@literal null}.
+	 * @return true if {@code value} was stored because {@code key} held nothing
+	 *         unexpired; false if an unexpired value was already stored and
+	 *         nothing was changed
+	 */
+	boolean putIfAbsent(byte[] key, byte[] value, Duration ttl);
+
+	/**
+	 * Atomically replaces whatever is stored for a key and answers what was there
+	 * before the replacement.
+	 *
+	 * <p>
+	 * Deliberately not a default method, for the same reason as
+	 * {@link #putIfAbsent(byte[], byte[], Duration)}: a caller using this to
+	 * consume a stored value exactly once needs the read and the write to be one
+	 * operation.
+	 * </p>
+	 *
+	 * @param key   key. Must not be {@literal null}.
+	 * @param value value to store in place of whatever {@code key} held. Must not
+	 *              be {@literal null}.
+	 * @param ttl   optional expiration time for the stored value. Can be
+	 *              {@literal null}.
+	 * @return the value that was stored for {@code key} immediately before this
+	 *         call; {@literal null} if the key held nothing unexpired
+	 */
+	byte[] getAndPut(byte[] key, byte[] value, Duration ttl);
+
 }

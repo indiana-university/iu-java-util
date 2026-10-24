@@ -39,16 +39,16 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 
-import java.lang.reflect.Type;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -65,7 +65,6 @@ import edu.iu.IuIterable;
 import edu.iu.IuProcess;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import edu.iu.config.IuConfig;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
@@ -74,17 +73,14 @@ import edu.iu.crypt.WebSignedPayload;
 import edu.iu.crypt.X500Utils;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.test.IuTestLogger;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
+import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 
 @SuppressWarnings("javadoc")
 public class JwtTest {
 
 	interface Details extends IuAuthorizationDetails {
-	}
-
-	static {
-//		IuConfig.registerInterface(Details.class);
 	}
 
 	@BeforeEach
@@ -93,21 +89,91 @@ public class JwtTest {
 	}
 
 	@Test
-	public void testAdaptNonClass() {
-		final var type = mock(Type.class);
-		final var adapter = mock(IuJsonAdapter.class);
-		try (final var mockConfig = mockStatic(IuConfig.class)) {
-			mockConfig.when(() -> IuConfig.adaptJson(type)).thenReturn(adapter);
-			assertEquals(adapter, Jwt.adapt(type));
+	public void testNumericDate() {
+		final var jsonb = TokenJsonb.get();
+		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+		assertEquals(Long.toString(now.getEpochSecond()), jsonb.toJson(now));
+		assertEquals(now, jsonb.fromJson(Long.toString(now.getEpochSecond()), Instant.class));
+
+		// a fraction is dropped
+		assertEquals(now, jsonb.fromJson(now.getEpochSecond() + ".9", Instant.class));
+
+		// every Instant, nested included
+		assertEquals("[" + now.getEpochSecond() + "]", jsonb.toJson(new Instant[] { now }));
+
+		final var numericDate = new TokenJsonb.NumericDate();
+		assertNull(numericDate.adaptToJson(null));
+		assertNull(numericDate.adaptFromJson(null));
+	}
+
+	@Test
+	public void testRegistration() throws Exception {
+		assertSame(TokenJsonb.get(), TokenJsonb.get());
+		assertThrows(IllegalStateException.class, () -> TokenJsonb.registerAdapter(mock(JsonbAdapter.class)));
+		assertThrows(IllegalStateException.class,
+				() -> TokenJsonb.registerSerializer(mock(JsonbSerializer.class)));
+		assertThrows(IllegalStateException.class,
+				() -> TokenJsonb.registerDeserializer(mock(JsonbDeserializer.class)));
+
+		final var field = TokenJsonb.class.getDeclaredField("jsonb");
+		field.setAccessible(true);
+		final var created = field.get(null);
+		try {
+			field.set(null, null);
+			assertThrows(NullPointerException.class, () -> TokenJsonb.registerAdapter(null));
+			assertThrows(NullPointerException.class, () -> TokenJsonb.registerSerializer(null));
+			assertThrows(NullPointerException.class, () -> TokenJsonb.registerDeserializer(null));
+
+			TokenJsonb.registerAdapter(IuJsonAdapter.typedAdapter(Custom.class, String.class,
+					new JsonbAdapter<Custom, String>() {
+						@Override
+						public String adaptToJson(Custom obj) {
+							return obj.value;
+						}
+
+						@Override
+						public Custom adaptFromJson(String obj) {
+							return new Custom(obj);
+						}
+					}));
+			TokenJsonb.registerSerializer(IuJsonAdapter.<Level>typedSerializer(Level.class,
+					(level, generator, context) -> generator.write(level.getName().toLowerCase())));
+			TokenJsonb.registerDeserializer(IuJsonAdapter.<Level>typedDeserializer(Level.class,
+					(parser, context, type) -> Level.parse(parser.getString().toUpperCase())));
+
+			final var value = IdGenerator.generateId();
+			final var jwt = new JwtBuilder<>().claim("custom", new Custom(value), Custom.class)
+					.claim("level", Level.INFO, Level.class).build();
+			assertEquals(value, IuJson.parse(jwt.toString()).asJsonObject().getString("custom"));
+			assertEquals(value, jwt.getClaim("custom", Custom.class).value);
+			assertEquals("info", IuJson.parse(jwt.toString()).asJsonObject().getString("level"));
+			assertSame(Level.INFO, jwt.getClaim("level", Level.class));
+		} finally {
+			for (final var name : List.of("ADAPTERS", "SERIALIZERS", "DESERIALIZERS")) {
+				final var list = TokenJsonb.class.getDeclaredField(name);
+				list.setAccessible(true);
+				((List<?>) list.get(null)).clear();
+			}
+			field.set(null, created);
+		}
+	}
+
+	public static final class Custom {
+		private final String value;
+
+		private Custom(String value) {
+			this.value = value;
 		}
 	}
 
 	@Test
-	public void testNumericDate() {
-		final var now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-		final var jnow = Jwt.NUMERIC_DATE.toJson(now);
-		assertEquals(now.getEpochSecond(), assertInstanceOf(JsonNumber.class, jnow).longValue());
-		assertEquals(now, Jwt.NUMERIC_DATE.fromJson(IuJson.number(now.getEpochSecond())));
+	public void testAudience() {
+		final var audience = URI.create(IdGenerator.generateId());
+		assertEquals(audience,
+				new Jwt(IuJson.object().add("aud", audience.toString()).build()).getAudience().iterator().next());
+		assertEquals(audience, new Jwt(IuJson.object().add("aud", IuJson.array().add(audience.toString())).build())
+				.getAudience().iterator().next());
+		assertNull(new Jwt(IuJson.object().addNull("aud").build()).getAudience());
 	}
 
 	@Test
@@ -200,13 +266,14 @@ public class JwtTest {
 
 	@Test
 	public void testHashCodeEquals() {
-		final var claims1 = mock(JsonObject.class);
+		final var claims1 = IuJson.object().add("jti", IdGenerator.generateId()).build();
 		final var jwt1 = new Jwt(claims1);
 		assertEquals(jwt1.hashCode(), claims1.hashCode());
 		assertEquals(jwt1, jwt1);
+		assertEquals(jwt1, new Jwt(claims1));
 		assertNotEquals(jwt1, new Object());
 
-		final var claims2 = mock(JsonObject.class);
+		final var claims2 = IuJson.object().add("jti", IdGenerator.generateId()).build();
 		final var jwt2 = new Jwt(claims2);
 		assertNotEquals(jwt1, jwt2);
 		assertNotEquals(jwt2, jwt1);
