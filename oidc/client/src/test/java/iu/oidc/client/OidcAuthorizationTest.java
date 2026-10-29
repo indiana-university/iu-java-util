@@ -807,7 +807,7 @@ public class OidcAuthorizationTest {
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
 
-		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var resourceUri = URI.create("https://" + IdGenerator.generateId() + ".example.com/");
 
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
@@ -1412,7 +1412,7 @@ public class OidcAuthorizationTest {
 		final var postAuth = mock(OidcPostAuthSession.class);
 		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
 
-		final var resourceUri = URI.create(IdGenerator.generateId());
+		final var resourceUri = URI.create("https://" + IdGenerator.generateId() + ".example.com/");
 
 		final var clientId = IdGenerator.generateId();
 		final var client = mock(IuOidcClient.class);
