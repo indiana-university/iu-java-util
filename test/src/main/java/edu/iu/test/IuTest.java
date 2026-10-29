@@ -32,18 +32,25 @@
 package edu.iu.test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Proxy;
 import java.net.URL;
+import java.util.ArrayDeque;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Queue;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.mockito.Mockito;
 
 import edu.iu.IuException;
+import edu.iu.IuObject;
 
 /**
  * Unit testing utilities.
@@ -133,7 +140,97 @@ public final class IuTest {
 	 */
 	public static String getProperty(String key) {
 		return properties().getProperty(key);
+	}
 
+	/**
+	 * Binds annotated fields.
+	 * 
+	 * <p>
+	 * This method provides container-like behavior that enhances the test suite for
+	 * a module that opens the package containing the test class, which binds fields
+	 * at runtime via a dependency injection framework.
+	 * </p>
+	 *
+	 * <p>
+	 * Fields declared by the test instance class or one of it non-platform
+	 * superclasses, are bound as:
+	 * </p>
+	 * 
+	 * <ol>
+	 * <li>If the extension declares a field of the same name, the extension's field
+	 * value is copied.</li>
+	 * <li>If the field's type is in the same package as the test instance, a
+	 * singleton instance is created via accessible constructor, and its declared
+	 * fields are enqueued.</li>
+	 * <li>If the field's type is a non-platform type not in the same package as the
+	 * test instance, a singleton mock is created and shared by all references.</li>
+	 * <li>If the field's type is a platform type, either a matching field exists on
+	 * the extension or {@link IllegalStateException} is thrown.</li>
+	 * </ol>
+	 * 
+	 * @param testInstance   test instance
+	 * @param extension      extension instance
+	 * @param annotationType annotation type
+	 * @throws IllegalStateException if a platform field type is discovered that
+	 *                               carries the annotation and doesn't have a field
+	 *                               defined on the extension class to provide its
+	 *                               value.
+	 */
+	public static void bindResources(Object testInstance, Object extension,
+			Class<? extends Annotation> annotationType) {
+		final Map<AnnotatedField, Object> resources = new HashMap<>();
+
+		final Queue<Object> toBind = new ArrayDeque<>();
+		toBind.offer(testInstance);
+
+		while (!toBind.isEmpty()) {
+			final var r = toBind.poll();
+			var c = r.getClass();
+			while (!IuObject.isPlatformName(c.getName())) {
+				for (final var f : c.getDeclaredFields()) {
+					final var name = f.getName();
+					if (f.isAnnotationPresent(annotationType)) {
+						f.setAccessible(true);
+						try {
+							final var sourceField = extension.getClass().getDeclaredField(name);
+							if (!f.getType().isAssignableFrom(sourceField.getType()))
+								throw new NoSuchFieldException();
+
+							sourceField.setAccessible(true);
+							IuException.unchecked(() -> f.set(r, sourceField.get(extension)));
+						} catch (NoSuchFieldException e) {
+							IuException.unchecked(() -> {
+								final var field = new AnnotatedField(name, f.getAnnotation(annotationType));
+								var resource = resources.get(field);
+								if (resource == null) {
+									final var type = f.getType();
+									if (type.getPackage() == testInstance.getClass().getPackage()) {
+										final var con = type.getDeclaredConstructor();
+										con.setAccessible(true);
+										resource = con.newInstance();
+										resources.put(field, resource);
+										toBind.offer(resource);
+									} else if (!IuObject.isPlatformName(type.getName()))
+										resources.put(field, resource = mock(type));
+									else
+										throw new IllegalStateException("missing " + annotationType + " " + f, e);
+								}
+								try {
+									f.set(r, resource); // throws IAE if resource doesn't match type
+								} catch (Throwable e2) {
+									e2.addSuppressed(e);
+									throw e2;
+								}
+							});
+						}
+					}
+				}
+				c = c.getSuperclass();
+			}
+		}
+	}
+
+	private record AnnotatedField(String name, Annotation annotation) {
 	}
 
 	private IuTest() {

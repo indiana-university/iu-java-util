@@ -3,6 +3,7 @@ package iu.dao;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -332,6 +333,17 @@ public class JdbcDaoTest {
 				() -> config);
 		assertInstanceOf(CachedDao.class, cached);
 		assertEquals("Ada", cached.searchBeans(Bean.class, Map.of()).get(0).getFirstName());
+	}
+
+	@Test
+	public void testExistsReportsWhetherTheQuerySelectsARow() {
+		final var jdbc = new Jdbc();
+		final var dao = new JdbcDao(jdbc.dataSource(), transactionManager(Status.STATUS_NO_TRANSACTION), registry(),
+				builder());
+		assertTrue(dao.exists("select first_name, age", List.of()));
+		assertFalse(dao.exists("empty", List.of()));
+		assertTrue(dao.exists(Bean.class, List.of(), List.of()));
+		assertTrue(dao.exists(Bean.class, Map.of("id", 1)));
 	}
 
 	@Test

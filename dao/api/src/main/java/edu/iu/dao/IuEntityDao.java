@@ -31,13 +31,19 @@
  */
 package edu.iu.dao;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.Queue;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import edu.iu.GenericTypes;
 import edu.iu.IdGenerator;
@@ -51,13 +57,23 @@ import jakarta.persistence.EntityNotFoundException;
  *
  * <p>
  * Operations are suitable for a keyed collection: {@link #load(Object)} reads
- * one row, {@link #search(Map, int, Integer)} lists a range,
+ * one row, {@link #search(Map, Search)} lists a range,
  * {@link #save(Object, Object)} writes one row whole, {@link #merge} applies a
  * partial input to one row, and {@link #delete(Object)} removes one. A subclass
  * names the key type {@code K}, the contract interface {@code I} its callers
- * read and write, and the entity type {@code T} that stores it; the entity
- * implements the contract and takes a contract value's own columns through
- * {@link Consumer#accept(Object)}.
+ * read and write, and the entity type {@code E} that stores it.
+ * </p>
+ *
+ * <h2>Entity decorators</h2>
+ *
+ * <p>
+ * The entity opts in to the behavior it needs by implementing decorator
+ * interfaces; an entity that doesn't implement one is left untouched by the
+ * corresponding operation. {@link SaveableEntity} takes a full input in
+ * {@link #save(Object, Object) save}, {@link MergeableEntity} takes a partial
+ * input in {@link #merge(Object, Object) merge}, and {@link SequencedEntity}
+ * takes the position of a child row saved or merged as part of a child
+ * collection.
  * </p>
  *
  * <h2>Hooks</h2>
@@ -67,7 +83,10 @@ import jakarta.persistence.EntityNotFoundException;
  * {@link #afterSave}, {@link #afterMerge}, {@link #beforeDelete} and
  * {@link #afterDelete}; {@link #beforeInput} and {@link #afterInput} surround
  * the application of input to an entity, and {@link #afterInput} is where a
- * subclass prepares an entity to be written, i.e., stamps audit columns.
+ * subclass prepares an entity to be written, i.e., stamps audit columns. The
+ * four input-related hooks receive the input given to the save or merge, which
+ * is null when the caller passed none, so a parent DAO can read its child
+ * collection from it.
  * </p>
  *
  * <h2>Writes</h2>
@@ -77,6 +96,37 @@ import jakarta.persistence.EntityNotFoundException;
  * there is one, so columns the input does not carry -- when the row was
  * created, which parent it belongs to -- survive an update. A merge applies
  * only the values a partial input carries.
+ * </p>
+ *
+ * <h2>Parent and child rows</h2>
+ *
+ * <p>
+ * A child DAO maintains the rows that belong to a parent entity from within the
+ * parent DAO's {@link #afterSave} or {@link #afterMerge} hook, by passing the
+ * input's child collection to {@link #save(Iterable)} or
+ * {@link #merge(Iterable)}. The child DAO finds the parent through
+ * {@link #parent()} and the parent's input through the {@code input} argument
+ * of its {@link #afterSave} or {@link #afterMerge} hook, and opts in by
+ * overriding {@link #search(Search)} to select the parent's
+ * stored children. Because a parent-driven search decides which stored rows are
+ * deleted, the default implementation returns no rows, and a child collection
+ * is then saved or merged without removing anything. {@link #delete()} removes
+ * all of the parent's children, by default those {@link #search()} returns.
+ * Every verb is strict about the parent: unless the entity implements
+ * {@link ChildEntity}, or the DAO overrides {@link #tryBinding} (or
+ * {@link #bind}) to accept it, an operation on a DAO while a parent is active
+ * throws {@link IllegalArgumentException}. A new row is bound to the parent
+ * when created, before input is applied, and a stored row is bound again on
+ * {@code load}, {@code save}, {@code merge} and {@code delete}, so a stored
+ * child of a different parent is rejected.
+ * {@link #withParent(Object, Runnable)} and the overloads that take a parent
+ * object inject one without a hook.
+ * </p>
+ *
+ * <p>
+ * An entity class should override {@code hashCode}, {@code equals} and
+ * {@code toString} over its primary key values, as the rejection message
+ * identifies the child by its {@code toString}.
  * </p>
  *
  * <h2>Listing</h2>
@@ -101,10 +151,139 @@ import jakarta.persistence.EntityNotFoundException;
  * @param <I> contract interface type
  * @param <E> entity type
  */
-public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<I>> {
+public abstract class IuEntityDao<K, I, E> {
 
-	private final Class<K> keyClass;
-	private final Class<E> entityClass;
+	private static final ThreadLocal<Object> PARENT = new ThreadLocal<>();
+
+	/**
+	 * Passes the post-processing a search applies to the rows it reads.
+	 *
+	 * <p>
+	 * The static factories capture the active {@link IuEntityDao#parent()} of the
+	 * calling thread, so a {@code Search} created outside any parent scope carries
+	 * a null parent.
+	 * </p>
+	 *
+	 * @param <E>    entity type
+	 * @param parent parent to filter results by, as accepted by
+	 *               {@link IuEntityDao#tryBinding}; may be null
+	 * @param filter additional filter applied after the parent filter; null to
+	 *               accept every row
+	 * @param from   start of range, inclusive
+	 * @param to     end of range, exclusive; null for end of list
+	 */
+	public record Search<E>(Object parent, Predicate<E> filter, int from, Integer to) {
+
+		/**
+		 * Selects every row bound to the active parent.
+		 *
+		 * @param <E> entity type
+		 * @return search for the active {@link IuEntityDao#parent()}, unfiltered and
+		 *         unranged
+		 */
+		public static <E> Search<E> child() {
+			return new Search<E>(PARENT.get(), null, 0, null);
+		}
+
+		/**
+		 * Selects a range of the rows bound to the active parent.
+		 *
+		 * @param <E>  entity type
+		 * @param from start of range, inclusive
+		 * @param to   end of range, exclusive; null for end of list
+		 * @return search for the active {@link IuEntityDao#parent()}, limited to the
+		 *         range
+		 */
+		public static <E> Search<E> range(int from, Integer to) {
+			return new Search<E>(PARENT.get(), null, from, to);
+		}
+
+		/**
+		 * Selects the rows bound to the active parent that pass a filter.
+		 *
+		 * @param <E>    entity type
+		 * @param filter filter, applied before the range
+		 * @return search for the active {@link IuEntityDao#parent()}, filtered
+		 */
+		public static <E> Search<E> filtered(Predicate<E> filter) {
+			return new Search<E>(PARENT.get(), filter, 0, null);
+		}
+
+		/**
+		 * Selects a range of the rows bound to the active parent that pass a filter.
+		 *
+		 * @param <E>    entity type
+		 * @param filter filter, applied before the range
+		 * @param from   start of range, inclusive
+		 * @param to     end of range, exclusive; null for end of list
+		 * @return search for the active {@link IuEntityDao#parent()}, filtered and
+		 *         limited to the range
+		 */
+		public static <E> Search<E> filteredRange(Predicate<E> filter, int from, Integer to) {
+			return new Search<E>(PARENT.get(), filter, from, to);
+		}
+	}
+
+	/**
+	 * Injects a parent object for reference by {@link #parent} within the callback.
+	 * 
+	 * <p>
+	 * The parent must be appropriate for the DAO, and should be validated when
+	 * consumed from {@link #parent}.
+	 * </p>
+	 * 
+	 * @param <T>      return type
+	 * @param parent   parent to inject
+	 * @param supplier callback
+	 * @return result
+	 */
+	public static <T> T withParent(Object parent, Supplier<T> supplier) {
+		final var restore = PARENT.get();
+		try {
+			PARENT.set(parent);
+
+			return supplier.get();
+
+		} finally {
+			if (restore == null)
+				PARENT.remove();
+			else
+				PARENT.set(restore);
+		}
+	}
+
+	/**
+	 * Injects a parent object for reference by {@link #parent} within the callback.
+	 * 
+	 * <p>
+	 * The parent must be appropriate for the DAO, and should be validated when
+	 * consumed from {@link #parent}.
+	 * </p>
+	 * 
+	 * @param parent   parent to inject
+	 * @param runnable callback
+	 */
+	public static void withParent(Object parent, Runnable runnable) {
+		withParent(parent, () -> {
+			runnable.run();
+			return null;
+		});
+	}
+
+	/**
+	 * Key class.
+	 */
+	protected final Class<K> keyClass;
+
+	/**
+	 * Entity class.
+	 */
+	protected final Class<I> inputClass;
+
+	/**
+	 * Entity class.
+	 */
+	protected final Class<E> entityClass;
 
 	/**
 	 * Default constructor.
@@ -113,6 +292,7 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	protected IuEntityDao() {
 		final var typeArguments = GenericTypes.typeArguments(getClass(), IuEntityDao.class);
 		keyClass = (Class<K>) GenericTypes.erase(typeArguments[0]);
+		inputClass = (Class<I>) GenericTypes.erase(typeArguments[1]);
 		entityClass = (Class<E>) GenericTypes.erase(typeArguments[2]);
 	}
 
@@ -124,7 +304,95 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	protected abstract IuDao dao();
 
 	/**
-	 * Maps a key to the entity's key properties, as
+	 * Gets the parent entity last noted by a load, save, merge, or delete operation
+	 * on the current thread.
+	 *
+	 * <p>
+	 * The value is set to the entity being operated on while the
+	 * {@link #afterLoad}, {@link #afterSave}, {@link #afterMerge},
+	 * {@link #beforeDelete}, and {@link #afterDelete} hooks run, and restored when
+	 * the hook returns. The value is shared by all DAOs on the thread, so a child
+	 * DAO invoked from one of those hooks sees the parent DAO's entity, and MAY
+	 * cast it to the parent entity type.
+	 * </p>
+	 *
+	 * @return parent entity; null when no such hook is running
+	 */
+	protected Object parent() {
+		return PARENT.get();
+	}
+
+	/**
+	 * Tries binding a child entity to a given parent.
+	 * 
+	 * <p>
+	 * Used by {@link #search} to filter results by {@link #parent()}, and by the
+	 * default {@link #bind} to reject an entity that does not implement
+	 * {@link ChildEntity}. Delegates to {@link ChildEntity#tryBinding} when child
+	 * implements {@link ChildEntity}; else returns true only when parent is null. A
+	 * DAO whose entity does not implement {@link ChildEntity} may override only
+	 * this method to accept a parent; {@link #bind} need not be overridden.
+	 * </p>
+	 * 
+	 * <p>
+	 * Implementations MAY initialize a child entity binding, and SHOULD be
+	 * non-destructive and fail fast.
+	 * </p>
+	 * 
+	 * @param parent parent to validate against
+	 * @param child  child entity
+	 * @return true if the child is, or has just been, bound to the parent; false if
+	 *         it cannot be bound to the parent
+	 */
+	protected boolean tryBinding(Object parent, E child) {
+		if (child instanceof ChildEntity e)
+			return e.tryBinding(parent);
+		else
+			return parent == null;
+	}
+
+	/**
+	 * Binds child to a given parent.
+	 * 
+	 * <p>
+	 * Invoked with {@link #parent()} by {@link #newEntity} for a new row, and by
+	 * {@link #load} (and so {@link #merge}), {@link #save} and {@link #delete} for
+	 * a stored row, before any hook runs. Delegates to {@link ChildEntity#bind}
+	 * when child implements {@link ChildEntity}; else throws
+	 * {@link IllegalArgumentException} unless {@link #tryBinding} accepts the
+	 * parent. Strict by default: a DAO supports a parent by one of
+	 * </p>
+	 * <ol>
+	 * <li>an entity that implements {@link ChildEntity},</li>
+	 * <li>overriding {@link #tryBinding} to accept the parent, or</li>
+	 * <li>overriding this method, which may also record the parent on the
+	 * child.</li>
+	 * </ol>
+	 * <p>
+	 * Otherwise a save or merge from a parent DAO's {@link #afterSave} or
+	 * {@link #afterMerge} fails with {@link IllegalArgumentException}.
+	 * </p>
+	 *
+	 * <p>
+	 * The message of the exception includes the parent and the child's
+	 * {@link Object#toString()}. As a best practice, an entity class should
+	 * override {@code hashCode}, {@code equals} and {@code toString} over its
+	 * primary key values, so the message identifies the row.
+	 * </p>
+	 *
+	 * @param parent parent to bind to; null when no parent is active
+	 * @param child  child entity
+	 * @throws IllegalArgumentException if the child cannot be bound to the parent
+	 */
+	protected void bind(Object parent, E child) {
+		if (child instanceof ChildEntity e)
+			e.bind(parent);
+		else if (!tryBinding(parent, child))
+			throw new IllegalArgumentException("unexpected parent " + parent + " for child " + child);
+	}
+
+	/**
+	 * Maps a key to the entity's primary key property, as
 	 * {@link IuDao#loadBean(Class, Map)} takes them.
 	 *
 	 * @param key key, already validated
@@ -137,10 +405,14 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	/**
 	 * Reads the key a stored entity is registered under.
 	 *
+	 * <p>
+	 * Distinct from {@link #key(Object)}, which reads the key from input.
+	 * </p>
+	 *
 	 * @param entity entity
 	 * @return key
 	 */
-	protected K key(E entity) {
+	protected K entityKey(E entity) {
 		return keyClass.cast(IuIterable.single(dao().getBeanKey(entity).values()));
 	}
 
@@ -161,7 +433,7 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 			return keyClass.cast(input);
 
 		if (entityClass.isInstance(input))
-			return key(entityClass.cast(input));
+			return entityKey(entityClass.cast(input));
 
 		return null;
 	}
@@ -183,10 +455,14 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * Creates an entity carrying only its key, for a row not yet written.
 	 *
 	 * @param key key, already validated
-	 * @return new entity
+	 * @return new entity, {@link #bind bound} to its {@link #parent}
+	 * @throws IllegalArgumentException if the entity cannot be bound to the active
+	 *                                  parent
 	 */
 	protected E newEntity(K key) {
-		return dao().newBean(entityClass, id(key));
+		final var newEntity = dao().newBean(entityClass, id(key));
+		bind(parent(), newEntity);
+		return newEntity;
 	}
 
 	/**
@@ -221,9 +497,10 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * the existing entity, not invoked when saving a new entity.
 	 * </p>
 	 *
+	 * @param input  input provided to {@link #save} or {@link #merge}
 	 * @param entity entity about to be merged or applied
 	 */
-	protected void beforeInput(E entity) {
+	protected void beforeInput(I input, E entity) {
 	}
 
 	/**
@@ -235,9 +512,10 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * or merging input, on all entities, prior to {@link IuDao#saveBean}.
 	 * </p>
 	 *
+	 * @param input  input provided to {@link #save} or {@link #merge}
 	 * @param entity entity about to be saved
 	 */
-	protected void afterInput(E entity) {
+	protected void afterInput(I input, E entity) {
 	}
 
 	/**
@@ -255,9 +533,10 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * carries is not on the entity.
 	 * </p>
 	 *
+	 * @param input  input provided to {@link #save}
 	 * @param entity entity as saved
 	 */
-	protected void afterSave(E entity) {
+	protected void afterSave(I input, E entity) {
 	}
 
 	/**
@@ -270,9 +549,10 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * invoked, not both.
 	 * </p>
 	 * 
+	 * @param input  input provided to {@link #merge}
 	 * @param entity entity as saved
 	 */
-	protected void afterMerge(E entity) {
+	protected void afterMerge(I input, E entity) {
 	}
 
 	/**
@@ -300,64 +580,17 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	}
 
 	/**
-	 * Searches for entities by SQL criteria.
+	 * Loads an entity by key.
 	 *
-	 * <p>
-	 * Not public, and not named {@code search}: the clause is emitted into SQL
-	 * verbatim, and a {@code search(String, ...)} overload beside a subclass's
-	 * {@code search(String parentId, ...)} made a call passing {@code null}
-	 * ambiguous. Qualify the entity's own columns with its table alias; see
-	 * {@link IuSqlBuilder#getTableAlias(Class, String)}. Unlike
-	 * {@link #search(Map)}, this is not served from the transaction's read cache.
-	 * </p>
-	 *
-	 * @param where where clause, with {@code ?} placeholders
-	 * @param args  placeholder values, in order
-	 * @return results, in {@link #order()}
+	 * @param parent parent object, for child reference
+	 * @param key    key
+	 * @return loaded entity
+	 * @throws EntityNotFoundException  if nothing is registered under the key
+	 * @throws IllegalArgumentException if the entity is not a valid child of the
+	 *                                  parent, as determined by {@link #bind}
 	 */
-	protected List<E> searchWhere(String where, Object... args) {
-		return searchWhere(IuIterable.iter(where), IuIterable.iter(args), 0, null);
-	}
-
-	/**
-	 * Searches for entities by SQL criteria.
-	 *
-	 * @param where where clauses, with {@code ?} placeholders, emitted verbatim
-	 * @param args  placeholder values, in order
-	 * @param from  start of range, inclusive
-	 * @param to    end of range, exclusive; null for end of list
-	 * @return results, in {@link #order()}
-	 */
-	protected List<E> searchWhere(Iterable<String> where, Iterable<?> args, int from, Integer to) {
-		return selectAndPopulate(dao().getBeanQuery(entityClass, where, args).getResults(), from, to);
-	}
-
-	// search() helper
-	private List<E> selectAndPopulate(List<E> found, int from, Integer to) {
-		final var order = order();
-		final List<E> results;
-		if (order == null)
-			results = found;
-		else {
-			results = new ArrayList<>(found);
-			results.sort(order);
-		}
-
-		final List<E> range;
-		if (from == 0 && to == null)
-			range = results;
-		else {
-			final var size = results.size();
-			range = results.subList( //
-					Integer.max(0, Integer.min(from, size)), //
-					Integer.max(from, Integer.min(size, Objects.requireNonNullElse(to, size))) //
-			);
-		}
-
-		for (final var entity : range)
-			afterLoad(entity);
-
-		return Collections.unmodifiableList(range);
+	public E load(Object parent, K key) throws EntityNotFoundException {
+		return withParent(parent, () -> load(key));
 	}
 
 	/**
@@ -365,36 +598,174 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 *
 	 * @param key key
 	 * @return loaded entity
-	 * @throws EntityNotFoundException if nothing is registered under the key
+	 * @throws EntityNotFoundException  if nothing is registered under the key
+	 * @throws IllegalArgumentException if the entity is not a valid child of the
+	 *                                  active parent, as determined by
+	 *                                  {@link #bind}
 	 */
 	public E load(K key) throws EntityNotFoundException {
 		final var entity = dao().loadBean(entityClass, id(key));
-		afterLoad(entity);
+		bind(parent(), entity);
+		withParent(entity, () -> afterLoad(entity));
 		return entity;
 	}
 
 	/**
-	 * Searches for entities.
+	 * Eagerly searches for entities by SQL criteria.
+	 * 
+	 * <p>
+	 * This method is intended for implementing {@link #search(Search)}. The rows
+	 * read are filtered by {@link Search#parent()} through {@link #tryBinding} and
+	 * by {@link Search#filter()}, ordered, and limited to the range of the
+	 * {@code search} before {@link #afterLoad} runs for the rows returned.
+	 * </p>
+	 *
+	 * @param where  where clauses, with {@code ?} placeholders, emitted verbatim
+	 * @param args   placeholder values, in order
+	 * @param search parent, filter and range to apply to the rows read
+	 * @return results, in {@link #order()}
+	 */
+	protected List<E> searchWhere(Iterable<String> where, Iterable<?> args, Search<E> search) {
+		return selectAndPopulate(dao().getBeanQuery(entityClass, where, args).getResults(), search);
+	}
+
+	// search() helper
+	private List<E> selectAndPopulate(List<E> found, Search<E> search) {
+		final var order = order();
+		final List<E> results = new ArrayList<>(found.size());
+		for (final var child : found)
+			if (tryBinding(search.parent, child) && (search.filter == null || search.filter.test(child)))
+				results.add(child);
+
+		if (order != null)
+			results.sort(order);
+
+		int from = search.from;
+		Integer to = search.to;
+		final List<E> range;
+		if (from == 0 && to == null)
+			range = results;
+		else {
+			var size = results.size();
+			from = Integer.max(0, Integer.min(from, size));
+			to = Integer.max(from, Integer.min(size, Objects.requireNonNullElse(to, size)));
+			range = results.subList(from, to);
+		}
+
+		for (final var entity : range)
+			withParent(entity, () -> afterLoad(entity));
+
+		return Collections.unmodifiableList(range);
+	}
+
+	/**
+	 * Eagerly searches for entities by criteria defined by parent reference.
+	 * 
+	 * <p>
+	 * MAY be invoked from within a parent DAO's {@link #afterLoad},
+	 * {@link #afterSave}, {@link #afterMerge}, or {@link #afterDelete} method to
+	 * look up child rows.
+	 * </p>
+	 * 
+	 * <p>
+	 * Subclasses opt in to parent-driven search by overriding this method; by
+	 * default no rows are returned. Because the result decides which stored child
+	 * rows are deleted by {@link #save(Iterable)}, an override must select only
+	 * rows that belong to {@link #parent()}.
+	 * </p>
+	 *
+	 * @param search parent, filter and range, as captured from {@link #parent()}
+	 *               by {@link Search#child()} and its sibling factories
+	 * @return results, in {@link #order()}; by default, empty
+	 */
+	public List<E> search(Search<E> search) {
+		return List.of();
+	}
+
+	/**
+	 * Eagerly searches for entities.
 	 *
 	 * @param params search params, by entity property name; an {@link Iterable}
 	 *               value matches any of its elements
+	 * @param search parent, filter and range to apply to the rows read
 	 * @return results, in {@link #order()}
 	 */
-	public List<E> search(Map<String, ?> params) {
-		return search(params, 0, null);
+	public List<E> search(Map<String, ?> params, Search<E> search) {
+		return selectAndPopulate(dao().searchBeans(entityClass, params), search);
+	}
+
+	/**
+	 * Searches for entities by criteria defined by inspecting {@link #parent()}.
+	 * 
+	 * <p>
+	 * The {@link #parent()} is captured when this method is called, but the search
+	 * itself is deferred until the result is first iterated.
+	 * </p>
+	 * 
+	 * <p>
+	 * MAY be invoked from within a parent DAO's {@link #afterLoad},
+	 * {@link #afterSave}, {@link #afterMerge}, or {@link #afterDelete} method to
+	 * look up child rows.
+	 * </p>
+	 *
+	 * <p>
+	 * Subclasses opt in to parent-driven search by overriding
+	 * {@link #search(Search)}; by default no rows are returned. The
+	 * result drives which stored child rows {@link #save(Iterable)} deletes and
+	 * {@link #merge(Iterable)} may merge onto, so it must select only rows that
+	 * belong to {@link #parent()}.
+	 * </p>
+	 *
+	 * @return results, in {@link #order()}; by default, empty
+	 */
+	protected Iterable<E> search() {
+		final Search<E> search = Search.child();
+		return IuIterable.defer(() -> search(search));
 	}
 
 	/**
 	 * Searches for entities.
 	 *
+	 * <p>
+	 * The {@link #parent()} is captured when this method is called, but the search
+	 * itself is deferred until the result is first iterated.
+	 * </p>
+	 * 
+	 * <p>
+	 * MAY be invoked from within a parent DAO's {@link #afterLoad},
+	 * {@link #afterSave}, {@link #afterMerge}, or {@link #afterDelete} method to
+	 * look up child rows.
+	 * </p>
+	 *
 	 * @param params search params, by entity property name; an {@link Iterable}
 	 *               value matches any of its elements
-	 * @param from   start of range, inclusive
-	 * @param to     end of range, exclusive; null for end of list
 	 * @return results, in {@link #order()}
 	 */
-	public List<E> search(Map<String, ?> params, int from, Integer to) {
-		return selectAndPopulate(dao().searchBeans(entityClass, params), from, to);
+	public Iterable<E> search(Map<String, ?> params) {
+		final Search<E> search = Search.child();
+		return IuIterable.defer(() -> search(params, search));
+	}
+
+	/**
+	 * Saves an entity.
+	 *
+	 * @param parent parent object
+	 * @param key    key to save the input as; may be null if the key is provided by
+	 *               passing {@code input} to {@link #key(Object)}
+	 * @param input  input properties
+	 * @return key under which the input was saved; the key as given, else the key
+	 *         carried by the input, else a generated key
+	 * @throws IllegalArgumentException      if the entity is not a valid
+	 *                                       {@link #bind child} of the active
+	 *                                       parent, or both {@code key} and the key
+	 *                                       carried by {@code input} are non-null
+	 *                                       and not equal
+	 * @throws UnsupportedOperationException if neither {@code key} nor
+	 *                                       {@code input} provides a key, and key
+	 *                                       generation is not supported
+	 */
+	public K save(Object parent, K key, I input) throws IllegalArgumentException, UnsupportedOperationException {
+		return withParent(parent, () -> save(key, input));
 	}
 
 	/**
@@ -404,9 +775,26 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * This method differs from {@link #merge} in two ways. Null values in the input
 	 * clear the existing value, where merge preserves it. And when no entity is
 	 * stored under the key, a new entity is created, where merge requires an
-	 * existing row. For an existing row, only the entity bean is loaded, without
-	 * invoking {@link #afterLoad}, which facilitates creating and replacing related
-	 * values.
+	 * existing row.
+	 * </p>
+	 *
+	 * <p>
+	 * For an existing row, {@link #afterLoad} is invoked after the entity bean is
+	 * read and before {@link #beforeInput}, with {@link #parent()} set to the
+	 * entity; a new entity is not loaded, so neither hook is invoked. The input is
+	 * then applied by {@link SaveableEntity#save}, when the entity implements it,
+	 * and the sequence number is injected, when the entity implements
+	 * {@link SequencedEntity} and the save is part of a child collection. A null
+	 * input is allowed, and is passed to the hooks as given.
+	 * </p>
+	 *
+	 * <p>
+	 * An existing row is bound to {@link #parent()} by {@link #bind} before any
+	 * hook runs. A new row is created by {@link #newEntity}, which binds the active
+	 * parent before the input is applied. A child that cannot be bound is an
+	 * {@link IllegalArgumentException}, never an {@link EntityNotFoundException},
+	 * and nothing is written. The sequence number is injected after the input is
+	 * applied and before {@link #afterInput}.
 	 * </p>
 	 *
 	 * @param key   key to save the input as; may be null if the key is provided by
@@ -414,14 +802,21 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * @param input input properties
 	 * @return key under which the input was saved; the key as given, else the key
 	 *         carried by the input, else a generated key
-	 * @throws IllegalArgumentException      if both {@code key} and the key carried
-	 *                                       by {@code input} are non-null and not
-	 *                                       equal
+	 * @throws IllegalArgumentException      if the entity is not a valid
+	 *                                       {@link #bind child} of the active
+	 *                                       parent, or both {@code key} and the key
+	 *                                       carried by {@code input} are non-null
+	 *                                       and not equal
 	 * @throws UnsupportedOperationException if neither {@code key} nor
 	 *                                       {@code input} provides a key, and key
 	 *                                       generation is not supported
 	 */
 	public K save(K key, I input) throws IllegalArgumentException, UnsupportedOperationException {
+		return save(key, input, null);
+	}
+
+	@SuppressWarnings("unchecked")
+	private K save(K key, I input, Integer seq) throws IllegalArgumentException, UnsupportedOperationException {
 		final var keyFromInput = key(input);
 		final K saveKey;
 		if (key == null)
@@ -429,25 +824,37 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 		else
 			saveKey = IuObject.once(key, keyFromInput, "key does not match input");
 
-		E entity;
+		final E entity;
 		boolean newEntity;
-		try {
-			entity = dao().loadBean(entityClass, id(saveKey));
-			newEntity = false;
-		} catch (EntityNotFoundException e) {
-			entity = newEntity(saveKey);
-			newEntity = true;
+		{
+			E loadedEntity;
+			try {
+				loadedEntity = dao().loadBean(entityClass, id(saveKey));
+				newEntity = false;
+			} catch (EntityNotFoundException e) {
+				loadedEntity = newEntity(saveKey);
+				newEntity = true;
+			}
+			entity = loadedEntity;
 		}
 
-		if (!newEntity)
-			beforeInput(entity);
+		if (!newEntity) {
+			bind(parent(), entity);
+			withParent(entity, () -> afterLoad(entity));
+			beforeInput(input, entity);
+		}
 
-		entity.accept(input);
-		afterInput(entity);
+		if (input != null && entity instanceof SaveableEntity saveable)
+			saveable.save(input);
+
+		if (seq != null && (entity instanceof SequencedEntity se))
+			se.setSeq(seq);
+
+		afterInput(input, entity);
 
 		dao().saveBean(entity);
 
-		afterSave(entity);
+		withParent(entity, () -> afterSave(input, entity));
 
 		return saveKey;
 	}
@@ -468,6 +875,84 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	}
 
 	/**
+	 * Saves child rows.
+	 * 
+	 * @param parent   parent object
+	 * @param children child collection; null to leave stored child rows unchanged
+	 */
+	public void save(Object parent, Iterable<? extends I> children) {
+		withParent(parent, () -> save(children));
+	}
+
+	/**
+	 * Saves all child rows.
+	 * 
+	 * <p>
+	 * Intended to be invoked from the parent DAO's {@link #afterSave} or
+	 * {@link #afterMerge} hook. The keys of the rows {@link #search()} returns, if
+	 * any, are bound to a set and removed as child rows are saved. Any keys left
+	 * over (not saved as a child row) are then deleted. With the default
+	 * {@link #search(Search)}, nothing is deleted.
+	 * </p>
+	 *
+	 * <p>
+	 * When the entity type implements {@link SequencedEntity}, the position of each
+	 * child in the collection, starting at 0, is injected before the child is
+	 * saved.
+	 * </p>
+	 *
+	 * @param children child collection; null to leave stored child rows unchanged
+	 */
+	public void save(Iterable<? extends I> children) {
+		if (children != null) {
+			final Set<K> keys = new HashSet<>();
+			search().forEach(ref -> keys.add(entityKey(ref)));
+
+			var seq = 0;
+			for (final var child : children)
+				keys.remove(save(null, child, seq++));
+
+			keys.forEach(this::delete);
+		}
+	}
+
+	/**
+	 * Merges a partial input onto a stored entity.
+	 *
+	 * <p>
+	 * This method differs from {@link #save(Object, Object, Object) save} in two
+	 * ways. Null values in the input preserve the existing value, where save clears
+	 * it. And merge requires an existing row, loaded through {@link #load(Object)}
+	 * so that {@link #afterLoad} is invoked, which facilitates appending or
+	 * modifying specific related values.
+	 * </p>
+	 *
+	 * <p>
+	 * The input is applied by {@link MergeableEntity#merge}, when the entity
+	 * implements it, and the sequence number is injected, when the entity
+	 * implements {@link SequencedEntity} and the merge is part of a child
+	 * collection. A null input is allowed, and is passed to the hooks as given.
+	 * </p>
+	 *
+	 * @param parent parent object
+	 * @param key    of the row to merge with; may be null if the key is provided by
+	 *               passing {@code input} to {@link #key(Object)}
+	 * @param input  partial input, naming the key of a stored entity
+	 * @return key of the row the input was merged with
+	 * @throws EntityNotFoundException  if no entity is stored under the key
+	 * @throws IllegalArgumentException if the entity is not a valid {@link #bind
+	 *                                  child} of the active parent, or both
+	 *                                  {@code key} and the key carried by
+	 *                                  {@code input} are non-null and not equal
+	 * @throws NullPointerException     if neither {@code key} nor {@code input}
+	 *                                  provides a key
+	 */
+	public K merge(Object parent, K key, I input)
+			throws EntityNotFoundException, IllegalArgumentException, NullPointerException {
+		return withParent(parent, () -> merge(key, input));
+	}
+
+	/**
 	 * Merges a partial input onto a stored entity: the alternative to
 	 * {@link #save(Object, Object) save} for {@code PATCH}.
 	 *
@@ -479,28 +964,57 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * specific related values.
 	 * </p>
 	 *
+	 * <p>
+	 * The input is applied by {@link MergeableEntity#merge}, when the entity
+	 * implements it, and the sequence number is injected, when the entity
+	 * implements {@link SequencedEntity} and the merge is part of a child
+	 * collection. A null input is allowed, and is passed to the hooks as given.
+	 * </p>
+	 *
+	 * <p>
+	 * The entity is bound to {@link #parent()} by {@link #bind} as it is loaded,
+	 * before any hook runs; a child that cannot be bound is an
+	 * {@link IllegalArgumentException}, never an {@link EntityNotFoundException}.
+	 * The sequence number is injected after the input is applied and before
+	 * {@link #afterInput}, as in {@link #save(Object, Object) save}.
+	 * </p>
+	 *
 	 * @param key   of the row to merge with; may be null if the key is provided by
 	 *              passing {@code input} to {@link #key(Object)}
 	 * @param input partial input, naming the key of a stored entity
 	 * @return key of the row the input was merged with
 	 * @throws EntityNotFoundException  if no entity is stored under the key
-	 * @throws IllegalArgumentException if both {@code key} and the key carried by
+	 * @throws IllegalArgumentException if the entity is not a valid {@link #bind
+	 *                                  child} of the active parent, or both
+	 *                                  {@code key} and the key carried by
 	 *                                  {@code input} are non-null and not equal
 	 * @throws NullPointerException     if neither {@code key} nor {@code input}
 	 *                                  provides a key
 	 */
 	public K merge(K key, I input) throws EntityNotFoundException, IllegalArgumentException, NullPointerException {
+		return merge(key, input, null);
+	}
+
+	@SuppressWarnings("unchecked")
+	private K merge(K key, I input, Integer seq)
+			throws EntityNotFoundException, IllegalArgumentException, NullPointerException {
 		final var mergeKey = IuObject.once(key, key(input), "key");
 
 		final var entity = load(mergeKey);
 
-		beforeInput(entity);
-		entity.merge(input);
-		afterInput(entity);
+		beforeInput(input, entity);
+
+		if (input != null && entity instanceof MergeableEntity mergeable)
+			mergeable.merge(input);
+
+		if (seq != null && (entity instanceof SequencedEntity se))
+			se.setSeq(seq);
+
+		afterInput(input, entity);
 
 		dao().saveBean(entity);
 
-		afterMerge(entity);
+		withParent(entity, () -> afterMerge(input, entity));
 
 		return mergeKey;
 	}
@@ -520,6 +1034,116 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	}
 
 	/**
+	 * Merges all child rows.
+	 * 
+	 * <p>
+	 * The collection is validated before anything is written. Stored child rows are
+	 * visited in the order {@link #search()} returns them; those the collection
+	 * names are merged, and new children are then saved in the order given. When
+	 * the entity type implements {@link SequencedEntity}, every stored row is given
+	 * its position in that order, including rows the collection does not name
+	 * (those are merged with no input), and each new child takes the next position
+	 * after the stored rows. Rows that need no change are expected to be skipped by
+	 * {@link IuDao#saveBean}, though their hooks still run.
+	 * </p>
+	 *
+	 * @param parent   parent object
+	 * @param children child collection; null to leave stored child rows unchanged
+	 * @throws IllegalArgumentException if two children carry the same key, or a
+	 *                                  child carries a key that is not among the
+	 *                                  stored child rows
+	 */
+	public void merge(Object parent, Iterable<? extends I> children) {
+		withParent(parent, () -> merge(children));
+	}
+
+	/**
+	 * Merges all child rows.
+	 * 
+	 * <p>
+	 * Intended to be invoked from the parent DAO's {@link #afterMerge} hook.
+	 * Children that carry a key are merged onto the stored child row with that key,
+	 * as found by {@link #search()}; children that carry no key are saved as new
+	 * rows. Stored child rows not named in the collection keep their values.
+	 * </p>
+	 *
+	 * <p>
+	 * The collection is validated before anything is written. Stored child rows are
+	 * visited in the order {@link #search()} returns them; those the collection
+	 * names are merged, and new children are then saved in the order given. When
+	 * the entity type implements {@link SequencedEntity}, every stored row is given
+	 * its position in that order, including rows the collection does not name
+	 * (those are merged with no input), and each new child takes the next position
+	 * after the stored rows. Rows that need no change are expected to be skipped by
+	 * {@link IuDao#saveBean}, though their hooks still run.
+	 * </p>
+	 *
+	 * @param children child collection; null to leave stored child rows unchanged
+	 * @throws IllegalArgumentException if two children carry the same key, or a
+	 *                                  child carries a key that is not among the
+	 *                                  stored child rows
+	 */
+	public void merge(Iterable<? extends I> children) {
+		if (children != null) {
+			final Map<K, I> keyedChildren = new LinkedHashMap<>();
+			final Queue<I> newChildren = new ArrayDeque<>();
+			for (final var child : children) {
+				final var key = key(child);
+				if (key == null)
+					newChildren.add(child);
+				else if (keyedChildren.put(key, child) != null)
+					throw new IllegalArgumentException("duplicate child row " + key);
+			}
+
+			class Pending {
+				K key;
+				E entity;
+				I input;
+			}
+			final Queue<Pending> pendingChildren = new ArrayDeque<>();
+			for (final var child : search()) {
+				final var pending = new Pending();
+				pending.key = entityKey(child);
+				pending.entity = child;
+				pending.input = keyedChildren.remove(pending.key);
+				pendingChildren.offer(pending);
+			}
+
+			if (!keyedChildren.isEmpty())
+				throw new IllegalArgumentException("entity not found for child rows " + keyedChildren.keySet());
+
+			var seq = 0;
+			for (final var child : pendingChildren) {
+				if (child.input != null || child.entity instanceof SequencedEntity)
+					merge(child.key, child.input, seq);
+				seq++;
+			}
+
+			for (final var child : newChildren)
+				save(null, child, seq++);
+		}
+	}
+
+	/**
+	 * Deletes an entity, if one exists under the key.
+	 *
+	 * <p>
+	 * Invokes {@link #beforeDelete}, deletes the row, then invokes
+	 * {@link #afterDelete}, without invoking {@link #afterLoad}. Does nothing when
+	 * no entity is stored under the key.
+	 * </p>
+	 *
+	 * @param parent parent object
+	 * @param key    key
+	 * @throws IllegalArgumentException if the entity is not a valid child of the
+	 *                                  active parent, as determined by
+	 *                                  {@link #bind}
+	 */
+	public void delete(Object parent, K key) {
+		withParent(parent, () -> delete(key));
+	}
+
+	/**
 	 * Deletes an entity, if one exists under the key.
 	 *
 	 * <p>
@@ -529,6 +1153,9 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 	 * </p>
 	 *
 	 * @param key key
+	 * @throws IllegalArgumentException if the entity is not a valid child of the
+	 *                                  active parent, as determined by
+	 *                                  {@link #bind}
 	 */
 	public void delete(K key) {
 		final E entity;
@@ -538,9 +1165,43 @@ public abstract class IuEntityDao<K, I, E extends Consumer<I> & MergeableEntity<
 			return;
 		}
 
-		beforeDelete(entity);
-		dao().deleteBean(entity);
-		afterDelete(entity);
+		bind(parent(), entity);
+
+		withParent(entity, () -> {
+			beforeDelete(entity);
+			dao().deleteBean(entity);
+			afterDelete(entity);
+		});
+	}
+
+	/**
+	 * Deletes all entities bound to a parent, by default each of the entities
+	 * returned from {@link #search(Search)}, via
+	 * {@link #delete(Object, Object)}, with the parent injected through
+	 * {@link #withParent(Object, Runnable)}.
+	 * 
+	 * <p>
+	 * Subclasses that override {@link #search(Search)} may also
+	 * override this method for more efficient bulk delete behavior.
+	 * </p>
+	 *
+	 * @param parent parent object
+	 */
+	public void deleteChildren(Object parent) {
+		search(new Search<E>(parent, null, 0, null)).forEach(ref -> delete(parent, entityKey(ref)));
+	}
+
+	/**
+	 * Deletes all entities bound to the active {@link #parent()}, by default each
+	 * of the entities returned from {@link #search()}, via {@link #delete(Object)}.
+	 * 
+	 * <p>
+	 * Subclasses that override {@link #search(Search)} may also
+	 * override this method for more efficient bulk delete behavior.
+	 * </p>
+	 */
+	public void delete() {
+		deleteChildren(parent());
 	}
 
 }

@@ -284,7 +284,8 @@ final class CachedDao implements IuDao {
 	 * Resolves a cache miss, on a pooled thread and therefore in no transaction.
 	 *
 	 * @param key cache key
-	 * @return single-element list for a load; matching rows for a search or query
+	 * @return single-element list for a load or an exists probe; matching rows for
+	 *         a search or query
 	 * @throws Exception if the read fails
 	 */
 	private List<?> resolve(DaoKey key) throws Exception {
@@ -300,6 +301,13 @@ final class CachedDao implements IuDao {
 				return delegate.getBeanQuery(key.type(), key.parameters()).getResults();
 		else if (key.isSql())
 			return delegate.getQuery(key.type(), key.sql(), key.args()).getResults();
+		else if (key.isExists())
+			if (key.sql() != null)
+				return Collections.singletonList(delegate.exists(key.sql(), key.args()));
+			else if (key.where() != null)
+				return Collections.singletonList(delegate.exists(key.type(), key.where(), key.args()));
+			else
+				return Collections.singletonList(delegate.exists(key.type(), key.parameters()));
 		else
 			return delegate.searchBeans(key.type(), key.parameters(), false, key.maxResults());
 	}
@@ -311,14 +319,15 @@ final class CachedDao implements IuDao {
 	 * Reads never invalidate. A search or generated bean query declares the rows it
 	 * read as loads of their own keys; a load and a raw SQL query use the default
 	 * hint, because raw SQL can project only part of an entity or something other
-	 * than an entity altogether.
+	 * than an entity altogether. An exists probe caches only its boolean answer, so
+	 * there are no rows to inspect.
 	 * </p>
 	 *
 	 * @param key cache key
 	 * @return cache hint
 	 */
 	private IuRefreshableCacheHint<DaoKey, List<?>> cacheHint(DaoKey key) {
-		if (key.isLoad() || key.isSql())
+		if (key.isLoad() || key.isSql() || key.isExists())
 			return IuRefreshableCacheHint.useDefaults();
 		else
 			return new IuRefreshableCacheHint<DaoKey, List<?>>() {
@@ -796,6 +805,44 @@ final class CachedDao implements IuDao {
 	}
 
 	@Override
+	public boolean exists(String sql, Iterable<?> args) {
+		return cachedExists(() -> delegate.exists(sql, args), DaoKey.exists(sql, args));
+	}
+
+	@Override
+	public boolean exists(Class<?> beanClass, Iterable<String> where, Iterable<?> args) {
+		return cachedExists(() -> delegate.exists(beanClass, where, args), DaoKey.exists(beanClass, where, args));
+	}
+
+	@Override
+	public boolean exists(Class<?> beanClass, Map<String, ?> idParams) {
+		return cachedExists(() -> delegate.exists(beanClass, idParams), DaoKey.exists(beanClass, idParams));
+	}
+
+	/**
+	 * Answers an existence probe from the cache, when one applies.
+	 *
+	 * <p>
+	 * Only the answer is cached, as a single-element list, so a hit never copies or
+	 * materializes rows. The probe is delegated directly when caching is inactive
+	 * or the caller is transactional, as for any other read. A write to the entity
+	 * type evicts its answers like everything else cached for that type; the answer
+	 * to a raw SQL probe names no entity, so only {@link #clear()} or expiration
+	 * evicts it.
+	 * </p>
+	 *
+	 * @param probe delegates the probe
+	 * @param key   cache key of the probe
+	 * @return true if the probe selected at least one row
+	 */
+	private boolean cachedExists(Supplier<Boolean> probe, DaoKey key) {
+		if (!caching() || transactional())
+			return probe.get();
+
+		return (Boolean) IuException.unchecked(key, cache).get(0);
+	}
+
+	@Override
 	public <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where, Iterable<?> args) {
 		return cachedQuery(beanClass, () -> delegate.getBeanQuery(beanClass, where, args),
 				DaoKey.query(beanClass, where, args));
@@ -836,8 +883,7 @@ final class CachedDao implements IuDao {
 
 	@Override
 	public <B> SqlQuery<B> getQuery(Class<B> beanClass, String sql, Iterable<?> args) {
-		return cachedQuery(beanClass, () -> delegate.getQuery(beanClass, sql, args),
-				DaoKey.sql(beanClass, sql, args));
+		return cachedQuery(beanClass, () -> delegate.getQuery(beanClass, sql, args), DaoKey.sql(beanClass, sql, args));
 	}
 
 	@Override

@@ -63,8 +63,9 @@ import java.util.Map;
  *                   search
  * @param order      order clause fragments, or null
  * @param args       where clause args, or null
- * @param maxResults row cap the read was performed with, or one of {@link #LOAD},
- *                   {@link #QUERY}, and {@link #SQL}
+ * @param maxResults row cap the read was performed with, or one of
+ *                   {@link #LOAD}, {@link #QUERY}, {@link #SQL}, and
+ *                   {@link #EXISTS}
  */
 record DaoKey(Class<?> type, Map<String, ?> parameters, String sql, Iterable<String> where, Iterable<String> order,
 		Iterable<?> args, int maxResults) {
@@ -140,6 +141,45 @@ record DaoKey(Class<?> type, Map<String, ?> parameters, String sql, Iterable<Str
 		return new DaoKey(type, null, sql, null, null, args, SQL);
 	}
 
+	/**
+	 * Creates an {@code exists} key for raw SQL.
+	 *
+	 * <p>
+	 * Raw SQL names no entity, so the key's type is {@link Object}; no entity
+	 * write invalidates it, only {@link CachedDao#clear()} or expiration.
+	 * </p>
+	 *
+	 * @param sql  sql text
+	 * @param args args
+	 * @return exists key
+	 */
+	static DaoKey exists(String sql, Iterable<?> args) {
+		return new DaoKey(Object.class, null, sql, null, null, args, EXISTS);
+	}
+
+	/**
+	 * Creates an {@code exists} key for a generated entity query.
+	 *
+	 * @param type  entity class
+	 * @param where where clause fragments
+	 * @param args  args
+	 * @return exists key
+	 */
+	static DaoKey exists(Class<?> type, Iterable<String> where, Iterable<?> args) {
+		return new DaoKey(type, null, null, where, null, args, EXISTS);
+	}
+
+	/**
+	 * Creates an {@code exists} key for a set of key values.
+	 *
+	 * @param type   entity class
+	 * @param params key values by property name
+	 * @return exists key
+	 */
+	static DaoKey exists(Class<?> type, Map<String, ?> params) {
+		return new DaoKey(type, params, null, null, null, null, EXISTS);
+	}
+
 	/** {@link #maxResults()} of a single-entity load. */
 	static final int LOAD = -1;
 
@@ -148,6 +188,9 @@ record DaoKey(Class<?> type, Map<String, ?> parameters, String sql, Iterable<Str
 
 	/** {@link #maxResults()} of a raw SQL query. */
 	static final int SQL = -3;
+
+	/** {@link #maxResults()} of an exists query. */
+	static final int EXISTS = -4;
 
 	/**
 	 * Canonical constructor.
@@ -158,7 +201,8 @@ record DaoKey(Class<?> type, Map<String, ?> parameters, String sql, Iterable<Str
 	 * @param where      where clause fragments
 	 * @param order      order clause fragments
 	 * @param args       where clause args
-	 * @param maxResults row cap, {@link #LOAD}, {@link #QUERY}, or {@link #SQL}
+	 * @param maxResults row cap, {@link #LOAD}, {@link #QUERY}, {@link #SQL}, or
+	 *                   {@link #EXISTS}
 	 */
 	DaoKey {
 		if (parameters != null)
@@ -211,10 +255,19 @@ record DaoKey(Class<?> type, Map<String, ?> parameters, String sql, Iterable<Str
 		return maxResults == SQL;
 	}
 
+	/**
+	 * Determines whether this key identifies an exists probe.
+	 *
+	 * @return true for exists; false otherwise
+	 */
+	boolean isExists() {
+		return maxResults == EXISTS;
+	}
+
 	@Override
 	public String toString() {
-		return (isLoad() ? "load:" : isQuery() ? "query:" : isSql() ? "sql:" : "search:")
-				+ type.getName() + (isSql() ? ':' + sql : where == null ? parameters : where) + (order == null ? "" : order)
-				+ (args == null ? "" : "+args");
+		return (isLoad() ? "load:" : isQuery() ? "query:" : isSql() ? "sql:" : isExists() ? "exists:" : "search:")
+				+ type.getName() + (sql != null ? ':' + sql : where == null ? parameters : where)
+				+ (order == null ? "" : order) + (args == null ? "" : "+args");
 	}
 }

@@ -36,28 +36,9 @@ import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 
 /**
- * Describes one relying party registered with this provider.
- *
- * <p>
- * A client is registered on its own rather than as an entry inside the
- * provider's configuration, so registering or revoking one is a change scoped
- * to that client alone. Having nothing to read for a {@code client_id} is how
- * an unregistered client is refused.
- * </p>
- *
- * <p>
- * Property names use lower case with underscores, so {@link #getClientId()}
- * reads {@code client_id}.
- * </p>
+ * Describes a relying party registered with this provider.
  */
 public interface IuOidcClientConfiguration {
-
-	/**
-	 * Gets the client ID, which is also the key this registration is read by.
-	 *
-	 * @return Client ID
-	 */
-	String getClientId();
 
 	/**
 	 * Determines whether this client may be used.

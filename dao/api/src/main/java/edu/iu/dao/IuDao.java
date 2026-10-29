@@ -228,9 +228,9 @@ public interface IuDao {
 	 * @param beanClass mapped entity class
 	 * @param idParams  key values by property name
 	 * @return new entity
-	 * @throws IllegalArgumentException if the type is an interface or record,
-	 *                                  which cannot be populated, or a parameter
-	 *                                  names a property that is not an {@code @Id}
+	 * @throws IllegalArgumentException if the type is an interface or record, which
+	 *                                  cannot be populated, or a parameter names a
+	 *                                  property that is not an {@code @Id}
 	 */
 	<B> B newBean(Class<B> beanClass, Map<String, ?> idParams);
 
@@ -267,6 +267,40 @@ public interface IuDao {
 	default <B> SqlQuery<B> getBeanQuery(Class<B> beanClass, Iterable<String> where) {
 		return getBeanQuery(beanClass, where, Collections.emptyList());
 	}
+
+	/**
+	 * Determines if a raw SQL query selects at least one row.
+	 *
+	 * <p>
+	 * Executes immediately, reads at most the first row, and leaves no open
+	 * resources.
+	 * </p>
+	 *
+	 * @param sql  SQL
+	 * @param args prepared statement args
+	 * @return true if the query selected at least one row
+	 */
+	boolean exists(String sql, Iterable<?> args);
+
+	/**
+	 * Determines if a generated entity query, restricted by caller-supplied
+	 * predicates, selects at least one row.
+	 *
+	 * @param beanClass mapped entity class
+	 * @param where     where clause fragments
+	 * @param args      prepared statement args
+	 * @return true if the query selected at least one row
+	 */
+	boolean exists(Class<?> beanClass, Iterable<String> where, Iterable<?> args);
+
+	/**
+	 * Determines if a row exists for the given key values.
+	 *
+	 * @param beanClass mapped entity class
+	 * @param idParams  key values by property name
+	 * @return true if the query selected at least one row
+	 */
+	boolean exists(Class<?> beanClass, Map<String, ?> idParams);
 
 	/**
 	 * Gets an unexecuted query selecting an entity's mapped columns, restricted by
@@ -534,8 +568,8 @@ public interface IuDao {
 	 * {@code true}, a timestamp column mapped to an {@link java.time.Instant} reads
 	 * back as an {@code Instant}, text mapped to a {@link java.net.URI} reads back
 	 * as a {@code URI}, and the single space standing in for null on a
-	 * {@link SpaceForNull} column reads back as {@code null}. A member belonging
-	 * to no mapped column is read as its own type.
+	 * {@link SpaceForNull} column reads back as {@code null}. A member belonging to
+	 * no mapped column is read as its own type.
 	 * </p>
 	 *
 	 * <p>

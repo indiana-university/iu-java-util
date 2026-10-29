@@ -32,11 +32,13 @@
 package iu.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
 import java.sql.PreparedStatement;
@@ -237,6 +239,26 @@ public class CachedDaoTest {
 			writes.add("delete");
 			if (bean instanceof Bean row)
 				rows.remove(row.id);
+		}
+
+		private final AtomicInteger existsReads = new AtomicInteger();
+
+		@Override
+		public boolean exists(String sql, Iterable<?> args) {
+			existsReads.incrementAndGet();
+			return !rows.isEmpty();
+		}
+
+		@Override
+		public boolean exists(Class<?> beanClass, Iterable<String> where, Iterable<?> args) {
+			existsReads.incrementAndGet();
+			return !rows.isEmpty();
+		}
+
+		@Override
+		public boolean exists(Class<?> beanClass, Map<String, ?> idParams) {
+			existsReads.incrementAndGet();
+			return !rows.isEmpty();
 		}
 
 		@Override
@@ -811,6 +833,84 @@ public class CachedDaoTest {
 		// so the value the transaction paid for still reaches the cache
 		dao.loadBean(Other.class, id("x"));
 		assertEquals(1, delegate.loads.get(), "a write to one type discarded a read of another");
+	}
+
+	@Test
+	public void testAnExistsAnswerIsCachedForEachForm() {
+		delegate.rows.put("a", new Bean("a", "one"));
+
+		for (var i = 0; i < 2; i++) {
+			assertTrue(dao.exists("select 1", List.of()));
+			assertTrue(dao.exists(Bean.class, List.of("id = ?"), List.of("a")));
+			assertTrue(dao.exists(Bean.class, id("a")));
+		}
+		assertEquals(3, delegate.existsReads.get(), "a cached exists reached the delegate again");
+	}
+
+	@Test
+	public void testAFalseExistsAnswerIsCachedToo() {
+		assertFalse(dao.exists(Bean.class, id("a")));
+		delegate.rows.put("a", new Bean("a", "one"));
+		assertFalse(dao.exists(Bean.class, id("a")), "a cached false was treated as a miss");
+		assertEquals(1, delegate.existsReads.get());
+	}
+
+	@Test
+	public void testClearingATypeDiscardsItsExistsAnswersOnly() {
+		delegate.rows.put("a", new Bean("a", "one"));
+		dao.exists("select 1", List.of());
+		dao.exists(Bean.class, List.of("id = ?"), List.of("a"));
+		dao.exists(Bean.class, id("a"));
+		dao.exists(Other.class, id("x"));
+		assertEquals(4, delegate.existsReads.get());
+
+		dao.clear(Bean.class);
+
+		dao.exists(Other.class, id("x"));
+		dao.exists("select 1", List.of());
+		assertEquals(4, delegate.existsReads.get(), "clear(Class) discarded an answer for another type");
+
+		dao.exists(Bean.class, List.of("id = ?"), List.of("a"));
+		dao.exists(Bean.class, id("a"));
+		assertEquals(6, delegate.existsReads.get(), "clear(Class) left an answer cached");
+	}
+
+	@Test
+	public void testAWriteDiscardsTheExistsAnswersOfItsType() {
+		dao.exists(Bean.class, id("a"));
+		dao.updateBean(new Bean("a", "two"));
+		dao.exists(Bean.class, id("a"));
+		assertEquals(2, delegate.existsReads.get(), "a write left an exists answer cached");
+	}
+
+	@Test
+	public void testClearDiscardsEveryExistsAnswer() {
+		dao.exists("select 1", List.of());
+		dao.clear();
+		dao.exists("select 1", List.of());
+		assertEquals(2, delegate.existsReads.get(), "clear() left a raw SQL answer cached");
+	}
+
+	@Test
+	public void testExistsIsNotCachedInATransaction() {
+		transaction.beginTransaction();
+		for (var i = 0; i < 2; i++) {
+			dao.exists("select 1", List.of());
+			dao.exists(Bean.class, List.of("id = ?"), List.of("a"));
+			dao.exists(Bean.class, id("a"));
+		}
+		assertEquals(6, delegate.existsReads.get());
+	}
+
+	@Test
+	public void testExistsIsNotCachedWithoutConfiguration() {
+		refreshTtl = null;
+		for (var i = 0; i < 2; i++) {
+			dao.exists("select 1", List.of());
+			dao.exists(Bean.class, List.of("id = ?"), List.of("a"));
+			dao.exists(Bean.class, id("a"));
+		}
+		assertEquals(6, delegate.existsReads.get());
 	}
 
 	@Test

@@ -227,8 +227,7 @@ public class OidcUserinfoEndpoint {
 			return new OidcUserinfoResult.Jwt(OidcJose.sign(serialized, TYPE, issuer.issuerKey(algorithm)));
 		}
 
-		final var audienceKey = Objects.requireNonNull(client.getUserinfoJwk(),
-				"Missing userinfo encryption key for " + client.getClientId());
+		final var audienceKey = Objects.requireNonNull(client.getUserinfoJwk(), "Missing userinfo encryption key");
 
 		if (algorithm == null)
 			// no cty: the plaintext is the claims themselves, not a nested JOSE object

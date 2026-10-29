@@ -133,7 +133,10 @@ public class OidcUserinfoEndpointTest {
 		return accessToken(SUB, scope);
 	}
 
-	/** Issues an access token for the given subject the way the token endpoint would. */
+	/**
+	 * Issues an access token for the given subject the way the token endpoint
+	 * would.
+	 */
 	private String accessToken(String subject, String scope) {
 		final var builder = WebToken.builder() //
 				.jti() //
@@ -176,7 +179,6 @@ public class OidcUserinfoEndpointTest {
 	/** Registers a client with the given UserInfo response settings. */
 	private void register(Algorithm algorithm, Encryption encryption, WebKey jwk) {
 		final var client = mock(IuOidcClientConfiguration.class);
-		when(client.getClientId()).thenReturn(CLIENT_ID);
 		when(client.getUserinfoAlg()).thenReturn(algorithm);
 		when(client.getUserinfoEnc()).thenReturn(encryption);
 		when(client.getUserinfoJwk()).thenReturn(jwk);
@@ -292,8 +294,9 @@ public class OidcUserinfoEndpointTest {
 		final var admitted = admitted();
 		// sub, plus fourteen from profile, one from address, two from phone
 		assertEquals(18, admitted.size(), admitted::toString);
-		assertEquals(true, admitted.containsAll(List.of("sub", "name", "given_name", "updated_at", "address",
-				"phone_number", "phone_number_verified")), admitted::toString);
+		assertEquals(true, admitted.containsAll(
+				List.of("sub", "name", "given_name", "updated_at", "address", "phone_number", "phone_number_verified")),
+				admitted::toString);
 	}
 
 	@Test
@@ -359,8 +362,7 @@ public class OidcUserinfoEndpointTest {
 		when(clients.client(CLIENT_ID)).thenReturn(null);
 
 		assertEquals("client " + CLIENT_ID + " not registered",
-				assertThrows(IuBadRequestException.class, () -> endpoint.userinfo(accessToken("openid")))
-						.getMessage());
+				assertThrows(IuBadRequestException.class, () -> endpoint.userinfo(accessToken("openid"))).getMessage());
 	}
 
 	@Test
@@ -369,8 +371,7 @@ public class OidcUserinfoEndpointTest {
 		final var refusal = new IllegalStateException("no such registration");
 		when(clients.client(CLIENT_ID)).thenThrow(refusal);
 
-		assertSame(refusal,
-				assertThrows(IllegalStateException.class, () -> endpoint.userinfo(accessToken("openid"))));
+		assertSame(refusal, assertThrows(IllegalStateException.class, () -> endpoint.userinfo(accessToken("openid"))));
 	}
 
 	@Test
@@ -435,7 +436,7 @@ public class OidcUserinfoEndpointTest {
 		register(null, Encryption.AES_128_CBC_HMAC_SHA_256, null);
 
 		final var token = accessToken("openid");
-		assertEquals("Missing userinfo encryption key for some-client",
+		assertEquals("Missing userinfo encryption key",
 				assertThrows(NullPointerException.class, () -> endpoint.userinfo(token)).getMessage());
 	}
 

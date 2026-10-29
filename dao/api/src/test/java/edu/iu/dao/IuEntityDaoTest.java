@@ -42,16 +42,15 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,10 +64,10 @@ public class IuEntityDaoTest {
 
 	private IuDao dao;
 
-	interface Entity extends Consumer<Object>, MergeableEntity<Object> {
+	interface Entity extends SaveableEntity<Object>, MergeableEntity<Object> {
 	}
 
-	private class EntityDao<K, I, E extends Consumer<I> & MergeableEntity<I>> extends IuEntityDao<K, I, E> {
+	private class EntityDao<K, I, E extends SaveableEntity<I> & MergeableEntity<I>> extends IuEntityDao<K, I, E> {
 		@Override
 		protected IuDao dao() {
 			return dao;
@@ -188,9 +187,11 @@ public class IuEntityDaoTest {
 		when(dao.searchBeans(Entity.class, params)).thenReturn(List.of(entity));
 		when(dao.getBeanKey(entity)).thenReturn(Map.of(IdGenerator.generateId(), id));
 		final var edao = spy(new StringConsumerDao());
-		final List<Entity> found = edao.search(params);
+		final Iterable<Entity> deferred = edao.search(params);
+		verify(edao, never()).afterLoad(entity);
+		final List<Entity> found = new ArrayList<>();
+		deferred.forEach(found::add);
 		assertEquals(List.of(entity), found);
-		assertThrows(UnsupportedOperationException.class, () -> found.add(entity));
 		verify(edao).afterLoad(entity);
 	}
 
@@ -206,7 +207,7 @@ public class IuEntityDaoTest {
 			}
 
 			@Override
-			public void accept(Object t) {
+			public void save(Object input) {
 
 			}
 
@@ -215,7 +216,8 @@ public class IuEntityDaoTest {
 
 			}
 		}
-		class ADao extends EntityDao<String, Object, A>{}
+		class ADao extends EntityDao<String, Object, A> {
+		}
 
 		final List<A> results = new ArrayList<>();
 		for (var i = 0; i < 10; i++) {
@@ -233,7 +235,7 @@ public class IuEntityDaoTest {
 		when(dao.getPrimaryKeyProperties(A.class)).thenReturn(IuIterable.iter("i"));
 
 		final var edao = spy(new ADao());
-		final List<A> all = edao.searchWhere(where);
+		final List<A> all = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), new IuEntityDao.Search<>(null, null, 0, null));
 		assertEquals(10, all.size());
 		assertThrows(UnsupportedOperationException.class, () -> all.clear());
 		final var search = all.iterator();
@@ -245,7 +247,7 @@ public class IuEntityDaoTest {
 		}
 
 		reset(edao);
-		final var range = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), 2, 7).iterator();
+		final var range = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), new IuEntityDao.Search<>(null, null, 2, 7)).iterator();
 		for (var i = 0; i < 5; i++) {
 			final var a = range.next();
 			assertEquals(7 - i, a.i);
@@ -258,7 +260,7 @@ public class IuEntityDaoTest {
 				verify(edao, never()).afterLoad(a);
 
 		reset(edao);
-		final var range2 = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), 0, 3).iterator();
+		final var range2 = edao.searchWhere(IuIterable.iter(where), IuIterable.iter(), new IuEntityDao.Search<>(null, null, 0, 3)).iterator();
 		for (var i = 0; i < 3; i++) {
 			final var a = range2.next();
 			assertEquals(9 - i, a.i);
@@ -287,10 +289,10 @@ public class IuEntityDaoTest {
 		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenThrow(EntityNotFoundException.class);
 		assertEquals(id, edao.save(null, input));
 		verify(edao, never()).afterLoad(entity);
-		verify(entity).accept(input);
-		verify(edao).afterInput(entity);
+		verify(entity).save(input);
+		verify(edao).afterInput(any(), eq(entity));
 		verify(dao).saveBean(entity);
-		verify(edao).afterSave(entity);
+		verify(edao).afterSave(any(), eq(entity));
 	}
 
 	@Test
@@ -306,11 +308,11 @@ public class IuEntityDaoTest {
 
 		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
 		assertEquals(id, edao.save(null, input));
-		verify(edao, never()).afterLoad(entity);
-		verify(entity).accept(input);
-		verify(edao).afterInput(entity);
+		verify(edao).afterLoad(entity);
+		verify(entity).save(input);
+		verify(edao).afterInput(any(), eq(entity));
 		verify(dao).saveBean(entity);
-		verify(edao).afterSave(entity);
+		verify(edao).afterSave(any(), eq(entity));
 	}
 
 	@Test
@@ -326,12 +328,12 @@ public class IuEntityDaoTest {
 
 		assertEquals(id, edao.save(id, input));
 		final var order = inOrder(edao, entity, dao);
-		order.verify(edao).beforeInput(entity);
-		order.verify(entity).accept(input);
-		order.verify(edao).afterInput(entity);
+		order.verify(edao).beforeInput(any(), eq(entity));
+		order.verify(entity).save(input);
+		order.verify(edao).afterInput(any(), eq(entity));
 		order.verify(dao).saveBean(entity);
-		order.verify(edao).afterSave(entity);
-		verify(edao, never()).afterMerge(entity);
+		order.verify(edao).afterSave(any(), eq(entity));
+		verify(edao, never()).afterMerge(any(), eq(entity));
 		verify(entity, never()).merge(input);
 	}
 
@@ -348,11 +350,11 @@ public class IuEntityDaoTest {
 
 		final var edao = spy(new StringConsumerDao());
 		assertEquals(id, edao.save(id, input));
-		verify(edao, never()).beforeInput(entity);
-		verify(entity).accept(input);
-		verify(edao).afterInput(entity);
+		verify(edao, never()).beforeInput(any(), eq(entity));
+		verify(entity).save(input);
+		verify(edao).afterInput(any(), eq(entity));
 		verify(dao).saveBean(entity);
-		verify(edao).afterSave(entity);
+		verify(edao).afterSave(any(), eq(entity));
 	}
 
 	@Test
@@ -366,7 +368,7 @@ public class IuEntityDaoTest {
 		when(dao.loadBean(Entity.class, Map.of(prop, id))).thenReturn(entity);
 
 		final var edao = spy(new StringConsumerDao());
-		doThrow(EntityNotFoundException.class).when(edao).beforeInput(entity);
+		doThrow(EntityNotFoundException.class).when(edao).beforeInput(any(), eq(entity));
 		assertThrows(EntityNotFoundException.class, () -> edao.save(id, input));
 		verify(dao, never()).newBean(any(), any());
 		verify(dao, never()).saveBean(any());
@@ -448,13 +450,13 @@ public class IuEntityDaoTest {
 
 		final var order = inOrder(edao, entity, dao);
 		order.verify(edao).afterLoad(entity);
-		order.verify(edao).beforeInput(entity);
+		order.verify(edao).beforeInput(any(), eq(entity));
 		order.verify(entity).merge(input);
-		order.verify(edao).afterInput(entity);
+		order.verify(edao).afterInput(any(), eq(entity));
 		order.verify(dao).saveBean(entity);
-		order.verify(edao).afterMerge(entity);
-		verify(entity, never()).accept(input);
-		verify(edao, never()).afterSave(entity);
+		order.verify(edao).afterMerge(any(), eq(entity));
+		verify(entity, never()).save(input);
+		verify(edao, never()).afterSave(any(), eq(entity));
 	}
 
 	@Test
@@ -512,9 +514,9 @@ public class IuEntityDaoTest {
 		final var edao = spy(new StringConsumerDao());
 		assertEquals(id, edao.save(id));
 		verify(edao).save(null, id);
-		verify(entity).accept(id);
+		verify(entity).save(id);
 		verify(dao).saveBean(entity);
-		verify(edao).afterSave(entity);
+		verify(edao).afterSave(any(), eq(entity));
 	}
 
 	@Test
@@ -531,7 +533,7 @@ public class IuEntityDaoTest {
 		verify(edao).merge(null, id);
 		verify(entity).merge(id);
 		verify(dao).saveBean(entity);
-		verify(edao).afterMerge(entity);
+		verify(edao).afterMerge(any(), eq(entity));
 	}
 
 	@Test

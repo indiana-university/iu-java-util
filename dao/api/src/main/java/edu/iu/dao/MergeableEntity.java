@@ -32,9 +32,7 @@
 package edu.iu.dao;
 
 /**
- * An entity that can take a partial input: the alternative to
- * {@link java.util.function.Consumer#accept(Object) accept} that
- * {@link IuEntityDao#merge} applies.
+ * An entity that can take a partial input.
  *
  * @param <I> contract interface type
  */
@@ -43,10 +41,9 @@ public interface MergeableEntity<I> {
 	/**
 	 * Copies the input's non-null values onto this entity, leaving the rest
 	 * unchanged.
-	 *
+	 * 
 	 * <p>
-	 * Key and parent columns are never changed, and child lists are copied as
-	 * given, for {@link IuEntityDao#afterMerge} to merge.
+	 * Key values MAY be null or the same as existing values.
 	 * </p>
 	 *
 	 * @param input partial input
