@@ -678,7 +678,7 @@ public abstract class IuEntityDao<K, I, E> {
 	 *               by {@link Search#child()} and its sibling factories
 	 * @return results, in {@link #order()}; by default, empty
 	 */
-	public List<E> search(Search<E> search) {
+	protected List<E> search(Search<E> search) {
 		return List.of();
 	}
 
@@ -718,7 +718,7 @@ public abstract class IuEntityDao<K, I, E> {
 	 *
 	 * @return results, in {@link #order()}; by default, empty
 	 */
-	protected Iterable<E> search() {
+	public Iterable<E> search() {
 		final Search<E> search = Search.child();
 		return IuIterable.defer(() -> search(search));
 	}
