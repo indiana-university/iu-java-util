@@ -76,15 +76,23 @@ import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuObject;
-import edu.iu.IuText;
+import iu.client.BinaryJsonAdapter;
+import iu.client.BindingMetadata;
+import iu.client.EnumJsonAdapter;
+import iu.client.FormatAdapters;
+import iu.client.ItemScope;
 import iu.client.JsonAdapters;
 import iu.client.JsonDeserializer;
 import iu.client.JsonSerializer;
+import iu.client.OptionsSwitch;
 import iu.client.ParsingJsonAdapter;
+import iu.client.jsonb.IuJsonb;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonNumber;
@@ -93,13 +101,82 @@ import jakarta.json.JsonObjectBuilder;
 import jakarta.json.JsonString;
 import jakarta.json.JsonStructure;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Adapts JSON values to equivalent Java types.
- * 
+ *
  * @param <T> target type, <em>may</em> be unchecked
  */
 public interface IuJsonAdapter<T> {
+
+	/**
+	 * {@link jakarta.json.bind.JsonbConfig} property for the IU JSON-B provider,
+	 * holding a {@code Supplier<IuJsonSerializationOptions>}, read once per call,
+	 * so a JSON-B instance converts with the same options as the IU conversions;
+	 * must agree with {@link jakarta.json.bind.JsonbConfig#PROPERTY_NAMING_STRATEGY},
+	 * {@link jakarta.json.bind.JsonbConfig#NULL_VALUES}, and
+	 * {@link jakarta.json.bind.JsonbConfig#BINARY_DATA_STRATEGY} when those are
+	 * also set.
+	 */
+	String SERIALIZATION_OPTIONS = "iu.jsonb.serializationOptions";
+
+	/**
+	 * {@link jakarta.json.bind.JsonbConfig} property for the IU JSON-B provider,
+	 * holding a {@link Boolean}: true to write
+	 * {@link jakarta.json.bind.config.BinaryDataStrategy#BASE_64_URL} without
+	 * padding, as JOSE requires. Reading accepts either form regardless.
+	 */
+	String BASE64_URL_UNPADDED = "iu.jsonb.base64UrlUnpadded";
+
+	/**
+	 * Registers a JSON-B serializer with the IU JSON-B provider for an explicit
+	 * type, such as a lambda, which has no type argument to name it, when passed
+	 * to {@link jakarta.json.bind.JsonbConfig#withSerializers}.
+	 *
+	 * @param <T>        serialized type
+	 * @param type       type the serializer applies to, and to its subtypes
+	 * @param serializer serializer
+	 * @return serializer to configure
+	 */
+	static <T> jakarta.json.bind.serializer.JsonbSerializer<T> typedSerializer(Type type,
+			jakarta.json.bind.serializer.JsonbSerializer<T> serializer) {
+		return IuJsonb.typedSerializer(type, serializer);
+	}
+
+	/**
+	 * Registers a JSON-B deserializer with the IU JSON-B provider for an explicit
+	 * type, such as a lambda, which has no type argument to name it, when passed
+	 * to {@link jakarta.json.bind.JsonbConfig#withDeserializers}.
+	 *
+	 * @param <T>          deserialized type
+	 * @param type         type the deserializer applies to, and to its subtypes
+	 * @param deserializer deserializer
+	 * @return deserializer to configure
+	 */
+	static <T> jakarta.json.bind.serializer.JsonbDeserializer<T> typedDeserializer(Type type,
+			jakarta.json.bind.serializer.JsonbDeserializer<T> deserializer) {
+		return IuJsonb.typedDeserializer(type, deserializer);
+	}
+
+	/**
+	 * Registers a JSON-B adapter with the IU JSON-B provider for explicit types,
+	 * such as a lambda-backed adapter, which has no type arguments to name them,
+	 * when passed to {@link jakarta.json.bind.JsonbConfig#withAdapters}.
+	 *
+	 * @param <O>      original type
+	 * @param <A>      adapted type
+	 * @param original type the adapter converts from when writing, and applies to
+	 *                 with its subtypes
+	 * @param adapted  type the adapter converts to when writing
+	 * @param adapter  adapter
+	 * @return adapter to configure
+	 */
+	static <O, A> jakarta.json.bind.adapter.JsonbAdapter<O, A> typedAdapter(Type original, Type adapted,
+			jakarta.json.bind.adapter.JsonbAdapter<O, A> adapter) {
+		return IuJsonb.typedAdapter(original, adapted, adapter);
+	}
 
 	/**
 	 * Creates a functional JSON type adapter.
@@ -194,10 +271,15 @@ public interface IuJsonAdapter<T> {
 	 * 
 	 * <p>
 	 * {@link #toJson(Object)} returns a {@link JsonObject} with an entry for each
-	 * readable JavaBeans property of {@code type}, including properties inherited
-	 * from superclasses and declared as interface default methods. Properties
-	 * declared by {@link Object}, in particular {@link Object#getClass() class}, are
-	 * skipped, as are properties with a null value.
+	 * readable property of {@code type}, discovered as JSON-B discovers them:
+	 * public fields and public accessors, including those inherited from
+	 * non-platform superclasses and interfaces, in lexicographic order, honoring
+	 * JSON-B annotations such as {@code @JsonbProperty}, {@code @JsonbTransient},
+	 * {@code @JsonbNillable}, {@code @JsonbPropertyOrder}, and
+	 * {@code @JsonbVisibility} when the JSON-B API is present. A property with a
+	 * null value, or an empty {@link Optional}, is skipped unless declared
+	 * nillable. {@link IuJsonSerializationOptions#isLegacyProperties()} restores
+	 * discovery by public accessors only, without annotations.
 	 * </p>
 	 * 
 	 * <p>
@@ -206,18 +288,24 @@ public interface IuJsonAdapter<T> {
 	 * <ul>
 	 * <li>An interface is wrapped by a {@link java.lang.reflect.Proxy} that reads
 	 * property values directly from the {@link JsonObject}; see
-	 * {@link IuJson#wrap(JsonObject, Class, Function)}.</li>
+	 * {@link IuJson#wrap(JsonObject, Class, IuJsonPropertyNameFormat, Function)}.</li>
 	 * <li>Any other type is instantiated using its no-arg constructor, then each
-	 * JavaBeans property with a setter that maps to a defined JSON value is
-	 * converted and applied. Setters without a corresponding JSON value are
-	 * skipped, retaining the value assigned by the constructor.</li>
+	 * writable property, discovered the same way, that maps to a defined JSON
+	 * value is converted and applied. A property without a corresponding JSON
+	 * value is skipped, retaining the value assigned by the constructor.</li>
 	 * </ul>
-	 * 
+	 *
+	 * <p>
+	 * Either way a property is read only from the key {@code propertyNameFormat}
+	 * would write it as.
+	 * </p>
+	 *
 	 * @param <T>                business object type
 	 * @param type               business object class; <em>must</em> declare an
 	 *                           accessible no-arg constructor to convert from JSON
 	 *                           unless it is an interface
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from
+	 *                           JSON
 	 * @param valueAdapter       value adapter function
 	 * @return {@link IuJsonAdapter}; {@link #toJson(Object) toJson} converts a null
 	 *         business object to {@link JsonValue#NULL}, and
@@ -226,12 +314,60 @@ public interface IuJsonAdapter<T> {
 	 */
 	static <T> IuJsonAdapter<T> from(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat,
 			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return from(type, () -> options, valueAdapter);
+	}
+
+	/**
+	 * Creates a JSON type adapter that converts from a JavaBeans business object
+	 * type to and from JSON, with dynamically supplied options.
+	 * 
+	 * <p>
+	 * Behaves as {@link #from(Class, IuJsonPropertyNameFormat, Function)}, except
+	 * that {@code options} is read once for each conversion, so this adapter
+	 * observes an options change without being recreated. Whether a property with
+	 * a null value is included is controlled by
+	 * {@link IuJsonSerializationOptions#isIncludeNullProperties()}.
+	 * </p>
+	 * 
+	 * @param <T>          business object type
+	 * @param type         business object class; <em>must</em> declare an
+	 *                     accessible no-arg constructor to convert from JSON
+	 *                     unless it is an interface
+	 * @param options      supplies the options in effect for each conversion; the
+	 *                     property name format applies in both directions.
+	 *                     <em>Should</em> return quickly, as it is called on every
+	 *                     conversion. A null value reads as
+	 *                     {@link IuJsonSerializationOptions#DEFAULT}
+	 * @param valueAdapter value adapter function
+	 * @return {@link IuJsonAdapter}; {@link #toJson(Object) toJson} converts a
+	 *         null business object to {@link JsonValue#NULL}, and
+	 *         {@link #fromJson(JsonValue) fromJson} converts
+	 *         {@link JsonValue#NULL} and an undefined value to null
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> IuJsonAdapter<T> from(Class<T> type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		return (IuJsonAdapter<T>) bean(type, options, valueAdapter);
+	}
+
+	/**
+	 * Converts a business object type, or a parameterized type of one, so its
+	 * property types resolve against the type arguments.
+	 *
+	 * @param type         business object type
+	 * @param options      options supplier
+	 * @param valueAdapter value adapter function
+	 * @return {@link IuJsonAdapter}
+	 */
+	private static IuJsonAdapter<Object> bean(Type type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
 		return from(v -> v == null || JsonValue.NULL.equals(v) //
 				? null //
-				: JsonDeserializer.deserialize(type, v.asJsonObject(), valueAdapter), //
+				: JsonDeserializer.deserialize(type, v.asJsonObject(), options, valueAdapter), //
 				v -> v == null //
 						? JsonValue.NULL //
-						: JsonSerializer.serialize(type, v, propertyNameFormat, valueAdapter));
+						: JsonSerializer.serialize(type, v, options, valueAdapter));
 	}
 
 	/**
@@ -241,24 +377,167 @@ public interface IuJsonAdapter<T> {
 	 * <p>
 	 * Returns {@link #from(Class, IuJsonPropertyNameFormat, Function)} for a
 	 * {@link IuObject#isPlatformName(String) non-platform} interface or class.
-	 * {@link Class#isPrimitive() Primitive}, {@link Class#isArray() array}, and
-	 * {@link Class#isEnum() enum} types are handled by {@link #of(Type, Function)}
-	 * even when non-platform.
+	 * {@link Class#isPrimitive() Primitive} and {@link Class#isArray() array} types
+	 * are handled by {@link #of(Type, Function)} even when non-platform. An
+	 * {@link Class#isEnum() enum} type converts to text, or to a
+	 * {@link JsonObject} describing the constant when
+	 * {@link IuJsonSerializationOptions#isEnumAsObject()}.
 	 * </p>
 	 * 
 	 * @param type               business object class
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from JSON
 	 * @return {@link IuJsonAdapter}
 	 */
 	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat) {
-		final var c = JsonAdapters.erase(type);
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return adapt(type, () -> options);
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, with
+	 * dynamically supplied options.
+	 * 
+	 * <p>
+	 * Behaves as {@link #adapt(Type, IuJsonPropertyNameFormat)}, except that
+	 * {@code options} is read once for each conversion, so an adapter observes an
+	 * options change without being recreated.
+	 * </p>
+	 * 
+	 * <p>
+	 * The same supplier is used for every nested value type, so options apply to
+	 * business object and enum properties, and to business objects and enum values
+	 * nested in an array, {@link java.util.Collection Collection},
+	 * {@link java.util.Map Map}, {@link java.util.Optional Optional}, or
+	 * {@link java.util.stream.Stream Stream}, at any depth.
+	 * </p>
+	 * 
+	 * @param type    business object class
+	 * @param options supplies the options in effect for each conversion;
+	 *                <em>should</em> return quickly, as it is called on every
+	 *                conversion. A null value reads as
+	 *                {@link IuJsonSerializationOptions#DEFAULT}
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options) {
+		return adapt(type, options, a -> adapt(a, options));
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, using a
+	 * custom value adapter function.
+	 * 
+	 * <p>
+	 * Behaves as {@link #adapt(Type, IuJsonPropertyNameFormat)}, except that
+	 * {@code valueAdapter} decides how every nested value type converts. Unlike
+	 * {@link #adapt(Type, IuJsonPropertyNameFormat)}, this method applies the
+	 * JavaBeans decision to {@code type} only; a nested type is whatever
+	 * {@code valueAdapter} answers for it, so a function that should treat a
+	 * nested {@link IuObject#isPlatformName(String) non-platform} class as a
+	 * JavaBeans type <em>must</em> call back into this method itself.
+	 * </p>
+	 * 
+	 * @param type               business object class or type
+	 * @param propertyNameFormat property name format for converting to and from JSON
+	 * @param valueAdapter       factory function for supplying child value type
+	 *                           adapters; called for every nested type, and
+	 *                           responsible for its own recursion
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, IuJsonPropertyNameFormat propertyNameFormat,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		final var options = IuJsonSerializationOptions.of(propertyNameFormat);
+		return adapt(type, () -> options, valueAdapter);
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a simple type or
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, using a
+	 * custom value adapter function and dynamically supplied options.
+	 * 
+	 * <p>
+	 * This is the common implementation behind every {@code adapt} method: a type
+	 * that declares a JSON-B {@code @JsonbTypeAdapter},
+	 * {@code @JsonbTypeSerializer}, or {@code @JsonbTypeDeserializer}, on itself
+	 * or a supertype, converts through it when the JSON-B API is present, unless
+	 * {@link IuJsonSerializationOptions#isLegacyProperties()};
+	 * {@code byte[]} converts as
+	 * {@link IuJsonSerializationOptions#getBinaryDataStrategy()} says; a date
+	 * type whose format changed in 7.1 converts as
+	 * {@link IuJsonSerializationOptions#isLegacyDates()} says; an
+	 * {@link Class#isEnum() enum} type converts as described by
+	 * {@link IuJsonSerializationOptions#isEnumAsObject()} and
+	 * {@link IuJsonSerializationOptions#isEnumToString()}; {@code type} converts
+	 * as a JavaBeans type when it is a
+	 * {@link IuObject#isPlatformName(String) non-platform} interface or class, or
+	 * a parameterized type of one, with property types resolved against its type
+	 * arguments; {@link Object}, and another type a value of nearly any type may
+	 * be declared as, such as {@link java.io.Serializable} or {@link Comparable},
+	 * converts a value by its runtime type through {@code valueAdapter}; and
+	 * everything else converts through {@link #of(Type, Function)}, including when
+	 * {@link Class#isPrimitive() primitive} or an {@link Class#isArray() array}.
+	 * Nested value types are resolved by {@code valueAdapter}, which is
+	 * responsible for its own recursion; {@link #adapt(Type, Supplier)} supplies a
+	 * function that recurses here.
+	 * </p>
+	 * 
+	 * @param type         business object class or type
+	 * @param options      supplies the options in effect for each conversion;
+	 *                     <em>should</em> return quickly, as it is called on every
+	 *                     conversion. A null value reads as
+	 *                     {@link IuJsonSerializationOptions#DEFAULT}
+	 * @param valueAdapter factory function for supplying child value type adapters;
+	 *                     called for every nested type, and responsible for its own
+	 *                     recursion
+	 * @return {@link IuJsonAdapter}
+	 */
+	static IuJsonAdapter<?> adapt(Type type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		// JSON-B components the type declares, unless discovering as before 7.1
+		final var components = BindingMetadata.get().components(type, options);
+		if (components != null)
+			return OptionsSwitch.of(options, IuJsonSerializationOptions::isLegacyProperties,
+					builtIn(type, options, valueAdapter), components);
+		else
+			return builtIn(type, options, valueAdapter);
+	}
+
+	private static IuJsonAdapter<?> builtIn(Type type, Supplier<IuJsonSerializationOptions> options,
+			Function<Type, IuJsonAdapter<?>> valueAdapter) {
+		final var c = GenericTypes.erase(type);
+		if (c == byte[].class)
+			return BinaryJsonAdapter.of(options);
+
+		if (c.isEnum())
+			return EnumJsonAdapter.of(c, options, valueAdapter);
+
+		// an index of properties is built in, not a business object
+		if (c == IuJsonProperties.class)
+			return JsonAdapters.adapt(type, valueAdapter);
+
 		if (!IuObject.isPlatformName(c.getName()) //
 				&& !c.isPrimitive() //
-				&& !c.isArray() //
-				&& !c.isEnum())
-			return from(c, propertyNameFormat, a -> adapt(a, propertyNameFormat));
+				&& !c.isArray()) {
+			// a class of the application's own that extends or implements a type
+			// with a conversion, such as a list or an iterable, converts as that type
+			final var containerType = JsonAdapters.containerType(c);
+			if (containerType != null)
+				return JsonAdapters.subclass(c, builtIn(containerType, options, valueAdapter));
+			return bean(type, options, valueAdapter);
+		}
 
-		return IuJsonAdapter.of(type, a -> adapt(a, propertyNameFormat));
+		// a date type that converted differently before 7.1 follows the options
+		if (FormatAdapters.hasLegacyDates(c))
+			return FormatAdapters.legacyDates(c, options);
+
+		// a value declared Object, or another broad type, converts by its runtime
+		// type
+		if (JsonAdapters.isBroad(c))
+			return JsonAdapters.runtime(valueAdapter);
+
+		// a map key is text: an enum key follows the options' enum text
+		return JsonAdapters.adapt(type, valueAdapter, key -> JsonSerializer.keyAdapter(key, options), ItemScope.NONE);
 	}
 
 	/**
@@ -267,13 +546,32 @@ public interface IuJsonAdapter<T> {
 	 * 
 	 * @param <T>                business object type
 	 * @param type               business object class
-	 * @param propertyNameFormat property name format to use for converting to JSON
+	 * @param propertyNameFormat property name format for converting to and from JSON
 	 * @return {@link IuJsonAdapter}
 	 * @see #adapt(Type, IuJsonPropertyNameFormat)
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> adapt(Class<T> type, IuJsonPropertyNameFormat propertyNameFormat) {
 		return (IuJsonAdapter<T>) adapt((Type) type, propertyNameFormat);
+	}
+
+	/**
+	 * Gets a JSON type adapter for common-case conversion to/from a
+	 * {@link IuObject#isPlatformName(String) non-platform} JavaBeans type, with
+	 * dynamically supplied options.
+	 * 
+	 * @param <T>     business object type
+	 * @param type    business object class
+	 * @param options supplies the options in effect for each conversion;
+	 *                <em>should</em> return quickly, as it is called on every
+	 *                conversion. A null value reads as
+	 *                {@link IuJsonSerializationOptions#DEFAULT}
+	 * @return {@link IuJsonAdapter}
+	 * @see #adapt(Type, Supplier)
+	 */
+	@SuppressWarnings("unchecked")
+	static <T> IuJsonAdapter<T> adapt(Class<T> type, Supplier<IuJsonSerializationOptions> options) {
+		return (IuJsonAdapter<T>) adapt((Type) type, options);
 	}
 
 	/**
@@ -333,7 +631,6 @@ public interface IuJsonAdapter<T> {
 	 * <ul>
 	 * <li>{@link Boolean} and {@link Boolean#TYPE boolean}</li>
 	 * <li>{@link Object}, see {@link #basic()} for Object conversion rules</li>
-	 * <li>{@link Void} and {@link Void#TYPE void}, supporting only null values</li>
 	 * <li>{@link #toJson(Object)} as {@link JsonNumber}
 	 * <ul>
 	 * <li>{@link BigDecimal}</li>
@@ -348,15 +645,16 @@ public interface IuJsonAdapter<T> {
 	 * </li>
 	 * <li>{@link #toJson(Object)} returns {@link JsonString}
 	 * <ul>
-	 * <li>byte[], via {@link IuText#base64(String)} and
-	 * {@link IuText#base64(byte[])}</li>
 	 * <li>{@link BigInteger}</li>
 	 * <li>{@link CharSequence}</li>
 	 * <li>{@link Calendar}, as {@link Date}</li>
 	 * <li>{@link CharSequence}, as {@link String}</li>
 	 * <li>{@link Date}, as {@link Temporal}</li>
 	 * <li>{@link Duration}</li>
-	 * <li>{@link Enum} subtypes</li>
+	 * <li>{@link Enum} subtypes, by {@link Enum#name()};
+	 * {@link #fromJson(JsonValue)} also accepts a
+	 * {@link JsonObject} naming the constant in its {@code name} property, as
+	 * written by {@link IuJsonSerializationOptions#isEnumAsObject()}</li>
 	 * <li>{@link Instant}</li>
 	 * <li>{@link LocalDate}</li>
 	 * <li>{@link LocalTime}</li>
@@ -378,7 +676,8 @@ public interface IuJsonAdapter<T> {
 	 * </li>
 	 * <li>{@link #toJson(Object)} as {@link JsonArray}
 	 * <ul>
-	 * <li>{@link Class#isArray() Array} type</li>
+	 * <li>{@link Class#isArray() Array} type, including {@code byte[]} as an
+	 * array of signed bytes</li>
 	 * <li>{@link ArrayList}</li>
 	 * <li>{@link Collection}, as {@link Queue}</li>
 	 * <li>{@link Deque}, as {@link ArrayDeque}</li>
@@ -412,6 +711,14 @@ public interface IuJsonAdapter<T> {
 	 * @param <T>  target type
 	 * @param type target type
 	 * @return {@link IuJsonAdapter}
+	 * @throws UnsupportedOperationException if {@code type}, or a type named by one
+	 *                                       of its generic type arguments, is not
+	 *                                       in the list above. In particular there
+	 *                                       is no adapter for {@link Void},
+	 *                                       {@link Void#TYPE void}, or
+	 *                                       {@link Character}; a method returning
+	 *                                       void is expected to be excluded by the
+	 *                                       caller rather than adapted
 	 */
 	@SuppressWarnings("unchecked")
 	static <T> IuJsonAdapter<T> of(Type type) {
@@ -465,7 +772,7 @@ public interface IuJsonAdapter<T> {
 
 	/**
 	 * Converts a JSON parameter value to its Java equivalent.
-	 * 
+	 *
 	 * @param jsonValue JSON value
 	 * @return Java equivalent
 	 */
@@ -473,10 +780,47 @@ public interface IuJsonAdapter<T> {
 
 	/**
 	 * Converts a value to its JSON equivalent.
-	 * 
+	 *
 	 * @param value value
 	 * @return JSON equivalent
 	 */
 	JsonValue toJson(T value);
+
+	/**
+	 * Reads a JSON value from a parser and converts it to its Java equivalent.
+	 *
+	 * <p>
+	 * {@code parser} <em>must</em> be positioned at the value's first event:
+	 * {@link JsonParser.Event#START_OBJECT START_OBJECT},
+	 * {@link JsonParser.Event#START_ARRAY START_ARRAY}, or a scalar value event.
+	 * On return, {@code parser} is positioned at the value's last event: the
+	 * matching {@link JsonParser.Event#END_OBJECT END_OBJECT} or
+	 * {@link JsonParser.Event#END_ARRAY END_ARRAY}, or the scalar value event
+	 * itself. This is the contract of {@link JsonParser#getValue()}, which the
+	 * default implementation delegates to.
+	 * </p>
+	 *
+	 * @param parser JSON parser
+	 * @return Java equivalent
+	 */
+	default T read(JsonParser parser) {
+		return fromJson(parser.getValue());
+	}
+
+	/**
+	 * Converts a value to its JSON equivalent and writes it to a generator.
+	 *
+	 * <p>
+	 * Writes exactly one JSON value in the generator's current context; in an
+	 * object context, the caller writes the key first with
+	 * {@link JsonGenerator#writeKey(String)}.
+	 * </p>
+	 *
+	 * @param value     value
+	 * @param generator JSON generator
+	 */
+	default void write(T value, JsonGenerator generator) {
+		generator.write(toJson(value));
+	}
 
 }

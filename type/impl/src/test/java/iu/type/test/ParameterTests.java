@@ -53,4 +53,11 @@ public class ParameterTests extends IuTypeTestCase {
 		assertEquals("arg0:String", parameter.toString());
 	}
 
+	@Test
+	public void testDeref() throws Exception {
+		var method = IuType.of(MethodTestSupport.class).method("parameterTest", String.class);
+		assertEquals(MethodTestSupport.class.getDeclaredMethod("parameterTest", String.class).getParameters()[0],
+				method.parameter(0).deref());
+	}
+
 }

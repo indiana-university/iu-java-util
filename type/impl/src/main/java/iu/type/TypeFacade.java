@@ -142,7 +142,7 @@ final class TypeFacade<D, T> extends ElementBase implements IuType<D, T>, Parame
 
 					// i.e. resolve Iterable<T> from Collection<E> implements Iterable<E>
 					// template: {T=IuType[E TYPE_PARAM(T) Iterable<E>]}
-					parameterizedElement.apply(template.typeParameters());
+					parameterizedElement.applyDeclared(template.typeParameters());
 
 					// referrer: {E=IuType[E TYPE_PARAM(E) Collection]}
 					if (referrer instanceof ParameterizedFacade parameterizedReferrer)

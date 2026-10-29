@@ -32,10 +32,12 @@
 package iu.type;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,9 +51,14 @@ import java.util.logging.Level;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import edu.iu.UnsafeFunction;
 import edu.iu.test.IuTestLogger;
 import edu.iu.type.IuReferenceKind;
 import edu.iu.type.testresources.HasStringListParam;
+import edu.iu.type.testresources.inherit.CollectionApi;
+import edu.iu.type.testresources.inherit.OpenBase;
+import edu.iu.type.testresources.inherit.Sized;
+import edu.iu.type.testresources.inherit.SubCollectionApi;
 
 @SuppressWarnings("javadoc")
 public class TypeTemplateTest extends IuTypeTestCase {
@@ -219,6 +226,53 @@ public class TypeTemplateTest extends IuTypeTestCase {
 		var template = new TypeTemplate<>(Object.class, a -> {
 		});
 		assertEquals("use sealHierarchy() only with TypeTemplate", assertThrows(UnsupportedOperationException.class, template::seal).getMessage());
+	}
+
+	@SuppressWarnings("unused")
+	private static UnsafeFunction<String, String> exportedNotOpenParameterized;
+
+	@Test
+	public void testExportedNotOpenIsOpaqueAndLoggedOnce() throws Exception {
+		IuTestLogger.expect(TypeTemplate.class.getName(), Level.FINE,
+				"edu\\.iu\\.UnsafeFunction is opaque to introspection; iu\\.util exports edu\\.iu but does not open it to iu\\.util\\.type\\.impl");
+		final var raw = TypeFactory.resolveRawClass(UnsafeFunction.class);
+		assertFalse(raw.methods().iterator().hasNext());
+
+		final var parameterized = TypeFactory.resolveType(
+				TypeTemplateTest.class.getDeclaredField("exportedNotOpenParameterized").getGenericType());
+		assertNotSame(raw, parameterized);
+		assertFalse(parameterized.methods().iterator().hasNext());
+		assertSame(raw, TypeFactory.resolveRawClass(UnsafeFunction.class));
+	}
+
+	@Test
+	public void testNotExportedIsOpaqueAndNotLogged() throws Exception {
+		final var type = TypeFactory.resolveRawClass(Class.forName("iu.ClassLoaderContext"));
+		assertFalse(type.methods().iterator().hasNext());
+	}
+
+	@Test
+	public void testPrimitivesAndArraysNotLogged() {
+		assertFalse(TypeFactory.resolveRawClass(int.class).methods().iterator().hasNext());
+		assertFalse(TypeFactory.resolveRawClass(UnsafeFunction[].class).methods().iterator().hasNext());
+	}
+
+	@Test
+	public void testMethodResolutionPrecedence() throws Exception {
+		final var openBaseSize = OpenBase.class.getMethod("size");
+		final var apiSize = CollectionApi.class.getMethod("size");
+		final var subApiSize = SubCollectionApi.class.getMethod("size");
+		final var sizedSize = Sized.class.getMethod("size");
+
+		// class over interface
+		assertTrue(TypeTemplate.isMoreSpecific(openBaseSize, apiSize));
+		assertFalse(TypeTemplate.isMoreSpecific(apiSize, openBaseSize));
+		// subtype over supertype
+		assertTrue(TypeTemplate.isMoreSpecific(subApiSize, apiSize));
+		assertFalse(TypeTemplate.isMoreSpecific(apiSize, subApiSize));
+		// unrelated, or the same declaration
+		assertFalse(TypeTemplate.isMoreSpecific(sizedSize, apiSize));
+		assertFalse(TypeTemplate.isMoreSpecific(apiSize, apiSize));
 	}
 
 }

@@ -55,20 +55,25 @@ final class ConstructorFacade<C> extends ExecutableBase<C, C, Constructor<C>> im
 		declaringType.postInit(this::seal);
 	}
 
-	private boolean hasAroundConstruct() {
-		return hasAnnotation(jakarta.interceptor.Interceptors.class) //
-				|| declaringType().hasAnnotation(jakarta.interceptor.Interceptors.class) //
-				|| declaringType().annotatedMethods(jakarta.interceptor.AroundConstruct.class).iterator().hasNext();
+	private InterceptorChain interceptors;
+
+	private synchronized InterceptorChain interceptors() {
+		if (interceptors == null)
+			interceptors = new InterceptorChain(annotatedElement, this, declaringType(), annotatedElement.getDeclaringClass(),
+					true);
+		return interceptors;
 	}
 
 	@Override
 	public C exec(Object... arguments) throws Exception {
-		if (hasAroundConstruct())
-			// support @AroundConstruct
-			throw new UnsupportedOperationException("@AroundConstruct not supported in this version");
-
-		final var instance = annotatedElement.getDeclaringClass()
-				.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
+		final var chain = interceptors();
+		final var declaringClass = annotatedElement.getDeclaringClass();
+		final C instance;
+		if (chain.isIntercepted())
+			instance = declaringClass.cast(chain.construct(arguments,
+					context -> IuException.checkedInvocation(() -> annotatedElement.newInstance(context.getParameters()))));
+		else
+			instance = declaringClass.cast(IuException.checkedInvocation(() -> annotatedElement.newInstance(arguments)));
 
 		declaringType.observe(instance);
 

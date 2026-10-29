@@ -41,7 +41,7 @@ public class HasAroundInvokeMethod {
 	}
 
 	private void fail() {
-		throw new AssertionError("Iterceptors should not be supported in this version");
+		throw new AssertionError("an @AroundInvoke method with an invalid signature must be rejected");
 	}
 
 }

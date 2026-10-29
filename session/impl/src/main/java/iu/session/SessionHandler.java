@@ -142,10 +142,9 @@ public class SessionHandler implements IuSessionHandler {
 
 		cookieBuilder.append("; HttpOnly");
 
-		if (s.isStrict())
-			cookieBuilder.append("; SameSite=Strict");
-		else
-			cookieBuilder.append("; SameSite=Lax");
+		final var sameSite = s.getSameSite();
+		if (sameSite != null)
+			cookieBuilder.append("; SameSite=" + sameSite);
 		return cookieBuilder.toString();
 	}
 

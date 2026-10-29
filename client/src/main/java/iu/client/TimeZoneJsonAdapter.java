@@ -39,6 +39,8 @@ import java.util.TimeZone;
 
 import edu.iu.client.IuJsonAdapter;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
 
 /**
  * Implements {@link IuJsonAdapter} for {@link Date}
@@ -55,14 +57,7 @@ class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
 
 	@Override
 	public TimeZone fromJson(JsonValue value) {
-		final var text = TextJsonAdapter.INSTANCE.fromJson(value);
-		if (text == null)
-			return null;
-		else {
-			final var id = ZoneId.of(text);
-			final var now = LocalDateTime.now().atZone(id);
-			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
-		}
+		return fromText(TextJsonAdapter.INSTANCE.fromJson(value));
 	}
 
 	@Override
@@ -71,6 +66,29 @@ class TimeZoneJsonAdapter implements IuJsonAdapter<TimeZone> {
 			return JsonValue.NULL;
 		else
 			return TextJsonAdapter.INSTANCE.toJson(value.getID());
+	}
+
+	@Override
+	public TimeZone read(JsonParser parser) {
+		return fromText(TextJsonAdapter.INSTANCE.read(parser));
+	}
+
+	@Override
+	public void write(TimeZone value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(value.getID());
+	}
+
+	private TimeZone fromText(String text) {
+		if (text == null)
+			return null;
+		else {
+			final var id = ZoneId.of(text);
+			final var now = LocalDateTime.now().atZone(id);
+			return new SimpleTimeZone(now.getOffset().getTotalSeconds() * 1000, id.getId());
+		}
 	}
 
 }

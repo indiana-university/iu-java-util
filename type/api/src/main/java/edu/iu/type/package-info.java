@@ -52,6 +52,73 @@
  * Annotations</a></li>
  * </ul>
  *
+ * <h2>Interceptors</h2>
+ * <p>
+ * {@link edu.iu.type.IuMethod#exec(Object...)} and
+ * {@link edu.iu.type.IuConstructor#exec(Object...)} run the interceptors that
+ * apply to the method or constructor:
+ * </p>
+ * <ol>
+ * <li>Classes marked {@link edu.iu.type.DefaultInterceptor}, in class name
+ * order, unless excluded by
+ * {@code @ExcludeDefaultInterceptors}</li>
+ * <li>{@code @Interceptors} declared by the type declaring the method, unless
+ * excluded by {@code @ExcludeClassInterceptors}</li>
+ * <li>{@code @Interceptors} declared by the method or constructor</li>
+ * <li>{@code @AroundInvoke} methods of the declaring type itself, last</li>
+ * </ol>
+ * <p>
+ * Within an interceptor class, a superclass's {@code @AroundInvoke} (or
+ * {@code @AroundConstruct}) method runs before its subclass's, unless
+ * overridden. One interceptor instance exists per target instance, and is
+ * destroyed with it by {@link edu.iu.type.IuType#destroy(Object)}. Lifecycle
+ * callbacks ({@code @PostConstruct}, {@code @PreDestroy}) are never intercepted,
+ * and {@code @AroundConstruct} declared by a target class has no effect.
+ * Interceptor bindings ({@code @InterceptorBinding}, {@code @Priority}) and
+ * {@code @AroundTimeout} are not supported. An invalid interceptor method
+ * (static, wrong signature, or more than one per class) fails the invocation
+ * with {@link java.lang.IllegalArgumentException}.
+ * </p>
+ * <p>
+ * Interceptors are resolved from the type that <em>declares</em> the method, not
+ * the runtime class of the instance.
+ * </p>
+ *
+ * <h2>Introspection scope</h2>
+ * <p>
+ * Type introspection supports container deployments, which inject resources
+ * into and intercept non-public members. A type's fields, properties, and
+ * methods are introspected only when its package is <strong>open</strong> to
+ * the implementation module. In a named module, that requires {@code opens}:
+ * </p>
+ *
+ * <pre>
+ * module com.example.api {
+ * 	exports com.example.api;
+ * 	opens com.example.api;
+ * }
+ * </pre>
+ *
+ * <p>
+ * Packages in the unnamed module and in automatic modules are open. A type in a
+ * package that is exported but not open is <em>opaque</em>: it has a
+ * {@link edu.iu.type.IuType#hierarchy() hierarchy} and annotations, but no
+ * fields, properties, or methods, and contributes none to its subtypes. This
+ * is intentional: shared library modules typically export their API without
+ * opening it, and are compile-time dependencies rather than runtime injection
+ * points, so they are left out. {@code opens} is the opt-in.
+ * </p>
+ *
+ * <p>
+ * Contract modules whose API types are meant to be introspected, for example
+ * interfaces a deployed component implements, <em>must</em> open those
+ * packages. Use an unqualified {@code opens}: the implementation module is
+ * typically loaded in a child module layer, which a qualified
+ * {@code opens ... to} cannot target. The implementation logs each type it
+ * treats as opaque only because its package is exported but not open, at
+ * {@link java.util.logging.Level#FINE FINE}.
+ * </p>
+ *
  * @see edu.iu.type.IuType
  */
 package edu.iu.type;

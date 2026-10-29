@@ -31,13 +31,20 @@
  */
 package iu.redis.lettuce;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.logging.Level;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -45,7 +52,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
+import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
 import edu.iu.IuRuntimeEnvironment;
+import edu.iu.IuText;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.redis.IuRedisConfiguration;
 import edu.iu.test.IuTestLogger;
@@ -100,5 +110,54 @@ public class LettuceConnectionIT {
 		byte[] value = "testValue".getBytes();
 		connection.put(key, value, null);
 		assertEquals(new String(value), new String(connection.get(key)));
+	}
+
+	@Test
+	public void testLastModified() {
+		final var connection = new LettuceConnection(config);
+		final var key = IuText.utf8("testLastModified-" + IdGenerator.generateId());
+		assertNull(connection.lastModified(key));
+
+		// bracketed by the local clock, so this only holds against a Redis whose host
+		// clock agrees with this one; a skewed pair is exactly what it should catch
+		final var before = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+		connection.put(key, IuText.utf8(IdGenerator.generateId()), Duration.ofMinutes(1L));
+		final var after = Instant.now();
+
+		final var modified = assertDoesNotThrow(() -> connection.lastModified(key));
+		assertNotNull(modified);
+		assertFalse(modified.isBefore(before), () -> modified + " before " + before);
+		assertFalse(modified.isAfter(after), () -> modified + " after " + after);
+
+		// the stamp goes with the value it describes
+		connection.put(key, null);
+		assertNull(connection.lastModified(key));
+	}
+
+	@Test
+	public void testListFindsWhatWasPutAndNotTheWriteTimes() {
+		final var connection = new LettuceConnection(config);
+		final var key = IuText.utf8("testList-" + IdGenerator.generateId());
+		final var value = IuText.utf8(IdGenerator.generateId());
+		connection.put(key, value, Duration.ofMinutes(1L));
+
+		final var name = IuText.base64Url(key);
+		final var listed = IuIterable.stream(connection.list()) //
+				.filter(e -> name.equals(e.getName())) //
+				.findFirst().orElse(null);
+
+		assertNotNull(listed, () -> "no entry named " + name);
+		assertArrayEquals(key, IuText.base64Url(listed.getName()));
+		assertArrayEquals(value, listed.getData());
+		assertNotNull(listed.getModified());
+
+		// the write time is stored under its own key, and a listing must not report
+		// it as an entry of its own
+		assertFalse(IuIterable.stream(connection.list()) //
+				.anyMatch(e -> e.getData() == null), "write time listed as an entry");
+
+		connection.put(key, null);
+		assertFalse(IuIterable.stream(connection.list()) //
+				.anyMatch(e -> name.equals(e.getName())));
 	}
 }

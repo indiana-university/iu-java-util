@@ -171,6 +171,12 @@ public class IuHttp {
 			a -> IuText.utf8(IuException.unchecked(() -> IuStream.read(a))), IuHttp.OK);
 
 	/**
+	 * Validates 200 OK then returns the response body as a stream, for the caller
+	 * to read and close; e.g., as input to {@code Jsonb.fromJson(InputStream, ...)}.
+	 */
+	public static final HttpResponseHandler<InputStream> READ_STREAM = validate(a -> a, IuHttp.OK);
+
+	/**
 	 * Creates an HTTP response handler.
 	 * 
 	 * @param <T>                value type

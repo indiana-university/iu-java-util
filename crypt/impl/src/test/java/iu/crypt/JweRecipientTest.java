@@ -36,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 
@@ -45,11 +44,11 @@ public class JweRecipientTest {
 
 	@Test
 	public void testPasswordSaltTooShort() {
-		final var jose = new Jose(IuJson.object() //
-				.add("alg", Algorithm.PBES2_HS256_A128KW.alg) //
-				.add("enc", Encryption.A128GCM.enc) //
-				.add("p2c", 1000) //
-				.add("p2s", CryptJsonAdapters.B64URL.toJson("foo".getBytes())) //
+		final var jose = new Jose(CryptJsonAdapters.builder() //
+				.put("alg", Algorithm.PBES2_HS256_A128KW) //
+				.put("enc", Encryption.A128GCM) //
+				.put("p2c", 1000) //
+				.put("p2s", "foo".getBytes()) //
 				.build());
 		final var jweRecipient = new JweRecipient(jose, null);
 		final var password = IdGenerator.generateId();
@@ -58,11 +57,11 @@ public class JweRecipientTest {
 
 	@Test
 	public void testPasswordCountTooLow() {
-		final var jose = new Jose(IuJson.object() //
-				.add("alg", Algorithm.PBES2_HS256_A128KW.alg) //
-				.add("enc", Encryption.A128GCM.enc) //
-				.add("p2c", 4) //
-				.add("p2s", CryptJsonAdapters.B64URL.toJson(IdGenerator.generateId().getBytes())) //
+		final var jose = new Jose(CryptJsonAdapters.builder() //
+				.put("alg", Algorithm.PBES2_HS256_A128KW) //
+				.put("enc", Encryption.A128GCM) //
+				.put("p2c", 4) //
+				.put("p2s", IdGenerator.generateId().getBytes()) //
 				.build());
 		final var jweRecipient = new JweRecipient(jose, null);
 		final var password = IdGenerator.generateId();
