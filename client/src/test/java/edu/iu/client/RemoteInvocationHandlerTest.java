@@ -86,7 +86,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		}
 
 		@Override
-		protected void authorize(HttpRequest.Builder requestBuilder) {
+		protected void authorize(URI requestUri, HttpRequest.Builder requestBuilder) {
 			authorization.accept(requestBuilder);
 		}
 
@@ -276,7 +276,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		}
 
 		@Override
-		protected void authorize(HttpRequest.Builder requestBuilder) {
+		protected void authorize(URI requestUri, HttpRequest.Builder requestBuilder) {
 		}
 
 		@Override
@@ -400,7 +400,7 @@ public class RemoteInvocationHandlerTest extends IuHttpTestCase {
 		final var callContext = new AtomicReference<ClassLoader>();
 		try (final var handler = new RemoteInvocationHandler() {
 			@Override
-			protected void authorize(HttpRequest.Builder requestBuilder) {
+			protected void authorize(URI requestUri, HttpRequest.Builder requestBuilder) {
 			}
 
 			@Override

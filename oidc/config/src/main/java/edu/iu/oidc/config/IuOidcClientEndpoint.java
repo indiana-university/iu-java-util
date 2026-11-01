@@ -61,14 +61,6 @@ public interface IuOidcClientEndpoint {
 	 * itself at the token endpoint.
 	 *
 	 * <p>
-	 * Selected per endpoint from {@link IuOidcClientConfiguration#getAuthorizations()
-	 * the records the client owns}, so one deployment's key can be rotated or
-	 * revoked without disturbing another's. Every record named here <em>must</em>
-	 * be one of those: a record reached through another client's registration
-	 * would authenticate as that client too.
-	 * </p>
-	 *
-	 * <p>
 	 * More than one record may be registered; the first that accepts the presented
 	 * credential is used, which is what lets an old and a new credential both be
 	 * honored while one is being rotated in. An endpoint with no record at all

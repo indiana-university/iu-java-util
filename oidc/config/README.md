@@ -22,6 +22,10 @@ Every provider endpoint takes a single `iu.oidc.provider.IuOidcProviderReference
 
 Relying party registrations are read through `IuOidcClientSource`, which is equally mandatory; see [Client registration](#client-registration).
 
+### `IuOidcProviderConfiguration` — the provider itself
+
+Returned from `IuOidcProviderReference.getConfiguration()`, and the one binding with no default. `getMetadata()` is the discovery document, published verbatim; its `issuer` is the base URI every one of the provider's own endpoints is built from, so advertising an issuer the deployment isn't reachable at breaks authentication, not just discovery. `getJwks()` are the provider's signing keys, in preference order: a key's `alg` selects it, the first signing key is used when no algorithm is called for, and the signature algorithms discovery advertises are derived from them. Three lifetimes default and may be overridden: `authorization_code_time_to_live` (one minute), `access_token_time_to_live` (fifteen minutes), and `refresh_token_time_to_live` (twelve hours, which should not outlast the authentication it descends from).
+
 ### `IuOidcAuthenticatedPrincipal` — who authenticated
 
 Returned from `IuOidcProviderReference.getAuthenticatedPrincipal(IuRequestAttributes)`. Adapt whatever mechanism the deployment authenticates with; an `IuSamlPrincipal`, for example, supplies the first three properties one-to-one.
@@ -78,32 +82,38 @@ Client registration
 
 ![IuOidcClientSource and the registration it reads](doc/client-registration.png)
 
-`IuOidcClientSource.client(clientId)` reads one relying party's registration, whole. An `IuOidcClientConfiguration` owns everything a registration describes: its endpoints (one per redirect URI), its roles, and its authorization records. Each `IuOidcClientEndpoint` owns its resources, selects which of the client's authorization records it accepts, and either shares the client's roles or owns roles of its own — a role belongs to the client or to one endpoint, never both (`{xor}`).
+`IuOidcClientSource.client(clientId)` reads one relying party's registration, whole. An `IuOidcClientConfiguration` describes the client as a whole — whether it is enabled and how its UserInfo response is signed and encrypted — and owns its endpoints, one per redirect URI. Each `IuOidcClientEndpoint` owns everything that varies by redirect URI: the authorization records that authenticate it, its roles, and its resources. An endpoint owns zero or more of each, and each belongs to exactly one endpoint; the other end of every composition is implicitly one.
 
 ### Implementing `IuOidcClientSource`
 
 Answer `null`, or throw, for a client that isn't registered; the provider refuses both the same way, indistinguishably from a client that never existed. Every provider endpoint reads through the source on every request, so caching is the implementation's decision — but a failed lookup should not be cached, so a client registered a moment ago is found on the next request. A disabled client (`enabled` false) stays registered, and the authorization and token endpoints refuse it as though it weren't — no new code, token, or refresh. Access tokens already issued keep working until they expire: UserInfo, like any resource server, trusts a token this provider signed and does not re-check the registration. Disabling a client is therefore bounded by the access token lifetime (fifteen minutes by default), not immediate.
 
-Assemble the registration the way the provider reads it. The provider reaches authorization records and roles only through an endpoint: `IuOidcClientEndpoint.getAuthorizations()` authenticates the client, and `IuOidcClientEndpoint.getRoles()` is the only role mapping it consults. `IuOidcClientConfiguration.getAuthorizations()` and `IuOidcClientConfiguration.getRoles()` describe what the client owns; they are for whatever manages the registration, not for the provider.
+Assemble the registration the way the provider reads it. The provider reaches authorization records and roles only through an endpoint: `IuOidcClientEndpoint.getAuthorizations()` authenticates the client, and `IuOidcClientEndpoint.getRoles()` is the only role mapping it consults. The client configuration holds neither, so there is nothing to merge into an endpoint.
+
+The UserInfo settings belong to the client rather than an endpoint, because a UserInfo request presents an access token that names the client and no redirect URI to select an endpoint by. `userinfoAlg` defaults to `null`, which answers an unsigned claims document; `userinfoEnc` defaults to `null`, which answers an unencrypted one; `userinfoJwk` is the key an encrypted response is addressed to, required when `userinfoEnc` is set and unread otherwise.
+
+### Endpoint settings
+
+Each endpoint is selected by the `redirect_uri` an authorization request repeats exactly, and carries the settings that follow from that choice.
+
+- **Tokens.** `alg` signs, and `enc` with `encryptJwk` encrypts, the ID token issued to the endpoint.
+- **Resources.** The requested `resource` selects among `getResources()`, and the scopes the matching entries declare are what the request may ask for. The entry with no `uri` is the one a request naming no resource matches.
+- **Access.** `getAccessRoles()` names the identity roles that entitle an end user to a token from the endpoint at all. `null` or empty admits no one, and `ALL` admits anyone.
+- **Impersonation.** `getBackdoorRoles()` names the identity roles that entitle the holder of an `actor_token` to request another principal's token by RFC 8693 token exchange. `null` or empty refuses everyone, `ALL` opens it to anyone, and a production deployment refuses every exchange before reading it.
 
 ### Lifecycle
 
-Resources, endpoints, and endpoint-owned roles live and die with their parent, so a registration can be read, written, and versioned as one document. Authorization records and client-owned roles are also children of the client, but each endpoint relates to them differently, and that difference reaches every layer an implementation builds over this: its data store, its REST API, its management interface.
+Everything in a registration lives and dies with its parent: endpoints with their client, and authorization records, roles, and resources with their endpoint. A registration can therefore be read, written, and versioned as one document. Deleting an endpoint deletes what it owns, and nothing is shared between endpoints, so a change to one endpoint can never reach another.
 
-**Authorization records are owned by the client and selected by each endpoint.** Not every record reaches every endpoint.
+**Authorization records** are owned by the endpoint that lists them.
 
-- **Key.** An endpoint references a record rather than embedding it, so a record needs an identity scoped to its client — (client ID, authorization ID). The interface carries no ID; `descr` is a description, not a key. The management layer defines one.
-- **Same-client references only.** An endpoint may select only records its own client owns; a composite foreign key on (client ID, authorization ID) enforces it. This is a security boundary, not a convenience. The provider trusts a record because it reached it through the requesting client's own endpoints, so a record referenced from another client authenticates as that client too: a shared secret, because `client_secret_basic` and `client_secret_post` bind nothing but the secret; a shared key, because an assertion's `iss` and `sub` need only name the requested `client_id`; a shared certificate authority, because nothing binds a certificate's subject to a client.
-- **Unselected records.** A record no endpoint selects — one staged for rotation, or retained for history — still belongs to the client. `IuOidcClientConfiguration.getAuthorizations()` lists it; the provider never consults it.
-- **Deletion.** Deleting a client deletes its records. Deleting a record removes every endpoint's reference to it in the same transaction, or is refused while any remain. Removing a record from an endpoint deletes nothing.
-- **Rotation.** An endpoint tries its records in order, and the first that accepts the presented credential wins. Rotate by adding the new record, selecting it ahead of the old one on each endpoint that should honor it, and letting the old one reach `expires`. An expired record is skipped rather than refused, so rotation needs no change to the client itself.
+- **Public and closed endpoints.** An endpoint with no record accepts nothing, not even a public request with no credential. A record that carries no key is what registers an endpoint as public.
+- **Rotation.** An endpoint tries its records in order, and the first that accepts the presented credential wins. Rotate by adding the new record ahead of the old one on each endpoint that should honor it, and letting the old one reach `expires`. An expired record is skipped rather than refused, so rotation needs no change to the client itself.
 - **Revocation.** Takes effect when the client's cached registration does. Revoking or expiring a record invalidates that one client's cache entry.
-- **Governance.** `adminRoles` covers the client's records, since they are part of its registration.
-- **REST shape.** Records are a sub-collection of the client (for example `/clients/{id}/authorizations`) that endpoints link to by ID. Key material needs handling of its own: a secret is write-only, only public keys and certificates are ever returned, and every change is audited apart from edits to the client.
+- **Key material.** A credential honored by several endpoints is a record on each of them. An implementation that wants to manage one key in one place keeps its own identity for it and expands it per endpoint when it assembles the registration.
 
-**Roles are owned by the client and shared by every endpoint, or owned by one endpoint.**
+**Roles** are owned by the endpoint that lists them, and the endpoint's effective set is exactly `getRoles()`.
 
-- **Client roles reach the provider through the endpoints.** The provider consults only `IuOidcClientEndpoint.getRoles()`, so a source must include the client's roles in every endpoint's `getRoles()`, alongside that endpoint's own. A source that doesn't issues no `roles` claim for the client-level mappings, and nothing reports it.
-- **Every endpoint gets every client role.** Unlike authorization records, client roles are not selected per endpoint; an endpoint that needs a different mapping owns its own.
-- **Name collisions.** A client role and an endpoint role may share a `role` name with different `idRoles`. Both reach the endpoint's effective set, and the provider issues each match, so the `roles` claim can repeat a name. Reject duplicate names within an endpoint's effective set, or define which wins — the endpoint's own role over the client's, for example.
-- **Scope of a change.** Editing or deleting a client role changes every endpoint at once; an endpoint role goes when its endpoint does.
+- **No inheritance.** The client holds no roles, so a mapping common to several endpoints is repeated on each. An implementation that keeps client-wide mappings must expand them into every endpoint's `getRoles()`, since the provider reads nothing else.
+- **Name collisions.** The provider issues every matching role, so two roles in one endpoint sharing a `role` name with different `idRoles` repeat the name in the `roles` claim. Reject duplicate names within an endpoint, or define which wins.
+- **Scope of a change.** Editing a role changes one endpoint only.

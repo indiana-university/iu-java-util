@@ -775,7 +775,7 @@ public class IuConfigTest {
 		final var result = mock(IuValidationResult.class);
 		when(result.isValid()).thenReturn(false);
 		try (final var mockIuValidator = mockStatic(IuValidator.class)) {
-			mockIuValidator.when(() -> IuValidator.validate(value)).thenReturn(result);
+			mockIuValidator.when(() -> IuValidator.validate(Access.class, value)).thenReturn(result);
 			assertThrows(IllegalStateException.class, () -> IuConfig.load(Access.class, key));
 		}
 	}
@@ -796,7 +796,7 @@ public class IuConfigTest {
 		final var result = mock(IuValidationResult.class);
 		when(result.isValid()).thenReturn(false);
 		try (final var mockIuValidator = mockStatic(IuValidator.class)) {
-			mockIuValidator.when(() -> IuValidator.validate(value)).thenReturn(result);
+			mockIuValidator.when(() -> IuValidator.validate(Access.class, value)).thenReturn(result);
 			IuTestLogger.expect(
 					IuConfig.class.getName(), Level.WARNING, "Config refresh failure for " + key + "!"
 							+ Access.class.getName() + ", will issue last known value until next refresh",

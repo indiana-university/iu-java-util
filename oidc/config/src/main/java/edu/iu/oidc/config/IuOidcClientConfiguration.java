@@ -117,26 +117,4 @@ public interface IuOidcClientConfiguration {
 	 */
 	Iterable<? extends IuOidcClientEndpoint> getEndpoints();
 
-	/**
-	 * Iterates roles mapped for this client.
-	 *
-	 * @return mapped roles
-	 */
-	Iterable<? extends IuOidcClientRole> getRoles();
-
-	/**
-	 * Gets the authorization records this client owns.
-	 *
-	 * <p>
-	 * Each endpoint selects the ones it accepts through
-	 * {@link IuOidcClientEndpoint#getAuthorizations()}, and that selection is all a
-	 * provider endpoint reads. A record no endpoint selects &mdash; one staged for
-	 * rotation, say &mdash; still belongs to the client but authenticates nothing.
-	 * </p>
-	 *
-	 * @return owned authorization records; {@code null} or empty if the client owns
-	 *         none
-	 */
-	Iterable<? extends IuOidcClientAuthorization> getAuthorizations();
-
 }

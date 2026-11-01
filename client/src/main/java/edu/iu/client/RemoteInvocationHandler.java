@@ -31,6 +31,7 @@
  */
 package edu.iu.client;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -64,7 +65,7 @@ import edu.iu.UnsafeConsumer;
  *
  * <p>
  * Subclasses customize the request by supplying a {@link #uri(Method)}, adding
- * authorization in {@link #authorize(HttpRequest.Builder)}, and optionally
+ * authorization in {@link #authorize(URI, HttpRequest.Builder)}, and optionally
  * overriding serialization, key creation, payload generation, cache policy, or
  * {@link #captureContext() context forwarding}. When caller-specific state can
  * affect a response, override {@link #cacheKey(Method, Object)} to include that
@@ -277,9 +278,11 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	/**
 	 * Adds authorization headers to a pending remote call request
 	 * 
+	 * @param requestUri     remote call URI
 	 * @param requestBuilder pending remote call request
+	 * @throws IOException if an I/O error occurs during authorization
 	 */
-	protected abstract void authorize(HttpRequest.Builder requestBuilder);
+	protected abstract void authorize(URI requestUri, HttpRequest.Builder requestBuilder) throws IOException;
 
 	/**
 	 * Converts arguments to serialized form, for use as part of the cache key and
@@ -423,17 +426,18 @@ public abstract class RemoteInvocationHandler implements InvocationHandler, Auto
 	 * @throws Exception if the remote invocation fails
 	 */
 	protected Object doInvoke(Method method, Object serializedArgs) throws Exception {
-		final UnsafeConsumer<HttpRequest.Builder> request = builder -> {
-			authorize(builder);
-			payload(builder, method, serializedArgs);
-		};
-
 		try {
+			final var uri = uri(method);
+			final UnsafeConsumer<HttpRequest.Builder> request = builder -> {
+				authorize(uri, builder);
+				payload(builder, method, serializedArgs);
+			};
+
 			final var type = method.getGenericReturnType();
 			if (type == void.class)
-				return IuHttp.send(uri(method), request, IuHttp.NO_CONTENT);
+				return IuHttp.send(uri, request, IuHttp.NO_CONTENT);
 			else {
-				final var responseJson = IuHttp.send(uri(method), request, IuHttp.READ_JSON);
+				final var responseJson = IuHttp.send(uri, request, IuHttp.READ_JSON);
 				LOG.finer(() -> method + " " + responseJson);
 
 				return adapt(type).fromJson(responseJson);

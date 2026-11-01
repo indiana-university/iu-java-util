@@ -178,7 +178,7 @@ public class IuConfig {
 					try {
 						final var resolvedValue = resolve(key);
 
-						final var validationResult = IuValidator.validate(resolvedValue);
+						final var validationResult = IuValidator.validate(type, resolvedValue);
 						if (!validationResult.isValid())
 							throw new IllegalStateException(
 									"Validation failed for " + key + "; " + validationResult.report());
