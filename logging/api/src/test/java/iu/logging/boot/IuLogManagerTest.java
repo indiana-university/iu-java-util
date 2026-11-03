@@ -76,6 +76,13 @@ public class IuLogManagerTest {
 	}
 
 	@Test
+	public void testIsBoundBranches() {
+		assertTrue(IuLogManager.isBound(LogManager.class, null));
+		assertTrue(IuLogManager.isBound(null, Boolean.TRUE));
+		assertFalse(IuLogManager.isBound(null, Boolean.FALSE));
+	}
+
+	@Test
 	public void testConfigurationBlock() {
 		final var logManager = new IuLogManager();
 		assertThrows(UnsupportedOperationException.class, () -> logManager.addConfigurationListener(null));
