@@ -141,6 +141,24 @@ public class JsonProxyTest {
 		assertTrue(data.isOK());
 	}
 
+	interface GenericBase<T> {
+		T getValue();
+
+		java.util.List<T> getValues();
+	}
+
+	interface IntegerBacked extends GenericBase<Integer> {
+	}
+
+	@Test
+	public void testResolvesTypeVariablesOfSuperInterface() {
+		final var data = IuJson.wrap(
+				IuJson.object().add("value", 1).add("values", IuJson.array().add(2).add(3)).build(),
+				IntegerBacked.class);
+		assertEquals(1, data.getValue());
+		assertEquals(java.util.List.of(2, 3), data.getValues());
+	}
+
 	@Test
 	public void testEquals() {
 		final var data = IuJson.wrap(IuJson.object().build(), JsonBackedInterface.class);

@@ -43,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import edu.iu.GenericTypes;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
@@ -196,7 +197,8 @@ public final class JsonProxy implements InvocationHandler {
 		}
 
 		return targetInterface.cast(Proxy.newProxyInstance(targetInterface.getClassLoader(),
-				new Class<?>[] { targetInterface }, new JsonProxy(properties, naming, ignoreCase, metadata, declared)));
+				new Class<?>[] { targetInterface },
+				new JsonProxy(properties, targetInterface, naming, ignoreCase, metadata, declared)));
 	}
 
 	/**
@@ -220,15 +222,17 @@ public final class JsonProxy implements InvocationHandler {
 	}
 
 	private final IuJsonProperties properties;
+	private final Class<?> targetInterface;
 	private final Function<String, String> naming;
 	private final boolean ignoreCase;
 	private final BindingMetadata metadata;
 	private final Declared declared;
 	private final Map<String, Object> resolved = new ConcurrentHashMap<>();
 
-	private JsonProxy(IuJsonProperties properties, Function<String, String> naming, boolean ignoreCase,
-			BindingMetadata metadata, Declared declared) {
+	private JsonProxy(IuJsonProperties properties, Class<?> targetInterface, Function<String, String> naming,
+			boolean ignoreCase, BindingMetadata metadata, Declared declared) {
 		this.properties = properties;
+		this.targetInterface = targetInterface;
 		this.naming = naming;
 		this.ignoreCase = ignoreCase;
 		this.metadata = metadata;
@@ -294,7 +298,9 @@ public final class JsonProxy implements InvocationHandler {
 		if (isTransient)
 			return checkResolvedValue(methodName, null);
 
-		final var genericReturnType = method.getGenericReturnType();
+		// type variables of a generic super-interface resolve against the wrapped one
+		final var genericReturnType = GenericTypes.resolve(method.getGenericReturnType(), targetInterface,
+				method.getDeclaringClass());
 		// a declared conversion reads the raw value
 		final var declaredAdapter = declared.adapt(genericReturnType, //
 				format(metadata::dateFormat, method), format(metadata::numberFormat, method),
