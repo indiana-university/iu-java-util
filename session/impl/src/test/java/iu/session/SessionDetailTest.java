@@ -34,6 +34,7 @@ package iu.session;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
@@ -48,10 +49,16 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import edu.iu.client.IuJson;
+import iu.jwt.spi.Init;
 import jakarta.json.JsonValue;
 
 @SuppressWarnings("javadoc")
 class SessionDetailTest {
+
+	static {
+		Init.init();
+	}
+
 	private Map<String, JsonValue> attributes;
 	private Session session;
 	private SessionDetailInterface sessionDetail;
@@ -98,51 +105,65 @@ class SessionDetailTest {
 
 	@Test
 	void testInvokeWithIsMethod() throws Throwable {
-		attributes.put("notThere", JsonValue.TRUE);
+		attributes.put("not_there", JsonValue.TRUE);
 		assertTrue(sessionDetail.isNotThere());
 	}
 
 	@Test
+	void testInvokeWithIsMethodNotSet() throws Throwable {
+		assertFalse(sessionDetail.isNotThere());
+		assertNull(sessionDetail.getGivenName());
+	}
+
+	@Test
+	void testAttributeName() {
+		assertEquals("given_name", SessionDetail.attributeName("getGivenName", 3));
+		assertEquals("not_there", SessionDetail.attributeName("isNotThere", 2));
+		assertEquals("foo", SessionDetail.attributeName("setFoo", 3));
+		assertEquals("value", SessionDetail.attributeName("getvalue", 3));
+	}
+
+	@Test
 	void testInvokeWithGetMethod() throws Throwable {
-		attributes.put("givenName", IuJson.string("foo"));
+		attributes.put("given_name", IuJson.string("foo"));
 		assertEquals("foo", sessionDetail.getGivenName());
 	}
 
 	@Test
 	void testInvokeWithSetMethodExistingAttribute() throws Throwable {
-		attributes.put("givenName", IuJson.string("foo"));
+		attributes.put("given_name", IuJson.string("foo"));
 		sessionDetail.setGivenName("foo");
-		assertEquals(IuJson.string("foo"), attributes.get("givenName"));
+		assertEquals(IuJson.string("foo"), attributes.get("given_name"));
 		verify(session, never()).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethodNullNoChangeAttribute() throws Throwable {
 		sessionDetail.setGivenName(null);
-		assertFalse(attributes.containsKey("givenName"));
+		assertFalse(attributes.containsKey("given_name"));
 		verify(session, never()).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethodForNonMatchAttributeValue() throws Throwable {
-		attributes.put("givenName", IuJson.string("foo"));
+		attributes.put("given_name", IuJson.string("foo"));
 		sessionDetail.setGivenName("bar");
-		assertEquals(IuJson.string("bar"), attributes.get("givenName"));
+		assertEquals(IuJson.string("bar"), attributes.get("given_name"));
 		verify(session).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethod() throws Throwable {
 		sessionDetail.setGivenName("bar");
-		assertEquals(IuJson.string("bar"), attributes.get("givenName"));
+		assertEquals(IuJson.string("bar"), attributes.get("given_name"));
 		verify(session).setChanged(true);
 	}
 
 	@Test
 	void testInvokeWithSetMethodRemoveAttribute() throws Throwable {
-		attributes.put("givenName", IuJson.string("foo"));
+		attributes.put("given_name", IuJson.string("foo"));
 		sessionDetail.setGivenName(null);
-		assertFalse(attributes.containsKey("givenName"));
+		assertFalse(attributes.containsKey("given_name"));
 		verify(session).setChanged(true);
 	}
 

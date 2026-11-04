@@ -50,6 +50,7 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -136,6 +137,8 @@ public final class El {
 			return new DecimalFormat();
 		}
 	};
+
+	private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
 	private static final ThreadLocal<SimpleDateFormat> DATE_FMT = new ThreadLocal<SimpleDateFormat>() {
 		@Override
@@ -428,6 +431,10 @@ public final class El {
 					// value were at fault
 					final SimpleDateFormat df = DATE_FMT.get();
 					df.applyPattern(expression.substring(1));
+
+					// a date and time renders in the default zone; a date alone is a calendar
+					// day, read at midnight UTC, so it renders as that day wherever the JVM is
+					df.setTimeZone(((JsonString) cval).getString().indexOf('T') == -1 ? UTC : TimeZone.getDefault());
 
 					Date date;
 					try {

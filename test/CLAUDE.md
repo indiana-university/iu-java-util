@@ -6,7 +6,7 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 ## Role
 
-Shared unit-test support, consumed at `test` scope by nearly every other module. Compiled with `--release 11`.
+Shared unit-test support, consumed at `test` scope by nearly every other module. Compiled with `--release 17`.
 
 This module is unusual: **it changes test behavior everywhere it is on the classpath**, through two `provides` clauses in `module-info.java`:
 

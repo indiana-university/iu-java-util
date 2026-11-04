@@ -88,6 +88,11 @@ final class ParameterFacade<T> extends AnnotatedElementBase<Parameter> implement
 	}
 
 	@Override
+	public Parameter deref() {
+		return annotatedElement;
+	}
+
+	@Override
 	public TypeFacade<?, T> type() {
 		return type;
 	}

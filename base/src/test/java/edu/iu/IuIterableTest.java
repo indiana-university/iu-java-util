@@ -51,6 +51,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -58,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -146,6 +152,32 @@ public class IuIterableTest {
 	}
 
 	@Test
+	public void testFactoryIterableHashCode() {
+		var source = List.of("two", "one", "three");
+		var equivalent = of(source::iterator);
+		var different = of(List.of("two", "three", "one")::iterator);
+
+		assertEquals(source.hashCode(), equivalent.hashCode());
+		assertEquals(equivalent.hashCode(), of(source::iterator).hashCode());
+		assertNotEquals(equivalent.hashCode(), different.hashCode());
+	}
+
+	@Test
+	public void testFactoryIterableEquals() {
+		var source = List.of("two", "one", "three");
+		var equivalent = of(source::iterator);
+		var sameItems = of(List.of("two", "one", "three")::iterator);
+
+		assertEquals(equivalent, equivalent);
+		assertEquals(equivalent, sameItems);
+		assertEquals(sameItems, equivalent);
+		assertNotEquals(equivalent, of(List.of("two", "one")::iterator));
+		assertNotEquals(equivalent, of(List.of("two", "three", "one")::iterator));
+		assertNotEquals(equivalent, source);
+		assertNotEquals(equivalent, null);
+	}
+
+	@Test
 	public void testEmpty() {
 		assertFalse(empty().iterator().hasNext());
 	}
@@ -229,6 +261,13 @@ public class IuIterableTest {
 	}
 
 	@Test
+	public void testArray() {
+		assertNull(IuIterable.array(null, (Class<?>) null));
+		final var a = new String[] { "one", "two","three"};
+		assertArrayEquals(a, IuIterable.array(IuIterable.iter(a), String.class));
+	}
+	
+	@Test
 	public void testMap() {
 		var map = new LinkedHashMap<>();
 		map.put("one", 1);
@@ -286,6 +325,31 @@ public class IuIterableTest {
 		assertEquals("[one, two, three]", of(Stream.of("one", "two", "three")::iterator).toString());
 		assertArrayEquals(new String[] { "one", "two", "three" },
 				IuIterable.stream(IuIterable.iter("one", "two", "three")).toArray(String[]::new));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	public void testDefer() {
+		final var s = mock(Supplier.class);
+		final var i = mock(Iterable.class);
+		when(s.get()).thenReturn(i);
+		final var d = IuIterable.defer(s);
+		verify(s, never()).get();
+		verify(i, never()).iterator();
+
+		assertEquals("[<<deferred>>]", d.toString());
+		verify(s, never()).get();
+		verify(i, never()).iterator();
+
+		d.iterator();
+		verify(s).get();
+		verify(i).iterator();
+		
+		assertEquals(i.toString(), d.toString());
+
+		d.iterator();
+		verify(s).get();
+		verify(i, times(2)).iterator();
 	}
 
 }

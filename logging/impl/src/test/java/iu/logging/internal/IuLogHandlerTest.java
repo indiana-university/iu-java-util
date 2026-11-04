@@ -45,7 +45,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -251,13 +253,15 @@ public class IuLogHandlerTest extends IuLoggingTestCase {
 				Spliterator<IuLogEvent> split;
 				while ((split = stream.trySplit()) != null) {
 					for (final var a : IuIterable.of(StreamSupport.stream(split, false)::iterator)) {
-						final var message = a.export();
+						final var exported = new ByteArrayOutputStream();
+						a.export(new PrintStream(exported));
+						final var message = exported.toString();
 						final var formatted = a.format();
 						debugControl.append(formatted).append(System.lineSeparator());
 						if (a.getLevel().intValue() >= Level.WARNING.intValue()) {
 							if (firstMessage == null)
 								firstMessage = message;
-							outControl.append(message).append(System.lineSeparator());
+							outControl.append(message);
 							infoControl.append(formatted).append(System.lineSeparator());
 							errorControl.append(formatted).append(System.lineSeparator());
 						} else if (traceName.equals(a.getLoggerName()))

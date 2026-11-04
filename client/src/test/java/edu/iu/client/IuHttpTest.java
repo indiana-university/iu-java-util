@@ -137,6 +137,19 @@ public class IuHttpTest extends IuHttpTestCase {
 
 	@SuppressWarnings("unchecked")
 	@Test
+	public void testReadStream() throws HttpException {
+		final var resp = mock(HttpResponse.class);
+		when(resp.statusCode()).thenReturn(200);
+		final var body = new ByteArrayInputStream(IuText.utf8(IdGenerator.generateId()));
+		when(resp.body()).thenReturn(body);
+		assertSame(body, IuHttp.READ_STREAM.apply(resp));
+
+		when(resp.statusCode()).thenReturn(302);
+		assertThrows(HttpException.class, () -> IuHttp.READ_STREAM.apply(resp));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
 	public void testCheckHeaders() {
 		final var response = mock(HttpResponse.class);
 		when(response.headers()).thenReturn(HttpHeaders.of(Map.of("foo", List.of("bar", "baz")), (a, b) -> true));

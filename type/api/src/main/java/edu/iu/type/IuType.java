@@ -494,7 +494,16 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * {@link #subscribe(InstanceReference)} to be notified when new instances are
 	 * observed.
 	 * </p>
-	 * 
+	 *
+	 * <p>
+	 * Instances are observed on their concrete type, typically
+	 * {@code IuType.of(instance.getClass())}. References subscribed to that type
+	 * and to every type in its {@link #hierarchy()} are notified, least specific
+	 * type first, so a reference subscribed to a superclass, for example for a
+	 * {@literal @}Resource field it declares, accepts instances of all of its
+	 * subclasses.
+	 * </p>
+	 *
 	 * <p>
 	 * Once all {@link InstanceReference}s have been notified, all methods annotated
 	 * by {@literal @}PostConstruct will be invoked on the instance.
@@ -521,7 +530,13 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * was {@link #observe(Object) observed}, its state will be reverted and no
 	 * futures actions will be taken on it.
 	 * </p>
-	 * 
+	 *
+	 * <p>
+	 * {@literal @}PreDestroy methods are invoked first. Then references subscribed
+	 * to this type and to every type in its {@link #hierarchy()} are cleared, most
+	 * specific type first, reversing the order of {@link #observe(Object)}.
+	 * </p>
+	 *
 	 * <p>
 	 * This method may be invoked to close the lifecycle of instances created via
 	 * {@link IuConstructor#exec(Object...)}.
@@ -541,7 +556,8 @@ public interface IuType<D, T> extends IuNamedElement<D>, IuParameterizedElement 
 	 * Subscribes a new instance reference.
 	 * 
 	 * @param instanceReference will accept all {@link #observe(Object) observed}
-	 *                          instances until unsubscribed.
+	 *                          instances of this type and its subtypes until
+	 *                          unsubscribed.
 	 * @return thunk for unsubscribing the reference
 	 */
 	Runnable subscribe(InstanceReference<T> instanceReference);

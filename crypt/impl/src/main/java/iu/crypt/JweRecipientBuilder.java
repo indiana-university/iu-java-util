@@ -124,8 +124,7 @@ public class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implem
 	class EncryptedKeyBuilder extends JoseBuilder<EncryptedKeyBuilder> {
 
 		private EncryptedKeyBuilder() {
-			super(CryptJsonAdapters.ALG.fromJson(JweRecipientBuilder.this.param("alg")));
-			copy(JweRecipientBuilder.this);
+			super(JweRecipientBuilder.this);
 		}
 
 		/**
@@ -134,7 +133,7 @@ public class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implem
 		 * @return algorithm
 		 */
 		Algorithm algorithm() {
-			return CryptJsonAdapters.ALG.fromJson(param("alg"));
+			return param("alg");
 		}
 
 		/**
@@ -164,8 +163,8 @@ public class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implem
 			final var epk = WebKey.builder(type).algorithm(algorithm).ephemeral().build();
 			param(Param.EPHEMERAL_PUBLIC_KEY, epk.wellKnown());
 
-			final var uinfo = CryptJsonAdapters.B64URL.fromJson(param("apu"));
-			final var vinfo = CryptJsonAdapters.B64URL.fromJson(param("apv"));
+			final byte[] uinfo = param("apu");
+			final byte[] vinfo = param("apv");
 
 			final int keyDataLen;
 			final byte[] algId;
@@ -306,7 +305,7 @@ public class JweRecipientBuilder extends JoseBuilder<JweRecipientBuilder> implem
 				break;
 			}
 
-			final var header = new Jose(toJson());
+			final var header = new Jose(values());
 			return new JweRecipient(header, encryptedKey);
 		}
 	}

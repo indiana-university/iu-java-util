@@ -54,9 +54,31 @@ import org.junit.jupiter.api.Test;
 public class IuWebUtilsTest {
 
 	@Test
+	public void testIsValidResourceUri() throws URISyntaxException {
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo/bar")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo:/bar")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo:bar")));
+		assertTrue(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/foo?baz")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz;/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz%2ffoo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz%2Ffoo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E%2E")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2E%2E/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e/foo")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e%2e")));
+		assertFalse(IuWebUtils.isValidResourceUri(new URI("foo://bar/baz/%2e%2e/foo")));
+	}
+
+	@Test
 	public void testIsRoot() throws URISyntaxException {
-		assertTrue(IuWebUtils.isRootOf(new URI("foo:bar"), new URI("foo:bar")));
+		assertFalse(IuWebUtils.isRootOf(new URI("bar"), new URI("bar")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo:bar"), new URI("foo:bar")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo:bar"), new URI("foo:baz")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo:/bar"), new URI("foo:baz")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo:/bar"), new URI("foo:/baz")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo:/bar"), new URI("/baz")));
 		assertFalse(IuWebUtils.isRootOf(new URI("bar:/foo"), new URI("foo:/bar")));
@@ -65,6 +87,192 @@ public class IuWebUtilsTest {
 		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/foo")));
 		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/bazfoo")));
 		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar"), new URI("foo://bar/baz")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E%2Ffoo")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz/%2E%2E")));
+	}
+
+	@Test
+	public void testIsRootSamePathDifferentQueryOrFragment() throws URISyntaxException {
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz?q=1")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz"), new URI("foo://bar/baz#f")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz?q=1"), new URI("foo://bar/baz?q=2")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz?q=1"), new URI("foo://bar/baz#f")));
+		assertTrue(IuWebUtils.isRootOf(new URI("foo://bar/baz/"), new URI("foo://bar/baz/?q=1")));
+		assertFalse(IuWebUtils.isRootOf(new URI("foo://bar/baz/foo"), new URI("foo://bar/baz?q=1")));
+	}
+
+	@Test
+	public void testBuildUriFromNull() {
+		assertEquals(URI.create(""), IuWebUtils.buildUri(null));
+		assertEquals(URI.create(""), IuWebUtils.buildUri(null, null, ""));
+		assertEquals(URI.create("/foo"), IuWebUtils.buildUri(null, null, "foo"));
+		assertEquals(URI.create("/bar"), IuWebUtils.buildUri(null, null, "foo", "../bar"));
+	}
+
+	@Test
+	public void testBuildUriPreservesRoot() {
+		assertEquals(URI.create("test://example.com//"), IuWebUtils.buildUri(URI.create("test://example.com//")));
+		assertEquals(URI.create("test://example.com//foo"),
+				IuWebUtils.buildUri(URI.create("test://example.com//"), "foo"));
+	}
+
+	@Test
+	public void testBuildUriNormalizes() {
+		assertEquals(URI.create("test://example.com/foo"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo"));
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/"));
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo//"));
+		assertEquals(URI.create("test://example.com/foo/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo", "bar"));
+		assertEquals(URI.create("test://example.com/foo/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/bar"));
+		assertEquals(URI.create("test://example.com/foo/bar/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "/foo/", "/bar/"));
+		assertEquals(URI.create("test://example.com/foo/bar/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "/foo/", ".", "/bar/"));
+		assertEquals(URI.create("test://example.com/foo/bar/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "/foo//bar/"));
+		assertEquals(URI.create("test://example.com/foo/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo//bar"));
+		assertEquals(URI.create("test://example.com/foo/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/./bar"));
+		assertEquals(URI.create("test://example.com/foo/%20/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/%20/bar"));
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/."));
+		assertEquals(URI.create("test://example.com/foo/a/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/a/bar"));
+		assertEquals(URI.create("test://example.com/foo/a/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/a", "bar"));
+		assertEquals(URI.create("test://example.com/foo/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/a", "../bar"));
+		assertEquals(URI.create("test://example.com/foo/ab/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/ab", "c/../bar"));
+		assertEquals(URI.create("test://example.com/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com/"), "foo", "../bar"));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.buildUri(URI.create("test://example.com/foo"), "../bar"));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.buildUri(URI.create("test://example.com/a"), "../bar"));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.buildUri(URI.create("test://example.com/foo"), "foo", "../../bar"));
+	}
+
+	@Test
+	public void testBuildUriParentRefEdges() {
+		assertEquals(URI.create("test://example.com/bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo", "../bar"));
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com/foo"), "bar/.."));
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com/foo/"), "bar/.."));
+		assertEquals(URI.create("/"), IuWebUtils.buildUri(null, "a/.."));
+		assertEquals(URI.create("/a"), IuWebUtils.buildUri(null, "./a"));
+		assertThrows(IllegalArgumentException.class, () -> IuWebUtils.buildUri(null, ".."));
+		assertEquals(URI.create("test://example.com/foo/bar/"),
+				IuWebUtils.buildUri(URI.create("test://example.com/foo/"), "bar/baz/.."));
+		assertEquals(URI.create("test://example.com/foo//"),
+				IuWebUtils.buildUri(URI.create("test://example.com/foo//"), "bar/.."));
+		assertEquals(URI.create("test://example.com/foo//baz"),
+				IuWebUtils.buildUri(URI.create("test://example.com/foo//"), "bar/../baz"));
+		assertEquals(URI.create("test://example.com//baz"),
+				IuWebUtils.buildUri(URI.create("test://example.com//"), "./baz"));
+		assertEquals(URI.create("test://example.com//baz"),
+				IuWebUtils.buildUri(URI.create("test://example.com//"), "a/../baz"));
+	}
+
+	@Test
+	public void testBuildUriLeavesATrailingSlash() {
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/"));
+		assertEquals(URI.create("test://example.com/foo/"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo/", null));
+	}
+
+	@Test
+	public void testBuildUriFragments() {
+		assertEquals(URI.create("test://example.com/foo#bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com#bar"), "foo"));
+		assertEquals(URI.create("test://example.com/foo#bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo#bar"));
+		assertThrows(IllegalArgumentException.class,
+				() -> IuWebUtils.buildUri(URI.create("test://example.com#baz"), "foo#bar"));
+		assertEquals(URI.create("test://example.com/foo/bar#bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo//bar#bar"));
+	}
+
+	@Test
+	public void testBuildUriQueries() {
+		assertEquals(URI.create("test://example.com/foo?bar=baz"),
+				IuWebUtils.buildUri(URI.create("test://example.com?bar=baz"), "foo"));
+		assertEquals(URI.create("test://example.com/foo?bar=baz"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo?bar=baz"));
+		assertEquals(URI.create("test://example.com/foo?bar=baz&baz=bar"),
+				IuWebUtils.buildUri(URI.create("test://example.com?bar=baz"), "foo?baz=bar"));
+		assertEquals(URI.create("test://example.com/foo?bar=baz&bar=foo"),
+				IuWebUtils.buildUri(URI.create("test://example.com?bar=baz"), "foo?bar=foo"));
+		assertEquals(URI.create("test://example.com/foo?a=%20&b=~"),
+				IuWebUtils.buildUri(URI.create("test://example.com?a=%20&b=~"), "foo"));
+		assertEquals(URI.create("test://example.com/foo/bar?bar=baz"),
+				IuWebUtils.buildUri(URI.create("test://example.com"), "foo//bar?bar=baz"));
+	}
+
+	@Test
+	public void testSpecificity() {
+		assertEquals(0, IuWebUtils.specificity(null));
+		assertEquals(0, IuWebUtils.specificity(URI.create("test:example")));
+		assertEquals(0, IuWebUtils.specificity(URI.create("test://example.com")));
+		assertEquals(1, IuWebUtils.specificity(URI.create("test://example.com/")));
+		assertEquals(2, IuWebUtils.specificity(URI.create("test://example.com/foo")));
+		assertEquals(3, IuWebUtils.specificity(URI.create("test://example.com/foo/")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/bar")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo//bar")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/./bar")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/a")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/.a")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/a.")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/aa")));
+		assertEquals(4, IuWebUtils.specificity(URI.create("test://example.com/foo/%2E%2E")));
+		assertEquals(3, IuWebUtils.specificity(URI.create("test://example.com/foo/.")));
+		assertEquals(2, IuWebUtils.specificity(URI.create("test://example.com/foo/../bar")));
+		assertEquals(2, IuWebUtils.specificity(URI.create("test://example.com/foo%2Fbar")));
+		assertEquals(1, IuWebUtils.specificity(URI.create("test://example.com/foo/..")));
+	}
+
+	@Test
+	public void testIsMoreSpecific() {
+		assertFalse(IuWebUtils.isMoreSpecific(null, URI.create("test://example.com/foo/bar")));
+		assertTrue(IuWebUtils.isMoreSpecific(URI.create("test://example.com/foo/bar"), null));
+		assertFalse(IuWebUtils.isMoreSpecific(URI.create("test://example.com/foo/"),
+				URI.create("test://example.com/foo/bar")));
+		assertFalse(
+				IuWebUtils.isMoreSpecific(URI.create("test://example.com/foo"), URI.create("test://example.com/foo/")));
+		assertTrue(
+				IuWebUtils.isMoreSpecific(URI.create("test://example.com/foo/"), URI.create("test://example.com/foo")));
+		assertTrue(IuWebUtils.isMoreSpecific(URI.create("test://example.com/foo/bar"),
+				URI.create("test://example.com/foo")));
+		assertFalse(
+				IuWebUtils.isMoreSpecific(URI.create("test://example.com/foo"), URI.create("test://example.com/foo")));
+	}
+
+	@Test
+	public void testIsPreferred() {
+		assertTrue(IuWebUtils.isPreferred(URI.create("test://example.com/foo/bar"),
+				URI.create("test://example.com/foo"), null));
+		assertTrue(IuWebUtils.isPreferred(URI.create("test://example.com/foo/bar"),
+				URI.create("test://example.com/foo"), URI.create("test://example.com")));
+		assertFalse(IuWebUtils.isPreferred(URI.create("test://example.com/foo/bar"),
+				URI.create("test://example.com/foo"), URI.create("test://example.com/foo/")));
+		assertFalse(IuWebUtils.isPreferred(URI.create("test://example.com/foo/bar"), null,
+				URI.create("test://example.com/foo/")));
+		assertFalse(IuWebUtils.isPreferred(URI.create("test://example.com/foo/bar"),
+				URI.create("test://example.com/bar/"), URI.create("test://example.com/foo/")));
+		assertTrue(IuWebUtils.isPreferred(URI.create("test://example.com/foo/bar/baz"),
+				URI.create("test://example.com/foo/bar"), URI.create("test://example.com/foo")));
+		assertFalse(IuWebUtils.isPreferred(URI.create("test://example.com/foo/baz"),
+				URI.create("test://example.com/foo/bar"), URI.create("test://example.com/foo")));
 	}
 
 	@Test

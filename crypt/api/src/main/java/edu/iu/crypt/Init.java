@@ -72,4 +72,15 @@ public final class Init {
 		Objects.requireNonNull(SPI);
 	}
 
+	/**
+	 * Gets a copy of the implementation module's internal JSON-B provider.
+	 * 
+	 * @param <T> Must be class jakarta.json.bind.JsonbConfig; not referred to
+	 *            directly to avoid a module dependency.
+	 * @return instance of JsonbConfig
+	 */
+	public static <T> T jsonbConfig() {
+		return SPI.jsonbConfig();
+	}
+
 }

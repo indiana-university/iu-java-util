@@ -40,8 +40,13 @@ import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.function.Consumer;
+
 import edu.iu.IdGenerator;
+import edu.iu.IuIterable;
 import edu.iu.IuStatefulRedirect;
+import edu.iu.jwt.IuAuthorizationDetails;
+import edu.iu.session.IuSession;
 
 @SuppressWarnings("javadoc")
 public class OidcAuthorizationTest {
@@ -51,13 +56,13 @@ public class OidcAuthorizationTest {
 		final var authorization = mock(IuOidcAuthorization.class, CALLS_REAL_METHODS);
 		final var redirect = mock(IuStatefulRedirect.class);
 
-		final var delegating = IdGenerator.generateId();
-		final var impersonated = IdGenerator.generateId();
-		when(authorization.init(delegating, impersonated, null)).thenReturn(redirect);
+		final Iterable<IuAuthorizationDetails> authorizationDetails = IuIterable
+				.iter((IuAuthorizationDetails) () -> IdGenerator.generateId());
+		when(authorization.init(authorizationDetails, (Consumer<IuSession>) null)).thenReturn(redirect);
 
-		// the two-argument form is for a caller with nothing of its own to record, so
+		// the one-argument form is for a caller with nothing of its own to record, so
 		// it passes a null consumer rather than an empty one
-		assertSame(redirect, authorization.init(delegating, impersonated));
+		assertSame(redirect, authorization.init(authorizationDetails));
 	}
 
 }

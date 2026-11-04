@@ -31,16 +31,17 @@
  */
 package iu.client;
 
-import edu.iu.IuIterable;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
- * Implements {@link IuJsonAdapter} for {@link CharSequence}
+ * Implements {@link IuJsonAdapter} for {@link CharSequence}, reading only JSON
+ * strings
  */
 class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 
@@ -60,14 +61,11 @@ class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 	public String fromJson(JsonValue value) {
 		if (value instanceof JsonString)
 			return ((JsonString) value).getString();
-		else if ((value instanceof JsonNumber) //
-				|| JsonValue.TRUE.equals(value) //
-				|| JsonValue.FALSE.equals(value))
-			return value.toString();
-		else if (value instanceof JsonArray)
-			return String.join(",", IuIterable.map(((JsonArray) value), this::fromJson));
-		else // if (value == null || JsonValue.NULL.equals(value))
+		else if (value == null //
+				|| JsonValue.NULL.equals(value))
 			return null;
+		else
+			throw JsonAdapters.expected("a string", value.getValueType());
 	}
 
 	@Override
@@ -76,6 +74,25 @@ class TextJsonAdapter implements IuJsonAdapter<CharSequence> {
 			return JsonValue.NULL;
 		else
 			return IuJson.PROVIDER.createValue(value.toString());
+	}
+
+	@Override
+	public String read(JsonParser parser) {
+		final var event = parser.currentEvent();
+		if (event == Event.VALUE_STRING)
+			return parser.getString();
+		else if (event == Event.VALUE_NULL)
+			return null;
+		else
+			throw JsonAdapters.expected("a string", event);
+	}
+
+	@Override
+	public void write(CharSequence value, JsonGenerator generator) {
+		if (value == null)
+			generator.writeNull();
+		else
+			generator.write(value.toString());
 	}
 
 }

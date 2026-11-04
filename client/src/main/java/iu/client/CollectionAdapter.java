@@ -59,12 +59,12 @@ class CollectionAdapter<E, C extends Collection<E>> extends JsonArrayAdapter<C, 
 	}
 
 	@Override
-	protected Iterator<E> iterator(C value) {
+	public Iterator<E> iterator(C value) {
 		return value.iterator();
 	}
 
 	@Override
-	protected C collect(Iterable<E> items) {
+	public C collect(Iterable<E> items) {
 		final var collection = factory.get();
 		items.forEach(collection::add);
 		return collection;

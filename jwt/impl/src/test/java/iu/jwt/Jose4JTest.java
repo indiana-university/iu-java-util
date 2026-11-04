@@ -72,6 +72,7 @@ import iu.jwt.spi.Init;
 public class Jose4JTest {
 	
 	static {
+		edu.iu.crypt.Init.init();
 		Init.init();
 	}
 

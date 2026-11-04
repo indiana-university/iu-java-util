@@ -36,16 +36,43 @@ import java.lang.reflect.Method;
 import java.util.Map;
 
 import edu.iu.IuObject;
-import edu.iu.client.IuJsonAdapter;
-import edu.iu.config.IuConfig;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonProperties;
+import edu.iu.jwt.WebToken;
 import jakarta.json.JsonValue;
 
 /**
  * Holds Session attributes
+ *
+ * <p>
+ * Attribute names are the property names in snake_case, and values convert by
+ * {@link WebToken#jsonb()}, as the token the session is stored in does.
+ * </p>
  */
 class SessionDetail implements InvocationHandler {
 	static {
 		IuObject.assertNotOpen(SessionDetail.class);
+	}
+
+	/**
+	 * Gets the attribute name for an accessor.
+	 *
+	 * @param methodName accessor method name
+	 * @param prefix     length of the accessor prefix: get, is, or set
+	 * @return property name in snake_case
+	 */
+	static String attributeName(String methodName, int prefix) {
+		final var name = new StringBuilder();
+		for (var i = prefix; i < methodName.length(); i++) {
+			final var c = methodName.charAt(i);
+			if (Character.isUpperCase(c)) {
+				if (i > prefix)
+					name.append('_');
+				name.append(Character.toLowerCase(c));
+			} else
+				name.append(c);
+		}
+		return name.toString();
 	}
 
 	/** session attributes */
@@ -65,7 +92,6 @@ class SessionDetail implements InvocationHandler {
 		this.session = session;
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		final var methodName = method.getName();
@@ -78,27 +104,33 @@ class SessionDetail implements InvocationHandler {
 				return attributes.toString();
 
 			if (methodName.startsWith("get"))
-				key = Character.toLowerCase(methodName.charAt(3)) + methodName.substring(4);
+				key = attributeName(methodName, 3);
 			else if (methodName.startsWith("is"))
-				key = Character.toLowerCase(methodName.charAt(2)) + methodName.substring(3);
+				key = attributeName(methodName, 2);
 			else
 				throw new UnsupportedOperationException(method.toString());
 
-			return IuConfig.adaptJson(method.getGenericReturnType()).fromJson(attributes.get(key));
+			// an attribute not set reads as a primitive's default, an empty optional,
+			// or null
+			final var object = IuJson.object();
+			final var value = attributes.get(key);
+			if (value != null)
+				object.add(key, value);
+			return IuJsonProperties.of(object.build(), WebToken.jsonb()).get(key, method.getGenericReturnType());
 
 		} else if (args.length == 1) {
 			if (methodName.equals("equals"))
 				return args[0] == proxy;
 
 			if (methodName.startsWith("set")) {
-				key = methodName.substring(3, 4).toLowerCase() + methodName.substring(4);
+				key = attributeName(methodName, 3);
 				final var value = args[0];
 				if (value == null) {
 					if (attributes.remove(key) != null)
 						session.setChanged(true);
 				} else {
-					IuJsonAdapter adapter = IuConfig.adaptJson(method.getGenericParameterTypes()[0]);
-					final var jsonValue = adapter.toJson(value);
+					final var jsonValue = IuJsonProperties.builder(WebToken.jsonb()) //
+							.put(key, value, method.getGenericParameterTypes()[0]).build().toJsonObject().get(key);
 					if (!IuObject.equals(jsonValue, attributes.put(key, jsonValue)))
 						session.setChanged(true);
 				}

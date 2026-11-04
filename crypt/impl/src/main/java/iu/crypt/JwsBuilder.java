@@ -40,7 +40,6 @@ import java.security.spec.PSSParameterSpec;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Queue;
@@ -54,17 +53,13 @@ import edu.iu.IuIterable;
 import edu.iu.IuObject;
 import edu.iu.IuStream;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebCryptoHeader.Param;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 import edu.iu.crypt.WebSignature.Builder;
 import edu.iu.crypt.WebSignedPayload;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
 
 /**
  * Collects inputs for {@link Jws} encrypted messages.
@@ -74,25 +69,6 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 		IuObject.assertNotOpen(JwsBuilder.class);
 	}
 
-	/** {@link IuJsonAdapter} */
-	public static final IuJsonAdapter<WebSignedPayload> JSON = IuJsonAdapter.from(v -> {
-		if (v instanceof JsonString)
-			return parse(((JsonString) v).getString());
-		else
-			return IuObject.convert(v, a -> parse(a.asJsonObject().toString()));
-	}, h -> {
-		if (h == null)
-			return null;
-
-		final var jws = (JwsSignedPayload) h;
-		final Iterator<Jws> signatureIterator = jws.getSignatures().iterator();
-		signatureIterator.next();
-		if (signatureIterator.hasNext())
-			return IuJson.parse(jws.toString());
-		else
-			return IuJson.string(jws.compact());
-	});
-
 	/**
 	 * Parses JWS signed payload from serialized form
 	 * 
@@ -100,29 +76,19 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 	 * @return JWS signed payload
 	 */
 	public static JwsSignedPayload parse(String jws) {
-		if (jws.startsWith("{")) {
-			final var json = IuJson.parse(jws).asJsonObject();
-			final var payload = IuJson.get(json, "payload", CryptJsonAdapters.B64URL);
-
-			var signatures = IuJson.get(json, "signatures",
-					IuJsonAdapter.<Iterable<Jws>>of(Iterable.class, IuJsonAdapter.from(Jws::parse)));
-			if (signatures == null)
-				signatures = Collections.singleton(Jws.parse(json));
-
-			return new JwsSignedPayload(payload, signatures);
-		} else {
+		if (jws.startsWith("{"))
+			return (JwsSignedPayload) CryptJsonAdapters.JSONB.fromJson(jws, WebSignedPayload.class);
+		else {
 			final var compact = CompactEncoded.compact(jws);
-			final var protectedHeader = Objects
-					.requireNonNull(IuJson.parse(IuText.utf8(IuText.base64Url(compact.next()))),
-							"protected header required")
-					.asJsonObject();
+			final var encodedProtectedHeader = Objects.requireNonNull(compact.next(), "protected header required");
+			final var protectedHeader = CompactEncoded.decodeHeader(encodedProtectedHeader);
 			final var payload = IuText.base64Url(compact.next());
 			final var signature = IuText.base64Url(compact.next());
 			if (compact.hasNext())
 				throw new IllegalArgumentException("Unexpected content after JWS signature");
 
 			return new JwsSignedPayload(payload,
-					IuIterable.iter(new Jws(protectedHeader, new Jose(protectedHeader), signature)));
+					IuIterable.iter(new Jws(encodedProtectedHeader, new Jose(protectedHeader), signature)));
 		}
 	}
 
@@ -133,27 +99,22 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 				throw new IllegalArgumentException("Not a signature algorithm " + algorithm);
 		}
 
-		@Override
-		protected JsonValue param(String name) {
-			return super.param(name);
-		}
-
 		private Jose header() {
-			return new Jose(toJson());
+			return new Jose(values());
 		}
 
-		private JsonObject protectedHeader() {
-			final var protectedHeaderBuilder = IuJson.object();
+		private IuJsonProperties protectedHeader() {
+			final var builder = CryptJsonAdapters.builder();
 			if (compact)
-				for (final var paramName : paramNames())
-					protectedHeaderBuilder.add(paramName, param(paramName));
+				for (final var paramName : values().names())
+					builder.put(paramName, param(paramName));
 			else if (protectedParameters.isEmpty())
 				return null;
 			else
 				for (final var paramName : protectedParameters)
-					protectedHeaderBuilder.add(paramName, Objects.requireNonNull(param(paramName), paramName));
+					builder.put(paramName, Objects.requireNonNull(param(paramName), paramName));
 
-			return protectedHeaderBuilder.build();
+			return builder.build();
 		}
 
 	}
@@ -303,11 +264,10 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 			final var header = pendingSignature.header();
 			final var algorithm = header.getAlgorithm();
 
-			final var protectedHeader = pendingSignature.protectedHeader();
-			final var encodedHeader = IuText
-					.base64Url(IuText.utf8(Objects.requireNonNullElse(protectedHeader, "").toString()));
+			// signs the encoded header the signature is serialized with
+			final var encodedHeader = CompactEncoded.encodeHeader(pendingSignature.protectedHeader());
 			final var encodedPayload = IuText.base64Url(payload);
-			final var signingInput = encodedHeader + '.' + encodedPayload;
+			final var signingInput = Objects.requireNonNullElse(encodedHeader, "") + '.' + encodedPayload;
 			final var dataToSign = IuText.utf8(signingInput);
 
 			final byte[] signature;
@@ -342,7 +302,7 @@ public class JwsBuilder implements Builder<JwsBuilder> {
 					return Jws.fromJce(key.getType(), algorithm, sig.sign());
 				});
 
-			signatures.add(new Jws(protectedHeader, header, signature));
+			signatures.add(new Jws(encodedHeader, header, signature));
 		}
 
 		return new JwsSignedPayload(payload, Collections.unmodifiableCollection(signatures));

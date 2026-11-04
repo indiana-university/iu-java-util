@@ -36,8 +36,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import edu.iu.type.IuParameterizedElement;
@@ -49,7 +52,24 @@ import edu.iu.type.IuReferenceKind;
  */
 final class ParameterizedElement implements ParameterizedFacade {
 
-	private Map<String, TypeFacade<?, ?>> typeArguments = new LinkedHashMap<>();
+	/**
+	 * Type argument scopes supplied by referrers, in the order applied.
+	 *
+	 * <p>
+	 * Each scope maps type variable names to arguments within a single naming
+	 * context. Names are not unique across scopes: one scope's arguments are often
+	 * type variables named by another scope, and the same name may refer to
+	 * different type variables in different scopes.
+	 * </p>
+	 */
+	private List<Map<String, TypeFacade<?, ?>>> scopes = new ArrayList<>();
+
+	/**
+	 * Type arguments for the type variables of the generic declaration being
+	 * sealed; takes precedence over all {@link #scopes referrer scopes}.
+	 */
+	private Map<String, TypeFacade<?, ?>> declaredTypeArguments = new LinkedHashMap<>();
+
 	private Map<String, TypeFacade<?, ?>> typeParameters;
 
 	/**
@@ -59,22 +79,43 @@ final class ParameterizedElement implements ParameterizedFacade {
 	}
 
 	/**
-	 * Applies type arguments.
+	 * Applies type arguments from a referrer.
 	 * 
 	 * <p>
 	 * This is typically done after sealing original type parameters to apply the
 	 * resulting parameters as arguments to the next reference.
 	 * </p>
 	 * 
-	 * @param typeArguments Type arguments to apply. Expects arguments to be applied
-	 *                      in highest-order last; type arguments matching the name
-	 *                      of a previously applied argument will be overridden.
+	 * @param typeArguments Type arguments to apply, as a single scope. Expects
+	 *                      arguments to be applied in highest-order last; type
+	 *                      arguments matching the name of a previously applied
+	 *                      argument take precedence when resolving a type
+	 *                      parameter.
 	 */
 	void apply(Map<String, TypeFacade<?, ?>> typeArguments) {
-		if (this.typeArguments == null)
+		if (scopes == null)
 			throw new IllegalStateException("sealed");
 
-		this.typeArguments.putAll(typeArguments);
+		scopes.add(typeArguments);
+	}
+
+	/**
+	 * Applies type arguments for the type variables of the generic declaration
+	 * being sealed.
+	 * 
+	 * <p>
+	 * Declared type arguments are resolved first, and may name type variables
+	 * defined by {@link #apply(Map) referrer scopes}.
+	 * </p>
+	 * 
+	 * @param typeArguments Type arguments to apply, keyed by type variable names
+	 *                      of the generic declaration being sealed.
+	 */
+	void applyDeclared(Map<String, TypeFacade<?, ?>> typeArguments) {
+		if (declaredTypeArguments == null)
+			throw new IllegalStateException("sealed");
+
+		declaredTypeArguments.putAll(typeArguments);
 	}
 
 	/**
@@ -90,12 +131,12 @@ final class ParameterizedElement implements ParameterizedFacade {
 	 *                           relative to position of {@code typeVariable}.
 	 */
 	void apply(AnnotatedElementBase<?> referrer, TypeVariable<?> typeVariable, Type actualTypeArgument) {
-		if (this.typeArguments == null)
+		if (declaredTypeArguments == null)
 			throw new IllegalStateException("sealed");
 
 		final var name = typeVariable.getName();
 		final var typeArgumentTemplate = TypeFactory.resolveType(actualTypeArgument);
-		this.typeArguments.put(name,
+		declaredTypeArguments.put(name,
 				new TypeFacade<>(typeArgumentTemplate, referrer, IuReferenceKind.TYPE_PARAM, name));
 	}
 
@@ -110,8 +151,10 @@ final class ParameterizedElement implements ParameterizedFacade {
 		if (typeParameters != null)
 			throw new IllegalStateException("already sealed");
 
-		final var typeArguments = this.typeArguments;
-		this.typeArguments = null;
+		final var scopes = this.scopes;
+		this.scopes = null;
+		scopes.add(declaredTypeArguments); // highest-order
+		this.declaredTypeArguments = null;
 
 		final var typeVariables = genericDeclaration.getTypeParameters();
 		if (typeVariables.length == 0) {
@@ -132,16 +175,25 @@ final class ParameterizedElement implements ParameterizedFacade {
 		for (var typeVariable : typeVariables) {
 			final var typeVariableName = typeVariable.getName();
 
-			var typeArgument = typeArguments.get(typeVariableName);
-			if (typeArgument != null) {
+			// A type variable argument names a variable from another scope, so
+			// each scope is consulted at most once while dereferencing. This keeps
+			// a name that collides across scopes from resolving in the wrong scope,
+			// and ends any cycle between scopes, e.g., T -> E -> T resolving
+			// Iterable<T> from Collection<E> referred to as List<T>.
+			final var visited = new BitSet();
+			var scope = find(scopes, typeVariableName, visited);
+			if (scope >= 0) {
+				var typeArgument = scopes.get(scope).get(typeVariableName);
+				visited.set(scope);
 				while (typeArgument.deref() instanceof TypeVariable<?> argVariable) {
-					final var derefArgVar = typeArguments.get(argVariable.getName());
-					if (derefArgVar == null // if unresolved or
-							|| derefArgVar == typeArgument) // self-reference
-						break; // then keep variable and defer to bounds
+					final var argVariableName = argVariable.getName();
+					scope = find(scopes, argVariableName, visited);
+					if (scope < 0) // unresolved, keep variable and defer to bounds
+						break;
 
-					else // push dereferenced argument and check again
-						typeArgument = derefArgVar;
+					// push dereferenced argument and check again
+					typeArgument = scopes.get(scope).get(argVariableName);
+					visited.set(scope);
 				}
 				typeParameters.put(typeVariableName, typeArgument);
 			} else
@@ -149,6 +201,22 @@ final class ParameterizedElement implements ParameterizedFacade {
 						new TypeFacade<>(TypeFactory.resolveType(typeVariable), referrer, kind, typeVariableName));
 		}
 		this.typeParameters = typeParameters;
+	}
+
+	/**
+	 * Finds the highest-order unvisited scope that defines a type argument.
+	 *
+	 * @param scopes  type argument scopes, in the order applied
+	 * @param name    type variable name
+	 * @param visited scopes already consulted
+	 * @return index of the scope that defines {@code name}; -1 if no unvisited
+	 *         scope defines it
+	 */
+	private static int find(List<Map<String, TypeFacade<?, ?>>> scopes, String name, BitSet visited) {
+		for (var i = scopes.size() - 1; i >= 0; i--)
+			if (!visited.get(i) && scopes.get(i).containsKey(name))
+				return i;
+		return -1;
 	}
 
 	@Override

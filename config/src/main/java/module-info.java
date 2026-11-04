@@ -38,4 +38,7 @@ module iu.util.config {
 	requires iu.util;
 	requires transitive iu.util.client;
 	requires transitive iu.util.crypt;
+	requires transitive iu.util.validation;
+	requires transitive jakarta.json.bind;
+	requires transitive jakarta.validation;
 }

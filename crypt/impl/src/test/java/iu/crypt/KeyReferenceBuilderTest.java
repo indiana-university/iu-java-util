@@ -44,7 +44,7 @@ public class KeyReferenceBuilderTest {
 
 	private static class Builder extends KeyReferenceBuilder<Builder> {
 		private JsonKeyReference<?> build() {
-			return new JsonKeyReference<>(toJson());
+			return new JsonKeyReference<>(values());
 		}
 	}
 

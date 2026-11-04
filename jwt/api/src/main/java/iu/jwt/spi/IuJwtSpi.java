@@ -34,11 +34,56 @@ package iu.jwt.spi;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbConfig;
+import jakarta.json.bind.adapter.JsonbAdapter;
+import jakarta.json.bind.serializer.JsonbDeserializer;
+import jakarta.json.bind.serializer.JsonbSerializer;
 
 /**
  * JWT SPI interface.
  */
 public interface IuJwtSpi {
+
+	/**
+	 * Gets the {@link Jsonb} instance that converts token claims.
+	 *
+	 * @return {@link Jsonb}
+	 * @see WebToken#jsonb()
+	 */
+	Jsonb getJsonb();
+
+	/**
+	 * Gets the {@link JsonbConfig} instance that converts token claims.
+	 *
+	 * @return {@link JsonbConfig}
+	 * @see WebToken#jsonbConfig()
+	 */
+	JsonbConfig getJsonbConfig();
+
+	/**
+	 * Registers a JSON-B adapter for claim values.
+	 *
+	 * @param adapter {@link JsonbAdapter}
+	 * @see WebToken#registerAdapter(JsonbAdapter)
+	 */
+	void registerAdapter(JsonbAdapter<?, ?> adapter);
+
+	/**
+	 * Registers a JSON-B serializer for claim values.
+	 *
+	 * @param serializer {@link JsonbSerializer}
+	 * @see WebToken#registerSerializer(JsonbSerializer)
+	 */
+	void registerSerializer(JsonbSerializer<?> serializer);
+
+	/**
+	 * Registers a JSON-B deserializer for claim values.
+	 *
+	 * @param deserializer {@link JsonbDeserializer}
+	 * @see WebToken#registerDeserializer(JsonbDeserializer)
+	 */
+	void registerDeserializer(JsonbDeserializer<?> deserializer);
 
 	/**
 	 * Creates a new {@link WebTokenBuilder} instance.

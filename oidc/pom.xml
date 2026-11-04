@@ -24,21 +24,10 @@
 			<modules>
 				<module>api</module>
 				<module>client</module>
+				<module>config</module>
+				<module>provider</module>
 			</modules>
 		</profile>
 	</profiles>
-
-	<build>
-		<pluginManagement>
-			<plugins>
-				<plugin>
-					<artifactId>maven-compiler-plugin</artifactId>
-					<configuration>
-						<release>11</release>
-					</configuration>
-				</plugin>
-			</plugins>
-		</pluginManagement>
-	</build>
 
 </project>

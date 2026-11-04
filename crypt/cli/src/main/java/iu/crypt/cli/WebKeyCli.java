@@ -43,7 +43,6 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
@@ -56,15 +55,16 @@ import edu.iu.IuObject;
 import edu.iu.IuProcess;
 import edu.iu.IuRuntimeEnvironment;
 import edu.iu.IuText;
-import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonProperties;
+import edu.iu.crypt.Init;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.X500Utils;
 import edu.iu.crypt.X509CertificateAuthority;
-import iu.crypt.CryptJsonAdapters;
-import jakarta.json.JsonValue;
-import jakarta.json.stream.JsonGenerator;
+import jakarta.json.bind.Jsonb;
+import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbConfig;
 
 /**
  * CLI tool for generating and manipulating {@link WebKey}s.
@@ -121,6 +121,12 @@ public class WebKeyCli {
 		usage.append(System.lineSeparator()).append(System.lineSeparator());
 		USAGE = usage.toString();
 	}
+
+	/**
+	 * Reads and writes keys and CAs as web crypto JSON, formatted for reading.
+	 */
+	static final Jsonb JSONB = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider")
+			.withConfig(Init.<JsonbConfig> jsonbConfig().withFormatting(true)).build();
 
 	private static final HexFormat HEX = HexFormat.of();
 	private static final HexFormat HEX_UPPER = HEX.withUpperCase();
@@ -828,11 +834,11 @@ public class WebKeyCli {
 			else {
 				WebKey inputKey = null;
 				X509CertificateAuthority inputCa = null;
-				final var json = IuJson.parse(IuProcess.read()).asJsonObject();
-				if (json.containsKey("kty"))
-					inputKey = CryptJsonAdapters.WEBKEY.fromJson(json);
+				final var input = IuProcess.read();
+				if (JSONB.fromJson(input, IuJsonProperties.class).containsKey("kty"))
+					inputKey = JSONB.fromJson(input, WebKey.class);
 				else
-					inputCa = CryptJsonAdapters.CA.fromJson(json);
+					inputCa = JSONB.fromJson(input, X509CertificateAuthority.class);
 
 				if (cmd.equals("ca")) {
 					ca = ca(inputKey);
@@ -896,15 +902,10 @@ public class WebKeyCli {
 					throw new IllegalArgumentException("invalid command " + cmd);
 			}
 
-			final JsonValue json;
 			if (key != null)
-				json = CryptJsonAdapters.WEBKEY.toJson(key);
+				System.out.println(JSONB.toJson(key, WebKey.class));
 			else
-				json = CryptJsonAdapters.CA.toJson(ca);
-
-			IuJson.PROVIDER.createWriterFactory(Map.of(JsonGenerator.PRETTY_PRINTING, true)).createWriter(System.out)
-					.write(json);
-			System.out.println();
+				System.out.println(JSONB.toJson(ca, X509CertificateAuthority.class));
 
 		} catch (RuntimeException |
 

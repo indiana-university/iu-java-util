@@ -205,6 +205,13 @@ public class IuVisitorTest {
 			}
 		}
 
+		// Register both subscribers before producing values. Otherwise a value can
+		// race a subscriber's transition from the visitor-backed spliterator to its
+		// asynchronous pipe, making parallel consumption nondeterministic.
+		final var sequenceSubscription = subject.subscribe();
+		final var parallelSubscription = subject.subscribe();
+		final var sequence = new Box(b -> sequenceSubscription.stream().forEach(b.collected::add));
+		final var parallel = new Box(b -> parallelSubscription.stream().parallel().forEach(b.collected::add));
 		final var generator = new Box(b -> {
 			for (var i = 0; i < 100; i++) {
 				Thread.sleep(0, ThreadLocalRandom.current().nextInt(100_000));
@@ -212,8 +219,6 @@ public class IuVisitorTest {
 			}
 			subject.close();
 		});
-		final var sequence = new Box(b -> subject.subscribe().stream().forEach(b.collected::add));
-		final var parallel = new Box(b -> subject.subscribe().stream().parallel().forEach(b.collected::add));
 		Throwable error = null;
 		error = IuException.suppress(error, generator::join);
 		error = IuException.suppress(error, sequence::join);

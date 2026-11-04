@@ -53,12 +53,12 @@ class EnumerationAdapter<E> extends JsonArrayAdapter<Enumeration<E>, E> {
 	}
 
 	@Override
-	protected Iterator<E> iterator(Enumeration<E> value) {
+	public Iterator<E> iterator(Enumeration<E> value) {
 		return value.asIterator();
 	}
 
 	@Override
-	protected Enumeration<E> collect(Iterable<E> items) {
+	public Enumeration<E> collect(Iterable<E> items) {
 		return new Enumeration<>() {
 			final Iterator<E> i = items.iterator();
 

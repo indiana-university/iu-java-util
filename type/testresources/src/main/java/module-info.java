@@ -30,6 +30,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 module iu.type.testresources {
+	requires iu.util.type;
 	requires jakarta.annotation;
 	requires jakarta.interceptor;
 	requires static org.junit.jupiter.api;

@@ -279,7 +279,7 @@ public final class IuObject {
 			return value;
 		else if (value == null)
 			return current;
-		else if (!current.equals(value))
+		else if (!IuObject.equals(current, value))
 			throw new IllegalArgumentException(messageSupplier.get());
 		else
 			return value;

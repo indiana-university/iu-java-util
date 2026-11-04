@@ -71,7 +71,8 @@ public class CompactEncodedTest {
 	@Test
 	public void testProtectedHeader() {
 		final var header = IuJson.object().add(IdGenerator.generateId(), IdGenerator.generateId()).build();
-		assertEquals(header, CompactEncoded.getProtectedHeader(IuText.base64Url(IuText.utf8(header.toString())) + "."));
+		assertEquals(header, CompactEncoded.getProtectedHeader(IuText.base64Url(IuText.utf8(header.toString())) + ".")
+				.toJsonObject());
 	}
 
 	@Test

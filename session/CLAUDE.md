@@ -32,6 +32,8 @@ void remove(Iterable<HttpCookie> cookies);
 
 `IuSession` holds typed **details** rather than a string-keyed attribute map: `getDetail(Class<T>)` returns an interface-shaped view backed by the session's JSON, created on demand. Modules layered on top define their own detail interfaces (`oidc` and `saml` each store their authentication state this way) instead of sharing a namespace of attribute keys. `setStrict(boolean)` controls whether unknown detail data is tolerated; `isChanged()` drives whether `store` needs to re-issue the cookie.
 
+A detail's attributes are kept as JSON, named by the accessor's property name in snake_case (`getNotAfter` → `not_after`), and convert by `WebToken.jsonb()`, the same as the session token's own claims: snake_case nested names, and every `Instant` as a NumericDate. An attribute not set reads as a primitive's default, an empty optional, or null. The session token carries them in a `details` claim of `SessionDetailAttributes` (`class_name`, `attributes`). `impl` doesn't depend on `iu.util.config`; `IuSessionConfiguration` is bound by whoever registers it.
+
 `iu.session.config.IuSessionConfiguration` supplies the signing/encryption `WebKey`, the JWE `Encryption` algorithm, and TTLs — defaulting to 15 minutes inactive and 12 hours maximum.
 
 ## Testing notes

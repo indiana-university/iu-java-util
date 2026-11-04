@@ -47,7 +47,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,7 +55,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Consumer;
@@ -67,6 +65,7 @@ import java.util.stream.StreamSupport;
 
 import javax.sql.DataSource;
 
+import edu.iu.IuException;
 import edu.iu.dao.ColumnDefinition;
 import edu.iu.dao.IuDao;
 import edu.iu.dao.IuSqlBuilder;
@@ -87,10 +86,11 @@ import jakarta.transaction.TransactionSynchronizationRegistry;
  *
  * <p>
  * Connections are obtained only when an operation executes and are returned as
- * soon as its result is consumed, so no connection or result-set state is shared
- * between DAO calls. Read results are cached only while a transaction is active,
- * in that transaction's own {@link TransactionSynchronizationRegistry} resources;
- * this avoids stale process-wide data and makes {@link #clear()} deterministic.
+ * soon as its result is consumed, so no connection or result-set state is
+ * shared between DAO calls. Read results are cached only while a transaction is
+ * active, in that transaction's own {@link TransactionSynchronizationRegistry}
+ * resources; this avoids stale process-wide data and makes {@link #clear()}
+ * deterministic.
  * </p>
  *
  * <p>
@@ -107,8 +107,8 @@ public final class JdbcDao implements IuDao {
 	 * <p>
 	 * Deliberately a {@link String} rather than a bare {@link Object} so that every
 	 * DAO in the process shares one cache per transaction, which keeps eviction by
-	 * {@link #clear(Class)} correct when an application holds more than one DAO over
-	 * the same data source.
+	 * {@link #clear(Class)} correct when an application holds more than one DAO
+	 * over the same data source.
 	 * </p>
 	 */
 	private static final Object CACHE_RESOURCE = JdbcDao.class.getName() + ".cache";
@@ -173,6 +173,70 @@ public final class JdbcDao implements IuDao {
 	}
 
 	@Override
+	public Iterable<String> getPrimaryKeyProperties(Class<?> beanClass) {
+		return sqlBuilder.getPrimaryKeyProperties(Objects.requireNonNull(beanClass, "beanClass"));
+	}
+
+	@Override
+	public Map<String, Object> getBeanKey(Object bean) {
+		final var entity = Objects.requireNonNull(bean, "bean");
+		final Map<String, Object> key = new LinkedHashMap<>();
+		for (final var column : EntityMetaData.of(entityType(entity)).idColumns)
+			key.put(column.propertyName, DaoUtils.getPropertyValue(entity, column));
+		return key;
+	}
+
+	@Override
+	public <B> B newBean(Class<B> beanClass, Map<String, ?> idParams) {
+		Objects.requireNonNull(beanClass, "beanClass");
+		Objects.requireNonNull(idParams, "idParams");
+		if (beanClass.isInterface() || beanClass.isRecord())
+			throw new IllegalArgumentException("Cannot populate " + beanClass.getName());
+
+		final Map<String, ColumnMetaData> idColumns = new LinkedHashMap<>();
+		for (final var column : EntityMetaData.of(beanClass).idColumns)
+			idColumns.put(column.propertyName, column);
+
+		for (final var property : idParams.keySet())
+			if (!idColumns.containsKey(property))
+				throw new IllegalArgumentException(property + " is not an @Id of " + beanClass.getName());
+
+		final var bean = instantiate(beanClass);
+		for (final var entry : idParams.entrySet())
+			writeKey(bean, idColumns.get(entry.getKey()), entry.getValue());
+		return bean;
+	}
+
+	/**
+	 * Writes one key value to a new entity, the way a read writes a column: to the
+	 * field when the mapping is on the field or there is no setter, and through the
+	 * setter otherwise.
+	 *
+	 * @param bean   entity being populated
+	 * @param column key column
+	 * @param value  key value; a null value for a primitive member is skipped
+	 * @throws IllegalArgumentException if the member cannot be written
+	 */
+	private static void writeKey(Object bean, ColumnMetaData column, Object value) {
+		if (value == null && column.javaType.isPrimitive())
+			return;
+
+		final var setter = column.fieldMapped ? null : column.property.getWriteMethod();
+		try {
+			if (setter != null)
+				setter.invoke(bean, value);
+			else if (column.field != null)
+				DaoUtils.accessible(column.field).set(bean, value);
+			else
+				throw new IllegalArgumentException(
+						"No setter or field for " + column.propertyName + " on " + bean.getClass().getName());
+		} catch (IllegalAccessException | InvocationTargetException e) {
+			throw new IllegalArgumentException(
+					"Unable to set " + column.propertyName + " on " + bean.getClass().getName(), e);
+		}
+	}
+
+	@Override
 	public TableDefinition getTableDefinition(String tableName) {
 		Objects.requireNonNull(tableName, "tableName");
 		try (var connection = dataSource.getConnection()) {
@@ -210,8 +274,7 @@ public final class JdbcDao implements IuDao {
 	 */
 	private static TableMeta findTable(DatabaseMetaData metadata, String tableName) throws SQLException {
 		final var esc = metadata.getSearchStringEscape();
-		final var pattern = tableName.replace(esc, esc + esc)
-		        .replace("_", esc + "_").replace("%", esc + "%");
+		final var pattern = tableName.replace(esc, esc + esc).replace("_", esc + "_").replace("%", esc + "%");
 		try (var results = metadata.getTables(null, null, pattern, null)) {
 			return results.next() ? new TableMeta(results, List.of()) : null;
 		}
@@ -228,10 +291,10 @@ public final class JdbcDao implements IuDao {
 	 * <p>
 	 * A class is instantiated through its no-argument constructor, which may be
 	 * non-public, and populated through its setters. An interface cannot be
-	 * instantiated, so it is proxied over an immutable snapshot of the row's resolved
-	 * values; see {@link ResolvedRow}. Taking the snapshot rather than holding the
-	 * result set is what allows a materialized row to outlive the cursor it came
-	 * from, which every accessor that accumulates rows depends on.
+	 * instantiated, so it is proxied over an immutable snapshot of the row's
+	 * resolved values; see {@link ResolvedRow}. Taking the snapshot rather than
+	 * holding the result set is what allows a materialized row to outlive the
+	 * cursor it came from, which every accessor that accumulates rows depends on.
 	 * </p>
 	 *
 	 * @param entityClass   entity type to materialize
@@ -240,32 +303,42 @@ public final class JdbcDao implements IuDao {
 	 * @param resultSet     result set positioned at the row to materialize
 	 * @param <B>           entity type
 	 * @return the materialized row
-	 * @throws IllegalArgumentException if {@code entityClass} is a class that cannot
-	 *                                  be instantiated
+	 * @throws IllegalArgumentException if {@code entityClass} is a class that
+	 *                                  cannot be instantiated
 	 * @throws SQLException             if a column cannot be read
 	 */
 	private static <B> B getEntityInstance(Class<B> entityClass, ColumnMember[] columnMembers, ResultSet resultSet)
 			throws SQLException {
 		if (entityClass.isInterface())
-			return entityClass.cast(Proxy.newProxyInstance(entityClass.getClassLoader(),
-					new Class<?>[] { entityClass }, new ResolvedRow(entityClass, resolvedValues(columnMembers, resultSet))));
+			return entityClass.cast(Proxy.newProxyInstance(entityClass.getClassLoader(), new Class<?>[] { entityClass },
+					new ResolvedRow(entityClass, resolvedValues(columnMembers, resultSet))));
 
-		final B bean;
-		try {
-			final var constructor = entityClass.getDeclaredConstructor();
-			if (!constructor.canAccess(null))
-				constructor.setAccessible(true);
-			bean = constructor.newInstance();
-		} catch (ReflectiveOperationException e) {
-			throw new IllegalArgumentException("Cannot instantiate " + entityClass.getName(), e);
-		}
-
+		final var bean = instantiate(entityClass);
 		for (int i = 0; i < columnMembers.length; i++) {
 			final var member = columnMembers[i];
 			if (member != null)
 				member.set(bean, member.fromSql(columnValue(resultSet, i + 1, member.sqlType())));
 		}
 		return bean;
+	}
+
+	/**
+	 * Instantiates an entity class through its no-argument constructor.
+	 *
+	 * @param <B>         entity type
+	 * @param entityClass entity class
+	 * @return new instance
+	 * @throws IllegalArgumentException if the class cannot be instantiated
+	 */
+	private static <B> B instantiate(Class<B> entityClass) {
+		try {
+			final var constructor = entityClass.getDeclaredConstructor();
+			if (!constructor.canAccess(null))
+				constructor.setAccessible(true);
+			return constructor.newInstance();
+		} catch (ReflectiveOperationException e) {
+			throw new IllegalArgumentException("Cannot instantiate " + entityClass.getName(), e);
+		}
 	}
 
 	/**
@@ -294,8 +367,8 @@ public final class JdbcDao implements IuDao {
 	 *
 	 * <p>
 	 * A member is normally a bean property, written through its setter. A column is
-	 * written through its field instead when there is no setter to use — a field with
-	 * no bean property at all, or a read-only property — and when the mapping
+	 * written through its field instead when there is no setter to use — a field
+	 * with no bean property at all, or a read-only property — and when the mapping
 	 * annotation is on the field, whose type is then the one the value was read as;
 	 * see {@link ColumnMetaData#fieldMapped}.
 	 * </p>
@@ -348,8 +421,8 @@ public final class JdbcDao implements IuDao {
 		 * <p>
 		 * A null column targeting a primitive is skipped rather than rejected, leaving
 		 * the member at its default: SQL nullability and Java primitiveness are
-		 * independent, and a nullable column mapped to {@code int} is common enough that
-		 * failing would be unhelpful.
+		 * independent, and a nullable column mapped to {@code int} is common enough
+		 * that failing would be unhelpful.
 		 * </p>
 		 *
 		 * @param entity entity being populated
@@ -368,6 +441,27 @@ public final class JdbcDao implements IuDao {
 			} catch (IllegalAccessException | InvocationTargetException e) {
 				throw new IllegalArgumentException("Unable to set " + name + " on " + entity.getClass().getName(), e);
 			}
+		}
+	}
+
+	@Override
+	public boolean exists(String sql, Iterable<?> args) {
+		try (final var query = getQuery(Object.class, sql, args)) {
+			return IuException.unchecked(() -> query.getResultSet().next());
+		}
+	}
+
+	@Override
+	public boolean exists(Class<?> beanClass, Iterable<String> where, Iterable<?> args) {
+		try (final var query = getBeanQuery(beanClass, where, args)) {
+			return IuException.unchecked(() -> query.getResultSet().next());
+		}
+	}
+
+	@Override
+	public boolean exists(Class<?> beanClass, Map<String, ?> idParams) {
+		try (final var query = getBeanQuery(beanClass, idParams)) {
+			return IuException.unchecked(() -> query.getResultSet().next());
 		}
 	}
 
@@ -432,8 +526,8 @@ public final class JdbcDao implements IuDao {
 	 * Re-types a cached result list.
 	 *
 	 * <p>
-	 * Safe because {@link EntityKey#type()} participates in cache-key equality, so a
-	 * hit can only have been stored by a read of the same entity type.
+	 * Safe because {@link EntityKey#type()} participates in cache-key equality, so
+	 * a hit can only have been stored by a read of the same entity type.
 	 * </p>
 	 *
 	 * @param results cached results
@@ -452,7 +546,10 @@ public final class JdbcDao implements IuDao {
 		return getBeanUpdate(entity, properties);
 	}
 
-	/** Builds an update statement from an already-resolved set of changed properties. */
+	/**
+	 * Builds an update statement from an already-resolved set of changed
+	 * properties.
+	 */
 	private SqlStatement getBeanUpdate(Object entity, Iterable<String> properties) {
 		return getStatement(sqlBuilder.getUpdateStatement(entityType(entity), properties),
 				sqlBuilder.getUpdateArguments(entity, properties));
@@ -633,16 +730,16 @@ public final class JdbcDao implements IuDao {
 	}
 
 	/**
-	 * Gets the active transaction's read cache, creating and registering it on first
-	 * use.
+	 * Gets the active transaction's read cache, creating and registering it on
+	 * first use.
 	 *
 	 * <p>
 	 * Returns {@code null} outside an active transaction, which disables caching
 	 * entirely: a cache with no defined end of life would serve stale rows
 	 * indefinitely. Because the cache is registered as a transaction resource, the
-	 * transaction manager discards it on commit or rollback, and it is never visible
-	 * to another transaction or thread — so the plain {@link HashMap} needs no
-	 * synchronization.
+	 * transaction manager discards it on commit or rollback, and it is never
+	 * visible to another transaction or thread — so the plain {@link HashMap} needs
+	 * no synchronization.
 	 * </p>
 	 *
 	 * @return read cache for the active transaction, or {@code null} when no
@@ -671,9 +768,10 @@ public final class JdbcDao implements IuDao {
 	 * <p>
 	 * An entity read as an interface is a {@link Proxy}, and a proxy class carries
 	 * none of the mapping annotations its interface declares — nor is it what
-	 * {@link #loadBean(Class, Map)} and {@link #searchBeans(Class, Map, boolean, int)}
-	 * key the read cache by. The interface is, so a proxy resolves to the first
-	 * interface it implements. Anything else describes itself.
+	 * {@link #loadBean(Class, Map)} and
+	 * {@link #searchBeans(Class, Map, boolean, int)} key the read cache by. The
+	 * interface is, so a proxy resolves to the first interface it implements.
+	 * Anything else describes itself.
 	 * </p>
 	 *
 	 * @param bean entity instance
@@ -947,11 +1045,11 @@ public final class JdbcDao implements IuDao {
 	 * column to the property it maps to.
 	 *
 	 * <p>
-	 * Column-to-property resolution is performed once, on the first row, and reused:
-	 * bean introspection and entity-metadata lookup are far more expensive than the
-	 * per-row assignments, and a query's column layout cannot change between its
-	 * rows. One mapper is created per query, so a mapper is confined to that query's
-	 * thread.
+	 * Column-to-property resolution is performed once, on the first row, and
+	 * reused: bean introspection and entity-metadata lookup are far more expensive
+	 * than the per-row assignments, and a query's column layout cannot change
+	 * between its rows. One mapper is created per query, so a mapper is confined to
+	 * that query's thread.
 	 * </p>
 	 *
 	 * @param <B> materialized row type
@@ -987,19 +1085,18 @@ public final class JdbcDao implements IuDao {
 		 * A column label is first resolved through the entity's
 		 * {@link jakarta.persistence.Column @Column} mappings, which is the only way to
 		 * reach a member whose name does not resemble its column name. Labels that
-		 * resolve to no mapping — every label of an unmapped type, and the
-		 * name-derived aliases generated for {@link edu.iu.dao.SqlColumn @SqlColumn}
-		 * expressions — fall back to matching the member name ignoring case and
-		 * underscores.
+		 * resolve to no mapping — every label of an unmapped type, and the name-derived
+		 * aliases generated for {@link edu.iu.dao.SqlColumn @SqlColumn} expressions —
+		 * fall back to matching the member name ignoring case and underscores.
 		 * </p>
 		 *
 		 * <p>
 		 * A class is populated through its setters, and through its declared fields for
 		 * whatever has no setter — a column mapped on a field alone, or on a read-only
 		 * property — and for a column whose mapping annotation is on the field, which
-		 * makes the field rather than the property the stored value. An interface is not
-		 * populated at all, only read from, so its members are its readable properties
-		 * and it has no fields to consider.
+		 * makes the field rather than the property the stored value. An interface is
+		 * not populated at all, only read from, so its members are its readable
+		 * properties and it has no fields to consider.
 		 * </p>
 		 *
 		 * @param metadata metadata of the executing query
@@ -1071,9 +1168,9 @@ public final class JdbcDao implements IuDao {
 	 *
 	 * <p>
 	 * The snapshot is taken when the row is materialized, so the view neither holds
-	 * the result set open nor changes as the cursor advances. It is a read-only view:
-	 * getters answer from the snapshot, {@code default} methods run as written
-	 * against those getters, and no other abstract method can be honored.
+	 * the result set open nor changes as the cursor advances. It is a read-only
+	 * view: getters answer from the snapshot, {@code default} methods run as
+	 * written against those getters, and no other abstract method can be honored.
 	 * </p>
 	 *
 	 * @param entityClass proxied entity interface
@@ -1130,9 +1227,9 @@ public final class JdbcDao implements IuDao {
 		 *
 		 * <p>
 		 * A primitive-returning getter cannot answer {@code null} — the proxy would
-		 * reject it — so it answers with the same zero value an unassigned field of that
-		 * type would hold, obtained from a one-element array rather than enumerated by
-		 * type.
+		 * reject it — so it answers with the same zero value an unassigned field of
+		 * that type would hold, obtained from a one-element array rather than
+		 * enumerated by type.
 		 * </p>
 		 *
 		 * @param type getter's return type
@@ -1241,12 +1338,12 @@ public final class JdbcDao implements IuDao {
 	/**
 	 * Detached {@link ColumnDefinition} read from a database metadata row.
 	 *
-	 * @param name         column name
-	 * @param dataType     JDBC type code
-	 * @param typeName     vendor type name
-	 * @param columnSize   declared column size
+	 * @param name          column name
+	 * @param dataType      JDBC type code
+	 * @param typeName      vendor type name
+	 * @param columnSize    declared column size
 	 * @param decimalDigits decimal scale
-	 * @param numPrecRadix numeric radix
+	 * @param numPrecRadix  numeric radix
 	 */
 	private record ColumnMeta(String name, int dataType, String typeName, int columnSize, int decimalDigits,
 			int numPrecRadix) implements ColumnDefinition {

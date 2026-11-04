@@ -56,7 +56,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.iu.IdGenerator;
 import edu.iu.IuProcess;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
@@ -64,7 +63,6 @@ import edu.iu.crypt.X509CertificateAuthority;
 import edu.iu.crypt.X500Utils;
 import edu.iu.test.CliTestSupport;
 import edu.iu.test.IuTestLogger;
-import iu.crypt.CryptJsonAdapters;
 
 @SuppressWarnings("javadoc")
 @ExtendWith(CliTestSupport.class)
@@ -280,7 +278,7 @@ public class WebKeyCliTest {
 		assertFalse(ca.getCertificates().iterator().hasNext());
 		assertNull(ca.getCrl().iterator().next().getRevokedCertificates());
 
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(ca).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(ca, X509CertificateAuthority.class));
 		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "export" }));
 		assertEquals("", CliTestSupport.ERR.toString());
 
@@ -351,7 +349,7 @@ public class WebKeyCliTest {
 		CliTestSupport.input(jwk.toString());
 		IuTestLogger.expect(WebKeyCli.class.getName(), Level.FINE, "OpenSSL CA config.*");
 		WebKeyCli.main(new String[] { "ca" });
-		final var ca = CryptJsonAdapters.CA.fromJson(IuJson.parse(CliTestSupport.OUT.toString()));
+		final var ca = WebKeyCli.JSONB.fromJson(CliTestSupport.OUT.toString(), X509CertificateAuthority.class);
 		final var certJwk = ca.getJwk();
 		final var cert = certJwk.getCertificateChain()[0];
 		assertEquals("CN=" + kid, cert.getSubjectX500Principal().getName());
@@ -374,7 +372,7 @@ public class WebKeyCliTest {
 		final var ca = WebKeyCli.ca(jwk);
 		final var cert = ca.getJwk().getCertificateChain()[0];
 		final var crl = ca.getCrl().iterator().next();
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(ca).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(ca, X509CertificateAuthority.class));
 		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "print" }));
 		assertEquals(
 				"X.509 Certificate Authority" + System.lineSeparator() + System.lineSeparator() + "JWK Private Key"
@@ -446,16 +444,16 @@ public class WebKeyCliTest {
 
 		final var csr = IuProcess.createTempFile();
 		Files.write(csr, req);
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(ca).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(ca, X509CertificateAuthority.class));
 		WebKeyCli.main(new String[] { "sign", csr.toString() });
-		final var caWith1Cert = CryptJsonAdapters.CA.fromJson(IuJson.parse(CliTestSupport.OUT.toString()));
+		final var caWith1Cert = WebKeyCli.JSONB.fromJson(CliTestSupport.OUT.toString(), X509CertificateAuthority.class);
 		CliTestSupport.OUT.reset();
 
 		final var csr2 = IuProcess.createTempFile();
 		Files.write(csr2, req2);
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(caWith1Cert).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(caWith1Cert, X509CertificateAuthority.class));
 		WebKeyCli.main(new String[] { "sign", csr2.toString() });
-		final var caWithCert = CryptJsonAdapters.CA.fromJson(IuJson.parse(CliTestSupport.OUT.toString()));
+		final var caWithCert = WebKeyCli.JSONB.fromJson(CliTestSupport.OUT.toString(), X509CertificateAuthority.class);
 		CliTestSupport.OUT.reset();
 
 		final var newCert = caWithCert.getCertificates().iterator().next();
@@ -467,7 +465,7 @@ public class WebKeyCliTest {
 		}
 		CliTestSupport.input(eejwk.toString());
 		WebKeyCli.main(new String[] { "cert", certFile.toString() });
-		final var eeWithCert = CryptJsonAdapters.WEBKEY.fromJson(IuJson.parse(CliTestSupport.OUT.toString()));
+		final var eeWithCert = WebKey.parse(CliTestSupport.OUT.toString());
 		CliTestSupport.OUT.reset();
 
 		assertEquals(newCert, eeWithCert.getCertificateChain()[0]);
@@ -476,7 +474,7 @@ public class WebKeyCliTest {
 		final var certIter = caWithCert.getCertificates().iterator();
 		certIter.next();
 		final var newCert2 = certIter.next();
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(caWithCert).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(caWithCert, X509CertificateAuthority.class));
 		WebKeyCli.main(new String[] { "export", WebKeyCli.formatSerialOSSL(newCert2.getSerialNumber()) });
 		final var exportPem = PemEncoded.parse(CliTestSupport.OUT.toString());
 		CliTestSupport.OUT.reset();
@@ -484,9 +482,9 @@ public class WebKeyCliTest {
 		assertEquals(newCert2, exportPem.next().asCertificate());
 		assertEquals(caCert, exportPem.next().asCertificate());
 
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(caWithCert).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(caWithCert, X509CertificateAuthority.class));
 		WebKeyCli.main(new String[] { "revoke", WebKeyCli.formatSerial(newCert.getSerialNumber()) });
-		final var caWithRevokedCert = CryptJsonAdapters.CA.fromJson(IuJson.parse(CliTestSupport.OUT.toString()));
+		final var caWithRevokedCert = WebKeyCli.JSONB.fromJson(CliTestSupport.OUT.toString(), X509CertificateAuthority.class);
 		CliTestSupport.OUT.reset();
 
 		assertEquals(eekid2, X500Utils
@@ -542,9 +540,9 @@ public class WebKeyCliTest {
 		final var jwk = WebKey.builder(WebKey.Type.ED448).keyId(kid).ephemeral().build();
 		final var ca = WebKeyCli.ca(jwk);
 		final var crl = ca.getCrl().iterator().next();
-		CliTestSupport.input(CryptJsonAdapters.CA.toJson(ca).toString());
+		CliTestSupport.input(WebKeyCli.JSONB.toJson(ca, X509CertificateAuthority.class));
 		assertDoesNotThrow(() -> WebKeyCli.main(new String[] { "public" }));
-		final var outCa = CryptJsonAdapters.CA.fromJson(IuJson.parse(CliTestSupport.OUT.toString()));
+		final var outCa = WebKeyCli.JSONB.fromJson(CliTestSupport.OUT.toString(), X509CertificateAuthority.class);
 		assertEquals(ca.getJwk().wellKnown(), outCa.getJwk());
 		assertNull(outCa.getDatabase());
 		assertNull(outCa.getCertificates());

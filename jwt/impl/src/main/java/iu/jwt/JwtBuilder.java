@@ -34,28 +34,32 @@ package iu.jwt;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import edu.iu.IdGenerator;
+import edu.iu.IuObject;
 import edu.iu.client.IuJson;
-import edu.iu.client.IuJsonBuilder;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonObject;
 
 /**
  * Mutable builder implementation for programmatically constructing new
  * {@link Jwt} instances.
- * 
+ *
  * <p>
  * Modules that provide a subclass of {@link Jwt} SHOULD also provide a subclass
  * of this class that overrides {@link #build()}.
  * </p>
- * 
+ *
  * @param <B> Concrete builder type
  */
-public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implements WebTokenBuilder {
+public class JwtBuilder<B extends JwtBuilder<B>> implements WebTokenBuilder {
 
+	private final IuJsonProperties.Builder claims = IuJsonProperties.builder(TokenJsonb.get());
 	private boolean setIssuedAt;
 	private JsonArrayBuilder authorizationDetails;
 
@@ -122,18 +126,31 @@ public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implem
 	public <T extends IuAuthorizationDetails> B authorizationDetails(T authorizationDetails, Class<T> type) {
 		if (this.authorizationDetails == null)
 			this.authorizationDetails = IuJson.array();
-		this.authorizationDetails.add(Jwt.adapt(type).toJson(authorizationDetails));
+		this.authorizationDetails.add(IuJson.parse(TokenJsonb.get().toJson(authorizationDetails, type)));
 		return (B) this;
 	}
 
+	/**
+	 * Sets a claim value, once.
+	 *
+	 * @param name  claim name
+	 * @param value claim value; null leaves the claim as it is
+	 * @param type  type the claim value converts as
+	 * @return this
+	 * @throws IllegalArgumentException if the claim is already set to a different
+	 *                                  value
+	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public B claim(String name, Object value, Type type) {
-		return param(name, value, Jwt.adapt(type));
+		if (value != null)
+			claims.put(name, IuObject.once(claims.get(name), value, "claim " + name + " is already set"), type);
+		return (B) this;
 	}
 
 	/**
 	 * Applies state just prior to building the token.
-	 * 
+	 *
 	 * <p>
 	 * Call this method when overriding {@link #build()} to apply any final state,
 	 * e.g., setting the iat claim value.
@@ -141,15 +158,25 @@ public class JwtBuilder<B extends JwtBuilder<B>> extends IuJsonBuilder<B> implem
 	 */
 	protected void prepare() {
 		if (setIssuedAt)
-			claim("iat", Instant.now(), Instant.class);
+			claim("iat", Instant.now().truncatedTo(ChronoUnit.SECONDS), Instant.class);
 		if (authorizationDetails != null)
-			param("authorization_details", authorizationDetails.build());
+			claims.putJson("authorization_details", authorizationDetails.build());
+	}
+
+	/**
+	 * Gets the claims set so far, as the token's JSON holds them, so a token built
+	 * reads the same as one parsed.
+	 *
+	 * @return claims
+	 */
+	protected JsonObject claims() {
+		return claims.build().toJsonObject();
 	}
 
 	@Override
 	public WebToken build() {
 		prepare();
-		return new Jwt(toJson());
+		return new Jwt(claims());
 	}
 
 }

@@ -64,4 +64,18 @@ public interface OidcPreAuthSession {
 	 */
 	void setNonce(String nonce);
 
+	/**
+	 * Gets the scope requested when the authorization flow was initiated.
+	 *
+	 * @return requested scope; null when the authorization request omitted it
+	 */
+	String getScope();
+
+	/**
+	 * Sets the scope requested when the authorization flow was initiated.
+	 *
+	 * @param scope requested scope; null to omit it from the authorization request
+	 */
+	void setScope(String scope);
+
 }

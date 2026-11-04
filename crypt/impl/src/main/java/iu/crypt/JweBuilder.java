@@ -136,12 +136,11 @@ public class JweBuilder implements Builder {
 			final var recipient = builder.encrypt(encryption, contentEncryptionKey);
 
 			final var header = recipient.getHeader();
-			final var serializedHeader = header.toJson(a -> true);
+			final var serializedHeader = header.values(a -> true);
 
-			if (!compact //
-					&& !serializedHeader.keySet().containsAll(protectedParameters))
+			if (!serializedHeader.nonNullNames().containsAll(protectedParameters))
 				throw new IllegalArgumentException(
-						"Protected parameters " + protectedParameters + " are required " + serializedHeader.keySet());
+						"Protected parameters " + protectedParameters + " are required " + serializedHeader.names());
 
 			recipients.add(recipient);
 		}

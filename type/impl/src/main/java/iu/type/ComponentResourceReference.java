@@ -54,22 +54,43 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, Ins
 
 	private final String name;
 	private final TypeTemplate<?, T> type;
-	private final IuAttribute<R, ? super T> attribute;
+	private final TypeTemplate<?, R> referrerType;
+	private final IuAttribute<? super R, ? super T> attribute;
 	private final Map<R, Optional<T>> unboundValues = new WeakHashMap<>();
 	private final IuVisitor<R> visitor = new IuVisitor<>();
 	private volatile IuResource<T> boundResource;
 
 	/**
-	 * Constructor.
-	 * 
+	 * Constructor for a reference that applies to all instances of the type that
+	 * declares the attribute.
+	 *
 	 * @param attribute facade for the attribute backing the resource
 	 * @param resource  resource annotation associated with the attribute
 	 */
-	@SuppressWarnings("unchecked")
 	ComponentResourceReference(DeclaredAttribute<R, ? super T> attribute, Resource resource) {
-		this.attribute = attribute;
+		this(attribute.declaringType().template, attribute, resource);
+	}
 
-		attribute.declaringType().template.subscribe(this);
+	/**
+	 * Constructor.
+	 *
+	 * <p>
+	 * The reference {@link TypeTemplate#subscribe(edu.iu.type.InstanceReference)
+	 * subscribes} to the referrer type, so applies to instances of that type and
+	 * all of its subtypes.
+	 * </p>
+	 *
+	 * @param referrerType type of the instances the reference applies to; the
+	 *                     attribute's declaring type, or a subtype that inherits
+	 *                     the attribute
+	 * @param attribute    facade for the attribute backing the resource
+	 * @param resource     resource annotation associated with the attribute
+	 */
+	@SuppressWarnings("unchecked")
+	ComponentResourceReference(TypeTemplate<?, R> referrerType, DeclaredAttribute<? super R, ? super T> attribute,
+			Resource resource) {
+		this.referrerType = referrerType;
+		this.attribute = attribute;
 
 		if (resource == null)
 			throw new IllegalArgumentException("Missing @Resource: " + attribute);
@@ -90,6 +111,8 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, Ins
 			throw new IllegalArgumentException("attribute " + attribute + " is not assignable from " + type);
 
 		this.type = type;
+
+		referrerType.subscribe(this);
 	}
 
 	@Override
@@ -104,7 +127,7 @@ class ComponentResourceReference<R, T> implements IuResourceReference<R, T>, Ins
 
 	@Override
 	public IuType<?, R> referrerType() {
-		return attribute.declaringType();
+		return referrerType;
 	}
 
 	@Override

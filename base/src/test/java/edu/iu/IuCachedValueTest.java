@@ -106,6 +106,25 @@ public class IuCachedValueTest {
 	}
 
 	@Test
+	public void testExpirationThunkThatReadsTheValueDoesNotRecur() throws Throwable {
+		final var runs = new java.util.concurrent.atomic.AtomicInteger();
+		final var self = new java.util.concurrent.atomic.AtomicReference<IuCachedValue<String>>();
+
+		// a thunk that reads the value it is expiring, as a collection does when it
+		// compares the value it is removing against what it holds. Reading a value
+		// mid-clear resolves it as expired and calls back into clear().
+		final var ref = new IuCachedValue<>("value", Duration.ofSeconds(30L), () -> {
+			runs.incrementAndGet();
+			self.get().isValid();
+		});
+		self.set(ref);
+		allRefs.add(ref);
+
+		ref.clear();
+		assertEquals(1, runs.get(), "the expiration thunk re-entered its own expiration");
+	}
+
+	@Test
 	public void testThunkError() throws Throwable {
 		final var log = LogManager.getLogManager().getLogger("");
 		final var restoreHandlers = log.getHandlers();
@@ -117,7 +136,11 @@ public class IuCachedValueTest {
 			try {
 				final var thunk = mock(UnsafeRunnable.class);
 				doThrow(Exception.class).when(thunk).run();
-				final var ref = new IuCachedValue<>(null, Duration.ofMillis(25L), thunk);
+
+				// this exercises expiration by a cleared reference, not by elapsed time,
+				// so the time to live is held well clear of the assertions below; a
+				// short one races the expiration timer to the never() check
+				final var ref = new IuCachedValue<>(null, Duration.ofSeconds(30L), thunk);
 				allRefs.add(ref);
 				final var f = IuCachedValue.class.getDeclaredField("reference");
 				f.setAccessible(true);
@@ -172,4 +195,36 @@ public class IuCachedValueTest {
 		assertNotEquals(ref2, this);
 	}
 
+	@Test
+	public void testCancelledExpirationTasksDoNotAccumulate() throws Exception {
+		final var timerField = IuCachedValue.class.getDeclaredField("PURGE_TIMER");
+		timerField.setAccessible(true);
+		final var timer = (java.util.Timer) timerField.get(null);
+
+		final var thresholdField = IuCachedValue.class.getDeclaredField("PURGE_THRESHOLD");
+		thresholdField.setAccessible(true);
+		final var threshold = (int) thresholdField.get(null);
+
+		// purge() reports how many cancelled tasks are still held by the shared
+		// timer, which is the accumulation being bounded. Draining first so the
+		// count below reflects only what this test creates.
+		timer.purge();
+
+		// a long time to live, so none of these come due on their own; every one of
+		// them leaves the queue only by being cancelled and then purged
+		final var churn = threshold * 8;
+		for (var i = 0; i < churn; i++)
+			new IuCachedValue<>(IdGenerator.generateId(), Duration.ofHours(1L), () -> {
+			}).clear();
+
+		// the sweep runs on a 500ms cycle; allow several before measuring, since
+		// purge() is itself destructive and so can only be sampled once
+		Thread.sleep(1500L);
+
+		final var stale = timer.purge();
+		assertTrue(stale <= threshold, () -> "expected at most " + threshold
+				+ " cancelled tasks to be outstanding after " + churn + " cancellations, but was " + stale);
+	}
+
 }
+

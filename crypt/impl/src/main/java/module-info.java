@@ -50,10 +50,14 @@
  */
 module iu.util.crypt.impl {
 	exports iu.crypt;
+	opens iu.crypt.model;
 	
 	requires iu.util;
 	requires transitive iu.util.crypt;
 	requires transitive iu.util.client;
+	
+	requires jakarta.json;
+	requires transitive jakarta.json.bind;
 
 	provides iu.crypt.spi.IuCryptSpi with iu.crypt.CryptSpi;
 }

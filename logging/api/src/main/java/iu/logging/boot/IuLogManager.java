@@ -59,8 +59,19 @@ public class IuLogManager extends LogManager {
 	}
 
 	private static boolean isBound() {
-		return Thread.currentThread().getClass().getEnclosingClass() == LogManager.class
-				|| Boolean.TRUE.equals(BOUNDED.get());
+		return isBound(Thread.currentThread().getClass().getEnclosingClass(), BOUNDED.get());
+	}
+
+	/**
+	 * Checks whether a thread is bound to logging configuration operations.
+	 *
+	 * @param enclosingClass enclosing class of the current thread's class, if any.
+	 * @param bounded        thread-local bound state.
+	 * @return {@code true} if the enclosing class is {@link LogManager} or the
+	 *         thread-local state is {@link Boolean#TRUE}.
+	 */
+	static boolean isBound(Class<?> enclosingClass, Boolean bounded) {
+		return enclosingClass == LogManager.class || Boolean.TRUE.equals(bounded);
 	}
 
 	/**

@@ -49,6 +49,7 @@ public class IuRedisConfigurationTest {
 		final var config = mock(IuRedisConfiguration.class, CALLS_REAL_METHODS);
 		assertTrue(config.getSsl());
 		assertEquals(Duration.ofMinutes(15), config.getKeyExpiration());
+		assertEquals("iu", config.getKeyPrefix());
 		assertNull(config.getUsername());
 		assertNull(config.getTrustedCert());
 	}

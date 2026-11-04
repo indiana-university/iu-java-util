@@ -88,12 +88,46 @@ public class InMemoryDataStore implements IuDataStore {
 
 	}
 
+	/**
+	 * Listing entry.
+	 *
+	 * <p>
+	 * Holds the key rather than the data it names, and resolves against the map as
+	 * it is read, so an entry that expires between being listed and being read
+	 * reports as gone rather than serving what it held.
+	 * </p>
+	 */
+	private class Entry implements IuDataStoreEntry {
+		private final Key key;
+
+		private Entry(Key key) {
+			this.key = key;
+		}
+
+		@Override
+		public String getName() {
+			return IuText.base64Url(key.key);
+		}
+
+		@Override
+		public Instant getModified() {
+			return IuObject.convert(purgeable(key), p -> p.modified);
+		}
+
+		@Override
+		public byte[] getData() {
+			return IuObject.convert(purgeable(key), p -> p.data);
+		}
+	}
+
 	private static class PurgeableData {
 		private byte[] data;
 		private Instant purgeTime;
+		private Instant modified;
 
-		private PurgeableData(byte[] data, Instant purgeTime) {
+		private PurgeableData(byte[] data, Instant modified, Instant purgeTime) {
 			this.data = data;
+			this.modified = modified;
 			this.purgeTime = purgeTime;
 		}
 	}
@@ -109,24 +143,50 @@ public class InMemoryDataStore implements IuDataStore {
 	}
 
 	@Override
-	public Iterable<?> list() {
-		return IuIterable.map(data.keySet(), k -> k.key);
+	public Iterable<IuDataStoreEntry> list() {
+		return IuIterable.map(data.keySet(), Entry::new);
 	}
 
-	@Override
-	public byte[] get(byte[] key) {
-		Objects.requireNonNull(key, "key is required");
+	/**
+	 * Gets the unexpired entry stored for a key, purging it if it has expired since
+	 * the last sweep.
+	 *
+	 * @param dkey map key
+	 * @return entry stored for {@code dkey}; null if none is stored or the entry
+	 *         has expired
+	 */
+	private PurgeableData purgeable(Key dkey) {
+		final var purgeable = data.get(dkey);
 
-		final var dkey = new Key(key);
-		final var session = data.get(dkey);
-
-		if (session != null //
-				&& session.purgeTime.isBefore(Instant.now())) {
+		if (purgeable != null //
+				&& purgeable.purgeTime.isBefore(Instant.now())) {
 			data.remove(dkey);
 			return null;
 		}
 
-		return session != null ? session.data : null;
+		return purgeable;
+	}
+
+	/**
+	 * Gets the unexpired entry stored for a key.
+	 *
+	 * @param key data key
+	 * @return entry stored for {@code key}; null if none is stored or the entry has
+	 *         expired
+	 */
+	private PurgeableData purgeable(byte[] key) {
+		Objects.requireNonNull(key, "key is required");
+		return purgeable(new Key(key));
+	}
+
+	@Override
+	public byte[] get(byte[] key) {
+		return IuObject.convert(purgeable(key), p -> p.data);
+	}
+
+	@Override
+	public Instant lastModified(byte[] key) {
+		return IuObject.convert(purgeable(key), p -> p.modified);
 	}
 
 	@Override
@@ -141,8 +201,49 @@ public class InMemoryDataStore implements IuDataStore {
 		final var dkey = new Key(key);
 		if (value == null)
 			this.data.remove(dkey);
-		else
-			this.data.put(dkey, new PurgeableData(value, Instant.now().plus(ttl)));
+		else {
+			final var now = Instant.now();
+			this.data.put(dkey, new PurgeableData(value, now, now.plus(ttl)));
+		}
+	}
+
+	@Override
+	public boolean putIfAbsent(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
+
+		final var dkey = new Key(key);
+		final var now = Instant.now();
+		final var candidate = new PurgeableData(value, now, now.plus(ttl));
+
+		// merge() calls the remapping function only when an entry is already present,
+		// so a fresh key is stored as candidate without it running at all; either way
+		// the whole decision is made under the map's own per-bin lock, which is what
+		// keeps two racing callers from both reading "absent"
+		final var stored = this.data.merge(dkey, candidate,
+				(current, ignored) -> current.purgeTime.isBefore(now) ? candidate : current);
+
+		return stored == candidate;
+	}
+
+	@Override
+	public byte[] getAndPut(byte[] key, byte[] value, Duration ttl) {
+		Objects.requireNonNull(key, "key is required");
+		Objects.requireNonNull(value, "value is required");
+
+		final var dkey = new Key(key);
+		final var now = Instant.now();
+		final var previous = new PurgeableData[1];
+
+		// compute() runs under the map's per-bin lock, so the read of whatever was
+		// there and the write of the replacement happen as one step; a racing caller
+		// either runs entirely before or entirely after, never interleaved with it
+		this.data.compute(dkey, (k, current) -> {
+			previous[0] = (current != null && !current.purgeTime.isBefore(now)) ? current : null;
+			return new PurgeableData(value, now, now.plus(ttl));
+		});
+
+		return previous[0] == null ? null : previous[0].data;
 	}
 
 }

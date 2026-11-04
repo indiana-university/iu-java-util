@@ -37,6 +37,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -432,31 +433,328 @@ public final class IuWebUtils {
 	}
 
 	/**
+	 * Determines if a resource {@link URI} is a valid resource URI.
+	 *
+	 * <p>
+	 * A valid resource URI is absolute, is not opaque, has an authority, carries no
+	 * query string, and has no potentially suspicious path elements. This method
+	 * MAY be used to validate an incoming or configured resource URI.
+	 * </p>
+	 * 
+	 * <p>
+	 * A URI is considered potentially suspicious if it contains a semicolon
+	 * {@code ;}, escaped slash {@code %2F} (or {@code %2f}), or an encoded
+	 * {@code .} or {@code ..} path segment.
+	 * </p>
+	 *
+	 * @param resourceUri resource {@link URI}
+	 * @return true if the resource URI is valid; else false
+	 */
+	public static boolean isValidResourceUri(URI resourceUri) {
+		if (!resourceUri.isAbsolute() //
+				|| resourceUri.isOpaque() //
+				|| resourceUri.getRawAuthority() == null //
+				|| resourceUri.getRawQuery() != null)
+			return false;
+
+		final var resourcePath = resourceUri.getRawPath();
+		if (resourcePath.indexOf(';') != -1 //
+				|| resourcePath.contains("%2f") //
+				|| resourcePath.contains("%2F"))
+			return false;
+
+		final var normalizedResource = resourceUri.normalize().getPath();
+		return !(normalizedResource.contains("/./") //
+				|| normalizedResource.endsWith("/.") //
+				|| normalizedResource.contains("/../") //
+				|| normalizedResource.endsWith("/.."));
+	}
+
+	/**
 	 * Determines if a root {@link URI} encompasses a resource {@link URI}.
+	 *
+	 * <p>
+	 * Scheme, authority, and path are compared. A relative or opaque URI, or one
+	 * that carries a query string is not a root URI. Fragment is ignored.
+	 * </p>
+	 * 
+	 * <p>
+	 * Path comparison is handled by first normalizing both URIs, then comparing
+	 * decoded paths with {@link String#startsWith(String)} and ensuring the break
+	 * is on a slash character if normalized root's path length is different from
+	 * that of the normalized resource URI path.
+	 * </p>
 	 * 
 	 * @param rootUri     root {@link URI}
 	 * @param resourceUri resource {@link URI}
-	 * @return {@link URI}
+	 * @return true if the root encompasses the resource; else false
 	 */
 	public static boolean isRootOf(URI rootUri, URI resourceUri) {
+		if (!rootUri.isAbsolute() //
+				|| rootUri.isOpaque() //
+				|| resourceUri.isOpaque() //
+				|| rootUri.getRawQuery() != null)
+			return false;
+
+		final var scheme = rootUri.getScheme();
+		if (!IuObject.equals(scheme, resourceUri.getScheme()))
+			return false;
+
+		final var authority = rootUri.getAuthority();
+		if (!IuObject.equals(authority, resourceUri.getAuthority()))
+			return false;
+
 		if (rootUri.equals(resourceUri))
 			return true;
 
-		if (!resourceUri.isAbsolute() //
-				|| resourceUri.isOpaque() //
-				|| !IuObject.equals(rootUri.getScheme(), resourceUri.getScheme()) //
-				|| !IuObject.equals(rootUri.getAuthority(), resourceUri.getAuthority()))
-			return false;
-
-		final var root = rootUri.getPath();
-		if (root.isEmpty())
+		if (rootUri.getRawPath().isEmpty())
 			return true;
 
-		final var resource = resourceUri.getPath();
-		final var l = root.length();
-		return resource.startsWith(root) //
-				&& (root.charAt(l - 1) == '/' //
-						|| resource.charAt(l) == '/');
+		final var normalizedRoot = rootUri.normalize().getPath();
+		final var normalizedRootLength = normalizedRoot.length();
+		final var normalizedResource = resourceUri.normalize().getPath();
+		return normalizedResource.startsWith(normalizedRoot) //
+				&& (normalizedResource.length() == normalizedRootLength
+						|| normalizedRoot.charAt(normalizedRootLength - 1) == '/' //
+						|| normalizedResource.charAt(normalizedRootLength) == '/');
+	}
+
+	/**
+	 * Determines whether a resource URI is both a root of a request URI, and more
+	 * specific than a previously matched resource URI.
+	 *
+	 * <p>
+	 * A null candidate or candidate that is not a root of the request URI is
+	 * rejected. Otherwise, a candidate is accepted if bestSoFar is null or less
+	 * specific than the candidate.
+	 * </p>
+	 *
+	 * @param requestUri incoming request URI
+	 * @param candidate  candidate root URI
+	 * @param bestSoFar  best rule URI matched so far; null when none has matched
+	 * @return true if {@code candidate} should replace {@code bestSoFar}
+	 */
+	public static boolean isPreferred(URI requestUri, URI candidate, URI bestSoFar) {
+		return isMoreSpecific(candidate, bestSoFar) //
+				&& isRootOf(candidate, requestUri);
+	}
+
+	/**
+	 * Determines whether a resource URI is more specific than another URI.
+	 *
+	 * <p>
+	 * A null candidate or candidate that is not rooted in the resource URI is
+	 * rejected. Otherwise, a candidate is accepted if resource is null or has a
+	 * lower specificity count than the candidate.
+	 * </p>
+	 *
+	 * @param candidate candidate rule URI
+	 * @param bestSoFar resource URI to match against
+	 * @return true if {@code candidate} is more specific than {@code bestSoFar}
+	 */
+	public static boolean isMoreSpecific(URI candidate, URI bestSoFar) {
+		return candidate != null && (bestSoFar == null
+				|| (isRootOf(bestSoFar, candidate) && specificity(bestSoFar) < specificity(candidate)));
+	}
+
+	/**
+	 * Counts normalized path separators and segments in a URI.
+	 *
+	 * @param uri rule URI
+	 * @return count of path separators and segments that would be present in the
+	 *         URI if normalized
+	 */
+	public static int specificity(URI uri) {
+		if (uri == null)
+			return 0;
+
+		final var path = uri.getRawPath();
+		if (path == null || path.isEmpty())
+			return 0;
+
+		var count = 0;
+		var pos = 0;
+		while (pos < path.length()) {
+			final var c = path.charAt(pos);
+			if (c == '/')
+				if (pos + 1 == path.length()) {
+					count++;
+					break;
+				} else {
+					pos++;
+					final var nc = path.charAt(pos);
+					if (nc != '/')
+						count++;
+				}
+			else {
+				var ns = path.indexOf('/', pos);
+				if (ns == -1)
+					ns = path.length();
+
+				if (ns == pos + 1 && path.charAt(pos) == '.') {
+					if (ns != path.length())
+						count--;
+				} else if (ns == pos + 2 && path.charAt(pos) == '.' && path.charAt(pos + 1) == '.')
+					if (ns != path.length())
+						count -= 3;
+					else
+						count -= 2;
+				else
+					count++;
+
+				pos = ns;
+			}
+		}
+
+		return count;
+	}
+
+	/**
+	 * Builds a normalized URI from path segments.
+	 * 
+	 * <p>
+	 * The original root URI provided MAY be null or empty, and won't be modified by
+	 * this method. Path segments may be relative, containing {@code .} or
+	 * {@code ..}; these references will be resolved as long as a parent reference
+	 * doesn't attempt to escape the root URI.
+	 * </p>
+	 * 
+	 * <p>
+	 * Segments SHOULD be encoded before passing here if encoding is needed, i.e.,
+	 * to preserve a {@code .} or {@code /} character.
+	 * </p>
+	 * 
+	 * <p>
+	 * Query strings may be provided on the root URI and/or one or more segment.
+	 * When multiple query strings are provided, they will be merged by first
+	 * parsing with {@link #parseQueryString(String)} then adding values to a
+	 * {@link LinkedHashMap} in order before passing to
+	 * {@link #createQueryString(Map)} to re-encode and appending to the resulting
+	 * URI. This merge process has side effects: i.e., a space encoded as
+	 * {@code %20} will be re-encoded as {@code +} and a name without a value will
+	 * gain an {@code =} equals sign.
+	 * </p>
+	 * 
+	 * @param uri      root URI
+	 * @param segments one or more path segments with or without a leading slash,
+	 *                 null or empty segments have no effect; a segment MAY contain
+	 *                 a fully-formed encoded query string with leading '?' and/or
+	 *                 fragment with leading '#' to be defined on the resulting URI.
+	 *                 Query strings will be merged into a single query with all
+	 *                 parameters; only one fragment may be defined.
+	 * @return URI of the root URI with non-null, non-empty path segments appended
+	 *         with a leading slash
+	 * @throws IllegalArgumentException if more than one fragment is defined, a
+	 *                                  parent {@code ..} reference attempts to
+	 *                                  escape the root URI, or from
+	 *                                  {@link URI#create} the final URI is
+	 *                                  malformed.
+	 */
+	public static URI buildUri(URI uri, String... segments) {
+		final var sb = new StringBuilder();
+
+		String fragment = null;
+		String query = null;
+		if (uri != null) {
+			sb.append(uri);
+
+			fragment = uri.getRawFragment();
+			if (fragment != null)
+				sb.setLength(sb.indexOf("#"));
+
+			query = uri.getRawQuery();
+			if (query != null)
+				sb.setLength(sb.indexOf("?"));
+		}
+
+		final var olen = sb.length();
+		for (final var segment : segments)
+			if (segment != null && !segment.isEmpty()) {
+				var len = sb.length();
+				while (len > olen && sb.charAt(len - 1) == '/')
+					len--;
+				sb.setLength(len);
+
+				if (len == 0 || sb.charAt(len - 1) != '/')
+					sb.append('/');
+
+				len = sb.length();
+				sb.append(segment);
+
+				final var hash = sb.indexOf("#", len);
+				if (hash != -1)
+					if (fragment != null)
+						throw new IllegalArgumentException("duplicate fragment section in segment " + segment);
+					else {
+						fragment = sb.substring(hash + 1);
+						sb.setLength(hash);
+					}
+
+				final var q = sb.indexOf("?", len);
+				if (q != -1) {
+					final var rawQuery = sb.substring(q + 1);
+					sb.setLength(q);
+					if (query == null)
+						query = rawQuery;
+					else {
+						final var oldQuery = parseQueryString(query);
+						final var parsed = parseQueryString(rawQuery);
+						final Map<String, Iterable<String>> newQuery = new LinkedHashMap<>();
+						for (final var entry : oldQuery.entrySet()) {
+							final var name = entry.getKey();
+							final var value = entry.getValue();
+							final var toAppend = parsed.remove(name);
+							if (toAppend == null)
+								newQuery.put(name, value);
+							else
+								newQuery.put(name, IuIterable.cat(value, toAppend));
+						}
+						newQuery.putAll(parsed);
+						query = createQueryString(newQuery);
+					}
+				}
+
+				while (len < sb.length())
+					if (sb.charAt(len - 1) == '/') {
+						var end = sb.indexOf("/", len);
+						if (end == -1)
+							end = sb.length();
+
+						if (end == len)
+							sb.deleteCharAt(len);
+						else if (end == len + 1 && sb.charAt(len) == '.') {
+							sb.deleteCharAt(len);
+							if (len < sb.length())
+								sb.deleteCharAt(len);
+						} else if (end == len + 2 && sb.substring(len, end).equals("..")) {
+							final int oend;
+							if (olen > 0 && sb.charAt(olen - 1) == '/')
+								oend = olen - 1;
+							else
+								oend = olen;
+
+							final var prevSlash = sb.lastIndexOf("/", len - 2);
+							if (prevSlash < oend)
+								throw new IllegalArgumentException(
+										"invalid parent path; must be relative to original URI");
+							else {
+								sb.delete(prevSlash + 1, end);
+								len = prevSlash + 1;
+								if (len < sb.length())
+									sb.deleteCharAt(len);
+							}
+						} else
+							len++;
+					} else
+						len++;
+			}
+
+		if (query != null)
+			sb.append('?').append(query);
+		if (fragment != null)
+			sb.append('#').append(fragment);
+
+		return URI.create(sb.toString());
 	}
 
 	/**
@@ -668,7 +966,7 @@ public final class IuWebUtils {
 			startOfValue = endOfName + 1;
 
 		while (true) {
-			final var name = queryString.substring(startOfName, endOfName);
+			final var name = URLDecoder.decode(queryString.substring(startOfName, endOfName), StandardCharsets.UTF_8);
 
 			var values = parsedParameterValues.get(name);
 			if (values == null)
@@ -676,13 +974,13 @@ public final class IuWebUtils {
 
 			if (endOfValue == queryString.length()) {
 				final var value = queryString.substring(startOfValue);
-				values.offer(IuException.unchecked(() -> URLDecoder.decode(value, "UTF-8")));
+				values.offer(URLDecoder.decode(value, StandardCharsets.UTF_8));
 				endOfName = -1;
 				break;
 			}
 
 			final var value = queryString.substring(startOfValue, endOfValue);
-			values.offer(IuException.unchecked(() -> URLDecoder.decode(value, "UTF-8")));
+			values.offer(URLDecoder.decode(value, StandardCharsets.UTF_8));
 
 			startOfName = endOfValue + 1;
 			endOfName = queryString.indexOf('=', startOfName);
@@ -759,7 +1057,7 @@ public final class IuWebUtils {
 	 * 
 	 * @param c character
 	 * @return true if the character is in the cookie-octet character set.
-
+	 * 
 	 * @see <a href=
 	 *      "https://datatracker.ietf.org/doc/html/rfc6265#section-4.1">RFC-6265
 	 *      HTTP State Management, Section 4.1</a>
@@ -1028,7 +1326,7 @@ public final class IuWebUtils {
 
 	/**
 	 * Parses an IPV4Address for {@link #parseNodeIdentifier(String)}.
-
+	 * 
 	 * 
 	 * @param nodeId      {@link #parseNodeIdentifier(String) node identifier}
 	 * @param originalPos start position

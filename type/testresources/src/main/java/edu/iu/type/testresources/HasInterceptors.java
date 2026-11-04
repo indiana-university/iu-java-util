@@ -37,8 +37,8 @@ import jakarta.interceptor.Interceptors;
 @SuppressWarnings({ "javadoc", "unused" })
 public class HasInterceptors {
 
-	private void fail() {
-		throw new AssertionError("Iterceptors should not be supported in this version");
+	private String fail() {
+		return "intercepted by nothing";
 	}
 
 }

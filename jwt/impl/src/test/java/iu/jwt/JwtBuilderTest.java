@@ -107,6 +107,16 @@ public class JwtBuilderTest {
 		assertTrue(IuIterable.remaindersAreEqual(IuIterable.iter(audience).iterator(), jwt.getAudience().iterator()));
 	}
 
+	@Test
+	public void testClaimOnce() {
+		final var id = IdGenerator.generateId();
+		final var builder = new JwtBuilder<>().jti(id).jti(id).jti(null);
+		assertEquals(id, builder.build().getTokenId());
+		assertEquals("claim jti is already set",
+				assertThrows(IllegalArgumentException.class, () -> builder.jti(IdGenerator.generateId()))
+						.getMessage());
+	}
+
 	public interface Details extends IuAuthorizationDetails {
 		String getFoo();
 	}
@@ -114,7 +124,6 @@ public class JwtBuilderTest {
 	@Test
 	public void testDetails() {
 		Details.class.getModule().addOpens("iu.jwt", IuJson.class.getModule());
-//		IuConfig.registerInterface(Details.class);
 		final var type = IdGenerator.generateId();
 		final var foo = IdGenerator.generateId();
 		final var foo2 = IdGenerator.generateId();

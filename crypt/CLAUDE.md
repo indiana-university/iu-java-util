@@ -14,8 +14,8 @@ JOSE — JSON Web Key, JSON Web Signature, and JSON Web Encryption — implement
 
 | Module | Java | Notes |
 |---|---|---|
-| `api` | 11 | `exports edu.iu.crypt`; `exports iu.crypt.spi to iu.util.crypt.impl`; `uses IuCryptSpi` |
-| `impl` | 11 | `exports iu.crypt`; `provides IuCryptSpi with iu.crypt.CryptSpi` |
+| `api` | 17 | `exports edu.iu.crypt`; `exports iu.crypt.spi to iu.util.crypt.impl`; `uses IuCryptSpi` |
+| `impl` | 17 | `exports iu.crypt`; `provides IuCryptSpi with iu.crypt.CryptSpi` |
 | `cli` | **21** | assembly-packaged `tar.gz` distribution |
 
 ## SPI and module-layer initialization
@@ -38,7 +38,7 @@ Everything in this package is a builder-driven interface; the concrete classes a
 
 ## CLI
 
-`crypt/cli` (`iu.crypt.cli.WebKeyCli`) is packaged by `maven-assembly-plugin` from `src/assembly/bin.xml` into `iu-java-crypt-cli.tar.gz`, with launcher scripts from `src/bin/` and all runtime dependencies under `lib/`. It is the only module in the repository compiled at Java 21. Exercise it through `edu.iu.test.CliTestSupport`.
+`crypt/cli` (`iu.crypt.cli.WebKeyCli`) is packaged by `maven-assembly-plugin` from `src/assembly/bin.xml` into `iu-java-crypt-cli.tar.gz`, with launcher scripts from `src/bin/` and all runtime dependencies under `lib/`. It compiles at Java 21, as `oidc/provider` does; every other module is 17. Exercise it through `edu.iu.test.CliTestSupport`.
 
 ## Testing notes
 

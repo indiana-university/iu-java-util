@@ -89,11 +89,36 @@ public interface IuRedisConfiguration {
 
 	/**
 	 * Returns the key expiration duration.
-	 * 
+	 *
 	 * @return the key expiration duration, default is 15 minutes
 	 */
 	default Duration getKeyExpiration() {
 		return Duration.ofMinutes(15);
+	}
+
+	/**
+	 * Returns the prefix every key stored through this connection is named under.
+	 *
+	 * <p>
+	 * The prefix is what makes a Redis instance shareable. It scopes a listing to
+	 * one store, and it scopes an eviction question or an incident to one
+	 * application, so a deployment that shares an instance between applications --
+	 * or between distinct stores within one application, such as a session store
+	 * and a cache -- <em>should</em> give each one its own prefix. The default is
+	 * deliberately non-empty rather than absent, so that a store is never
+	 * accidentally unnamespaced; it is not, however, distinguishing on its own.
+	 * </p>
+	 *
+	 * <p>
+	 * A prefix is read once, when the connection is created, and applies for that
+	 * connection's life: changing it moves every key, so it cannot be varied under
+	 * a running connection.
+	 * </p>
+	 *
+	 * @return key prefix, default is {@code iu}
+	 */
+	default String getKeyPrefix() {
+		return "iu";
 	}
 
 }

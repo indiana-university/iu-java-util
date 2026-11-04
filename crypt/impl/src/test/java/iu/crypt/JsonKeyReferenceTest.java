@@ -45,7 +45,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
-import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebKey.Algorithm;
 
@@ -55,7 +55,7 @@ public class JsonKeyReferenceTest {
 	@Test
 	public void testKeyId() {
 		final var id = IdGenerator.generateId();
-		final var ref = new JsonKeyReference<>(IuJson.object().add("kid", id).build());
+		final var ref = new JsonKeyReference<>(IuJsonProperties.builder().put("kid", id).build());
 		assertEquals(id, ref.getKeyId());
 	}
 
@@ -63,7 +63,7 @@ public class JsonKeyReferenceTest {
 	public void testAlg() {
 		for (final var algorithm : Algorithm.values())
 			assertEquals(algorithm,
-					new JsonKeyReference<>(IuJson.object().add("alg", algorithm.alg).build()).getAlgorithm());
+					new JsonKeyReference<>(IuJsonProperties.builder().put("alg", algorithm).build()).getAlgorithm());
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -73,33 +73,29 @@ public class JsonKeyReferenceTest {
 		final var cert = mock(X509Certificate.class);
 		try (final var mockPemEncoded = mockStatic(PemEncoded.class)) {
 			mockPemEncoded.when(() -> PemEncoded.getCertificateChain(uri)).thenReturn(new X509Certificate[] { cert });
-			final var ref = new JsonKeyReference(IuJson.object().add("x5u", uri.toString()).build());
+			final var ref = new JsonKeyReference(IuJsonProperties.builder().put("x5u", uri).build());
 			assertTrue(ref.hashCode() != 0);
 			for (var i = 0; i < 4; i++)
 				for (final var algorithm : Algorithm.values()) {
 					final var id = IdGenerator.generateId();
-					final var json = IuJson.object().add("kid", id).add("alg", algorithm.alg).build();
+					final var json = IuJsonProperties.builder().put("kid", id).put("alg", algorithm).build();
 
 					final var keyRef = new JsonKeyReference(json);
 					assertNotEquals(keyRef, ref);
 					assertTrue(keyRef.represents(ref));
 
-					final var jsonb = IuJson.object();
-					keyRef.serializeTo(jsonb);
-					final var jsonbi = jsonb.build();
-					assertEquals(json, jsonbi);
-					assertEquals(keyRef, new JsonKeyReference(jsonbi));
+					assertEquals(keyRef, new JsonKeyReference(json));
 
 					final var id2 = IdGenerator.generateId();
-					final var json2 = IuJson.object().add("kid", id2).add("alg", algorithm.alg).build();
+					final var json2 = IuJsonProperties.builder().put("kid", id2).put("alg", algorithm).build();
 					final var keyRef2 = new JsonKeyReference(json2);
 					assertNotEquals(keyRef, keyRef2);
 					assertNotEquals(keyRef2, keyRef);
 					assertTrue(keyRef2.represents(ref));
 					assertFalse(keyRef2.represents(keyRef));
 
-					final var json3 = IuJson.object().add("kid", id).add("alg",
-							Algorithm.values()[ThreadLocalRandom.current().nextInt(Algorithm.values().length)].alg)
+					final var json3 = IuJsonProperties.builder().put("kid", id).put("alg",
+							Algorithm.values()[ThreadLocalRandom.current().nextInt(Algorithm.values().length)])
 							.build();
 					final var keyRef3 = new JsonKeyReference(json3);
 					if (keyRef.getAlgorithm() != keyRef3.getAlgorithm()) {

@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import edu.iu.IdGenerator;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVaultMetadata;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
@@ -67,8 +68,14 @@ public class VaultSecretTest {
 		assertEquals("VaultSecret [" + uri + "]", secret.toString());
 		try (final var mockJsonProxy = mockStatic(JsonProxy.class)) {
 			secret.getMetadata();
-			mockJsonProxy.verify(() -> JsonProxy.wrap(metadata, IuVaultMetadata.class, valueAdapter));
+			// Vault's metadata keys are snake case, and convert by Vault's own format,
+			// not the values'
+			mockJsonProxy.verify(() -> JsonProxy.wrap(org.mockito.ArgumentMatchers.eq(metadata),
+					org.mockito.ArgumentMatchers.eq(IuVaultMetadata.class),
+					org.mockito.ArgumentMatchers.eq(IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES),
+					org.mockito.ArgumentMatchers.any()));
 		}
+		org.mockito.Mockito.verifyNoInteractions(valueAdapter);
 	}
 
 	@SuppressWarnings("unchecked")

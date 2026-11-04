@@ -69,6 +69,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -113,7 +114,7 @@ public class WebKeyTest extends CryptImplTestCase {
 	public void testUse() {
 		IuIterable.iter(Use.values()).forEach(use -> {
 			assertSame(use, Use.from(use.use));
-			assertEquals(use, CryptJsonAdapters.USE.fromJson(CryptJsonAdapters.USE.toJson(use)));
+			assertEquals(use, CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(use), Use.class));
 		});
 		assertThrows(NoSuchElementException.class, () -> Use.from("foobar"));
 	}
@@ -122,7 +123,7 @@ public class WebKeyTest extends CryptImplTestCase {
 	public void testOp() {
 		IuIterable.iter(Operation.values()).forEach(op -> {
 			assertSame(op, Operation.from(op.keyOp));
-			assertEquals(op, CryptJsonAdapters.OP.fromJson(CryptJsonAdapters.OP.toJson(op)));
+			assertEquals(op, CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(op), Operation.class));
 		});
 		assertThrows(NoSuchElementException.class, () -> Operation.from("foobar"));
 	}
@@ -274,7 +275,8 @@ public class WebKeyTest extends CryptImplTestCase {
 		}));
 		final var uri = mock(URI.class);
 		try (final var mockIuHttp = mockStatic(IuHttp.class)) {
-			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_JSON_OBJECT)).thenReturn(IuJson.parse(jwks));
+			mockIuHttp.when(() -> IuHttp.get(uri, IuHttp.READ_STREAM))
+					.thenReturn(new ByteArrayInputStream(jwks.getBytes()));
 			assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(uri)));
 		}
 		assertEquals(jwks, WebKey.asJwks(WebKey.readJwks(new ByteArrayInputStream(jwks.getBytes()))));
@@ -754,7 +756,7 @@ public class WebKeyTest extends CryptImplTestCase {
 				+ "IHsrdZ_CCAiTc0HVkMbyq1M6qEhM-q5P6y1QCIrwg.0HFmhOzsQ98nNWJjIHkR7A");
 
 		IuTestLogger.expect("iu.crypt.Jwe", Level.FINE,
-				"CEK decryption successful for {\"alg\":\"PBES2-HS256+A128KW\",\"kty\":\"oct\"}");
+				"CEK decryption successful for " + Pattern.quote("{\"kty\":\"oct\",\"alg\":\"PBES2-HS256+A128KW\"}"));
 		assertEquals(jwk, WebKey.parse(jwe.decryptText(
 				WebKey.builder(Type.RAW).algorithm(Algorithm.PBES2_HS256_A128KW).key(IuText.utf8(pass)).build())));
 	}

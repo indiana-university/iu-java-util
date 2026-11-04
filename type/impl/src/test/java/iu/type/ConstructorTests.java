@@ -73,17 +73,13 @@ public class ConstructorTests {
 	}
 
 	@Test
-	public void testConstructorInterceptorsNotSupported() {
-		final var error = assertThrows(UnsupportedOperationException.class,
-				() -> IuType.of(HasConstructorInterceptors.class).constructor().exec());
-		assertEquals("@AroundConstruct not supported in this version", error.getMessage());
+	public void testEmptyConstructorInterceptorsAreDirect() throws Exception {
+		assertInstanceOf(HasConstructorInterceptors.class, IuType.of(HasConstructorInterceptors.class).constructor().exec());
 	}
 
 	@Test
-	public void testAroundConstructNotSupported() {
-		final var error = assertThrows(UnsupportedOperationException.class,
-				() -> IuType.of(HasAroundConstruct.class).constructor().exec());
-		assertEquals("@AroundConstruct not supported in this version", error.getMessage());
+	public void testAroundConstructOnTargetIsIgnored() throws Exception {
+		assertInstanceOf(HasAroundConstruct.class, IuType.of(HasAroundConstruct.class).constructor().exec());
 	}
 
 }

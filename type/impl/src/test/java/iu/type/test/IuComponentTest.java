@@ -147,11 +147,6 @@ public class IuComponentTest extends IuTypeTestCase {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void testLoadsTestComponent() throws Exception {
-		// TODO: remove after implementing @AroundConstruct
-		IuTestLogger.allow("iu.type.ComponentResource", Level.CONFIG,
-				"Resource initialization failure; .* edu.iu.type.testcomponent.TestResource",
-				UnsupportedOperationException.class,
-				t -> "@AroundConstruct not supported in this version".equals(t.getMessage()));
 		IuTestLogger.allow("iu.type.Component", Level.WARNING, "Invalid class invalid.*", ClassFormatError.class);
 		final var cb = mock(Consumer.class);
 		try (var parent = IuComponent.of(cb, TestArchives.getComponentArchive("testruntime"),
@@ -202,8 +197,7 @@ public class IuComponentTest extends IuTypeTestCase {
 				final var name = resource.name();
 				assertTrue(expected.remove(name), () -> name + " " + expected);
 				if (name.equals("testResource")) {
-					// TODO: STARCH-653 Implement @AroundConstruct
-					assertThrows(UnsupportedOperationException.class, resource::get);
+					assertNotNull(resource.get());
 				}
 			}
 			assertTrue(expected.isEmpty(), expected::toString);

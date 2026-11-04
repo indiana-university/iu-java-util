@@ -56,7 +56,14 @@ import edu.iu.type.IuTypeKey;
 final class TypeFactory {
 
 	private static final Map<Class<?>, TypeTemplate<?, ?>> RAW_TYPES = new WeakHashMap<>();
-	private static final ThreadLocal<Map<IuTypeKey, TypeTemplate<?, ?>>> PENDING_GENERIC_TYPES = new ThreadLocal<>();
+	/**
+	 * Generic types being resolved on the current thread, keyed by {@link Type}
+	 * equality rather than {@link IuTypeKey}: a {@link TypeVariable} is equal
+	 * only to a variable of the same name from the same declaration, so
+	 * same-named variables from different declarations, e.g. a diamond's
+	 * {@code Leaf<K>} and {@code Branch<K>}, don't share a template.
+	 */
+	private static final ThreadLocal<Map<Type, TypeTemplate<?, ?>>> PENDING_GENERIC_TYPES = new ThreadLocal<>();
 	private static final ThreadLocal<Map<Class<?>, TypeTemplate<?, ?>>> PENDING_RAW_TYPES = new ThreadLocal<>();
 
 	/**
@@ -332,19 +339,18 @@ final class TypeFactory {
 			// Establish base case for self and loop references
 			final var restorePendingGenericTypes = PENDING_GENERIC_TYPES.get();
 			try {
-				final Map<IuTypeKey, TypeTemplate<?, ?>> pendingGenericTypes;
+				final Map<Type, TypeTemplate<?, ?>> pendingGenericTypes;
 				if (restorePendingGenericTypes == null) {
 					pendingGenericTypes = new HashMap<>();
 					PENDING_GENERIC_TYPES.set(pendingGenericTypes);
 				} else
 					pendingGenericTypes = restorePendingGenericTypes;
 
-				final var key = IuTypeKey.of(type);
-				final var resolvedType = pendingGenericTypes.get(key);
+				final var resolvedType = pendingGenericTypes.get(type);
 				if (resolvedType != null)
 					return resolvedType;
 
-				return new TypeTemplate<>(s -> pendingGenericTypes.put(key, s), type,
+				return new TypeTemplate<>(s -> pendingGenericTypes.put(type, s), type,
 						resolveRawClass(getErasedClass(type)));
 			} finally {
 				if (restorePendingGenericTypes == null)

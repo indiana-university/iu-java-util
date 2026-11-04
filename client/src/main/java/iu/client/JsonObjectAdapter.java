@@ -36,11 +36,22 @@ import java.util.function.Supplier;
 
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
+import jakarta.json.stream.JsonGenerator;
+import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Adapts to/from {@link JsonObject} values.
+ *
+ * <p>
+ * Keys convert through the key type's text: the {@link TextForm} of a number or
+ * boolean type, or the text of its JSON string, number, or boolean. A null key,
+ * or one that converts to an object or array, fails.
+ * </p>
  * 
  * @param <T> target type
  * @param <V> value type
@@ -51,6 +62,12 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 	private final IuJsonAdapter<V> valueAdapter;
 	private final IuJsonAdapter<K> keyAdapter;
 	private final Supplier<T> factory;
+
+	/**
+	 * Tracks the entry converting; set by {@link JsonAdapters} before the adapter
+	 * is shared.
+	 */
+	ItemScope scope = ItemScope.NONE;
 
 	/**
 	 * Constructor
@@ -70,10 +87,21 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 		if (jsonValue == null //
 				|| JsonValue.NULL.equals(jsonValue))
 			return null;
+		if (!(jsonValue instanceof JsonObject))
+			throw JsonAdapters.expected("an object", jsonValue.getValueType());
 
 		final var map = factory.get();
-		for (final var e : jsonValue.asJsonObject().entrySet())
-			map.put(fromString(e.getKey()), valueAdapter.fromJson(e.getValue()));
+		for (final var e : jsonValue.asJsonObject().entrySet()) {
+			final var key = e.getKey();
+			scope.enterKey(false, key);
+			try {
+				map.put(fromString(key), valueAdapter.fromJson(e.getValue()));
+			} catch (RuntimeException failure) {
+				throw scope.fail(false, failure);
+			} finally {
+				scope.exit(false);
+			}
+		}
 		return map;
 	}
 
@@ -83,17 +111,105 @@ class JsonObjectAdapter<T extends Map<K, V>, K, V> implements IuJsonAdapter<T> {
 			return JsonValue.NULL;
 
 		final var a = IuJson.object();
-		for (final var e : javaValue.entrySet())
-			a.add(toString(e.getKey()), valueAdapter.toJson(e.getValue()));
+		for (final var e : javaValue.entrySet()) {
+			final var key = toString(e.getKey());
+			scope.enterKey(true, key);
+			try {
+				a.add(key, valueAdapter.toJson(e.getValue()));
+			} catch (RuntimeException failure) {
+				throw scope.fail(true, failure);
+			} finally {
+				scope.exit(true);
+			}
+		}
 		return a.build();
 	}
 
-	private K fromString(String key) {
-		return keyAdapter.fromJson(IuJsonAdapter.of(String.class).toJson(key));
+	/**
+	 * Reads entries as the parser reaches them. A value other than an object
+	 * fails, as it does for {@link #fromJson(JsonValue)}.
+	 */
+	@Override
+	public T read(JsonParser parser) {
+		final var event = parser.currentEvent();
+		if (event == Event.VALUE_NULL)
+			return null;
+		if (event != Event.START_OBJECT)
+			throw JsonAdapters.expected("an object", event);
+
+		final var map = factory.get();
+		while (parser.next() != Event.END_OBJECT) {
+			final var name = parser.getString();
+			scope.enterKey(false, name);
+			try {
+				final var key = fromString(name);
+				parser.next();
+				map.put(key, valueAdapter.read(parser));
+			} catch (RuntimeException failure) {
+				throw scope.fail(false, failure);
+			} finally {
+				scope.exit(false);
+			}
+		}
+		return map;
 	}
 
+	@Override
+	public void write(T javaValue, JsonGenerator generator) {
+		if (javaValue == null) {
+			generator.writeNull();
+			return;
+		}
+
+		generator.writeStartObject();
+		for (final var e : javaValue.entrySet()) {
+			final var key = toString(e.getKey());
+			scope.enterKey(true, key);
+			try {
+				generator.writeKey(key);
+				valueAdapter.write(e.getValue(), generator);
+			} catch (RuntimeException failure) {
+				throw scope.fail(true, failure);
+			} finally {
+				scope.exit(true);
+			}
+		}
+		generator.writeEnd();
+	}
+
+	/**
+	 * Reads a key from its text: through the key type's {@link TextForm} when it
+	 * has one, otherwise as the JSON string it was written as.
+	 */
+	@SuppressWarnings("unchecked")
+	private K fromString(String key) {
+		if (keyAdapter instanceof TextForm)
+			return ((TextForm<K>) keyAdapter).fromText(key);
+		else
+			return keyAdapter.fromJson(IuJson.string(key));
+	}
+
+	/**
+	 * Gets a key's text: the {@link TextForm} of a number or boolean type, or its
+	 * JSON value, which must be a string, number, or boolean.
+	 */
+	@SuppressWarnings("unchecked")
 	private String toString(K key) {
-		return IuJsonAdapter.of(String.class).fromJson(keyAdapter.toJson(key));
+		if (key == null)
+			throw new IllegalArgumentException("null key");
+		if (keyAdapter instanceof TextForm)
+			return ((TextForm<K>) keyAdapter).toText(key);
+
+		final var value = keyAdapter.toJson(key);
+		if (value instanceof JsonString)
+			return ((JsonString) value).getString();
+		else if (value instanceof JsonNumber //
+				|| JsonValue.TRUE.equals(value) //
+				|| JsonValue.FALSE.equals(value))
+			return value.toString();
+		else
+			throw new IllegalArgumentException(
+					"key " + key.getClass().getName() + " has no text form; converts to " + value.getValueType());
 	}
 
 }

@@ -63,7 +63,13 @@ public class ParallelTaskControllerTest {
 	@Test
 	public void testSimpleTask() throws Throwable {
 		final var init = Instant.now();
-		final var timeout = Duration.ofMillis(20L);
+
+		// the deadline is absolute and starts running before the task does, so it
+		// must comfortably outlast whatever the JVM spends reaching the task — class
+		// loading and JIT on the first test of a run. A task that starts after its
+		// own deadline reports a negative elapsed time, which fails below for a
+		// reason that has nothing to do with what is under test here.
+		final var timeout = Duration.ofSeconds(1L);
 		final var expires = init.plus(timeout);
 		final var task = new ParallelTaskController(expires);
 		assertNull(task.getStart());

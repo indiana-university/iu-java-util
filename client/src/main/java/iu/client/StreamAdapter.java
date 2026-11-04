@@ -55,12 +55,12 @@ class StreamAdapter<E> extends JsonArrayAdapter<Stream<E>, E> {
 	}
 
 	@Override
-	protected Iterator<E> iterator(Stream<E> value) {
+	public Iterator<E> iterator(Stream<E> value) {
 		return value.iterator();
 	}
 
 	@Override
-	protected Stream<E> collect(Iterable<E> items) {
+	public Stream<E> collect(Iterable<E> items) {
 		return StreamSupport.stream(items::spliterator, Spliterator.ORDERED | Spliterator.IMMUTABLE, false);
 	}
 

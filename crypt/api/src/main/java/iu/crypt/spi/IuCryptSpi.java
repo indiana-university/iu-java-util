@@ -37,6 +37,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.security.cert.X509Certificate;
 
+import edu.iu.crypt.Init;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.WebCryptoHeader;
 import edu.iu.crypt.WebEncryption;
@@ -158,5 +159,13 @@ public interface IuCryptSpi {
 	 * @return {@link WebCryptoHeader}
 	 */
 	WebCryptoHeader getProtectedHeader(String serialized);
+
+	/**
+	 * Implements {@link Init#jsonbConfig()}
+	 * 
+	 * @param <T> JsonbConfig
+	 * @return JsonbConfig instance
+	 */
+	<T> T jsonbConfig();
 
 }

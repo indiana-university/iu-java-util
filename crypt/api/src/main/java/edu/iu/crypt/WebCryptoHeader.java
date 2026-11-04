@@ -32,6 +32,7 @@
 package edu.iu.crypt;
 
 import java.net.URI;
+import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -40,6 +41,7 @@ import java.util.function.Function;
 
 import edu.iu.IuException;
 import edu.iu.IuObject;
+import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.crypt.WebKey.Use;
 
@@ -59,69 +61,71 @@ public interface WebCryptoHeader extends WebKeyReference {
 		/**
 		 * Encryption/signature algorithm.
 		 */
-		ALGORITHM("alg", EnumSet.allOf(Use.class), true, WebCryptoHeader::getAlgorithm),
+		ALGORITHM("alg", EnumSet.allOf(Use.class), true, Algorithm.class, WebCryptoHeader::getAlgorithm),
 
 		/**
 		 * Well-known key identifier.
 		 */
-		KEY_ID("kid", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeyId),
+		KEY_ID("kid", EnumSet.allOf(Use.class), false, String.class, WebCryptoHeader::getKeyId),
 
 		/**
 		 * Well-known key set URI.
 		 */
-		KEY_SET_URI("jku", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKeySetUri),
+		KEY_SET_URI("jku", EnumSet.allOf(Use.class), false, URI.class, WebCryptoHeader::getKeySetUri),
 
 		/**
 		 * Well-known public key.
 		 */
-		KEY("jwk", EnumSet.allOf(Use.class), false, WebCryptoHeader::getKey),
+		KEY("jwk", EnumSet.allOf(Use.class), false, WebKey.class, WebCryptoHeader::getKey),
 
 		/**
 		 * Certificate chain URI.
 		 */
-		CERTIFICATE_URI("x5u", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateUri),
+		CERTIFICATE_URI("x5u", EnumSet.allOf(Use.class), false, URI.class, WebCryptoHeader::getCertificateUri),
 
 		/**
 		 * Certificate chain.
 		 */
-		CERTIFICATE_CHAIN("x5c", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateChain),
+		CERTIFICATE_CHAIN("x5c", EnumSet.allOf(Use.class), false, X509Certificate[].class,
+				WebCryptoHeader::getCertificateChain),
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-		CERTIFICATE_THUMBPRINT("x5t", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCertificateThumbprint),
+		CERTIFICATE_THUMBPRINT("x5t", EnumSet.allOf(Use.class), false, byte[].class,
+				WebCryptoHeader::getCertificateThumbprint),
 
 		/**
 		 * Certificate SHA-1 thumb print.
 		 */
-		CERTIFICATE_SHA256_THUMBPRINT("x5t#S256", EnumSet.allOf(Use.class), false,
+		CERTIFICATE_SHA256_THUMBPRINT("x5t#S256", EnumSet.allOf(Use.class), false, byte[].class,
 				WebCryptoHeader::getCertificateSha256Thumbprint),
 
 		/**
 		 * Signature/encryption media type.
 		 */
-		TYPE("typ", EnumSet.allOf(Use.class), false, WebCryptoHeader::getType),
+		TYPE("typ", EnumSet.allOf(Use.class), false, String.class, WebCryptoHeader::getType),
 
 		/**
 		 * Content media type.
 		 */
-		CONTENT_TYPE("cty", EnumSet.allOf(Use.class), false, WebCryptoHeader::getContentType),
+		CONTENT_TYPE("cty", EnumSet.allOf(Use.class), false, String.class, WebCryptoHeader::getContentType),
 
 		/**
 		 * Extended parameter names that <em>must</em> be included in the protected
 		 * header.
 		 */
-		CRITICAL_PARAMS("crit", EnumSet.allOf(Use.class), false, WebCryptoHeader::getCriticalParameters),
+		CRITICAL_PARAMS("crit", EnumSet.allOf(Use.class), false, String[].class, WebCryptoHeader::getCriticalParameters),
 
 		/**
 		 * Content encryption algorithm.
 		 */
-		ENCRYPTION("enc", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("enc")),
+		ENCRYPTION("enc", EnumSet.of(Use.ENCRYPT), true, Encryption.class, a -> a.getExtendedParameter("enc")),
 
 		/**
 		 * Plain-text compression algorithm for encryption.
 		 */
-		ZIP("zip", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("zip")),
+		ZIP("zip", EnumSet.of(Use.ENCRYPT), false, String.class, a -> a.getExtendedParameter("zip")),
 
 		/**
 		 * Ephemeral public key for key agreement algorithms.
@@ -131,7 +135,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#ECDH_ES_A192KW
 		 * @see Algorithm#ECDH_ES_A256KW
 		 */
-		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("epk")),
+		EPHEMERAL_PUBLIC_KEY("epk", EnumSet.of(Use.ENCRYPT), true, WebKey.class, a -> a.getExtendedParameter("epk")),
 
 		/**
 		 * Public originator identifier (PartyUInfo) for key derivation.
@@ -141,7 +145,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#ECDH_ES_A192KW
 		 * @see Algorithm#ECDH_ES_A256KW
 		 */
-		PARTY_UINFO("apu", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apu")),
+		PARTY_UINFO("apu", EnumSet.of(Use.ENCRYPT), false, byte[].class, a -> a.getExtendedParameter("apu")),
 
 		/**
 		 * Public recipient identifier (PartyVInfo) for key derivation.
@@ -151,7 +155,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#ECDH_ES_A192KW
 		 * @see Algorithm#ECDH_ES_A256KW
 		 */
-		PARTY_VINFO("apv", EnumSet.of(Use.ENCRYPT), false, a -> a.getExtendedParameter("apv")),
+		PARTY_VINFO("apv", EnumSet.of(Use.ENCRYPT), false, byte[].class, a -> a.getExtendedParameter("apv")),
 
 		/**
 		 * Initialization vector for GCM key wrap.
@@ -160,7 +164,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#A192GCMKW
 		 * @see Algorithm#A256GCMKW
 		 */
-		INITIALIZATION_VECTOR("iv", EnumSet.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("iv")),
+		INITIALIZATION_VECTOR("iv", EnumSet.of(Use.ENCRYPT), true, byte[].class, a -> a.getExtendedParameter("iv")),
 
 		/**
 		 * Authentication tag for GCM key wrap.
@@ -169,7 +173,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#A192GCMKW
 		 * @see Algorithm#A256GCMKW
 		 */
-		TAG("tag", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("tag")),
+		TAG("tag", Set.of(Use.ENCRYPT), true, byte[].class, a -> a.getExtendedParameter("tag")),
 
 		/**
 		 * Password salt for use with PBES2.
@@ -178,7 +182,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#PBES2_HS384_A192KW
 		 * @see Algorithm#PBES2_HS512_A256KW
 		 */
-		PASSWORD_SALT("p2s", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("p2s")),
+		PASSWORD_SALT("p2s", Set.of(Use.ENCRYPT), true, byte[].class, a -> a.getExtendedParameter("p2s")),
 
 		/**
 		 * PBKDF2 iteration count for use with PBES2.
@@ -187,7 +191,7 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 * @see Algorithm#PBES2_HS384_A192KW
 		 * @see Algorithm#PBES2_HS512_A256KW
 		 */
-		PASSWORD_COUNT("p2c", Set.of(Use.ENCRYPT), true, a -> a.getExtendedParameter("p2c"));
+		PASSWORD_COUNT("p2c", Set.of(Use.ENCRYPT), true, Integer.class, a -> a.getExtendedParameter("p2c"));
 
 		/**
 		 * Gets a parameter by JOSE standard parameter name.
@@ -218,12 +222,18 @@ public interface WebCryptoHeader extends WebKeyReference {
 		 */
 		public final boolean required;
 
+		/**
+		 * Parameter type.
+		 */
+		public final Class<?> type;
+
 		private final Function<WebCryptoHeader, ?> get;
 
-		private Param(String name, Set<Use> use, boolean required, Function<WebCryptoHeader, ?> get) {
+		private Param(String name, Set<Use> use, boolean required, Class<?> type, Function<WebCryptoHeader, ?> get) {
 			this.name = name;
 			this.use = Collections.unmodifiableSet(use);
 			this.required = required;
+			this.type = type;
 			this.get = get;
 		}
 

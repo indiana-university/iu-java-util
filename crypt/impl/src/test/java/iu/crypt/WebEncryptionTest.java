@@ -76,7 +76,7 @@ public class WebEncryptionTest {
 				a -> a.use.equals(Use.ENCRYPT)))
 			for (final var encryption : Encryption.values())
 				assertEncryption(algorithm, encryption);
-		assertNull(Jwe.JSON.fromJson(Jwe.JSON.toJson(null)));
+		assertNull(CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(null), WebEncryption.class));
 	}
 
 	@Test
@@ -158,8 +158,7 @@ public class WebEncryptionTest {
 
 		final var ext = mock(Extension.class, CALLS_REAL_METHODS);
 		final var id = IdGenerator.generateId();
-		when(ext.toJson(id)).thenReturn(IuJson.string(id));
-		when(ext.fromJson(IuJson.string(id))).thenReturn(id);
+		when(ext.type()).thenReturn(String.class);
 
 		Jose.register("urn:example:iu:id", ext);
 
@@ -197,8 +196,8 @@ public class WebEncryptionTest {
 			IuTestLogger.expect("iu.crypt.Jwe", Level.FINE, "CEK decryption successful for " + key.wellKnown());
 			assertEquals(message, compactJwe.decryptText(key));
 			assertNull(compactJwe.getAdditionalData());
-			assertEquals(IuJson.parse(compactJwe.toString()),
-					IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(compactJwe)).toString()));
+			assertEquals(IuJson.parse(compactJwe.toString()), IuJson.parse(CryptJsonAdapters.JSONB
+					.fromJson(CryptJsonAdapters.JSONB.toJson(compactJwe), WebEncryption.class).toString()));
 
 			final var fromCompact = WebEncryption.parse(compactJwe.compact());
 			final var compactHeader = fromCompact.getRecipients().iterator().next().getHeader();
@@ -216,8 +215,8 @@ public class WebEncryptionTest {
 		{
 			final var serialJwe = WebEncryption.to(encryption, algorithm).wellKnown(key).then().encrypt(message);
 			assertNull(serialJwe.getAdditionalData());
-			assertEquals(IuJson.parse(serialJwe.toString()),
-					IuJson.parse(Jwe.JSON.fromJson(Jwe.JSON.toJson(serialJwe)).toString()));
+			assertEquals(IuJson.parse(serialJwe.toString()), IuJson.parse(CryptJsonAdapters.JSONB
+					.fromJson(CryptJsonAdapters.JSONB.toJson(serialJwe), WebEncryption.class).toString()));
 
 			final var fromSerial = WebEncryption.parse(serialJwe.toString());
 			final var serialHeader = fromSerial.getRecipients().iterator().next().getHeader();
@@ -234,7 +233,8 @@ public class WebEncryptionTest {
 					.encrypt(message);
 			assertNotNull(slientJwe.getAdditionalData());
 
-			final var fromSilent = Jwe.JSON.fromJson(Jwe.JSON.toJson(slientJwe));
+			final var fromSilent = CryptJsonAdapters.JSONB.fromJson(CryptJsonAdapters.JSONB.toJson(slientJwe),
+					WebEncryption.class);
 			final var silentHeader = fromSilent.getRecipients().iterator().next().getHeader();
 			assertEquals(algorithm, silentHeader.getAlgorithm());
 			assertEquals(encryption, fromSilent.getEncryption());

@@ -8,23 +8,25 @@ Read the repository root `CLAUDE.md` first for build commands and shared convent
 
 The secure configuration layer. `IuConfig` is the single class in the public API, and it is the sanctioned way for every module above `base` to obtain settings. `edu.iu.IuRuntimeEnvironment` exists only to bootstrap *this* layer; application code should not read the environment directly.
 
-Compiled with `--release 11`. `iu.util.client` and `iu.util.crypt` are `requires transitive`, so consumers get `IuVault` and the JOSE API alongside it.
+Compiled with `--release 17`. `iu.util.client`, `iu.util.crypt`, and `jakarta.json.bind` are `requires transitive`, so consumers get `IuVault`, the JOSE API, and `Jsonb` alongside it. Configuration binding builds on `Init.jsonbConfig()`, which the crypt SPI supplies, so `iu.util.crypt.impl` is needed at runtime (and is a test dependency here) but not at compile time; the JSON-B API is `provided`.
 
 ## The registration model
 
-Configuration is declared once at startup, then sealed:
+Configuration is declared once at startup, then sealed. Like a `ModuleLayer.Controller`, everything before sealing is the application's responsibility: the module is embedded in the application and loaded by its own class loader, and IuConfig doesn't synchronize setup. Registration, any `configureJsonb` call, and `seal()` belong in one block on one thread early in initialization, and `seal()` must come before the application creates thread pools or starts any thread that loads configuration (`Thread.start` then makes the sealed state visible). Nothing loads before sealing, and nothing registers after.
 
 ```java
-IuConfig.registerInterface("example.service", MyServiceConfig.class, IuVault.RUNTIME);
+IuConfig.registerInterface("example", MyServiceConfig.class, IuVault.RUNTIME);
 IuConfig.registerFactory(SomeType.class, key -> load(key));
-IuConfig.seal();                       // no further registration permitted
+IuConfig.seal();                       // required; no further registration permitted
 MyServiceConfig cfg = IuConfig.load(MyServiceConfig.class, "prod");
 ```
 
-- `registerInterface(prefix, configInterface, vault...)` binds an interface to Vault secrets under a prefix; the overload taking a `Duration` sets a cache TTL.
-- `registerFactory(configType, load)` covers types that are not interface-shaped.
-- `seal()` is one-way. Any registration attempt afterward fails, which is what makes configuration immutable for the life of the process. Tests that register must not leak state across cases.
-- `adaptJson(Class)` / `adaptJson(Type)` produce the `IuJsonAdapter` used to bind a configuration interface, applying recursively to nested non-platform interfaces (`IuObject.isPlatformName` decides what counts as platform).
+- `registerInterface(prefix, configType, vault...)` binds a type to Vault secrets under a prefix of lowercase letters, read as `prefix/key` from each vault in turn (the first that binds wins; if none does, the first failure is thrown with the rest suppressed); the overload taking a `Duration` sets a cache TTL. Wherever the type is bound, a JSON string refers to a stored value by key; anything else passes down the JSON-B chain to the type's own conversion, so a type with a component of its own, such as `WebKey`, can be stored by reference too.
+- `registerFactory(configType, load)` covers types that are not interface-shaped. Wherever such a type is bound, it binds only from a key string, resolved through its factory by `load` (JSON null binds as null); any other JSON value fails. A subtype registered in its own right converts by its own registration. IuConfig only reads: it registers no serializer, so an application that writes configuration supplies its own (for example, writing a factory type as its key) through `configureJsonb`.
+- Configuration binds by one `JsonbConfig`: `Init.jsonbConfig()` (snake_case names, base64url binary, JOSE values for algorithms and key types, crypt's components for keys and certificates) with JSON-B's defaults otherwise, so ISO-8601 dates and enums by `name()`, plus a deserializer per registered interface for stored references and a lenient one that binds a non-array value as a one-item `Iterable`, `Collection`, `List`, or `Set`. `configureJsonb(Consumer<JsonbConfig>)` hands the application the live `JsonbConfig` before sealing, to add components or replace anything, defaults included; components for the same type run in the order configured, so the call's order relative to `registerInterface` matters, and changes after sealing have no effect. `seal()` builds the `Jsonb` from it, and `jsonb()` returns that instance after sealing, for conversions that need the same semantics as `load`.
+- `seal()` is one-way. Any registration attempt afterward fails, which is what makes configuration immutable for the life of the process. Tests that register must not leak state across cases: `IuConfigTest` resets the sealed state, the registrations, and every property of the `JsonbConfig` after each test.
+
+Removed in 7.1: `adaptJson(Class)`, `adaptJson(Type)`, `registerAdapter(Class, IuJsonAdapter)`, `registerAdapter(JsonbAdapter)`, `registerSerializer`, and `registerDeserializer`; components now go through `configureJsonb`. Stored configuration follows the formats above, so secrets written in the pre-7.1 format need migrating where those differ: a `WebKey.Algorithm` or `WebEncryption.Encryption` value is its JOSE name (`RSA-OAEP`, `A128CBC-HS256`), not its enum constant name (`RSA_OAEP`, `AES_128_CBC_HMAC_SHA_256`), and `byte[]` is base64url.
 
 ## The convention this module enforces
 

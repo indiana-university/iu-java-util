@@ -34,6 +34,7 @@ package iu.crypt;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -57,14 +58,12 @@ import edu.iu.IdGenerator;
 import edu.iu.IuIterable;
 import edu.iu.client.HttpResponseHandler;
 import edu.iu.client.IuHttp;
-import edu.iu.client.IuJson;
 import edu.iu.crypt.PemEncoded;
 import edu.iu.crypt.PemEncoded.KeyType;
 import edu.iu.crypt.WebEncryption.Encryption;
 import edu.iu.crypt.WebKey;
 import edu.iu.crypt.WebKey.Algorithm;
 import edu.iu.test.IuTest;
-import jakarta.json.JsonObject;
 
 @SuppressWarnings("javadoc")
 public class CryptSpiTest extends CryptImplTestCase {
@@ -112,7 +111,7 @@ public class CryptSpiTest extends CryptImplTestCase {
 
 	@Test
 	public void testGetCompactProtectedHeader() {
-		final var header = IuJson.object().add("alg", "ES256").build();
+		final var header = CryptJsonAdapters.builder().put("alg", "ES256").build();
 		final var serialized = IdGenerator.generateId();
 		try (final var mockCompactEncoded = mockStatic(CompactEncoded.class)) {
 			mockCompactEncoded.when(() -> CompactEncoded.getProtectedHeader(serialized)).thenReturn(header);
@@ -122,9 +121,25 @@ public class CryptSpiTest extends CryptImplTestCase {
 
 	@Test
 	public void testGetSerializedProtectedHeader() {
-		final var header = IuJson.object().add("alg", "ES256").build();
-		final var serialized = IuJson.object().add("protected", header).build().toString();
+		final var header = CompactEncoded.encodeHeader(CryptJsonAdapters.builder().put("alg", "ES256").build());
+		final var serialized = CryptJsonAdapters.JSONB
+				.toJson(CryptJsonAdapters.builder().put("protected", header).build());
 		assertEquals(Algorithm.ES256, spi.getProtectedHeader(serialized).getAlgorithm());
+	}
+
+	@Test
+	public void testGetGeneralJwsProtectedHeader() {
+		final var header = CompactEncoded.encodeHeader(CryptJsonAdapters.builder().put("alg", "ES256").build());
+		final var serialized = CryptJsonAdapters.JSONB.toJson(CryptJsonAdapters.builder()
+				.put("signatures", new Object[] { CryptJsonAdapters.builder().put("protected", header).build() })
+				.build());
+		assertEquals(Algorithm.ES256, spi.getProtectedHeader(serialized).getAlgorithm());
+	}
+
+	@Test
+	public void testGetSerializedProtectedHeaderMissing() {
+		assertEquals("protected header required",
+				assertThrows(NullPointerException.class, () -> spi.getProtectedHeader("{}")).getMessage());
 	}
 
 	@Test
@@ -139,28 +154,18 @@ public class CryptSpiTest extends CryptImplTestCase {
 
 	@Test
 	public void testParseJwk() {
-		final var jwk = IdGenerator.generateId();
-		final var json = mock(JsonObject.class);
-		when(json.asJsonObject()).thenReturn(json);
-		try (final var mockIuJson = mockStatic(IuJson.class); final var mockJwk = mockConstruction(Jwk.class)) {
-			mockIuJson.when(() -> IuJson.parse(jwk)).thenReturn(json);
-			final var parsedJwk = spi.parseJwk(jwk);
-			assertSame(mockJwk.constructed().get(0), parsedJwk);
-		}
+		final var jwk = WebKey.ephemeral(Algorithm.ECDH_ES);
+		assertEquals(jwk, spi.parseJwk(jwk.toString()));
 	}
 
 	@Test
 	public void testParseJwks() {
-		final var jwk = IdGenerator.generateId();
-		final var json = mock(JsonObject.class);
-		when(json.asJsonObject()).thenReturn(json);
-		try (final var mockIuJson = mockStatic(IuJson.class); final var mockJwk = mockStatic(Jwk.class)) {
-			mockIuJson.when(() -> IuJson.parse(jwk)).thenReturn(json);
-			final var parsedJwk = mock(Jwk.class);
-			final var parsedJwks = IuIterable.iter(parsedJwk);
-			mockJwk.when(() -> Jwk.parseJwks(json)).thenReturn(parsedJwks);
-			assertSame(parsedJwks, spi.parseJwks(jwk));
-		}
+		final var jwk = WebKey.ephemeral(Algorithm.HS256);
+		final var builder = CryptJsonAdapters.builder();
+		builder.put("keys", IuIterable.iter(jwk));
+		final var json = CryptJsonAdapters.JSONB.toJson(builder.build());
+
+		assertEquals(jwk, spi.parseJwks(json).iterator().next());
 	}
 
 	@Test
@@ -185,17 +190,13 @@ public class CryptSpiTest extends CryptImplTestCase {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Test
 	public void testAsJwks() {
-		final var jwks = mock(Iterable.class);
-		final var json = mock(JsonObject.class);
-		final var serializedJwks = IdGenerator.generateId();
-		when(json.toString()).thenReturn(serializedJwks);
-		try (final var mockJwk = mockStatic(Jwk.class)) {
-			mockJwk.when(() -> Jwk.asJwks(jwks)).thenReturn(json);
-			assertSame(serializedJwks, spi.asJwks(jwks));
-		}
+		final var jwk = WebKey.ephemeral(Algorithm.HS256);
+		final var builder = CryptJsonAdapters.builder();
+		builder.put("keys", IuIterable.iter(jwk));
+		final var json = CryptJsonAdapters.JSONB.toJson(builder.build());
+		assertEquals(json, spi.asJwks(IuIterable.iter(jwk)));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -235,11 +236,10 @@ public class CryptSpiTest extends CryptImplTestCase {
 	@Test
 	public void testParseJwe() {
 		final var jwe = IdGenerator.generateId();
-		try (final var mockJwe = mockConstruction(Jwe.class, (a, ctx) -> {
-			assertSame(jwe, ctx.arguments().get(0));
-		})) {
-			final var parsedJwe = spi.parseJwe(jwe);
-			assertSame(mockJwe.constructed().get(0), parsedJwe);
+		final var parsed = mock(Jwe.class);
+		try (final var mockJwe = mockStatic(Jwe.class)) {
+			mockJwe.when(() -> Jwe.parse(jwe)).thenReturn(parsed);
+			assertSame(parsed, spi.parseJwe(jwe));
 		}
 	}
 
@@ -252,5 +252,13 @@ public class CryptSpiTest extends CryptImplTestCase {
 			assertSame(webSignedPayload, spi.parseJws(jws));
 		}
 	}
-	
+
+	@Test
+	public void testJsonbConfig() {
+		try (final var mockCryptJsonAdapters = mockStatic(CryptJsonAdapters.class)) {
+			spi.jsonbConfig();
+			mockCryptJsonAdapters.verify(() -> CryptJsonAdapters.config());
+		}
+	}
+
 }

@@ -41,6 +41,7 @@ import java.util.function.Supplier;
 import edu.iu.IuObject;
 import edu.iu.client.IuJson;
 import edu.iu.client.IuJsonAdapter;
+import edu.iu.client.IuJsonPropertyNameFormat;
 import edu.iu.client.IuVaultKeyedValue;
 import edu.iu.client.IuVaultMetadata;
 import edu.iu.client.IuVaultSecret;
@@ -91,7 +92,9 @@ final class VaultSecret implements IuVaultSecret {
 
 	@Override
 	public IuVaultMetadata getMetadata() {
-		return IuObject.convert(metadataSupplier.get(), a -> IuJson.wrap(a, IuVaultMetadata.class, valueAdapter));
+		// Vault's own format, whatever the values convert by
+		return IuObject.convert(metadataSupplier.get(), a -> IuJson.wrap(a, IuVaultMetadata.class,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuJsonAdapter::of));
 	}
 
 	@SuppressWarnings("unchecked")
