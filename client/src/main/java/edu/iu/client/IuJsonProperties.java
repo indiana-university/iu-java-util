@@ -651,6 +651,30 @@ public final class IuJsonProperties {
 	}
 
 	/**
+	 * Determines whether a property has a non-null value, without converting it.
+	 *
+	 * @param name JSON property name
+	 * @return true if present with a value other than JSON null
+	 * @throws IllegalStateException if a property failed to convert as it was read
+	 *                               from the parser, and this read needs the rest of
+	 *                               the object
+	 */
+	public boolean hasValue(String name) {
+		final var value = resolved.get(name);
+		if (value != null)
+			return value != NULL;
+
+		var json = raw(name);
+		if (json == null && source == null) {
+			synchronized (this) {
+				pull(name, null);
+			}
+			json = raw(name);
+		}
+		return json != null && !JsonValue.NULL.equals(json);
+	}
+
+	/**
 	 * Reads a property.
 	 *
 	 * @param <T>  Java type

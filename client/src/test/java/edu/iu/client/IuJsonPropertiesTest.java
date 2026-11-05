@@ -138,6 +138,26 @@ public class IuJsonPropertiesTest {
 	}
 
 	@Test
+	public void testHasValue() {
+		final var json = "{\"a\":1,\"b\":null,\"c\":2,\"d\":null}";
+		final var source = IuJsonProperties.of(IuJson.parse(json).asJsonObject(), IuJsonAdapter::of);
+		assertTrue(source.hasValue("a"));
+		assertFalse(source.hasValue("b"));
+		assertFalse(source.hasValue("x"));
+		assertEquals(1, (Integer) source.get("a", Integer.class));
+		assertTrue(source.hasValue("a"));
+
+		final var parsed = IuJsonProperties.read(parser(json), IuJsonAdapter::of);
+		assertTrue(parsed.hasValue("a"));
+		assertFalse(parsed.hasValue("b"));
+		assertEquals(2, (Integer) parsed.get("c", Integer.class));
+		assertTrue(parsed.hasValue("c"));
+		assertNull(parsed.get("d", Integer.class));
+		assertFalse(parsed.hasValue("d"));
+		assertFalse(parsed.hasValue("x"));
+	}
+
+	@Test
 	public void testPullForward() {
 		final List<String> calls = new ArrayList<>();
 		final var json = "{\"a\":1,\"b\":{\"c\":2},\"d\":[3],\"e\":\"x\"}";

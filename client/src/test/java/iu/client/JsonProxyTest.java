@@ -78,6 +78,42 @@ public class JsonProxyTest {
 		boolean equals(String foo, String bar);
 	}
 
+	interface PrimitiveDefaults {
+		default int getCount() {
+			return 42;
+		}
+
+		int getPlain();
+	}
+
+	@Test
+	public void testPrimitiveNullUsesDefaultMethod() {
+		final var nulls = IuJson.wrap(IuJson.object().addNull("count").addNull("plain").build(),
+				PrimitiveDefaults.class);
+		assertEquals(42, nulls.getCount());
+		assertEquals(0, nulls.getPlain());
+		assertEquals(42, IuJson.wrap(IuJson.object().build(), PrimitiveDefaults.class).getCount());
+		assertEquals(7, IuJson.wrap(IuJson.object().add("count", 7).build(), PrimitiveDefaults.class).getCount());
+	}
+
+	@Test
+	public void testHasValue() {
+		final var data = IuJson.wrap(IuJson.object().add("count", 7).addNull("plain").build(), PrimitiveDefaults.class);
+		assertTrue(IuJson.hasValue(data, "count"));
+		assertFalse(IuJson.hasValue(data, "plain"));
+		assertFalse(IuJson.hasValue(data, "missing"));
+		assertFalse(IuJson.hasValue(null, "count"));
+		assertFalse(IuJson.hasValue(new Object(), "count"));
+		final var foreign = Proxy.newProxyInstance(PrimitiveDefaults.class.getClassLoader(),
+				new Class<?>[] { PrimitiveDefaults.class }, (proxy, method, args) -> null);
+		assertFalse(IuJson.hasValue(foreign, "count"));
+
+		assertTrue(IuJson.isWrapped(data));
+		assertFalse(IuJson.isWrapped(null));
+		assertFalse(IuJson.isWrapped(new Object()));
+		assertFalse(IuJson.isWrapped(foreign));
+	}
+
 	interface JsonBackedInterfaceReference {
 		JsonBackedInterface getData();
 	}

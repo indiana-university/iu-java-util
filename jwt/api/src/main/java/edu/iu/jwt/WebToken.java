@@ -146,6 +146,43 @@ public interface WebToken {
 	}
 
 	/**
+	 * Creates a {@link WebToken} from claims that weren't received as a signed
+	 * token, such as a UserInfo response.
+	 *
+	 * <p>
+	 * The source is one of:
+	 * </p>
+	 * <ul>
+	 * <li>a {@code JsonObject} of claims</li>
+	 * <li>a {@link String} of JSON object text</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * Either way, claims convert by {@link #jsonb()}, as for any token: snake_case
+	 * names, every {@link Instant} as a NumericDate, and the components registered
+	 * here.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Doesn't verify a signature</strong>: the token is only as
+	 * trustworthy as the source it was created from. Use
+	 * {@link #verify(String, WebKey)} for a signed token. Point in time claims
+	 * {@code iat}, {@code nbf}, and {@code exp} are validated when present, as for
+	 * any token.
+	 * </p>
+	 *
+	 * @param source claims
+	 * @return {@link WebToken}
+	 * @throws IllegalArgumentException if the source isn't one of the types above,
+	 *                                  or a point in time claim is invalid
+	 * @throws jakarta.json.bind.JsonbException if the source is text that isn't a
+	 *                                          JSON object
+	 */
+	static WebToken of(Object source) {
+		return Init.SPI.of(source);
+	}
+
+	/**
 	 * Verifies a signed JSON Web Token (JWT).
 	 * 
 	 * @param jwt       Signed JWT
@@ -186,8 +223,8 @@ public interface WebToken {
 
 	/**
 	 * Gets the token audience URIs.
-	 * 
-	 * @return at least one {@link URI}
+	 *
+	 * @return at least one {@link URI}; null if the token has no aud claim
 	 */
 	Iterable<URI> getAudience();
 
@@ -255,7 +292,17 @@ public interface WebToken {
 
 	/**
 	 * Gets a generic claim value.
-	 * 
+	 *
+	 * <p>
+	 * A claim with a single value, rather than a JSON array, reads as one value
+	 * when the type is an array or {@link Iterable}: {@code "aud": "a"} reads as
+	 * {@code URI[]} the same as {@code "aud": ["a"]}. The value is not split, so a
+	 * space-delimited claim such as {@code scope} reads as an array of one string.
+	 * A JSON null reads as null, not as an array holding null. {@code byte[]},
+	 * which converts from base64url text, and {@code JsonArray}, which
+	 * converts as itself, are not wrapped.
+	 * </p>
+	 *
 	 * @param name claim name
 	 * @param type claim type
 	 * @return claim value
@@ -264,7 +311,12 @@ public interface WebToken {
 
 	/**
 	 * Gets a claim value.
-	 * 
+	 *
+	 * <p>
+	 * Reads as {@link #getClaim(String, Type)}, including a single value as an
+	 * array of one.
+	 * </p>
+	 *
 	 * @param <T>  claim value type
 	 * @param name claim name
 	 * @param type claim type

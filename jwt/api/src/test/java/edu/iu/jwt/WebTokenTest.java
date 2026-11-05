@@ -55,6 +55,13 @@ public class WebTokenTest {
 	}
 
 	@Test
+	public void testOf() {
+		final var source = IdGenerator.generateId();
+		WebToken.of(source);
+		verify(Init.SPI).of(source);
+	}
+
+	@Test
 	public void testDecryptAndVerify() {
 		final var jwt = IdGenerator.generateId();
 		final var issuerKey = mock(WebKey.class);
