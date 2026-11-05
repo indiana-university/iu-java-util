@@ -222,6 +222,32 @@ public final class JsonProxy implements InvocationHandler {
 		return ((JsonProxy) Proxy.getInvocationHandler(jsonProxy)).properties;
 	}
 
+	/**
+	 * Determines whether a {@link JsonProxy} wrapper's properties have a non-null
+	 * value for a property.
+	 *
+	 * @param jsonProxy wrapper
+	 * @param property  JSON property name
+	 * @return true if {@code jsonProxy} is a {@link JsonProxy} wrapper and the
+	 *         property has a value other than JSON null; false otherwise
+	 */
+	public static boolean hasValue(Object jsonProxy, String property) {
+		return isWrapped(jsonProxy) && properties(jsonProxy).hasValue(property);
+	}
+
+	/**
+	 * Determines whether an object is a {@link JsonProxy} wrapper.
+	 *
+	 * @param jsonProxy object to check
+	 * @return true if {@code jsonProxy} is a non-null proxy instance backed by
+	 *         {@link JsonProxy}; false otherwise
+	 */
+	public static boolean isWrapped(Object jsonProxy) {
+		return jsonProxy != null //
+				&& Proxy.isProxyClass(jsonProxy.getClass()) //
+				&& Proxy.getInvocationHandler(jsonProxy) instanceof JsonProxy;
+	}
+
 	private final IuJsonProperties properties;
 	private final Class<?> targetInterface;
 	private final Function<String, String> naming;
