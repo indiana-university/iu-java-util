@@ -176,15 +176,18 @@ public class Jwt implements WebToken {
 
 	@Override
 	public Object getClaim(String name, Type type) {
-		if (isMultiValued(type)) {
-			final var value = claims.get(name, JsonValue.class);
-			if (value != null //
-					&& !(value instanceof JsonArray) //
-					&& !JsonValue.NULL.equals(value))
-				return IuJsonProperties.of(IuJson.object().add(name, IuJson.array().add(value)).build(), //
-						TokenJsonb.get()).get(name, type);
-		}
-		return claims.get(name, type);
+		if (!isMultiValued(type))
+			return claims.get(name, type);
+
+		// converts from JSON every time: the claim is cached as JsonValue, and a
+		// cached JsonArray would satisfy List or Iterable without converting
+		final var value = claims.get(name, JsonValue.class);
+		if (value == null //
+				|| JsonValue.NULL.equals(value))
+			return null;
+
+		final var array = value instanceof JsonArray ? value : IuJson.array().add(value).build();
+		return IuJsonProperties.of(IuJson.object().add(name, array).build(), TokenJsonb.get()).get(name, type);
 	}
 
 	/**

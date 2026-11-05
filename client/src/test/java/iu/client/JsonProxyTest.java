@@ -78,6 +78,24 @@ public class JsonProxyTest {
 		boolean equals(String foo, String bar);
 	}
 
+	interface PrimitiveDefaults {
+		default int getCount() {
+			return 42;
+		}
+
+		int getPlain();
+	}
+
+	@Test
+	public void testPrimitiveNullUsesDefaultMethod() {
+		final var nulls = IuJson.wrap(IuJson.object().addNull("count").addNull("plain").build(),
+				PrimitiveDefaults.class);
+		assertEquals(42, nulls.getCount());
+		assertEquals(0, nulls.getPlain());
+		assertEquals(42, IuJson.wrap(IuJson.object().build(), PrimitiveDefaults.class).getCount());
+		assertEquals(7, IuJson.wrap(IuJson.object().add("count", 7).build(), PrimitiveDefaults.class).getCount());
+	}
+
 	interface JsonBackedInterfaceReference {
 		JsonBackedInterface getData();
 	}

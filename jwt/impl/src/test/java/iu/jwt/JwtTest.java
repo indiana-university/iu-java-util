@@ -49,6 +49,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -227,6 +228,37 @@ public class JwtTest {
 		assertEquals(role, token.getClaim("role", String.class));
 		assertArrayEquals(bin, token.getClaim("bin", byte[].class));
 		assertThrows(JsonbException.class, () -> token.getClaim("role", JsonArray.class));
+	}
+
+	static Collection<String> collectionOfString;
+
+	@Test
+	public void testArrayClaimsConvert() {
+		final var audience = URI.create(IdGenerator.generateId());
+		final var role = IdGenerator.generateId();
+		final var token = new Jwt(IuJson.object() //
+				.add("aud", IuJson.array().add(audience.toString())) //
+				.add("roles", IuJson.array().add(role).add("other")) //
+				.build());
+
+		// a real array converts its elements, rather than returning the JsonArray
+		final var roles = token.getClaim("roles", type("listOfString"));
+		assertFalse(roles instanceof JsonArray);
+		assertEquals(List.of(role, "other"), roles);
+		assertInstanceOf(String.class, ((List<?>) roles).get(0));
+
+		final var aud = token.getClaim("aud", type("iterableOfUri"));
+		assertFalse(aud instanceof JsonArray);
+		assertEquals(List.of(audience), IuIterable.stream((Iterable<?>) aud).toList());
+
+		final var collection = token.getClaim("roles", type("collectionOfString"));
+		assertFalse(collection instanceof JsonArray);
+		assertEquals(List.of(role, "other"), List.copyOf((Collection<?>) collection));
+
+		// reading again, and as another type, still converts
+		assertEquals(List.of(role, "other"), token.getClaim("roles", type("listOfString")));
+		assertArrayEquals(new String[] { role, "other" }, token.getClaim("roles", String[].class));
+		assertEquals(List.of(role, "other"), token.getClaim("roles", type("listOfString")));
 	}
 
 	@Test

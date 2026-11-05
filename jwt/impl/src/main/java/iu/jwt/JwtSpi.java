@@ -86,14 +86,12 @@ public class JwtSpi implements IuJwtSpi {
 
 	@Override
 	public WebToken of(Object source) {
-		if (source instanceof IuJsonProperties)
-			return new Jwt((IuJsonProperties) source);
-		else if (source instanceof JsonObject)
+		if (source instanceof JsonObject)
 			return new Jwt((JsonObject) source);
 		else if (source instanceof String)
 			return new Jwt(TokenJsonb.get().fromJson((String) source, IuJsonProperties.class));
 		else
-			throw new IllegalArgumentException("expected JsonObject, IuJsonProperties, or String; found "
+			throw new IllegalArgumentException("expected JsonObject or String; found "
 					+ (source == null ? null : source.getClass().getName()));
 	}
 

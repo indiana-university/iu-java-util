@@ -107,13 +107,14 @@ public class JwtSpiTest {
 		assertArrayEquals(new String[] { role }, WebToken.of(claims).getClaim("roles", String[].class));
 		assertArrayEquals(new String[] { role },
 				WebToken.of(claims.toString()).getClaim("roles", String[].class));
-		assertArrayEquals(new String[] { role },
-				WebToken.of(IuJsonProperties.of(claims, WebToken.jsonb())).getClaim("roles", String[].class));
 
-		assertEquals("expected JsonObject, IuJsonProperties, or String; found null",
+		assertEquals("expected JsonObject or String; found null",
 				assertThrows(IllegalArgumentException.class, () -> WebToken.of(null)).getMessage());
-		assertEquals("expected JsonObject, IuJsonProperties, or String; found java.lang.Integer",
+		assertEquals("expected JsonObject or String; found java.lang.Integer",
 				assertThrows(IllegalArgumentException.class, () -> WebToken.of(1)).getMessage());
+		assertEquals("expected JsonObject or String; found " + IuJsonProperties.class.getName(),
+				assertThrows(IllegalArgumentException.class,
+						() -> WebToken.of(IuJsonProperties.of(claims, WebToken.jsonb()))).getMessage());
 		assertThrows(JsonbException.class, () -> WebToken.of("[]"));
 		assertThrows(JsonbException.class, () -> WebToken.of("not json"));
 

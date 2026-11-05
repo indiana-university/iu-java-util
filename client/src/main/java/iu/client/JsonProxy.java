@@ -298,6 +298,13 @@ public final class JsonProxy implements InvocationHandler {
 		if (isTransient)
 			return checkResolvedValue(methodName, null);
 
+		// a primitive has no null; prefer the default method over the autobox default
+		if (method.isDefault() && method.getReturnType().isPrimitive()) {
+			final var raw = properties.get(jsonName, JsonValue.class);
+			if (raw == null || JsonValue.NULL.equals(raw))
+				return checkResolvedValue(methodName, InvocationHandler.invokeDefault(proxy, method, args));
+		}
+
 		// type variables of a generic super-interface resolve against the wrapped one
 		final var genericReturnType = GenericTypes.resolve(method.getGenericReturnType(), targetInterface,
 				method.getDeclaringClass());

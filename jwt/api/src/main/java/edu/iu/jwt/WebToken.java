@@ -154,10 +154,14 @@ public interface WebToken {
 	 * </p>
 	 * <ul>
 	 * <li>a {@code JsonObject} of claims</li>
-	 * <li>an {@code IuJsonProperties} of claims, which reads by its own
-	 * conversions; create it with {@link #jsonb()} to read as a token does</li>
 	 * <li>a {@link String} of JSON object text</li>
 	 * </ul>
+	 *
+	 * <p>
+	 * Either way, claims convert by {@link #jsonb()}, as for any token: snake_case
+	 * names, every {@link Instant} as a NumericDate, and the components registered
+	 * here.
+	 * </p>
 	 *
 	 * <p>
 	 * <strong>Doesn't verify a signature</strong>: the token is only as
