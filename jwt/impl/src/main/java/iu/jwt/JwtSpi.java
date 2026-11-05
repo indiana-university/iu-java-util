@@ -31,10 +31,12 @@
  */
 package iu.jwt;
 
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import iu.jwt.spi.IuJwtSpi;
+import jakarta.json.JsonObject;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
@@ -80,6 +82,19 @@ public class JwtSpi implements IuJwtSpi {
 	@Override
 	public WebTokenBuilder getJwtBuilder() {
 		return new JwtBuilder<>();
+	}
+
+	@Override
+	public WebToken of(Object source) {
+		if (source instanceof IuJsonProperties)
+			return new Jwt((IuJsonProperties) source);
+		else if (source instanceof JsonObject)
+			return new Jwt((JsonObject) source);
+		else if (source instanceof String)
+			return new Jwt(TokenJsonb.get().fromJson((String) source, IuJsonProperties.class));
+		else
+			throw new IllegalArgumentException("expected JsonObject, IuJsonProperties, or String; found "
+					+ (source == null ? null : source.getClass().getName()));
 	}
 
 	@Override
