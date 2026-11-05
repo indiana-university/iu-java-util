@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"m":"iu.util.logging","l":"edu.iu.logging"},{"m":"iu.util.logging","l":"iu.logging.boot"}];updateSearchResults();

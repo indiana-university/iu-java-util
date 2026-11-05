@@ -1,0 +1,1 @@
+tagSearchIndex = [{"l":"Connection dispatch","h":"class edu.iu.jdbc.pool.IuDataSource","k":"16","u":"iu.util.jdbc.pool/edu/iu/jdbc/pool/IuDataSource.html#connection-dispatch-heading"},{"l":"Unsupported operations","h":"class edu.iu.jdbc.pool.IuDataSource","k":"16","u":"iu.util.jdbc.pool/edu/iu/jdbc/pool/IuDataSource.html#unsupported-operations-heading"}];updateSearchResults();
