@@ -156,6 +156,35 @@ public class IuJsonPropertiesScopeTest {
 				ConversionScope.within(dotted.conversions(), () -> bound.toString()));
 	}
 
+	@Test
+	public void testBoundToInstance() {
+		final var dotted = dotted();
+		final var slashed = slashed();
+
+		// an index created with an instance converts as it does within another's call
+		final var bound = IuJsonProperties.builder(dotted).put("date", MIDNIGHT).build();
+		assertEquals("{\"date\":\"27.09.2026\"}", bound.toString());
+		assertEquals("{\"date\":\"27.09.2026\"}",
+				ConversionScope.within(slashed.conversions(), () -> bound.toString()));
+
+		assertEquals("{\"date\":\"27.09.2026\",\"n\":1}",
+				ConversionScope.within(slashed.conversions(), () -> bound.with("n", 1).toString()));
+		assertEquals("{\"date\":\"27.09.2026\"}", ConversionScope.within(slashed.conversions(),
+				() -> IuJsonProperties.builder(dotted).put("date", MIDNIGHT).copy().build().toString()));
+
+		final var indexed = IuJsonProperties.of(IuJson.parse("{\"date\":\"27.09.2026\"}").asJsonObject(),
+				dotted);
+		assertEquals(MIDNIGHT,
+				ConversionScope.within(slashed.conversions(), () -> indexed.get("date", Date.class)));
+
+		try (final var parser = IuJson.PROVIDER.createParser(new StringReader("{\"date\":\"27.09.2026\"}"))) {
+			parser.next();
+			final var read = IuJsonProperties.read(parser, dotted);
+			assertEquals(MIDNIGHT,
+					ConversionScope.within(slashed.conversions(), () -> read.get("date", Date.class)));
+		}
+	}
+
 	public static class Holder {
 		IuJsonProperties properties;
 	}

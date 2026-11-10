@@ -93,8 +93,11 @@ import jakarta.json.stream.JsonParser.Event;
  * </p>
  *
  * <p>
- * An index converts by the conversions it's created with, or, created without
- * them, by the first of:
+ * An index converts by the conversions it's created with, or as the JSON-B
+ * instance it's created with does, whatever call is in progress: so an index a
+ * library keeps converts as the library's instance does, even when read from an
+ * application's getter while the application's instance is serializing. Created
+ * with neither, it converts by the first of:
  * </p>
  * <ol>
  * <li>the IU JSON-B provider's call in progress when it converts, so values an
@@ -102,8 +105,7 @@ import jakarta.json.stream.JsonParser.Event;
  * writes from a serializer, convert by that call's configuration;</li>
  * <li>the provider's call in progress when the index was created, so an index a
  * deserializer creates converts that way after the call returns;</li>
- * <li>the JSON-B instance given to {@link #builder(Jsonb)}, if built with one;
- * else the IU conversions, as
+ * <li>the IU conversions, as
  * {@link IuJsonAdapter#adapt(Type, java.util.function.Supplier)} converts with
  * {@link IuJsonSerializationOptions#DEFAULT}.</li>
  * </ol>
@@ -155,17 +157,14 @@ public final class IuJsonProperties {
 	public static final class Builder {
 		private final Function<Type, IuJsonAdapter<?>> adapt;
 		private final Function<Type, IuJsonAdapter<?>> captured;
-		private final Function<Type, IuJsonAdapter<?>> fallback;
 		private final List<String> names = new ArrayList<>();
 		private final Map<String, Object> values = new ConcurrentHashMap<>();
 		private final Map<String, Type> types = new ConcurrentHashMap<>();
 		private final Map<String, JsonValue> raw = new ConcurrentHashMap<>();
 
-		private Builder(Function<Type, IuJsonAdapter<?>> adapt, Function<Type, IuJsonAdapter<?>> captured,
-				Function<Type, IuJsonAdapter<?>> fallback) {
+		private Builder(Function<Type, IuJsonAdapter<?>> adapt, Function<Type, IuJsonAdapter<?>> captured) {
 			this.adapt = adapt;
 			this.captured = captured;
-			this.fallback = fallback;
 		}
 
 		private void name(String name) {
@@ -266,7 +265,7 @@ public final class IuJsonProperties {
 		 * @return a copy of this builder that can change independently
 		 */
 		public Builder copy() {
-			final var copy = new Builder(adapt, captured, fallback);
+			final var copy = new Builder(adapt, captured);
 			copy.names.addAll(names);
 			copy.raw.putAll(raw);
 			copy.values.putAll(values);
@@ -292,37 +291,37 @@ public final class IuJsonProperties {
 	 * @see IuJsonProperties
 	 */
 	public static IuJsonProperties of(JsonObject object) {
-		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null, DEFAULTS);
+		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null);
 	}
 
 	/**
-	 * Indexes a JSON object, converting as the JSON-B call in progress converts,
-	 * and otherwise as a JSON-B instance does.
+	 * Indexes a JSON object, converting as a JSON-B instance does, whatever JSON-B
+	 * call is in progress.
 	 *
 	 * @param object JSON object, referenced rather than copied
-	 * @param jsonb  JSON-B instance to convert as when no call is in progress
+	 * @param jsonb  JSON-B instance to convert as
 	 * @return {@link IuJsonProperties}
 	 * @see #builder(Jsonb)
 	 */
 	@SuppressWarnings("exports")
 	public static IuJsonProperties of(JsonObject object, Jsonb jsonb) {
-		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null, null,
+		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null,
 				iu.client.jsonb.IuJsonb.adapters(jsonb));
 	}
 
 	/**
-	 * Indexes an object as a parser reads it, converting as the JSON-B call in
-	 * progress converts, and otherwise as a JSON-B instance does.
+	 * Indexes an object as a parser reads it, converting as a JSON-B instance does,
+	 * whatever JSON-B call is in progress.
 	 *
 	 * @param parser parser, at the object's {@code START_OBJECT}
-	 * @param jsonb  JSON-B instance to convert as when no call is in progress
+	 * @param jsonb  JSON-B instance to convert as
 	 * @return {@link IuJsonProperties}
 	 * @throws IllegalArgumentException if the parser isn't at an object
 	 * @see #builder(Jsonb)
 	 */
 	@SuppressWarnings("exports")
 	public static IuJsonProperties read(JsonParser parser, Jsonb jsonb) {
-		return index(parser, null, iu.client.jsonb.IuJsonb.adapters(jsonb));
+		return index(parser, iu.client.jsonb.IuJsonb.adapters(jsonb));
 	}
 
 	/**
@@ -334,7 +333,7 @@ public final class IuJsonProperties {
 	 */
 	public static IuJsonProperties of(JsonObject object, Function<Type, IuJsonAdapter<?>> adapt) {
 		return new IuJsonProperties(Objects.requireNonNull(object, "object"), null,
-				Objects.requireNonNull(adapt, "adapt"), DEFAULTS);
+				Objects.requireNonNull(adapt, "adapt"));
 	}
 
 	/**
@@ -347,7 +346,7 @@ public final class IuJsonProperties {
 	 * @see #read(JsonParser, Function)
 	 */
 	public static IuJsonProperties read(JsonParser parser) {
-		return index(parser, null, DEFAULTS);
+		return index(parser, null);
 	}
 
 	/**
@@ -367,11 +366,10 @@ public final class IuJsonProperties {
 	 * @throws IllegalArgumentException if the parser isn't at an object
 	 */
 	public static IuJsonProperties read(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
-		return index(parser, Objects.requireNonNull(adapt, "adapt"), DEFAULTS);
+		return index(parser, Objects.requireNonNull(adapt, "adapt"));
 	}
 
-	private static IuJsonProperties index(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt,
-			Function<Type, IuJsonAdapter<?>> fallback) {
+	private static IuJsonProperties index(JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
 		final var event = parser.currentEvent();
 		if (event != Event.START_OBJECT)
 			throw JsonAdapters.expected("an object", event);
@@ -379,13 +377,13 @@ public final class IuJsonProperties {
 		if (parser instanceof ScopedParser) {
 			final var scoped = (ScopedParser) parser;
 			if (scoped.isTree())
-				return new IuJsonProperties(parser.getObject(), null, adapt, fallback);
+				return new IuJsonProperties(parser.getObject(), null, adapt);
 
-			final var properties = new IuJsonProperties(null, parser, adapt, fallback);
+			final var properties = new IuJsonProperties(null, parser, adapt);
 			scoped.beforeRelease(properties::detach);
 			return properties;
 		} else
-			return new IuJsonProperties(null, parser, adapt, fallback);
+			return new IuJsonProperties(null, parser, adapt);
 	}
 
 	/**
@@ -412,28 +410,30 @@ public final class IuJsonProperties {
 	 * @see IuJsonProperties
 	 */
 	public static Builder builder() {
-		return new Builder(null, ConversionScope.current(), DEFAULTS);
+		return new Builder(null, ConversionScope.current());
 	}
 
 	/**
-	 * Starts building an index from Java values, converting as the JSON-B call in
-	 * progress converts, and otherwise as a JSON-B instance does.
+	 * Starts building an index from Java values, converting as a JSON-B instance
+	 * does, whatever JSON-B call is in progress.
 	 *
 	 * <p>
-	 * Where no call is in progress, as when a value put as one type is read as
-	 * another, as {@code BigInteger} put and {@code byte[]} read, the instance's
-	 * configuration applies, its adapters included, in place of the IU defaults. An
+	 * The instance's configuration applies, its adapters included, wherever a value
+	 * converts: written, or put as one type and read as another, as
+	 * {@code BigInteger} put and {@code byte[]} read; within a call of the instance,
+	 * within a call of another, as when an application's getter reads the index
+	 * while the application's instance is serializing, and outside any call. An
 	 * instance of the IU JSON-B provider converts directly; one of another provider
 	 * converts through JSON text.
 	 * </p>
 	 *
-	 * @param jsonb JSON-B instance to convert as when no call is in progress
+	 * @param jsonb JSON-B instance to convert as
 	 * @return {@link Builder}
 	 * @see IuJsonProperties
 	 */
 	@SuppressWarnings("exports")
 	public static Builder builder(Jsonb jsonb) {
-		return new Builder(null, ConversionScope.current(), iu.client.jsonb.IuJsonb.adapters(jsonb));
+		return new Builder(iu.client.jsonb.IuJsonb.adapters(jsonb), null);
 	}
 
 	/**
@@ -443,12 +443,11 @@ public final class IuJsonProperties {
 	 * @return {@link Builder}
 	 */
 	public static Builder builder(Function<Type, IuJsonAdapter<?>> adapt) {
-		return new Builder(Objects.requireNonNull(adapt, "adapt"), null, DEFAULTS);
+		return new Builder(Objects.requireNonNull(adapt, "adapt"), null);
 	}
 
 	private final Function<Type, IuJsonAdapter<?>> adapt;
 	private final Function<Type, IuJsonAdapter<?>> captured;
-	private final Function<Type, IuJsonAdapter<?>> fallback;
 	private final JsonObject source;
 	private final Map<String, Object> resolved = new ConcurrentHashMap<>();
 	private final Map<String, Type> types = new ConcurrentHashMap<>();
@@ -466,14 +465,11 @@ public final class IuJsonProperties {
 	 *
 	 * @param source object indexed; null if reading from a parser
 	 * @param parser parser reading the object; null if indexing an object
-	 * @param adapt    conversions; null for the call's in progress
-	 * @param fallback conversions when unbound and no call applies
+	 * @param adapt  conversions; null for the call's in progress
 	 */
-	private IuJsonProperties(JsonObject source, JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt,
-			Function<Type, IuJsonAdapter<?>> fallback) {
+	private IuJsonProperties(JsonObject source, JsonParser parser, Function<Type, IuJsonAdapter<?>> adapt) {
 		this.adapt = adapt;
 		captured = adapt == null ? ConversionScope.current() : null;
-		this.fallback = fallback;
 		this.source = source;
 		this.parser = parser;
 		this.names = source == null ? new LinkedHashSet<>() : null;
@@ -482,7 +478,6 @@ public final class IuJsonProperties {
 	private IuJsonProperties(Builder builder) {
 		adapt = builder.adapt;
 		captured = builder.captured;
-		fallback = builder.fallback;
 		source = null;
 		names = new LinkedHashSet<>(builder.names);
 		resolved.putAll(builder.values);
@@ -513,8 +508,7 @@ public final class IuJsonProperties {
 	/**
 	 * Gets the conversion for a type: by the conversions the index is bound to;
 	 * else those of the JSON-B call in progress; else those of the call in progress
-	 * when the index was created; else its fallback: the JSON-B instance it was
-	 * built with, or the IU defaults.
+	 * when the index was created; else the IU defaults.
 	 */
 	@SuppressWarnings("unchecked")
 	private IuJsonAdapter<Object> adapter(Type type) {
@@ -522,7 +516,7 @@ public final class IuJsonProperties {
 		if (conversions == null) {
 			conversions = ConversionScope.current();
 			if (conversions == null)
-				conversions = captured == null ? fallback : captured;
+				conversions = captured == null ? DEFAULTS : captured;
 		}
 		return (IuJsonAdapter<Object>) conversions.apply(type);
 	}
@@ -803,7 +797,7 @@ public final class IuJsonProperties {
 	 * @return new index
 	 */
 	public IuJsonProperties with(String name, Object value) {
-		return new Builder(adapt, captured, fallback).putAll(this).put(name, value).build();
+		return new Builder(adapt, captured).putAll(this).put(name, value).build();
 	}
 
 	/**
