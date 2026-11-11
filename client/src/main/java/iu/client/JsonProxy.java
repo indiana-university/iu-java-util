@@ -39,7 +39,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -326,11 +325,8 @@ public final class JsonProxy implements InvocationHandler {
 			return checkResolvedValue(methodName, null);
 
 		// a primitive has no null; prefer the default method over the autobox default
-		if (method.isDefault() && method.getReturnType().isPrimitive()) {
-			final var raw = properties.get(jsonName, JsonValue.class);
-			if (JsonValue.NULL.equals(Objects.requireNonNullElse(raw, JsonValue.NULL)))
-				return checkResolvedValue(methodName, InvocationHandler.invokeDefault(proxy, method, args));
-		}
+		if (method.isDefault() && method.getReturnType().isPrimitive() && !properties.hasValue(jsonName))
+			return checkResolvedValue(methodName, InvocationHandler.invokeDefault(proxy, method, args));
 
 		// type variables of a generic super-interface resolve against the wrapped one
 		final var genericReturnType = GenericTypes.resolve(method.getGenericReturnType(), targetInterface,

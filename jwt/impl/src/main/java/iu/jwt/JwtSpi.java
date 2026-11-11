@@ -86,13 +86,26 @@ public class JwtSpi implements IuJwtSpi {
 
 	@Override
 	public WebToken of(Object source) {
+		final IuJsonProperties claims;
 		if (source instanceof JsonObject)
-			return new Jwt((JsonObject) source);
-		else if (source instanceof String)
-			return new Jwt(TokenJsonb.get().fromJson((String) source, IuJsonProperties.class));
-		else
+			claims = IuJsonProperties.of((JsonObject) source, TokenJsonb.get());
+		else if (source instanceof String) {
+			claims = TokenJsonb.get().fromJson((String) source, IuJsonProperties.class);
+			// JSON null text reads as null
+			if (claims == null)
+				throw new IllegalArgumentException("expected a JSON object; found null");
+		} else
 			throw new IllegalArgumentException("expected JsonObject or String; found "
 					+ (source == null ? null : source.getClass().getName()));
+
+		try {
+			return new Jwt(claims);
+		} catch (IllegalArgumentException e) {
+			throw e;
+		} catch (RuntimeException e) {
+			// a point in time claim that doesn't convert
+			throw new IllegalArgumentException("Invalid point in time claim", e);
+		}
 	}
 
 	@Override

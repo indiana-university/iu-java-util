@@ -179,9 +179,9 @@ public class Jwt implements WebToken {
 		if (!isMultiValued(type))
 			return claims.get(name, type);
 
-		// converts from JSON every time: the claim is cached as JsonValue, and a
-		// cached JsonArray would satisfy List or Iterable without converting
-		final var value = claims.get(name, JsonValue.class);
+		// reads the claim's JSON without caching a type, so a later scalar read of
+		// the same claim still converts; an array or Iterable converts it every time
+		final var value = claims.toJsonObject().get(name);
 		if (value == null //
 				|| JsonValue.NULL.equals(value))
 			return null;
@@ -227,7 +227,7 @@ public class Jwt implements WebToken {
 	@Override
 	public Iterable<URI> getAudience() {
 		final var aud = getClaim("aud", URI[].class);
-		if (aud == null)
+		if (aud == null || aud.length == 0)
 			return null;
 		else
 			return IuIterable.iter(aud);

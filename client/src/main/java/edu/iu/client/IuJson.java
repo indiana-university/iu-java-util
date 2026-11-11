@@ -209,7 +209,11 @@ public class IuJson {
 	 *
 	 * <p>
 	 * {@code isWrapped(proxy) && !hasValue(proxy, property)} distinguishes a getter
-	 * that returned its default from one provided by the JSON value.
+	 * that returned its default from one provided by the JSON value, where
+	 * {@code property} is the JSON name the getter reads: the name it declares,
+	 * else its Java property name in the wrapper's property name format. This
+	 * doesn't apply to a transient getter, which reads as absent whatever the JSON
+	 * holds.
 	 * </p>
 	 *
 	 * @param jsonProxy object to check
@@ -225,7 +229,8 @@ public class IuJson {
 	 * a property, without converting it.
 	 *
 	 * @param jsonProxy wrapper
-	 * @param property  JSON property name, as it appears in the wrapped object
+	 * @param property  JSON property name, as it appears in the wrapped object;
+	 *                  not the Java property name of a getter that reads it
 	 * @return true if {@code jsonProxy} is a {@link JsonProxy} wrapper and the
 	 *         property has a value other than JSON null; false otherwise
 	 */

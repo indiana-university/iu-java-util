@@ -174,7 +174,8 @@ public interface WebToken {
 	 * @param source claims
 	 * @return {@link WebToken}
 	 * @throws IllegalArgumentException if the source isn't one of the types above,
-	 *                                  or a point in time claim is invalid
+	 *                                  is the JSON text {@code null}, or a point
+	 *                                  in time claim is invalid or doesn't convert
 	 * @throws jakarta.json.bind.JsonbException if the source is text that isn't a
 	 *                                          JSON object
 	 */
@@ -224,7 +225,8 @@ public interface WebToken {
 	/**
 	 * Gets the token audience URIs.
 	 *
-	 * @return at least one {@link URI}; null if the token has no aud claim
+	 * @return at least one {@link URI}; null if the token has no aud claim, or an
+	 *         empty one
 	 */
 	Iterable<URI> getAudience();
 

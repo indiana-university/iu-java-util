@@ -453,6 +453,11 @@ public final class IuJsonProperties {
 	private final Map<String, Type> types = new ConcurrentHashMap<>();
 	private final Map<String, JsonValue> raw = new ConcurrentHashMap<>();
 	private final Set<String> names;
+	/**
+	 * Names of JSON null properties converted straight from the parser, which keep
+	 * no raw form.
+	 */
+	private final Set<String> nulls = ConcurrentHashMap.newKeySet();
 	private JsonParser parser;
 	private boolean owned;
 	private String pending;
@@ -558,6 +563,8 @@ public final class IuJsonProperties {
 			parser.next();
 			final Object value;
 			if (key.equals(name) && type != null) {
+				if (parser.currentEvent() == Event.VALUE_NULL)
+					nulls.add(key);
 				value = box(readValue(key, type));
 				resolved.put(key, value);
 				types.put(key, type);
@@ -654,18 +661,26 @@ public final class IuJsonProperties {
 	 *                               the object
 	 */
 	public boolean hasValue(String name) {
-		final var value = resolved.get(name);
-		if (value != null)
-			return value != NULL;
+		// the JSON answers when it's kept; a value resolved from it may not be null
+		final var json = raw(name);
+		if (json != null)
+			return !JsonValue.NULL.equals(json);
+		if (source != null)
+			return false;
 
-		var json = raw(name);
-		if (json == null && source == null) {
+		var value = resolved.get(name);
+		if (value == null)
 			synchronized (this) {
-				pull(name, null);
+				value = resolved.get(name);
+				if (value == null) {
+					pull(name, null);
+					final var pulled = raw.get(name);
+					return pulled != null && !JsonValue.NULL.equals(pulled);
+				}
 			}
-			json = raw(name);
-		}
-		return json != null && !JsonValue.NULL.equals(json);
+
+		// converted straight from the parser, or built from a Java value
+		return value != NULL && !nulls.contains(name);
 	}
 
 	/**

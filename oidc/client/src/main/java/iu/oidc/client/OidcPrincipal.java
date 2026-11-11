@@ -112,7 +112,11 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (!userinfoClaims.getString("sub").equals(idToken.getSubject()))
 			throw new IllegalArgumentException("userinfo sub claim doesn't match id token");
 		this.userinfoClaims = userinfoClaims;
-		this.userinfo = WebToken.of(userinfoClaims);
+		try {
+			this.userinfo = WebToken.of(userinfoClaims);
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("userinfo failed validation", e);
+		}
 
 		this.setCookie = setCookie;
 

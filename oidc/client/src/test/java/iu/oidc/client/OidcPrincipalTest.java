@@ -154,6 +154,14 @@ public class OidcPrincipalTest {
 				assertThrows(IllegalArgumentException.class,
 						() -> new OidcPrincipal(idToken, IuJson.object().add("sub", IdGenerator.generateId()).build(),
 								null, config, null, null, null, null, null)).getMessage());
+
+		final var expired = assertThrows(IllegalArgumentException.class,
+				() -> new OidcPrincipal(idToken,
+						IuJson.object().add("sub", sub)
+								.add("exp", java.time.Instant.now().minusSeconds(60L).getEpochSecond()).build(),
+						null, config, null, null, null, null, null));
+		assertEquals("userinfo failed validation", expired.getMessage());
+		assertEquals("Token is expired", expired.getCause().getMessage());
 	}
 
 	@Test

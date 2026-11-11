@@ -86,6 +86,13 @@ public class JsonProxyTest {
 		int getPlain();
 	}
 
+	interface TransientDefault {
+		@jakarta.json.bind.annotation.JsonbTransient
+		default int getHidden() {
+			return 42;
+		}
+	}
+
 	@Test
 	public void testPrimitiveNullUsesDefaultMethod() {
 		final var nulls = IuJson.wrap(IuJson.object().addNull("count").addNull("plain").build(),
@@ -107,6 +114,28 @@ public class JsonProxyTest {
 		final var foreign = Proxy.newProxyInstance(PrimitiveDefaults.class.getClassLoader(),
 				new Class<?>[] { PrimitiveDefaults.class }, (proxy, method, args) -> null);
 		assertFalse(IuJson.hasValue(foreign, "count"));
+
+		// reading a getter first doesn't change the answer
+		final var nulls = IuJson.wrap(IuJson.object().addNull("count").addNull("plain").build(),
+				PrimitiveDefaults.class);
+		assertEquals(42, nulls.getCount());
+		assertEquals(0, nulls.getPlain());
+		assertFalse(IuJson.hasValue(nulls, "count"));
+		assertFalse(IuJson.hasValue(nulls, "plain"));
+		assertEquals(7, data.getCount());
+		assertTrue(IuJson.hasValue(data, "count"));
+
+		// by the JSON name a getter reads, not its Java property name
+		final var snake = IuJson.wrap(IuJson.object().add("lower_snake_foo", "a").build(), JsonBackedInterface.class,
+				IuJsonPropertyNameFormat.LOWER_CASE_WITH_UNDERSCORES, IuJsonAdapter::of);
+		assertEquals("a", snake.getLowerSnakeFoo());
+		assertTrue(IuJson.hasValue(snake, "lower_snake_foo"));
+		assertFalse(IuJson.hasValue(snake, "lowerSnakeFoo"));
+
+		// a transient getter reads as absent, whatever the JSON holds
+		final var hidden = IuJson.wrap(IuJson.object().add("hidden", 7).build(), TransientDefault.class);
+		assertEquals(42, hidden.getHidden());
+		assertTrue(IuJson.hasValue(hidden, "hidden"));
 
 		assertTrue(IuJson.isWrapped(data));
 		assertFalse(IuJson.isWrapped(null));

@@ -77,6 +77,7 @@ import edu.iu.crypt.X500Utils;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.test.IuTestLogger;
 import jakarta.json.JsonArray;
+import jakarta.json.JsonValue;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
@@ -179,6 +180,12 @@ public class JwtTest {
 		assertEquals(audience, new Jwt(IuJson.object().add("aud", IuJson.array().add(audience.toString())).build())
 				.getAudience().iterator().next());
 		assertNull(new Jwt(IuJson.object().addNull("aud").build()).getAudience());
+		assertNull(new Jwt(IuJson.object().add("aud", IuJson.array()).build()).getAudience());
+
+		// a value that isn't a URI is rejected, rather than read as absent
+		assertThrows(JsonbException.class, () -> new Jwt(IuJson.object().add("aud", 5).build()).getAudience());
+		assertThrows(JsonbException.class,
+				() -> new Jwt(IuJson.object().add("aud", IuJson.object()).build()).getAudience());
 	}
 
 	static List<String> listOfString;
@@ -259,6 +266,25 @@ public class JwtTest {
 		assertEquals(List.of(role, "other"), token.getClaim("roles", type("listOfString")));
 		assertArrayEquals(new String[] { role, "other" }, token.getClaim("roles", String[].class));
 		assertEquals(List.of(role, "other"), token.getClaim("roles", type("listOfString")));
+	}
+
+	@Test
+	public void testMultiValuedReadLeavesScalarReadsConverting() {
+		final var role = IdGenerator.generateId();
+		for (final var token : List.of( //
+				new Jwt(IuJson.object().add("roles", IuJson.array().add(role)).add("map", IuJson.object().add("k", "v"))
+						.build()),
+				(Jwt) new JwtSpi().of("{\"roles\":[\"" + role + "\"],\"map\":{\"k\":\"v\"}}"))) {
+			assertEquals(1, ((Map<?, ?>[]) token.getClaim("map", type("arrayOfMap"))).length);
+			final var map = token.getClaim("map", Map.class);
+			assertFalse(map instanceof JsonValue);
+			assertEquals(Map.of("k", "v"), map);
+
+			assertEquals(List.of(role), token.getClaim("roles", type("listOfString")));
+			final var roles = token.getClaim("roles", Object.class);
+			assertFalse(roles instanceof JsonValue);
+			assertEquals(List.of(role), roles);
+		}
 	}
 
 	@Test

@@ -40,6 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
@@ -122,6 +123,17 @@ public class JwtSpiTest {
 		final var expired = IuJson.object().add("exp", Instant.now().minusSeconds(60L).getEpochSecond()).build();
 		assertEquals("Token is expired",
 				assertThrows(IllegalArgumentException.class, () -> WebToken.of(expired)).getMessage());
+
+		assertEquals("expected a JSON object; found null",
+				assertThrows(IllegalArgumentException.class, () -> WebToken.of("null")).getMessage());
+
+		// a point in time claim that doesn't convert is rejected, not read as absent
+		for (final var invalid : List.of("{\"exp\":\"x\"}", "{\"exp\":1e30}", "{\"iat\":true}", "{\"nbf\":{}}")) {
+			assertEquals("Invalid point in time claim",
+					assertThrows(IllegalArgumentException.class, () -> WebToken.of(invalid)).getMessage(), invalid);
+			assertEquals("Invalid point in time claim", assertThrows(IllegalArgumentException.class,
+					() -> WebToken.of(IuJson.parse(invalid).asJsonObject())).getMessage(), invalid);
+		}
 	}
 
 	@Test
