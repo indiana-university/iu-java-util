@@ -32,6 +32,8 @@
 package iu.jwt;
 
 import java.io.StringWriter;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.time.Duration;
@@ -58,7 +60,6 @@ import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 import jakarta.json.stream.JsonGenerator;
 
@@ -175,7 +176,42 @@ public class Jwt implements WebToken {
 
 	@Override
 	public Object getClaim(String name, Type type) {
-		return claims.get(name, type);
+		if (!isMultiValued(type))
+			return claims.get(name, type);
+
+		// reads the claim's JSON without caching a type, so a later scalar read of
+		// the same claim still converts; an array or Iterable converts it every time
+		final var value = claims.toJsonObject().get(name);
+		if (value == null //
+				|| JsonValue.NULL.equals(value))
+			return null;
+
+		final var array = value instanceof JsonArray ? value : IuJson.array().add(value).build();
+		return IuJsonProperties.of(IuJson.object().add(name, array).build(), TokenJsonb.get()).get(name, type);
+	}
+
+	/**
+	 * Determines if a type converts from a JSON array: an array, other than
+	 * {@code byte[]}, which converts from base64url text, or an {@link Iterable}
+	 * other than {@link JsonArray}, which converts as itself.
+	 *
+	 * @param type claim type
+	 * @return true if the type converts from a JSON array
+	 */
+	static boolean isMultiValued(Type type) {
+		if (type instanceof GenericArrayType)
+			return true;
+		if (type instanceof ParameterizedType)
+			type = ((ParameterizedType) type).getRawType();
+		if (!(type instanceof Class))
+			return false;
+
+		final var c = (Class<?>) type;
+		if (c.isArray())
+			return c != byte[].class;
+		else
+			return Iterable.class.isAssignableFrom(c) //
+					&& !JsonValue.class.isAssignableFrom(c);
 	}
 
 	@Override
@@ -190,14 +226,11 @@ public class Jwt implements WebToken {
 
 	@Override
 	public Iterable<URI> getAudience() {
-		// a single audience may be a string, rather than an array of one
-		final var aud = getClaim("aud", JsonValue.class);
-		if (aud instanceof JsonArray)
-			return IuIterable.iter(getClaim("aud", URI[].class));
-		else if (aud instanceof JsonString)
-			return IuIterable.iter(getClaim("aud", URI.class));
-		else
+		final var aud = getClaim("aud", URI[].class);
+		if (aud == null || aud.length == 0)
 			return null;
+		else
+			return IuIterable.iter(aud);
 	}
 
 	@Override

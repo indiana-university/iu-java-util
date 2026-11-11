@@ -31,6 +31,7 @@
  */
 package iu.oidc.client;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -119,7 +120,7 @@ public class OidcPrincipalTest {
 		final var foo = IdGenerator.generateId();
 		final var bar = IdGenerator.generateId();
 		final var idToken = WebToken.builder().sub(sub).claim("foo", foo, String.class).build();
-		final var userinfoClaims = IuJson.object().add("sub", sub).add("bar", bar).build();
+		final var userinfoClaims = IuJson.object().add("sub", sub).add("bar", bar).add("groups", bar).build();
 		final var setCookie = IdGenerator.generateId();
 
 		final var resourceUri = URI.create("https://" + IdGenerator.generateId() + "/app");
@@ -133,6 +134,7 @@ public class OidcPrincipalTest {
 		assertEquals(setCookie, principal.getSetCookie());
 		assertEquals(foo, principal.getClaim("foo", String.class));
 		assertEquals(bar, principal.getClaim("bar", String.class));
+		assertArrayEquals(new String[] { bar }, principal.getClaim("groups", String[].class));
 		assertNull(principal.getClaim("baz", String.class));
 		assertDoesNotThrow(principal::toString);
 	}
@@ -152,6 +154,14 @@ public class OidcPrincipalTest {
 				assertThrows(IllegalArgumentException.class,
 						() -> new OidcPrincipal(idToken, IuJson.object().add("sub", IdGenerator.generateId()).build(),
 								null, config, null, null, null, null, null)).getMessage());
+
+		final var expired = assertThrows(IllegalArgumentException.class,
+				() -> new OidcPrincipal(idToken,
+						IuJson.object().add("sub", sub)
+								.add("exp", java.time.Instant.now().minusSeconds(60L).getEpochSecond()).build(),
+						null, config, null, null, null, null, null));
+		assertEquals("userinfo failed validation", expired.getMessage());
+		assertEquals("Token is expired", expired.getCause().getMessage());
 	}
 
 	@Test

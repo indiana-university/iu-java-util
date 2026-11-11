@@ -33,6 +33,7 @@ package iu.oidc.client;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -1579,6 +1580,85 @@ public class OidcAuthorizationTest {
 					.thenReturn(userinfoResponse);
 
 			return authorization.getAuthorizedPrincipal(requestAttributes);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	@Test
+	void testExpiredUserinfoIsFetchedAgain() throws IOException {
+		final var cookies = (Iterable<HttpCookie>) mock(Iterable.class);
+		final var setCookie = IdGenerator.generateId();
+		final var sessionHandler = mock(IuSessionHandler.class);
+		final var session = mock(IuSession.class);
+		when(sessionHandler.activate(cookies)).thenReturn(session);
+		when(sessionHandler.store(session)).thenReturn(setCookie);
+
+		final var preAuth = mock(OidcPreAuthSession.class);
+		when(session.getDetail(OidcPreAuthSession.class)).thenReturn(preAuth);
+		final var postAuth = mock(OidcPostAuthSession.class);
+		when(postAuth.isStrict()).thenReturn(true);
+		when(session.getDetail(OidcPostAuthSession.class)).thenReturn(postAuth);
+
+		final var client = mock(IuOidcClient.class);
+		final var userinfoEndpoint = URI.create(IdGenerator.generateId());
+		final var metadata = mock(IuOidcProviderMetadata.class);
+		when(metadata.getUserinfoEndpoint()).thenReturn(userinfoEndpoint);
+		final var provider = mock(IuOidcProvider.class);
+		when(provider.getMetadata()).thenReturn(metadata);
+
+		final var config = mock(IuOidcClientReference.class);
+		when(config.getClient()).thenReturn(client);
+		when(config.getProvider()).thenReturn(provider);
+		when(config.getSessionHandler()).thenReturn(sessionHandler);
+
+		final var requestAttributes = mock(IuRequestAttributes.class);
+		when(requestAttributes.getCookies()).thenReturn(cookies);
+
+		final var response = mock(IuOidcTokenResponse.class);
+		when(response.getAccessToken()).thenReturn(IdGenerator.generateId());
+		when(postAuth.getTokenResponse()).thenReturn(response);
+		when(postAuth.getNotAfter()).thenReturn(Instant.now().plusSeconds(1L));
+
+		final var sub = IdGenerator.generateId();
+		final var idToken = mock(WebToken.class);
+		when(idToken.getSubject()).thenReturn(sub);
+
+		final var expired = IuJson.object().add("sub", sub)
+				.add("exp", Instant.now().minusSeconds(60L).getEpochSecond()).build();
+		final var current = IuJson.object().add("sub", sub)
+				.add("exp", Instant.now().plusSeconds(60L).getEpochSecond()).build();
+		assertTrue(OidcAuthorization.isUserinfoExpired(expired));
+		assertFalse(OidcAuthorization.isUserinfoExpired(current));
+		when(postAuth.getUserinfoClaims()).thenReturn(expired);
+
+		final var authorization = new OidcAuthorization(config);
+		try (final var mockRefreshGrant = mockConstruction(RefreshTokenGrant.class, (a, ctx) -> {
+			when(a.getTokenResponse()).thenReturn(response);
+			when(a.getIdToken()).thenReturn(idToken);
+		})) {
+			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_UTF8)))
+					.thenReturn(current.toString());
+
+			// claims past their exp are fetched again, and the session kept
+			final var principal = authorization.getAuthorizedPrincipal(requestAttributes);
+			assertEquals(sub, principal.getName());
+			assertEquals(setCookie, principal.getSetCookie());
+			verify(postAuth).setUserinfoClaims(current);
+			IuHttpAware.mock.verify(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_UTF8)));
+
+			// claims that haven't expired are reused
+			when(postAuth.getUserinfoClaims()).thenReturn(current);
+			assertNull(authorization.getAuthorizedPrincipal(requestAttributes).getSetCookie());
+			IuHttpAware.mock.verify(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_UTF8)));
+
+			// a response that has itself expired names userinfo, not a token
+			when(postAuth.getUserinfoClaims()).thenReturn(expired);
+			IuHttpAware.mock.when(() -> IuHttp.send(eq(userinfoEndpoint), any(), eq(IuHttp.READ_UTF8)))
+					.thenReturn(expired.toString());
+			final var failure = assertThrows(IllegalArgumentException.class,
+					() -> authorization.getAuthorizedPrincipal(requestAttributes));
+			assertEquals("userinfo failed validation", failure.getMessage());
+			assertEquals("Token is expired", failure.getCause().getMessage());
 		}
 	}
 

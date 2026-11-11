@@ -31,10 +31,12 @@
  */
 package iu.jwt;
 
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import edu.iu.jwt.WebTokenBuilder;
 import iu.jwt.spi.IuJwtSpi;
+import jakarta.json.JsonObject;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbConfig;
 import jakarta.json.bind.adapter.JsonbAdapter;
@@ -80,6 +82,30 @@ public class JwtSpi implements IuJwtSpi {
 	@Override
 	public WebTokenBuilder getJwtBuilder() {
 		return new JwtBuilder<>();
+	}
+
+	@Override
+	public WebToken of(Object source) {
+		final IuJsonProperties claims;
+		if (source instanceof JsonObject)
+			claims = IuJsonProperties.of((JsonObject) source, TokenJsonb.get());
+		else if (source instanceof String) {
+			claims = TokenJsonb.get().fromJson((String) source, IuJsonProperties.class);
+			// JSON null text reads as null
+			if (claims == null)
+				throw new IllegalArgumentException("expected a JSON object; found null");
+		} else
+			throw new IllegalArgumentException("expected JsonObject or String; found "
+					+ (source == null ? null : source.getClass().getName()));
+
+		try {
+			return new Jwt(claims);
+		} catch (IllegalArgumentException e) {
+			throw e;
+		} catch (RuntimeException e) {
+			// a point in time claim that doesn't convert
+			throw new IllegalArgumentException("Invalid point in time claim", e);
+		}
 	}
 
 	@Override

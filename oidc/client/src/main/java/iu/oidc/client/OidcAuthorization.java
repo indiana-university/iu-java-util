@@ -66,6 +66,7 @@ import edu.iu.oidc.IuOidcTokenResponse;
 import edu.iu.session.IuSession;
 import iu.oidc.client.config.IuOidcClient;
 import iu.oidc.client.config.IuOidcClientReference;
+import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 
 /**
@@ -409,6 +410,20 @@ public class OidcAuthorization implements IuOidcAuthorization {
 		return IuText.utf8(signed.getPayload());
 	}
 
+	/**
+	 * Determines whether cached userinfo claims carry an {@code exp} claim that
+	 * has passed, by the allowance a token's is validated with.
+	 *
+	 * @param userinfoClaims cached userinfo claims
+	 * @return true if the claims have expired, so must be fetched again; false if
+	 *         they haven't, or carry no numeric {@code exp}
+	 */
+	static boolean isUserinfoExpired(JsonObject userinfoClaims) {
+		final var exp = userinfoClaims.get("exp");
+		return exp instanceof JsonNumber //
+				&& Instant.ofEpochSecond(((JsonNumber) exp).longValue()).isBefore(Instant.now().minusSeconds(15L));
+	}
+
 	@Override
 	public IuOidcPrincipal getAuthorizedPrincipal(IuRequestAttributes requestAttributes) throws IOException {
 		final var sessionHandler = config.getSessionHandler();
@@ -441,7 +456,8 @@ public class OidcAuthorization implements IuOidcAuthorization {
 			postAuth.setNotAfter(grant.getNotAfter());
 			postAuth.setUserinfoClaims(userinfoClaims);
 			setCookie = sessionHandler.store(session);
-		} else if (userinfoClaims == null) {
+		} else if (userinfoClaims == null || isUserinfoExpired(userinfoClaims)) {
+			// claims past their own exp are fetched again, rather than failing the session
 			userinfoClaims = getUserinfoClaims(client, response.getAccessToken());
 			postAuth.setUserinfoClaims(userinfoClaims);
 			setCookie = sessionHandler.store(session);

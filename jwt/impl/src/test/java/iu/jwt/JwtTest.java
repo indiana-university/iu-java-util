@@ -44,11 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.lang.reflect.Type;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -73,6 +76,9 @@ import edu.iu.crypt.WebSignedPayload;
 import edu.iu.crypt.X500Utils;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.test.IuTestLogger;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonValue;
+import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -174,6 +180,123 @@ public class JwtTest {
 		assertEquals(audience, new Jwt(IuJson.object().add("aud", IuJson.array().add(audience.toString())).build())
 				.getAudience().iterator().next());
 		assertNull(new Jwt(IuJson.object().addNull("aud").build()).getAudience());
+		assertNull(new Jwt(IuJson.object().add("aud", IuJson.array()).build()).getAudience());
+
+		// a value that isn't a URI is rejected, rather than read as absent
+		assertThrows(JsonbException.class, () -> new Jwt(IuJson.object().add("aud", 5).build()).getAudience());
+		assertThrows(JsonbException.class,
+				() -> new Jwt(IuJson.object().add("aud", IuJson.object()).build()).getAudience());
+	}
+
+	static List<String> listOfString;
+	static Iterable<URI> iterableOfUri;
+	static Map<String, String>[] arrayOfMap;
+
+	private static Type type(String field) {
+		return IuException.unchecked(() -> JwtTest.class.getDeclaredField(field).getGenericType());
+	}
+
+	@Test
+	public void testSingleValueClaims() {
+		final var audience = URI.create(IdGenerator.generateId());
+		final var role = IdGenerator.generateId();
+		final var bin = IdGenerator.generateId().getBytes();
+		final var jwt = new JwtBuilder<>().claim("bin", bin, byte[].class).build();
+		final var claims = IuJson.object(IuJson.parse(jwt.toString()).asJsonObject()) //
+				.add("aud", audience.toString()) //
+				.add("role", role) //
+				.add("roles", IuJson.array().add(role).add("other")) //
+				.add("scope", "openid profile") //
+				.add("map", IuJson.object().add("k", "v")) //
+				.addNull("none") //
+				.build();
+		final var token = new Jwt(claims);
+
+		// a single value reads as one
+		assertArrayEquals(new URI[] { audience }, token.getClaim("aud", URI[].class));
+		assertEquals(List.of(audience), IuIterable.stream((Iterable<?>) token.getClaim("aud", type("iterableOfUri")))
+				.toList());
+		assertEquals(List.of(role), token.getClaim("role", type("listOfString")));
+		final var maps = (Map<?, ?>[]) token.getClaim("map", type("arrayOfMap"));
+		assertEquals(1, maps.length);
+		assertEquals(Map.of("k", "v"), maps[0]);
+
+		// not split
+		assertArrayEquals(new String[] { "openid profile" }, token.getClaim("scope", String[].class));
+
+		// an array, unchanged
+		assertArrayEquals(new String[] { role, "other" }, token.getClaim("roles", String[].class));
+
+		// null and absent read as null
+		assertNull(token.getClaim("none", String[].class));
+		assertNull(token.getClaim("absent", String[].class));
+
+		// scalar types, byte[], and JsonArray are not wrapped
+		assertEquals(role, token.getClaim("role", String.class));
+		assertArrayEquals(bin, token.getClaim("bin", byte[].class));
+		assertThrows(JsonbException.class, () -> token.getClaim("role", JsonArray.class));
+	}
+
+	static Collection<String> collectionOfString;
+
+	@Test
+	public void testArrayClaimsConvert() {
+		final var audience = URI.create(IdGenerator.generateId());
+		final var role = IdGenerator.generateId();
+		final var token = new Jwt(IuJson.object() //
+				.add("aud", IuJson.array().add(audience.toString())) //
+				.add("roles", IuJson.array().add(role).add("other")) //
+				.build());
+
+		// a real array converts its elements, rather than returning the JsonArray
+		final var roles = token.getClaim("roles", type("listOfString"));
+		assertFalse(roles instanceof JsonArray);
+		assertEquals(List.of(role, "other"), roles);
+		assertInstanceOf(String.class, ((List<?>) roles).get(0));
+
+		final var aud = token.getClaim("aud", type("iterableOfUri"));
+		assertFalse(aud instanceof JsonArray);
+		assertEquals(List.of(audience), IuIterable.stream((Iterable<?>) aud).toList());
+
+		final var collection = token.getClaim("roles", type("collectionOfString"));
+		assertFalse(collection instanceof JsonArray);
+		assertEquals(List.of(role, "other"), List.copyOf((Collection<?>) collection));
+
+		// reading again, and as another type, still converts
+		assertEquals(List.of(role, "other"), token.getClaim("roles", type("listOfString")));
+		assertArrayEquals(new String[] { role, "other" }, token.getClaim("roles", String[].class));
+		assertEquals(List.of(role, "other"), token.getClaim("roles", type("listOfString")));
+	}
+
+	@Test
+	public void testMultiValuedReadLeavesScalarReadsConverting() {
+		final var role = IdGenerator.generateId();
+		for (final var token : List.of( //
+				new Jwt(IuJson.object().add("roles", IuJson.array().add(role)).add("map", IuJson.object().add("k", "v"))
+						.build()),
+				(Jwt) new JwtSpi().of("{\"roles\":[\"" + role + "\"],\"map\":{\"k\":\"v\"}}"))) {
+			assertEquals(1, ((Map<?, ?>[]) token.getClaim("map", type("arrayOfMap"))).length);
+			final var map = token.getClaim("map", Map.class);
+			assertFalse(map instanceof JsonValue);
+			assertEquals(Map.of("k", "v"), map);
+
+			assertEquals(List.of(role), token.getClaim("roles", type("listOfString")));
+			final var roles = token.getClaim("roles", Object.class);
+			assertFalse(roles instanceof JsonValue);
+			assertEquals(List.of(role), roles);
+		}
+	}
+
+	@Test
+	public void testIsMultiValued() {
+		assertTrue(Jwt.isMultiValued(String[].class));
+		assertTrue(Jwt.isMultiValued(List.class));
+		assertTrue(Jwt.isMultiValued(type("listOfString")));
+		assertTrue(Jwt.isMultiValued(type("arrayOfMap")));
+		assertFalse(Jwt.isMultiValued(byte[].class));
+		assertFalse(Jwt.isMultiValued(JsonArray.class));
+		assertFalse(Jwt.isMultiValued(String.class));
+		assertFalse(Jwt.isMultiValued(List.class.getTypeParameters()[0]));
 	}
 
 	@Test

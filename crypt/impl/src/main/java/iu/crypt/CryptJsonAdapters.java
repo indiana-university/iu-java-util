@@ -68,6 +68,7 @@ import jakarta.json.bind.serializer.JsonbSerializer;
 import jakarta.json.bind.serializer.SerializationContext;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.json.stream.JsonParser;
+import jakarta.json.stream.JsonParser.Event;
 
 /**
  * Configures {@link Jsonb} for web crypto serialization.
@@ -308,6 +309,27 @@ public class CryptJsonAdapters {
 		}
 	};
 
+	/**
+	 * Reads an index of JSON properties bound to the conversions of the instance
+	 * reading it, in place of the built-in conversion, which follows the JSON-B
+	 * call in progress when a property is read.
+	 *
+	 * <p>
+	 * JOSE values keep the indexes they're read from, and read them after the call
+	 * that created them has returned: possibly while an application's JSON-B
+	 * instance, with none of the conversions here, has a call in progress on the
+	 * thread.
+	 * </p>
+	 */
+	private static final JsonbDeserializer<IuJsonProperties> PROPERTIES_DES = new JsonbDeserializer<IuJsonProperties>() {
+		@Override
+		public IuJsonProperties deserialize(JsonParser parser, DeserializationContext context, Type rtType) {
+			if (Event.VALUE_NULL.equals(parser.currentEvent()))
+				return null;
+			else
+				return IuJsonProperties.deserialize(parser, context);
+		}
+	};
 
 	/**
 	 * {@link Jsonb} instance for internal use by this module.
@@ -320,8 +342,8 @@ public class CryptJsonAdapters {
 	static final Jsonb JSONB = JsonbBuilder.newBuilder("iu.client.jsonb.IuJsonbProvider").withConfig(config()).build();
 
 	/**
-	 * Gets a {@link IuJsonProperties.Builder} instance configured with
-	 * {@link JSONB}.
+	 * Gets a {@link IuJsonProperties.Builder} instance that converts as
+	 * {@link #JSONB} does.
 	 * 
 	 * @return {@link IuJsonProperties.Builder}
 	 */
@@ -342,7 +364,7 @@ public class CryptJsonAdapters {
 				.setProperty(IuJsonAdapter.BASE64_URL_UNPADDED, true) //
 				.withPropertyVisibilityStrategy(new Visibility()) //
 				.withSerializers(JWS_SER, JWS_PAYLOAD_SER, JWE_SER) //
-				.withDeserializers(JWS_DES, JWS_PAYLOAD_DES, JWE_DES) //
+				.withDeserializers(PROPERTIES_DES, JWS_DES, JWS_PAYLOAD_DES, JWE_DES) //
 				.withAdapters(BIGINT, CERT, CRL, USE, OP, ALG, ENC, CERT_REF, JOSE, JWK);
 	}
 

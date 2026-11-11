@@ -128,8 +128,15 @@ final class TokenJsonb {
 	}
 
 	/**
-	 * Gets a {@link JsonbConfig} instance that converts.
-	 * 
+	 * Gets a {@link JsonbConfig} instance that converts token claims.
+	 *
+	 * <p>
+	 * Extends the web crypto configuration, which reads an
+	 * {@link edu.iu.client.IuJsonProperties} as converting by the instance that
+	 * read it: claims a token keeps convert as the instance configured here does,
+	 * whatever JSON-B call is in progress when a claim is read.
+	 * </p>
+	 *
 	 * @return {@link JsonbConfig}
 	 */
 	static synchronized JsonbConfig jsonbConfig() {

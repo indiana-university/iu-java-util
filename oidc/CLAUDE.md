@@ -135,6 +135,8 @@ Each grant is its own class implementing the shared `AuthorizationGrant` contrac
 
 The relying party converts every OIDC document by `WebToken.jsonb()`, the token Jsonb from `jwt`: discovery metadata, the token response, UserInfo claims, and authorization details, which convert by their runtime type so a detail keeps every property it has. `client` doesn't depend on `iu.util.config` outside its integration tests.
 
+UserInfo claims are cached in the session and read through `WebToken.of` on every `getAuthorizedPrincipal` call, which validates `exp`, `iat`, and `nbf` against the current time. So cached claims whose `exp` has passed (`OidcAuthorization.isUserinfoExpired`, by the same 15 second allowance) are fetched again rather than reused, and a document that still fails is `IllegalArgumentException` "userinfo failed validation", caused by the token failure.
+
 These are bound through `IuConfig.registerInterface`, which is why the package is `opens`. When adding a setting, prefer a `default` method on the interface so existing deployments keep working — the same applies to `edu.iu.oidc.config`.
 
 ## Naming

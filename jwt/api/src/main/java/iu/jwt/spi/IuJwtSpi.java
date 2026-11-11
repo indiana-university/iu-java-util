@@ -93,6 +93,16 @@ public interface IuJwtSpi {
 	WebTokenBuilder getJwtBuilder();
 
 	/**
+	 * Creates a {@link WebToken} from claims that weren't received as a signed
+	 * token.
+	 *
+	 * @param source claims
+	 * @return {@link WebToken}
+	 * @see WebToken#of(Object)
+	 */
+	WebToken of(Object source);
+
+	/**
 	 * Verifies the signature on a JWT and returns parsed claim values.
 	 * 
 	 * @param jwt       compact JWT serialization

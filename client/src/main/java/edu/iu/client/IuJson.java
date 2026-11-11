@@ -205,6 +205,40 @@ public class IuJson {
 	}
 
 	/**
+	 * Determines whether an object is a {@link JsonProxy} wrapper.
+	 *
+	 * <p>
+	 * {@code isWrapped(proxy) && !hasValue(proxy, property)} distinguishes a getter
+	 * that returned its default from one provided by the JSON value, where
+	 * {@code property} is the JSON name the getter reads: the name it declares,
+	 * else its Java property name in the wrapper's property name format. This
+	 * doesn't apply to a transient getter, which reads as absent whatever the JSON
+	 * holds.
+	 * </p>
+	 *
+	 * @param jsonProxy object to check
+	 * @return true if {@code jsonProxy} is a non-null proxy instance backed by
+	 *         {@link JsonProxy}; false otherwise
+	 */
+	public static boolean isWrapped(Object jsonProxy) {
+		return JsonProxy.isWrapped(jsonProxy);
+	}
+
+	/**
+	 * Determines whether a {@link JsonProxy} wrapper has a non-null JSON value for
+	 * a property, without converting it.
+	 *
+	 * @param jsonProxy wrapper
+	 * @param property  JSON property name, as it appears in the wrapped object;
+	 *                  not the Java property name of a getter that reads it
+	 * @return true if {@code jsonProxy} is a {@link JsonProxy} wrapper and the
+	 *         property has a value other than JSON null; false otherwise
+	 */
+	public static boolean hasValue(Object jsonProxy, String property) {
+		return JsonProxy.hasValue(jsonProxy, property);
+	}
+
+	/**
 	 * Creates a JSON value from a {@link Boolean#TYPE boolean}.
 	 * 
 	 * @param value {@link Boolean#TYPE boolean}

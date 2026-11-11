@@ -31,18 +31,26 @@
  */
 package iu.jwt;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+
+import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import edu.iu.IdGenerator;
+import edu.iu.client.IuJson;
+import edu.iu.client.IuJsonProperties;
 import edu.iu.crypt.WebKey;
 import edu.iu.jwt.WebToken;
 import iu.jwt.spi.Init;
+import jakarta.json.bind.JsonbException;
 import jakarta.json.bind.adapter.JsonbAdapter;
 import jakarta.json.bind.serializer.JsonbDeserializer;
 import jakarta.json.bind.serializer.JsonbSerializer;
@@ -89,6 +97,42 @@ public class JwtSpiTest {
 			mockTokenJsonb.verify(() -> TokenJsonb.registerSerializer(serializer));
 			WebToken.registerDeserializer(deserializer);
 			mockTokenJsonb.verify(() -> TokenJsonb.registerDeserializer(deserializer));
+		}
+	}
+
+	@Test
+	void testOf() {
+		final var role = IdGenerator.generateId();
+		final var claims = IuJson.object().add("roles", role).build();
+
+		assertArrayEquals(new String[] { role }, WebToken.of(claims).getClaim("roles", String[].class));
+		assertArrayEquals(new String[] { role },
+				WebToken.of(claims.toString()).getClaim("roles", String[].class));
+
+		assertEquals("expected JsonObject or String; found null",
+				assertThrows(IllegalArgumentException.class, () -> WebToken.of(null)).getMessage());
+		assertEquals("expected JsonObject or String; found java.lang.Integer",
+				assertThrows(IllegalArgumentException.class, () -> WebToken.of(1)).getMessage());
+		assertEquals("expected JsonObject or String; found " + IuJsonProperties.class.getName(),
+				assertThrows(IllegalArgumentException.class,
+						() -> WebToken.of(IuJsonProperties.of(claims, WebToken.jsonb()))).getMessage());
+		assertThrows(JsonbException.class, () -> WebToken.of("[]"));
+		assertThrows(JsonbException.class, () -> WebToken.of("not json"));
+
+		// point in time claims are validated
+		final var expired = IuJson.object().add("exp", Instant.now().minusSeconds(60L).getEpochSecond()).build();
+		assertEquals("Token is expired",
+				assertThrows(IllegalArgumentException.class, () -> WebToken.of(expired)).getMessage());
+
+		assertEquals("expected a JSON object; found null",
+				assertThrows(IllegalArgumentException.class, () -> WebToken.of("null")).getMessage());
+
+		// a point in time claim that doesn't convert is rejected, not read as absent
+		for (final var invalid : List.of("{\"exp\":\"x\"}", "{\"exp\":1e30}", "{\"iat\":true}", "{\"nbf\":{}}")) {
+			assertEquals("Invalid point in time claim",
+					assertThrows(IllegalArgumentException.class, () -> WebToken.of(invalid)).getMessage(), invalid);
+			assertEquals("Invalid point in time claim", assertThrows(IllegalArgumentException.class,
+					() -> WebToken.of(IuJson.parse(invalid).asJsonObject())).getMessage(), invalid);
 		}
 	}
 

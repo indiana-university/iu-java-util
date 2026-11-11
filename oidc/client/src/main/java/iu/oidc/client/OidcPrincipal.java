@@ -40,7 +40,6 @@ import java.util.logging.Logger;
 
 import edu.iu.IuIterable;
 import edu.iu.IuWebUtils;
-import edu.iu.client.IuJsonProperties;
 import edu.iu.jwt.IuAuthorizationDetails;
 import edu.iu.jwt.WebToken;
 import edu.iu.oidc.IuOidcPrincipal;
@@ -66,7 +65,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 
 	private final WebToken idToken;
 	private final JsonObject userinfoClaims;
-	private final IuJsonProperties userinfo;
+	private final WebToken userinfo;
 	private final String setCookie;
 	private final IuOidcClientReference config;
 	private final String accessToken;
@@ -113,7 +112,11 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (!userinfoClaims.getString("sub").equals(idToken.getSubject()))
 			throw new IllegalArgumentException("userinfo sub claim doesn't match id token");
 		this.userinfoClaims = userinfoClaims;
-		this.userinfo = IuJsonProperties.of(userinfoClaims, WebToken.jsonb());
+		try {
+			this.userinfo = WebToken.of(userinfoClaims);
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("userinfo failed validation", e);
+		}
 
 		this.setCookie = setCookie;
 
@@ -131,7 +134,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 			final var idTokenValue = idToken.getClaim(principalNameClaimName, String.class);
 			if (idTokenValue != null)
 				return idTokenValue;
-			final var userinfoValue = userinfo.get(principalNameClaimName, String.class);
+			final var userinfoValue = userinfo.getClaim(principalNameClaimName, String.class);
 			if (userinfoValue != null)
 				return userinfoValue;
 		}
@@ -157,7 +160,7 @@ public class OidcPrincipal implements IuOidcPrincipal {
 		if (!userinfoClaims.containsKey(name))
 			return null;
 
-		return type.cast(userinfo.get(name, type));
+		return userinfo.getClaim(name, type);
 	}
 
 	@Override

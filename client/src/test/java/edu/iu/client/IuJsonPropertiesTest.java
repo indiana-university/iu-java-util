@@ -138,6 +138,71 @@ public class IuJsonPropertiesTest {
 	}
 
 	@Test
+	public void testHasValue() {
+		final var json = "{\"a\":1,\"b\":null,\"c\":2,\"d\":null}";
+		final var source = IuJsonProperties.of(IuJson.parse(json).asJsonObject(), IuJsonAdapter::of);
+		assertTrue(source.hasValue("a"));
+		assertFalse(source.hasValue("b"));
+		assertFalse(source.hasValue("x"));
+		assertEquals(1, (Integer) source.get("a", Integer.class));
+		assertTrue(source.hasValue("a"));
+
+		final var parsed = IuJsonProperties.read(parser(json), IuJsonAdapter::of);
+		assertTrue(parsed.hasValue("a"));
+		assertFalse(parsed.hasValue("b"));
+		assertEquals(2, (Integer) parsed.get("c", Integer.class));
+		assertTrue(parsed.hasValue("c"));
+		assertNull(parsed.get("d", Integer.class));
+		assertFalse(parsed.hasValue("d"));
+		assertFalse(parsed.hasValue("x"));
+
+		// a null read as a type with a value of its own is still null
+		for (final var properties : List.of(IuJsonProperties.of(IuJson.parse(json).asJsonObject(), IuJsonAdapter::of),
+				IuJsonProperties.read(parser(json), IuJsonAdapter::of))) {
+			assertEquals(0, (int) properties.get("b", int.class));
+			assertEquals(JsonValue.NULL, properties.get("d", JsonValue.class));
+			assertFalse(properties.hasValue("b"));
+			assertFalse(properties.hasValue("d"));
+		}
+
+		// converted straight from the parser, which keeps no raw form
+		final var streamed = IuJsonProperties.read(parser(json), IuJsonAdapter::of);
+		assertEquals(1, (int) streamed.get("a", int.class));
+		assertEquals(0, (int) streamed.get("b", int.class));
+		assertEquals(2, (Integer) streamed.get("c", Integer.class));
+		assertNull(streamed.get("d", Integer.class));
+		assertTrue(streamed.hasValue("a"));
+		assertFalse(streamed.hasValue("b"));
+		assertTrue(streamed.hasValue("c"));
+		assertFalse(streamed.hasValue("d"));
+
+		final var built = IuJsonProperties.builder(IuJsonAdapter::of).put("a", 1).put("b", null).build();
+		assertTrue(built.hasValue("a"));
+		assertFalse(built.hasValue("b"));
+		assertFalse(built.hasValue("x"));
+	}
+
+	@Test
+	public void testHasValueResolvedWhileWaiting() throws Exception {
+		final var parsed = IuJsonProperties.read(parser("{\"a\":1,\"c\":2}"), IuJsonAdapter::of);
+		final CompletableFuture<Boolean> other;
+		synchronized (parsed) {
+			final var started = new java.util.concurrent.CountDownLatch(1);
+			final var thread = new Thread[1];
+			other = CompletableFuture.supplyAsync(() -> {
+				thread[0] = Thread.currentThread();
+				started.countDown();
+				return parsed.hasValue("c");
+			});
+			started.await();
+			while (thread[0].getState() != Thread.State.BLOCKED)
+				Thread.onSpinWait();
+			assertEquals(2, (Integer) parsed.get("c", Integer.class));
+		}
+		assertTrue(other.get());
+	}
+
+	@Test
 	public void testPullForward() {
 		final List<String> calls = new ArrayList<>();
 		final var json = "{\"a\":1,\"b\":{\"c\":2},\"d\":[3],\"e\":\"x\"}";
