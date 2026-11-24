@@ -50,8 +50,10 @@ import java.util.Queue;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.regex.Pattern;
 
 import edu.iu.IuException;
 import edu.iu.IuIterable;
@@ -136,17 +138,26 @@ public class ModularClassLoader extends ClassLoader implements AutoCloseable {
 				IuIterable.filter(path, ModularClassLoader::hasModuleInfo), parentLayer, parent, controllerCallback);
 	}
 
+	private static final Pattern VERSIONED_MODULE_INFO = Pattern.compile("META-INF/versions/\\d+/module-info\\.class");
+
 	private static boolean hasModuleInfo(Path pathEntry) {
 		return IuException.unchecked(() -> {
 			boolean hasModuleInfo = false;
 			try (final var in = Files.newInputStream(pathEntry); //
 					final var jar = new JarInputStream(in)) {
+				final var manifest = jar.getManifest();
+				final var multiRelease = manifest != null
+						&& Boolean.parseBoolean(manifest.getMainAttributes().getValue(Attributes.Name.MULTI_RELEASE));
+
 				JarEntry entry;
-				while ((entry = jar.getNextJarEntry()) != null)
-					if (entry.getName().equals("module-info.class")) {
+				while ((entry = jar.getNextJarEntry()) != null) {
+					final var name = entry.getName();
+					if (name.equals("module-info.class") //
+							|| (multiRelease && VERSIONED_MODULE_INFO.matcher(name).matches())) {
 						hasModuleInfo = true;
 						break;
 					}
+				}
 			}
 			return hasModuleInfo;
 		});

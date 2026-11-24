@@ -52,9 +52,11 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -385,6 +387,62 @@ public class ModularClassLoaderTest {
 		final var resources = loader.findResources("org/eclipse/parsson/messages.properties");
 		assertFalse(resources.hasMoreElements());
 		assertNull(loader.findResource("org/eclipse/parsson/messages.properties"));
+	}
+
+	private Iterable<Path> getVersionedModulePath(boolean multiRelease) throws IOException {
+		final var source = Path.of(IuTest.getProperty("testruntime.archive"));
+		final var versioned = TemporaryFile.init(out -> {
+			try (final var in = Files.newInputStream(source); //
+					final var jar = new JarInputStream(in)) {
+				final var manifest = jar.getManifest() == null ? new Manifest() : new Manifest(jar.getManifest());
+				manifest.getMainAttributes().putIfAbsent(Attributes.Name.MANIFEST_VERSION, "1.0");
+				if (multiRelease)
+					manifest.getMainAttributes().put(Attributes.Name.MULTI_RELEASE, "true");
+				else
+					manifest.getMainAttributes().remove(Attributes.Name.MULTI_RELEASE);
+
+				try (final var fileOut = Files.newOutputStream(out); //
+						final var versionedJar = new JarOutputStream(fileOut, manifest)) {
+					JarEntry entry;
+					while ((entry = jar.getNextJarEntry()) != null) {
+						final var name = entry.getName();
+						versionedJar.putNextEntry(new JarEntry(
+								name.equals("module-info.class") ? "META-INF/versions/9/module-info.class" : name));
+						versionedJar.write(jar.readAllBytes());
+						versionedJar.closeEntry();
+					}
+				}
+			}
+			return out;
+		});
+		onTeardown.add(() -> Files.delete(versioned));
+
+		final Deque<Path> path = new ArrayDeque<>();
+		for (final var entry : getModulePath("testruntime"))
+			path.add(entry.equals(source) ? versioned : entry);
+		return path;
+	}
+
+	@Test
+	public void testMultiReleaseModuleInfo() throws IOException, ClassNotFoundException {
+		final var loader = new ModularClassLoader(false, getVersionedModulePath(true), ModuleLayer.boot(), null,
+				null);
+		onTeardown.push(loader::close);
+		final var className = "edu.iu.type.testruntime.TestRuntime";
+		final var testRuntime = loader.findClass("iu.util.type.testruntime", className);
+		assertNotNull(testRuntime);
+		assertEquals("iu.util.type.testruntime", testRuntime.getModule().getName());
+		assertSame(testRuntime, loader.loadClass(className));
+	}
+
+	@Test
+	public void testVersionedModuleInfoIgnoredWithoutMultiRelease() throws IOException, ClassNotFoundException {
+		final var loader = new ModularClassLoader(false, getVersionedModulePath(false), ModuleLayer.boot(), null,
+				null);
+		onTeardown.push(loader::close);
+		final var className = "edu.iu.type.testruntime.TestRuntime";
+		assertNull(loader.findClass("iu.util.type.testruntime", className));
+		assertFalse(loader.loadClass(className).getModule().isNamed());
 	}
 
 	@Test
